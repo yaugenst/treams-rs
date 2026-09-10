@@ -213,4 +213,28 @@ proptest! {
         prop_assert!((scaled.value-jet.value).norm()<1e-10*(1.0+jet.value.norm()));
     }
 
+    #[test]
+    fn plane_wave_maxwell_and_origin_reconstruction(x in -1.0_f64..1.0, y in -1.0_f64..1.0, z in 0.5_f64..2.0, pol in 0_u8..2, helicity in any::<bool>()) {
+        let vector=[x,y,z].map(|v|v*Complex::new(1.0,0.1));
+        let k=vector.iter().map(|v|v*v).sum::<Complex>().sqrt();
+        let polarization=crate::plane::polarization(vector,pol,helicity).unwrap();
+        let dot:Complex=polarization.iter().zip(vector).map(|(e,k)|e*k).sum();
+        prop_assert!(dot.norm()<1e-12);
+        if helicity {
+            let [x,y,z]=vector;
+            let [ex,ey,ez]=polarization;
+            let cross=[y*ez-z*ey,z*ex-x*ez,x*ey-y*ex];
+            for (curl,e) in cross.iter().zip(polarization) {
+                prop_assert!((Complex::i()*curl-(2.0*f64::from(pol)-1.0)*k*e).norm()<1e-12);
+            }
+        }
+        let modes=(-1..=1).flat_map(|m|(0..2).map(move |pol|(0,Mode{l:1,m,pol}))).collect();
+        let basis=crate::basis::Basis{modes,positions:vec![[0.0;3]]};
+        let coefficients=crate::plane::spherical(&basis,vector,pol,helicity).unwrap();
+        let field=crate::fields::field(basis,coefficients,vec![[0.0;3]],[k,k],helicity,Radial::Regular).unwrap();
+        for (actual,expected) in field.value.first().unwrap().iter().zip(polarization) {
+            prop_assert!((*actual-expected).norm()<1e-11);
+        }
+    }
+
 }

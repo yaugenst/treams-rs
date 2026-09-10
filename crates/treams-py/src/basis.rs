@@ -194,8 +194,46 @@ fn cyl_translation(
     Ok((result.value, result.position, result.k, result.kz))
 }
 
+#[pyfunction]
+fn plane_to_spherical(
+    py: Python<'_>,
+    modes: Vec<(usize, i32, i32, u8)>,
+    positions: Vec<[f64; 3]>,
+    vector: [Complex; 3],
+    pol: u8,
+    helicity: bool,
+) -> PyResult<Bound<'_, PyArray1<Complex>>> {
+    let basis = make_basis(modes, positions);
+    Ok(py
+        .detach(move || treams_core::plane::spherical(&basis, vector, pol, helicity))
+        .map_err(error)?
+        .into_pyarray(py))
+}
+#[pyfunction]
+fn plane_polarization(vector: [Complex; 3], pol: u8, helicity: bool) -> PyResult<[Complex; 3]> {
+    treams_core::plane::polarization(vector, pol, helicity).map_err(error)
+}
+
+#[pyfunction]
+fn plane_to_cylindrical(
+    py: Python<'_>,
+    modes: Vec<(usize, f64, i32, u8)>,
+    positions: Vec<[f64; 3]>,
+    vector: [Complex; 3],
+    pol: u8,
+) -> PyResult<Bound<'_, PyArray1<Complex>>> {
+    let basis = make_cyl_basis(modes, positions);
+    Ok(py
+        .detach(move || treams_core::plane::cylindrical(&basis, vector, pol))
+        .map_err(error)?
+        .into_pyarray(py))
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ExpansionContext>()?;
+    m.add_function(wrap_pyfunction!(plane_to_cylindrical, m)?)?;
+    m.add_function(wrap_pyfunction!(plane_to_spherical, m)?)?;
+    m.add_function(wrap_pyfunction!(plane_polarization, m)?)?;
     m.add_function(wrap_pyfunction!(expansion, m)?)?;
     m.add_function(wrap_pyfunction!(cyl_expansion, m)?)?;
     m.add_function(wrap_pyfunction!(cyl_translation, m)?)?;

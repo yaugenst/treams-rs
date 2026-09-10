@@ -16,7 +16,7 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 | Testing | Native proptest invariants and adjoint identities; Hypothesis physical invariants; treams/SciPy reference comparisons; complete Python workflows | Expand qualification with every ported subsystem |
 | Performance | Cached angular plans and radial tables, faer LU and matmul, block-diagonal local storage, Rayon coupling assembly | See measured scope and limitations in benchmarks.md |
 | Cylindrical scattering | Complex J/H and derivatives; multilayer chiral coefficients and complete T-matrix with all parameter VJPs; cylindrical bases, translations, clusters and cross widths | Cylindrical fields and conversions to spherical/plane waves |
-| Planar scattering | Not implemented | Plane-wave conversion, interfaces, layered S matrices and VJPs |
+| Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections | Partial-wavevector bases, plane-wave direction/material VJPs, interfaces and layered S matrices |
 | Periodic scattering | Not implemented | 1D/2D/3D lattice sums, periodic coupling and derivatives |
 | Remaining public API | Not implemented | Field-operator conveniences, EBCM, band calculations, I/O and remaining observables |
 

@@ -8,6 +8,7 @@ import numpy as np
 
 from . import diff
 from ._core import CylindricalWaveBasis, Material, MaterialLike, SphericalWaveBasis
+from ._plane import PlaneWave
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -81,8 +82,21 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
     ) -> NDArray[np.generic]:
         return np.asarray(self.array, dtype=dtype, copy=copy)
 
-    def __matmul__(self, other: ArrayLike) -> NDArray[np.complex128]:
-        return self.array @ np.asarray(other, dtype=np.complex128)
+    def __matmul__(self, other: ArrayLike | PlaneWave) -> NDArray[np.complex128]:
+        return self.array @ self._incident(other)
+
+    def _incident(self, value: ArrayLike | PlaneWave) -> NDArray[np.complex128]:
+        if isinstance(value, PlaneWave):
+            if (
+                value.k0 != self.k0
+                or value.material != self.material
+                or value.poltype != self.poltype
+            ):
+                raise ValueError(
+                    "illumination must have matching k0, material and polarization type"
+                )
+            return value.expand(self.basis)
+        return np.asarray(value, dtype=np.complex128)
 
     @classmethod
     def cluster(cls, tmats: Sequence[Self], positions: ArrayLike) -> Self:
@@ -172,9 +186,9 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
         return ks.real[self.basis.pol]
 
     def _cross_sections(
-        self, illu: ArrayLike, flux: float, power: int, factor: float
+        self, illu: ArrayLike | PlaneWave, flux: float, power: int, factor: float
     ) -> tuple[float, float]:
-        incident = np.asarray(illu, dtype=np.complex128)
+        incident = self._incident(illu)
         if (
             incident.shape != (len(self),)
             or not np.isfinite(incident).all()
@@ -262,7 +276,7 @@ class TMatrix(_TMatrix[SphericalWaveBasis]):
         ks = self._propagating_ks()
         return float(2 * np.pi * np.sum(abs(self.array / ks[:, None]) ** 2))
 
-    def xs(self, illu: ArrayLike, flux: float = 0.5) -> tuple[float, float]:
+    def xs(self, illu: ArrayLike | PlaneWave, flux: float = 0.5) -> tuple[float, float]:
         """Scattering and extinction for incident spherical coefficients."""
         return self._cross_sections(illu, flux, 2, 0.5)
 
@@ -336,6 +350,6 @@ class TMatrixC(_TMatrix[CylindricalWaveBasis]):
             / len(np.unique(self.basis.kz))
         )
 
-    def xw(self, illu: ArrayLike, flux: float = 0.5) -> tuple[float, float]:
+    def xw(self, illu: ArrayLike | PlaneWave, flux: float = 0.5) -> tuple[float, float]:
         """Scattering and extinction widths for incident cylindrical coefficients."""
         return self._cross_sections(illu, flux, 1, 2.0)

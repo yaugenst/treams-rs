@@ -7,6 +7,7 @@ pub mod cylinder;
 pub mod cylwaves;
 pub mod fields;
 pub mod interaction;
+pub mod plane;
 pub mod special;
 pub mod tmatrix;
 mod translation_plan;

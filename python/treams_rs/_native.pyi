@@ -156,3 +156,19 @@ def cyl_translation(
     position: tuple[float, float, float],
     outgoing: bool,
 ) -> tuple[complex, tuple[complex, complex, complex], complex, complex]: ...
+def plane_to_spherical(
+    modes: list[tuple[int, int, int, int]],
+    positions: list[list[float]],
+    vector: tuple[complex, ...],
+    pol: int,
+    helicity: bool,
+) -> NDArray[np.complex128]: ...
+def plane_polarization(
+    vector: tuple[complex, ...], pol: int, helicity: bool
+) -> tuple[complex, complex, complex]: ...
+def plane_to_cylindrical(
+    modes: list[tuple[int, float, int, int]],
+    positions: list[list[float]],
+    vector: tuple[complex, ...],
+    pol: int,
+) -> NDArray[np.complex128]: ...

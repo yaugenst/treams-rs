@@ -108,7 +108,7 @@ pub struct Basis {
     pub positions: Vec<[f64; 3]>,
 }
 impl Basis {
-    fn validate(&self) -> Result<()> {
+    pub(crate) fn validate(&self) -> Result<()> {
         if self.modes.is_empty() || self.positions.iter().flatten().any(|v| !v.is_finite()) {
             return Err(Error::InvalidInput(
                 "basis must be nonempty with finite origins".into(),

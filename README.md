@@ -73,3 +73,17 @@ The output has shape `(number_of_points, 3)`. Its pullback returns cotangents fo
 amplitudes, sample coordinates, basis origins, and the two helicity wavenumbers.
 `tr.advect.field` composes this calculation with scattering and ordinary NumPy
 objectives; `tr.advect.expansion` similarly differentiates basis translations.
+
+Plane-wave illumination can be passed directly to either matrix family:
+
+```python
+wave = tr.plane_wave([0, 0, 1], [1, 0, 0], k0=1.3)
+sphere = tr.TMatrix.sphere(4, 1.3, 0.25, [4.0, 1.0])
+scattered = sphere @ wave
+print(sphere.xs(wave))
+```
+
+The illumination may also be expanded explicitly with `wave.expand(basis)`.
+`plane_wave_angle(theta, phi, pol, ...)` accepts angles in radians. Illumination
+parameters currently remain ordinary constants when used in an Advect objective;
+scattering and field parameters retain their native VJPs.
