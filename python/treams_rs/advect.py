@@ -1,18 +1,16 @@
-"""First-order Autograd adapters for native forward/pullback operations.
+"""First-order Advect adapters for native forward/pullback operations.
 
-Install ``treams-rs[autograd]``. The Rust solver remains opaque to Autograd.
-Each VJP consumes its native residual once; repeated VJPs and higher derivatives
-are not supported. A fresh forward call creates a fresh residual.
+Install ``treams-rs[advect]``. Each reverse pass consumes its native residual
+once. Forward mode, higher derivatives, staging, and checkpointing are unsupported.
+A fresh forward call creates a fresh residual.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
-import autograd.builtins as ag_builtins
+import advect as ad
 import numpy as np
-from autograd.extend import defvjp, primitive
-from autograd.tracer import isbox
 
 from . import coeffs, diff
 
@@ -27,46 +25,41 @@ type _Pullback = Callable[[NDArray[np.complex128]], _Values]
 type _Forward = Callable[[_Values], tuple[NDArray[np.complex128], _Pullback]]
 
 
-@primitive
+@ad.primitive(static_argnames=("forward",), residual=True)
 def _execute(
-    values: _Values, forward: _Forward, holder: list[_Pullback]
-) -> NDArray[np.complex128]:
+    values: _Values, *, forward: _Forward
+) -> ad.PrimitiveResult[NDArray[np.complex128]]:
     value, pullback = forward(values)
-    holder.append(pullback)
-    return value
+    # Clearing the holder drops the native context even when a failed trace is kept.
+    return ad.PrimitiveResult(value, [pullback], release=list.clear)
 
 
-def _make_vjp(
-    _answer: ArrayLike, values: _Values, _forward: _Forward, holder: list[_Pullback]
-) -> Callable[[ArrayLike], _Values]:
-    native_pullback = holder.pop()
-
-    def pullback(cotangent: ArrayLike) -> _Values:
-        if isbox(cotangent):
-            raise NotImplementedError("native adapters support first-order VJPs only")
-        native_cotangent = np.ascontiguousarray(np.conj(cotangent), dtype=np.complex128)
-        gradients = native_pullback(native_cotangent)
-        # Autograd uses the bilinear complex convention; the core uses Hermitian.
-        return ag_builtins.tuple(
-            np.asarray(
-                np.conj(gradient) if np.iscomplexobj(value) else np.real(gradient)
-            ).reshape(np.shape(value))
-            for gradient, value in zip(gradients, values, strict=True)
-        )
-
-    return pullback
-
-
-defvjp(_execute, _make_vjp)
+@_execute.def_transpose
+def _transpose(
+    cotangent: ArrayLike,
+    primals: _Values,
+    _output: ArrayLike,
+    residual: list[_Pullback],
+    *,
+    forward: _Forward,
+) -> _Values:
+    # Advect and the native core both use dL = Re(vdot(gradient, dx)).
+    gradients = residual[0](np.ascontiguousarray(cotangent, dtype=np.complex128))
+    return tuple(
+        np.asarray(
+            gradient if np.iscomplexobj(primal) else np.real(gradient),
+            dtype=np.asarray(primal).dtype,
+        ).reshape(np.shape(primal))
+        for gradient, primal in zip(gradients, primals, strict=True)
+    )
 
 
 def _call(values: _Values, forward: _Forward) -> NDArray[np.complex128]:
-    if any(isbox(value) and isbox(getattr(value, "_value", None)) for value in values):
-        raise NotImplementedError("native adapters support first-order VJPs only")
-    holder: list[_Pullback] = []
-    # Per-call ownership keeps independent calls and threads separate. Python
-    # reference counting drops a residual if tracing or the objective fails.
-    return _execute(ag_builtins.tuple(values), forward, holder)
+    # Normalize containers before the primitive flattens its dynamic leaves.
+    return cast(
+        "NDArray[np.complex128]",
+        _execute(tuple(ad.numpy.asarray(value) for value in values), forward=forward),
+    )
 
 
 def sphere(

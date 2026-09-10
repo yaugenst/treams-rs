@@ -3,15 +3,34 @@ revision = 3
 requires-python = ">=3.12, <3.14"
 
 [[package]]
-name = "autograd"
-version = "1.9.1"
+name = "advect"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "array-api-compat" },
     { name = "numpy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9d/ac/4a8b58364ba865ab545251edbe475e5a35326814a5d274a2211d33ed8a5d/autograd-1.9.1.tar.gz", hash = "sha256:7818c5c69ddf9efb7da74097bd741a4c7920133f41966f68537223a15ef798bc", size = 2566975, upload-time = "2026-07-02T07:43:58.255Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0e/3b/1675cf6163555f422de06dc095cb96a1f05db7cc390ff811b1dd79e6e610/advect-0.2.0.tar.gz", hash = "sha256:5e32a63d2809bb9bb9f069f4ba3601be38ceb44649a96e564b92d4162eefb80d", size = 472596, upload-time = "2026-08-14T03:37:42.361Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6e/ce/8c98e6604bb1ec9d03c8493c328185b69bb7533fe08f3640f0f3641bd9d1/autograd-1.9.1-py3-none-any.whl", hash = "sha256:b788bae3fa010cbffb4cfb7b8ba2a3f0daa6072a8506da6164c779fe9cf3e05a", size = 54387, upload-time = "2026-07-02T07:43:56.502Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/89/0ec909efc9c947846968c68bd29aa2410e06ff0dcbf1ba3927515ecfbfff/advect-0.2.0-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:96a8f5099698e554f6ad7d1f0c5532bd3ee680cac9c2c60264644b1a5a246777", size = 1162029, upload-time = "2026-08-14T03:37:20.407Z" },
+    { url = "https://files.pythonhosted.org/packages/ea/41/17684a02b5d743946b61e355e7d6b40fb996cbfdd44601d1eb51dd8ac94d/advect-0.2.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:8a7a43b7530e442f04c62c3eb34f7bdfe17502e9b168c3a187180c762b05f02c", size = 1115316, upload-time = "2026-08-14T03:37:22.197Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/f7/d35a538b78ad1cbfeab21b9e1d30031a4f7dcc4f343a6e36fab1da05d189/advect-0.2.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:27a4bcc634043d8d3b8897a73df7d0981e6e6d485ce0ef99fad3796941fb5e69", size = 1151842, upload-time = "2026-08-14T03:37:23.784Z" },
+    { url = "https://files.pythonhosted.org/packages/63/10/f8be2dd8c695243dcc1e812ff21d3ca16989a9a056d6c34babe5ece70779/advect-0.2.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ba8f4398c5199b2d1a2192e7012f60a0c1bb20fd661e4836e2ca17cce9e6d938", size = 1186073, upload-time = "2026-08-14T03:37:25.333Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/ce/d91609cab4ec73aa4ae379c0464ce83a53b5d421535c812f7bbcf1c80064/advect-0.2.0-cp312-cp312-win_amd64.whl", hash = "sha256:5feb96e57e247e5ad7efbe6f92f4af59800b465c8bfce7e17d0eb007c9dddb18", size = 1064716, upload-time = "2026-08-14T03:37:26.81Z" },
+    { url = "https://files.pythonhosted.org/packages/2f/69/b7a393ffb509777c0f4e51a4cf71e6989b842909195f0b34141a3bc9f1d6/advect-0.2.0-cp313-cp313-macosx_10_12_x86_64.whl", hash = "sha256:7f3cb14a251b7c1bc0950fd285d9ed976ec86d7a055ab15106694aff7b68bfba", size = 1162309, upload-time = "2026-08-14T03:37:28.452Z" },
+    { url = "https://files.pythonhosted.org/packages/68/e7/ddfa9b31be399d64ca0675694189be4bbf9609f965eaace6ea337b63e764/advect-0.2.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:13341589bab751eec83b326323c2f13f135fc74e04a454428caf3ca5ee6f0b05", size = 1115241, upload-time = "2026-08-14T03:37:29.837Z" },
+    { url = "https://files.pythonhosted.org/packages/62/f5/3d1337a5acd06a9b995c020e1eb9560ba757005b4f6835de51f874f60d7e/advect-0.2.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:6c82469422c850b3df2c05c0fa16f70c01772619c28d7dfad36996b1c1318ddb", size = 1151922, upload-time = "2026-08-14T03:37:31.229Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/cd/8af99a22a349593ba4a5d0f4d96c9c4decea07110cc5ca9030079212b018/advect-0.2.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:13ae46ce8c3426ac55c04a201b03b2e3fbb82aaaaa3f9dc1fa05ebac70cc60ec", size = 1186141, upload-time = "2026-08-14T03:37:32.502Z" },
+    { url = "https://files.pythonhosted.org/packages/10/e9/ff7c91cf99b176977b866f6e95893f670395ea5ade5c5e1f2c40bf115de7/advect-0.2.0-cp313-cp313-win_amd64.whl", hash = "sha256:5660400dd2b56b95d19db7d22ce2c9be468ee0b6cef2abda91b9ddd179d7b49d", size = 1064845, upload-time = "2026-08-14T03:37:33.975Z" },
+]
+
+[[package]]
+name = "array-api-compat"
+version = "1.15.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/86/12/65d297d3e425cb7fe5247b7ec14b4ed83539e9b5e89b65c15ea7ee274182/array_api_compat-1.15.0.tar.gz", hash = "sha256:53c5f922491bf15f62847afafc4e39eedfae57d218988fefb8cce39c2a9b3dea", size = 129305, upload-time = "2026-06-07T20:53:24.964Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/86/16/1a8fd2b19544b84575cf84ef7aa3ad4c173b756d5f087c91f85d1b295777/array_api_compat-1.15.0-py3-none-any.whl", hash = "sha256:7b1b9c53269061403fd5f45a8de349f16e7887653328bfa0c5f2d45299ff0a8e", size = 79113, upload-time = "2026-06-07T20:53:23.621Z" },
 ]
 
 [[package]]
@@ -421,13 +440,13 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-autograd = [
-    { name = "autograd" },
+advect = [
+    { name = "advect" },
 ]
 
 [package.dev-dependencies]
 dev = [
-    { name = "autograd" },
+    { name = "advect" },
     { name = "hypothesis" },
     { name = "maturin" },
     { name = "pre-commit" },
@@ -441,14 +460,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "autograd", marker = "extra == 'autograd'", specifier = ">=1.8,<2" },
+    { name = "advect", marker = "extra == 'advect'", specifier = ">=0.2.0,<0.3" },
     { name = "numpy", specifier = ">=2.1,<3" },
 ]
-provides-extras = ["autograd"]
+provides-extras = ["advect"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "autograd", specifier = ">=1.8,<2" },
+    { name = "advect", specifier = ">=0.2.0,<0.3" },
     { name = "hypothesis", specifier = ">=6" },
     { name = "maturin", specifier = ">=1.12,<2" },
     { name = "pre-commit", specifier = ">=4" },

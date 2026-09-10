@@ -89,3 +89,13 @@ def mie_cyl(
 def cylindrical(
     m: int, z: complex, outgoing: bool
 ) -> tuple[complex, complex, complex]: ...
+
+type Vector = tuple[complex, complex, complex]
+
+def spherical_wave(
+    mode: tuple[int, int, int],
+    k: complex,
+    position: tuple[float, float, float],
+    helicity: bool,
+    outgoing: bool,
+) -> tuple[Vector, tuple[Vector, Vector, Vector], Vector]: ...

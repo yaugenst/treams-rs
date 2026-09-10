@@ -135,4 +135,30 @@ proptest! {
         prop_assert!(gradient.layers.epsilon.iter().chain(&gradient.layers.mu).chain(&gradient.layers.kappa).all(|g|g.re.abs()<1e-9));
     }
 
+    #[test]
+    fn vector_wave_maxwell_and_scaling(
+        l in 1_i32..7, selector in 0_i32..20, pol in 0_u8..2,
+        x in -1.0_f64..1.0, y in -1.0_f64..1.0, z in 0.5_f64..2.0,
+        outgoing in any::<bool>(),
+    ) {
+        let m=selector%(2*l+1)-l;
+        let mode=Mode{l,m,pol};
+        let k=Complex::new(1.2,0.1);
+        let radial=if outgoing {Radial::Outgoing} else {Radial::Regular};
+        for position in [[x,y,z],[0.0,0.0,z],[0.0,0.0,if outgoing {z} else {0.0}]] {
+            let wave=crate::fields::spherical_wave(mode,k,position,true,radial).unwrap();
+            let [jx,jy,jz]=wave.position;
+            let curl=[jz[1]-jy[2],jx[2]-jz[0],jy[0]-jx[1]];
+            let scale=1.0+wave.value.iter().map(Complex::norm_sqr).sum::<f64>().sqrt();
+            for (actual,value) in curl.iter().zip(wave.value) {
+                prop_assert!((*actual-(2.0*f64::from(pol)-1.0)*k*value).norm()<1e-10*scale);
+            }
+            prop_assert!((jx[0]+jy[1]+jz[2]).norm()<1e-10*scale);
+            for (jacobian,dk) in wave.position.iter().zip(wave.k) {
+                let spatial:Complex=jacobian.iter().zip(position).map(|(d,r)|d*r).sum();
+                prop_assert!((spatial-k*dk).norm()<1e-10*scale);
+            }
+        }
+    }
+
 }

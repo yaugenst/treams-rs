@@ -40,18 +40,18 @@ The benchmark validates output parity before timing isolated solver processes:
 
 ```sh
 just build-ext-release
-uv run python scripts/benchmark_cluster.py --particles 16 --lmax 3 --threads 4
+uv run --no-sync python scripts/benchmark_cluster.py --particles 16 --lmax 3 --threads 4
 ```
 
 Measured scope and caveats are in [benchmarks](docs/benchmarks.md).
 
 
-Optional Autograd integration composes ordinary objectives around the native solver:
+Optional Advect integration composes ordinary objectives around the native solver:
 
 ```python
-import autograd.numpy as np
-from autograd import grad
-from treams_rs import autograd as ad
+import advect.numpy as np
+from advect import grad
+from treams_rs import advect as ad
 
 
 def loss(radii):
@@ -63,7 +63,7 @@ def loss(radii):
 print(grad(loss)(np.array([0.2, 0.25])))
 ```
 
-Install `treams-rs[autograd]` when using a wheel, or `uv sync --extra autograd`
+Install `treams-rs[advect]` when using a wheel, or `uv sync --extra advect`
 from source. This is a first-order, one-use VJP contract. A new forward call is
-required for another VJP; higher-order derivatives and Jacobian-building helpers
-that repeatedly call one residual are unsupported.
+required for another VJP; forward mode, higher-order derivatives, staging, checkpointing, and Jacobian-building
+helpers that repeatedly call one residual are unsupported.

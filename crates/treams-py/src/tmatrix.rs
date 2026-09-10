@@ -258,11 +258,38 @@ fn translation(
     Ok((result.value, result.position, result.k))
 }
 
+type WaveJet = ([Complex; 3], [[Complex; 3]; 3], [Complex; 3]);
+
+#[pyfunction]
+fn spherical_wave(
+    mode: (i32, i32, u8),
+    k: Complex,
+    position: [f64; 3],
+    helicity: bool,
+    outgoing: bool,
+) -> PyResult<WaveJet> {
+    let (l, m, pol) = mode;
+    let result = treams_core::fields::spherical_wave(
+        Mode { l, m, pol },
+        k,
+        position,
+        helicity,
+        if outgoing {
+            Radial::Outgoing
+        } else {
+            Radial::Regular
+        },
+    )
+    .map_err(error)?;
+    Ok((result.value, result.position, result.k))
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SphereContext>()?;
     m.add_class::<ClusterContext>()?;
     m.add_class::<InteractionContext>()?;
     m.add_function(wrap_pyfunction!(sphere, m)?)?;
+    m.add_function(wrap_pyfunction!(spherical_wave, m)?)?;
     m.add_function(wrap_pyfunction!(cluster, m)?)?;
     m.add_function(wrap_pyfunction!(interact, m)?)?;
     m.add_function(wrap_pyfunction!(translation, m)?)?;
