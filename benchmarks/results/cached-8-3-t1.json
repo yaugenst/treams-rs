@@ -1,0 +1,73 @@
+{
+  "results": [
+    {
+      "backend": "treams",
+      "particles": 8,
+      "lmax": 3,
+      "dimension": 240,
+      "threads": 1,
+      "median_seconds": 0.08759090700186789,
+      "peak_rss_mib": 72.80078125,
+      "baseline_rss_mib": 63.2890625,
+      "samples_seconds": [
+        0.08759090700186789,
+        0.08753243600222049,
+        0.08776192199729849,
+        0.08728868899925146,
+        0.08806680999987293
+      ],
+      "blas": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "~/personal/treams-rs/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-f48b354e.so",
+          "version": "0.3.34.106.0",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "~/personal/treams-rs/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-b75cc656.so",
+          "version": "0.3.29.dev",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ]
+    },
+    {
+      "backend": "rust",
+      "particles": 8,
+      "lmax": 3,
+      "dimension": 240,
+      "threads": 1,
+      "median_seconds": 0.02058091200160561,
+      "peak_rss_mib": 38.48046875,
+      "baseline_rss_mib": 34.03515625,
+      "samples_seconds": [
+        0.020695434999652207,
+        0.02055044200096745,
+        0.020574572001351044,
+        0.020590662003087346,
+        0.02058091200160561
+      ],
+      "blas": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "~/personal/treams-rs/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-f48b354e.so",
+          "version": "0.3.34.106.0",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ]
+    }
+  ],
+  "speedup": 4.255929328838028
+}

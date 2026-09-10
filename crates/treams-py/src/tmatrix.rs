@@ -1,0 +1,270 @@
+//! Opaque native contexts for complete spherical and cluster operations.
+#![allow(clippy::indexing_slicing)] // Validated NumPy shapes and fixed coordinates.
+
+use nalgebra::DMatrix;
+use numpy::{
+    IntoPyArray, PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2,
+    ndarray::Array2,
+};
+use pyo3::{exceptions::PyValueError, prelude::*};
+use treams_core::{
+    Complex,
+    interaction::{self, InteractionResidual},
+    special::Radial,
+    tmatrix::{self, ClusterResidual, SphereResidual},
+    waves::{self, Mode},
+};
+
+use crate::{error, materials};
+
+pub(crate) fn matrix<'py>(
+    py: Python<'py>,
+    value: &DMatrix<Complex>,
+) -> Bound<'py, PyArray2<Complex>> {
+    Array2::from_shape_fn(value.shape(), |(i, j)| value[(i, j)]).into_pyarray(py)
+}
+pub(crate) fn from_array(value: PyReadonlyArray2<'_, Complex>) -> PyResult<DMatrix<Complex>> {
+    let a = value.as_array();
+    if a.iter().any(|z| !z.re.is_finite() || !z.im.is_finite()) {
+        return Err(PyValueError::new_err("array must be finite"));
+    }
+    Ok(DMatrix::from_fn(a.nrows(), a.ncols(), |i, j| a[(i, j)]))
+}
+
+#[pyclass]
+#[derive(Debug)]
+struct SphereContext {
+    residual: Option<SphereResidual>,
+}
+
+type SphereGradient<'py> = (
+    f64,
+    Bound<'py, PyArray1<f64>>,
+    Bound<'py, PyArray1<Complex>>,
+    Bound<'py, PyArray1<Complex>>,
+    Bound<'py, PyArray1<Complex>>,
+);
+
+#[pymethods]
+impl SphereContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'py, Complex>,
+    ) -> PyResult<SphereGradient<'py>> {
+        let g = from_array(cotangent)?;
+        let shape = self
+            .residual
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?
+            .value
+            .shape();
+        if g.shape() != shape {
+            return Err(PyValueError::new_err(
+                "cotangent shape does not match forward output",
+            ));
+        }
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let result = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        Ok((
+            result.k0,
+            result.radii.into_pyarray(py),
+            result.materials.epsilon.into_pyarray(py),
+            result.materials.mu.into_pyarray(py),
+            result.materials.kappa.into_pyarray(py),
+        ))
+    }
+}
+
+#[pyfunction]
+fn sphere<'py>(
+    py: Python<'py>,
+    lmax: u32,
+    k0: f64,
+    radii: PyReadonlyArray1<'py, f64>,
+    epsilon: PyReadonlyArray1<'py, Complex>,
+    mu: PyReadonlyArray1<'py, Complex>,
+    kappa: PyReadonlyArray1<'py, Complex>,
+) -> PyResult<(Bound<'py, PyArray2<Complex>>, SphereContext)> {
+    let radii = radii.to_vec()?;
+    let mat = materials(&epsilon.to_vec()?, &mu.to_vec()?, &kappa.to_vec()?)?;
+    let residual = py
+        .detach(move || tmatrix::sphere(lmax, k0, &radii, &mat))
+        .map_err(error)?;
+    Ok((
+        matrix(py, &residual.value),
+        SphereContext {
+            residual: Some(residual),
+        },
+    ))
+}
+
+#[pyclass]
+#[derive(Debug)]
+struct ClusterContext {
+    residual: Option<ClusterResidual>,
+}
+
+type ClusterGradient<'py> = (
+    Bound<'py, PyArray1<f64>>,
+    Bound<'py, PyArray2<f64>>,
+    Bound<'py, PyArray1<Complex>>,
+    f64,
+);
+
+type MatrixPair<'py> = (Bound<'py, PyArray2<Complex>>, Bound<'py, PyArray2<Complex>>);
+
+#[pymethods]
+impl ClusterContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'py, Complex>,
+    ) -> PyResult<ClusterGradient<'py>> {
+        let g = from_array(cotangent)?;
+        let shape = self
+            .residual
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?
+            .value()
+            .shape();
+        if g.shape() != shape {
+            return Err(PyValueError::new_err(
+                "cotangent shape does not match forward output",
+            ));
+        }
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let result = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        let positions =
+            Array2::from_shape_fn((result.positions.len(), 3), |(i, j)| result.positions[i][j]);
+        Ok((
+            result.radii.into_pyarray(py),
+            positions.into_pyarray(py),
+            result.epsilon.into_pyarray(py),
+            result.k0,
+        ))
+    }
+}
+
+#[pyfunction]
+fn cluster<'py>(
+    py: Python<'py>,
+    lmax: u32,
+    k0: f64,
+    radii: PyReadonlyArray1<'py, f64>,
+    epsilon: PyReadonlyArray1<'py, Complex>,
+    positions: PyReadonlyArray2<'py, f64>,
+) -> PyResult<(Bound<'py, PyArray2<Complex>>, ClusterContext)> {
+    let radii = radii.to_vec()?;
+    let epsilon = epsilon.to_vec()?;
+    let positions = positions.as_array();
+    if positions.ncols() != 3 {
+        return Err(PyValueError::new_err("positions must have shape (N, 3)"));
+    }
+    let positions: Vec<_> = positions
+        .rows()
+        .into_iter()
+        .map(|row| [row[0], row[1], row[2]])
+        .collect();
+    let residual = py
+        .detach(move || tmatrix::cluster(lmax, k0, &radii, &epsilon, &positions))
+        .map_err(error)?;
+    Ok((
+        matrix(py, residual.value()),
+        ClusterContext {
+            residual: Some(residual),
+        },
+    ))
+}
+
+#[pyclass]
+#[derive(Debug)]
+struct InteractionContext {
+    residual: Option<InteractionResidual>,
+}
+
+#[pymethods]
+impl InteractionContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'py, Complex>,
+    ) -> PyResult<MatrixPair<'py>> {
+        let g = from_array(cotangent)?;
+        let shape = self
+            .residual
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?
+            .value
+            .shape();
+        if g.shape() != shape {
+            return Err(PyValueError::new_err(
+                "cotangent shape does not match forward output",
+            ));
+        }
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let (local, coupling) = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        Ok((matrix(py, &local), matrix(py, &coupling)))
+    }
+}
+
+#[pyfunction]
+fn interact<'py>(
+    py: Python<'py>,
+    local: PyReadonlyArray2<'py, Complex>,
+    coupling: PyReadonlyArray2<'py, Complex>,
+) -> PyResult<(Bound<'py, PyArray2<Complex>>, InteractionContext)> {
+    let local = from_array(local)?;
+    let coupling = from_array(coupling)?;
+    let residual = py
+        .detach(move || interaction::forward(local, coupling))
+        .map_err(error)?;
+    Ok((
+        matrix(py, &residual.value),
+        InteractionContext {
+            residual: Some(residual),
+        },
+    ))
+}
+
+#[pyfunction]
+fn translation(
+    to: (i32, i32, u8),
+    from: (i32, i32, u8),
+    k: Complex,
+    position: [f64; 3],
+    helicity: bool,
+    outgoing: bool,
+) -> PyResult<(Complex, [Complex; 3], Complex)> {
+    let (l, m, pol) = to;
+    let to = Mode { l, m, pol };
+    let (l, m, pol) = from;
+    let from = Mode { l, m, pol };
+    let radial = if outgoing {
+        Radial::Outgoing
+    } else {
+        Radial::Regular
+    };
+    let result = waves::translate(to, from, k, position, helicity, radial).map_err(error)?;
+    Ok((result.value, result.position, result.k))
+}
+
+pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<SphereContext>()?;
+    m.add_class::<ClusterContext>()?;
+    m.add_class::<InteractionContext>()?;
+    m.add_function(wrap_pyfunction!(sphere, m)?)?;
+    m.add_function(wrap_pyfunction!(cluster, m)?)?;
+    m.add_function(wrap_pyfunction!(interact, m)?)?;
+    m.add_function(wrap_pyfunction!(translation, m)?)?;
+    Ok(())
+}

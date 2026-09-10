@@ -1,0 +1,66 @@
+[workspace]
+members = ["crates/treams-core", "crates/treams-py"]
+default-members = ["crates/treams-core"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94.0"
+license = "MIT"
+description = "T-matrix scattering with a Rust numerical core and native pullbacks"
+
+[workspace.dependencies]
+faer = { version = "0.24.4", default-features = false, features = ["std", "rayon", "linalg"] }
+rayon = "1"
+complex-bessel = "0.2.0"
+libm = "0.2"
+nalgebra = { version = "0.35", default-features = false, features = ["std"] }
+num-complex = "0.4"
+numpy = "0.29"
+pyo3 = { version = "0.29", features = ["num-complex"] }
+thiserror = "2"
+treams-core = { path = "crates/treams-core" }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+missing_docs = "warn"
+unreachable_pub = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "warn"
+panic = "warn"
+indexing_slicing = "warn"
+undocumented_unsafe_blocks = "deny"
+cast_possible_truncation = "warn"
+cast_sign_loss = "warn"
+cast_precision_loss = "warn"
+float_cmp = "warn"
+module_name_repetitions = "allow"
+similar_names = "allow"
+missing_errors_doc = "allow"
+many_single_char_names = "allow"
+missing_const_for_fn = "allow"
+missing_panics_doc = "allow"
+items_after_statements = "allow"
+option_if_let_else = "allow"
+redundant_pub_crate = "allow"
+suboptimal_flops = "allow"
+too_many_arguments = "allow"
+too_many_lines = "allow"
+use_self = "allow"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+overflow-checks = true
+
+[profile.profiling]
+inherits = "release"
+debug = "line-tables-only"

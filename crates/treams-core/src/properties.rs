@@ -1,0 +1,138 @@
+//! Native physical and differentiation invariants, independent of Python.
+#![allow(clippy::unwrap_used, clippy::expect_used)] // proptest shrinks panics to reproducible counterexamples.
+
+use nalgebra::DMatrix;
+use proptest::prelude::*;
+
+use crate::{
+    Complex,
+    coeffs::{Material, mie_forward},
+    interaction,
+};
+
+use crate::{
+    angular::wigner3j,
+    special::Radial,
+    waves::{Mode, translate},
+};
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(64))]
+
+    #[test]
+    fn differentiated_optical_theorem(size in 0.3_f64..2.0, epsilon in 1.2_f64..6.0, l in 1_u32..6) {
+        let material=Material{epsilon:Complex::new(epsilon,0.0),..Material::default()};
+        let forward=mie_forward(l,&[size],&[material,Material::default()]).unwrap();
+        let cotangent=crate::coeffs::Matrix2::identity()+forward.value*Complex::new(2.0,0.0);
+        let gradient=forward.pullback(&cotangent).unwrap();
+        prop_assert!(gradient.sizes.iter().all(|g|g.abs()<1e-10));
+        prop_assert!(gradient.epsilon.iter().all(|g|g.re.abs()<1e-10));
+    }
+
+    #[test]
+    fn translation_scale_derivative_identity(x in -1.0_f64..1.0, y in -1.0_f64..1.0, z in 0.5_f64..2.0, k in 0.7_f64..2.0, degree in 1_i32..5) {
+        let position=[x,y,z];
+        let result=translate(Mode{l:degree,m:1,pol:1},Mode{l:2,m:-1,pol:1},Complex::new(k,0.0),position,true,Radial::Outgoing).unwrap();
+        let spatial:Complex=result.position.iter().zip(position).map(|(g,r)|g*r).sum();
+        prop_assert!((spatial-k*result.k).norm()<1e-8*(1.0+result.value.norm()));
+        let scaled=translate(Mode{l:degree,m:1,pol:1},Mode{l:2,m:-1,pol:1},Complex::new(k/1.3,0.0),position.map(|r|r*1.3),true,Radial::Outgoing).unwrap();
+        prop_assert!((scaled.value-result.value).norm()<1e-10*(1.0+result.value.norm()));
+    }
+
+    #[test]
+    fn wigner_orthogonality(j1 in 0_i32..9, j2 in 0_i32..9, selector in 0_i32..10) {
+        let j3=(j1-j2).abs()+selector%(j1+j2-(j1-j2).abs()+1);
+        let mut sum=0.0;
+        for m1 in -j1..=j1 {
+            let m2=-m1;
+            sum+=wigner3j(j1,j2,j3,m1,m2,0).powi(2);
+        }
+        prop_assert!((sum*f64::from(2*j3+1)-1.0).abs()<1e-10);
+    }
+
+    #[test]
+    fn lossless_optical_theorem(size in 0.2_f64..3.0, epsilon in 1.0_f64..8.0, l in 1_u32..9) {
+        let material=Material{epsilon:Complex::new(epsilon,0.0),..Material::default()};
+        let result=mie_forward(l,&[size],&[material,Material::default()]).unwrap();
+        let extinction=-result.value.trace().re;
+        let scattering=result.value.iter().map(Complex::norm_sqr).sum::<f64>();
+        prop_assert!((extinction-scattering).abs()<1e-11);
+    }
+
+    #[test]
+    fn homogeneous_layer_split_is_invisible(size in 0.2_f64..3.0, epsilon in 1.0_f64..5.0, fraction in 0.2_f64..0.8, l in 1_u32..7) {
+        let material=Material{epsilon:Complex::new(epsilon,0.1),..Material::default()};
+        let one=mie_forward(l,&[size],&[material,Material::default()]).unwrap();
+        let two=mie_forward(l,&[fraction*size,size],&[material,material,Material::default()]).unwrap();
+        prop_assert!((one.value-two.value).norm()<1e-10);
+    }
+
+    #[test]
+    fn zero_contrast(size in 0.2_f64..3.0, epsilon in 1.0_f64..8.0, l in 1_u32..9) {
+        let material=Material{epsilon:Complex::new(epsilon,0.0),..Material::default()};
+        let result=mie_forward(l,&[size],&[material,material]).unwrap();
+        prop_assert!(result.value.norm()<1e-12);
+    }
+
+    #[test]
+    fn interaction_adjoint_identity(values in prop::collection::vec(-0.1_f64..0.1,72)) {
+        let mut values=values.as_chunks::<2>().0.iter().map(|&[re, im]|Complex::new(re, im));
+        let local=DMatrix::from_iterator(3,3,values.by_ref().take(9));
+        let coupling=DMatrix::from_iterator(3,3,values.by_ref().take(9));
+        let direction=DMatrix::from_iterator(3,3,values.by_ref().take(9));
+        let g=DMatrix::from_iterator(3,3,values.by_ref().take(9));
+        let forward=interaction::forward(local.clone(),coupling.clone()).unwrap();
+        let residual=(DMatrix::identity(3,3)-&local*&coupling)*&forward.value-&local;
+        prop_assert!(residual.norm()<1e-12);
+        let (gt,gc)=forward.pullback(&g).unwrap();
+        for (is_local,gradient) in [(true,gt),(false,gc)] {
+            let h=Complex::new(1e-5,0.0);
+            let (plus,minus)=if is_local {
+                (interaction::forward(&local+&direction*h,coupling.clone()).unwrap(),interaction::forward(&local-&direction*h,coupling.clone()).unwrap())
+            } else {
+                (interaction::forward(local.clone(),&coupling+&direction*h).unwrap(),interaction::forward(local.clone(),&coupling-&direction*h).unwrap())
+            };
+            let numerical=g.dotc(&((plus.value-minus.value)/(2.0*h))).re;
+            let analytic=gradient.dotc(&direction).re;
+            prop_assert!((numerical-analytic).abs()<1e-8);
+        }
+    }
+    #[test]
+    fn cluster_complete_directional_derivative(radius in 0.1_f64..0.4, eps in 1.2_f64..6.0, k in 0.7_f64..1.8, dx in -0.3_f64..0.3) {
+        let solve = |step: f64| crate::tmatrix::cluster(1, k + step * 0.2,
+            &[radius + step * 0.3, 0.25 - step * 0.1],
+            &[Complex::new(eps + step * 0.4, 0.1 + step * 0.1), Complex::new(3.0 - step * 0.2, 0.2 - step * 0.3)],
+            &[[step * 0.1, 0.0, 0.0], [dx, 0.1 + step * 0.3, 1.5 - step * 0.2]]).unwrap();
+        let forward = solve(0.0);
+        let g = DMatrix::from_element(12, 12, Complex::new(0.7, -0.4));
+        let gradients = forward.pullback(&g).unwrap();
+        let h = 1e-5;
+        let numerical = g.dotc(&((solve(h).value() - solve(-h).value()) / Complex::new(2.0*h,0.0))).re;
+        let radius_direction = [0.3, -0.1];
+        let epsilon_direction = [Complex::new(0.4,0.1),Complex::new(-0.2,-0.3)];
+        let position_direction = [[0.1,0.0,0.0],[0.0,0.3,-0.2]];
+        let analytic = gradients.k0 * 0.2
+            + gradients.radii.iter().zip(radius_direction).map(|(g,d)|g*d).sum::<f64>()
+            + gradients.epsilon.iter().zip(epsilon_direction).map(|(g,d)|(g.conj()*d).re).sum::<f64>()
+            + gradients.positions.iter().flatten().zip(position_direction.iter().flatten()).map(|(g,d)|g*d).sum::<f64>();
+        prop_assert!((numerical - analytic).abs() < 1e-8 * (1.0 + numerical.abs()));
+        for axis in 0..3 {
+            prop_assert!(gradients.positions.iter().map(|g|g.get(axis).unwrap()).sum::<f64>().abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn cylinder_optical_theorem_and_its_derivative(radius in 0.1_f64..1.5, epsilon in 1.1_f64..6.0, order in -4_i32..5, kz in -0.5_f64..0.5) {
+        let material=Material{epsilon:Complex::new(epsilon,0.0),kappa:Complex::new(0.02,0.0),..Material::default()};
+        let forward=crate::cylinder::mie_cyl(kz,order,1.3,&[radius],&[material,Material::default()]).unwrap();
+        let extinction=-forward.value.trace().re;
+        let scattering=forward.value.iter().map(Complex::norm_sqr).sum::<f64>();
+        prop_assert!((extinction-scattering).abs()<1e-11);
+        let g=crate::coeffs::Matrix2::identity()+forward.value*Complex::new(2.0,0.0);
+        let gradient=forward.pullback(&g).unwrap();
+        prop_assert!(gradient.kz.abs()<1e-9 && gradient.k0.abs()<1e-9);
+        prop_assert!(gradient.layers.sizes.iter().all(|g|g.abs()<1e-9));
+        prop_assert!(gradient.layers.epsilon.iter().chain(&gradient.layers.mu).chain(&gradient.layers.kappa).all(|g|g.re.abs()<1e-9));
+    }
+
+}

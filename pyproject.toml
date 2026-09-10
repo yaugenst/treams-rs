@@ -1,0 +1,52 @@
+[build-system]
+requires = ["maturin>=1.12,<2"]
+build-backend = "maturin"
+
+[project]
+name = "treams-rs"
+dynamic = ["version"]
+description = "T-matrix scattering with a Rust numerical core and native pullbacks"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "LICENSE.treams", "THIRD_PARTY_NOTICES.md"]
+requires-python = ">=3.12,<3.14"
+dependencies = ["numpy>=2.1,<3"]
+classifiers = ["Development Status :: 3 - Alpha", "Programming Language :: Rust", "Typing :: Typed"]
+
+[dependency-groups]
+dev = ["maturin>=1.12,<2", "pre-commit>=4", "pyrefly>=1.1.1", "pytest>=8.3", "hypothesis>=6", "ruff>=0.15.7", "scipy>=1.14,<1.17", "treams==0.4.5", "threadpoolctl>=3.6"]
+
+[tool.maturin]
+manifest-path = "crates/treams-py/Cargo.toml"
+features = ["extension-module"]
+locked = true
+python-source = "python"
+module-name = "treams_rs._native"
+
+[tool.uv]
+required-version = "==0.12.3"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+extend-exclude = ["reference"]
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "I", "N", "UP", "B", "A", "PLW1508", "RET504", "S310", "S506", "SIM", "TCH", "RUF", "NPY", "PERF"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["treams_rs"]
+
+[tool.pyrefly]
+python-version = "3.12"
+project-includes = ["python"]
+search-path = ["python"]
+preset = "strict"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-config --strict-markers -ra"
+filterwarnings = ["error"]
+xfail_strict = true
+markers = ["physics: analytic and conservation-law validation", "ad_contract: native pullback correctness", "python_contract: Python interface behavior", "public_e2e: complete scattering workflows", "oracle_numerical: comparison to independent numerical references"]
