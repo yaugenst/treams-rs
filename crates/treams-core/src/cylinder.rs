@@ -253,3 +253,124 @@ impl CylinderResidual {
         Ok(result)
     }
 }
+
+/// Multilayer cylinder T-matrix with one retained boundary solve per axial/order pair.
+#[derive(Debug)]
+pub struct CylinderMatrixResidual {
+    blocks: Vec<CylinderResidual>,
+    orders: usize,
+    /// T-matrix ordered by kz, ascending m and positive/negative helicity.
+    pub value: nalgebra::DMatrix<Complex>,
+}
+
+/// Cylinder T-matrix parameter cotangents.
+#[derive(Debug)]
+pub struct CylinderMatrixGradient {
+    /// Axial wavenumber cotangent for each input kz.
+    pub kzs: Vec<f64>,
+    /// Vacuum wavenumber cotangent.
+    pub k0: f64,
+    /// Radius and material cotangents.
+    pub layers: MieGradient,
+}
+
+/// Assemble a cylinder T-matrix, parallelizing the independent boundary solves.
+pub fn cylinder(
+    kzs: &[f64],
+    mmax: u32,
+    k0: f64,
+    radii: &[f64],
+    materials: &[Material],
+) -> Result<CylinderMatrixResidual> {
+    use rayon::prelude::*;
+    if kzs.is_empty() || kzs.iter().any(|k| !k.is_finite()) || mmax > 128 {
+        return Err(Error::InvalidInput(
+            "require finite nonempty kzs and mmax <= 128".into(),
+        ));
+    }
+    let mut seen = std::collections::HashSet::new();
+    if kzs
+        .iter()
+        .any(|&k| !seen.insert(if k == 0.0 { 0 } else { k.to_bits() }))
+    {
+        return Err(Error::InvalidInput(
+            "axial wavenumbers must be unique".into(),
+        ));
+    }
+    let orders = (2 * mmax + 1) as usize;
+    let bound = i32::try_from(mmax).map_err(|_| Error::InvalidInput("invalid mmax".into()))?;
+    let blocks = kzs
+        .par_iter()
+        .flat_map(|&kz| {
+            (-bound..=bound)
+                .into_par_iter()
+                .map(move |order| mie_cyl(kz, order, k0, radii, materials))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let mut value = nalgebra::DMatrix::zeros(2 * blocks.len(), 2 * blocks.len());
+    for (index, block) in blocks.iter().enumerate() {
+        for row in 0..2 {
+            for col in 0..2 {
+                value[(2 * index + row, 2 * index + col)] = block.value[(1 - row, 1 - col)];
+            }
+        }
+    }
+    Ok(CylinderMatrixResidual {
+        blocks,
+        orders,
+        value,
+    })
+}
+
+impl CylinderMatrixResidual {
+    /// Reverse the complete matrix through the exact forward boundary solves.
+    pub fn pullback(
+        self,
+        cotangent: &nalgebra::DMatrix<Complex>,
+    ) -> Result<CylinderMatrixGradient> {
+        use rayon::prelude::*;
+        if cotangent.shape() != self.value.shape() || cotangent.iter().any(|&g| !finite(g)) {
+            return Err(Error::InvalidInput(
+                "invalid cylinder T-matrix cotangent".into(),
+            ));
+        }
+        let first = &self.blocks[0];
+        let mut result = CylinderMatrixGradient {
+            kzs: vec![0.0; self.blocks.len() / self.orders],
+            k0: 0.0,
+            layers: MieGradient {
+                sizes: vec![0.0; first.radii.len()],
+                epsilon: vec![Complex::default(); first.materials.len()],
+                mu: vec![Complex::default(); first.materials.len()],
+                kappa: vec![Complex::default(); first.materials.len()],
+            },
+        };
+        let gradients = self
+            .blocks
+            .into_par_iter()
+            .enumerate()
+            .map(|(index, block)| {
+                block.pullback(&Matrix2::from_fn(|i, j| {
+                    cotangent[(2 * index + 1 - i, 2 * index + 1 - j)]
+                }))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        for (index, g) in gradients.into_iter().enumerate() {
+            result.kzs[index / self.orders] += g.kz;
+            result.k0 += g.k0;
+            for (a, b) in result.layers.sizes.iter_mut().zip(g.layers.sizes) {
+                *a += b;
+            }
+            for (a, b) in result.layers.epsilon.iter_mut().zip(g.layers.epsilon) {
+                *a += b;
+            }
+            for (a, b) in result.layers.mu.iter_mut().zip(g.layers.mu) {
+                *a += b;
+            }
+            for (a, b) in result.layers.kappa.iter_mut().zip(g.layers.kappa) {
+                *a += b;
+            }
+        }
+        Ok(result)
+    }
+}

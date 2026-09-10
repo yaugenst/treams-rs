@@ -7,11 +7,10 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from . import _native
+from ._core import CylindricalWaveBasis, SphericalWaveBasis
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
-
-    from ._core import SphericalWaveBasis
 
 
 def sphere(
@@ -66,19 +65,39 @@ def interaction(
 
 
 def expansion(
-    destination: SphericalWaveBasis,
-    source: SphericalWaveBasis,
+    destination: SphericalWaveBasis | CylindricalWaveBasis,
+    source: SphericalWaveBasis | CylindricalWaveBasis,
     ks: ArrayLike,
     *,
     poltype: str = "helicity",
     singular: bool = False,
 ) -> tuple[NDArray[np.complex128], _native.ExpansionContext]:
-    """Spherical expansion; pullback returns (destination positions, source positions, ks)."""
+    """Expansion VJP returns (destination positions, source positions, ks).
+
+    Cylindrical axial wavenumbers are fixed mode labels; different labels decouple.
+    """
     values = np.asarray(ks, dtype=np.complex128)
     if values.shape != (2,):
         raise ValueError("ks must contain negative and positive helicity wavenumbers")
     if poltype not in ("helicity", "parity"):
         raise ValueError("invalid polarization type")
+    if isinstance(destination, CylindricalWaveBasis) and isinstance(
+        source, CylindricalWaveBasis
+    ):
+        if poltype == "parity" and values[0] != values[1]:
+            raise ValueError("parity requires an achiral medium")
+        return _native.cyl_expansion(
+            list(destination.modes),
+            list(source.modes),
+            destination.positions.tolist(),
+            source.positions.tolist(),
+            (complex(values[0]), complex(values[1])),
+            singular,
+        )
+    if not isinstance(destination, SphericalWaveBasis) or not isinstance(
+        source, SphericalWaveBasis
+    ):
+        raise ValueError("source and destination must use the same wave family")
     return _native.expansion(
         list(destination.modes),
         list(source.modes),
@@ -117,4 +136,30 @@ def field(
         (complex(values[0]), complex(values[1])),
         poltype == "helicity",
         singular,
+    )
+
+
+def cylinder(
+    kzs: ArrayLike,
+    mmax: int,
+    k0: float,
+    radii: ArrayLike,
+    epsilon: ArrayLike,
+    mu: ArrayLike | None = None,
+    kappa: ArrayLike | None = None,
+) -> tuple[NDArray[np.complex128], _native.CylinderMatrixContext]:
+    """Cylinder T-matrix; VJP returns (kzs, k0, radii, epsilon, mu, kappa)."""
+    eps = np.ascontiguousarray(epsilon, dtype=np.complex128)
+    return _native.cylinder(
+        np.ascontiguousarray(kzs, dtype=np.float64),
+        mmax,
+        k0,
+        np.ascontiguousarray(radii, dtype=np.float64),
+        eps,
+        np.ones_like(eps)
+        if mu is None
+        else np.ascontiguousarray(mu, dtype=np.complex128),
+        np.zeros_like(eps)
+        if kappa is None
+        else np.ascontiguousarray(kappa, dtype=np.complex128),
     )

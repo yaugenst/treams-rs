@@ -95,3 +95,56 @@ def test_cylinder_all_input_pullbacks(parameter):
     np.testing.assert_allclose(
         np.vdot(gradients[parameter], direction).real, numerical, atol=2e-8, rtol=2e-6
     )
+
+
+@pytest.mark.oracle_numerical
+@pytest.mark.parametrize("mmax", [0, 1, 3])
+@pytest.mark.parametrize("kzs", [[0.0], [0.2, -0.3]])
+def test_full_cylinder_matrix_reference(mmax, kzs):
+    import treams
+
+    from treams_rs import diff
+
+    materials = [(3.0 + 0.1j, 1.1, 0.02), (2.0 + 0.2j, 1.2, 0.03), (1.0, 1.0, 0.01)]
+    epsilon, mu, kappa = np.asarray(materials).T
+    actual, _ = diff.cylinder(kzs, mmax, 1.2, [0.2, 0.4], epsilon, mu, kappa)
+    expected = treams.TMatrixC.cylinder(kzs, mmax, 1.2, [0.2, 0.4], materials)
+    np.testing.assert_allclose(actual, expected, rtol=2e-10, atol=1e-12)
+
+
+@pytest.mark.ad_contract
+@given(radius=st.floats(0.15, 0.4), epsilon=st.floats(1.2, 5.0), kz=st.floats(0.1, 0.5))
+def test_advect_cylinder_all_parameter_derivatives(radius, epsilon, kz):
+    import advect
+
+    from treams_rs import advect as ad
+
+    values = [
+        np.array([kz, -0.3]),
+        np.array(1.2),
+        np.array([radius]),
+        np.array([epsilon + 0.1j, 1.0]),
+        np.array([1.1, 1.0]),
+        np.array([0.02, 0.0]),
+    ]
+    rng = np.random.default_rng(732)
+    directions = [
+        rng.normal(size=v.shape)
+        + (1j * rng.normal(size=v.shape) if np.iscomplexobj(v) else 0)
+        for v in values
+    ]
+
+    def loss(*parameters):
+        matrix = ad.cylinder(parameters[0], 2, *parameters[1:])
+        return np.sum(np.sin(np.real(matrix)) + 0.2 * np.imag(matrix) ** 2)
+
+    gradients = advect.grad(loss, argnums=tuple(range(6)))(*values)
+    h = 1e-6
+    numerical = (
+        loss(*(v + h * d for v, d in zip(values, directions, strict=True)))
+        - loss(*(v - h * d for v, d in zip(values, directions, strict=True)))
+    ) / (2 * h)
+    analytic = sum(
+        np.real(np.vdot(g, d)) for g, d in zip(gradients, directions, strict=True)
+    )
+    np.testing.assert_allclose(analytic, numerical, rtol=2e-6, atol=1e-8)

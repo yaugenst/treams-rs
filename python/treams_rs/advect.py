@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
     from numpy.typing import ArrayLike, NDArray
 
-    from ._core import SphericalWaveBasis
+    from ._core import CylindricalWaveBasis, SphericalWaveBasis
 
 
 type _Values = tuple[ArrayLike, ...]
@@ -184,18 +184,17 @@ def expansion(
     source_positions: ArrayLike,
     ks: ArrayLike,
     *,
-    destination: SphericalWaveBasis,
-    source: SphericalWaveBasis,
+    destination: SphericalWaveBasis | CylindricalWaveBasis,
+    source: SphericalWaveBasis | CylindricalWaveBasis,
     poltype: str = "helicity",
     singular: bool = False,
 ) -> NDArray[np.complex128]:
     """Expansion matrix, differentiable in both origin arrays and wavenumbers."""
-    from ._core import SphericalWaveBasis
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
         value, context = diff.expansion(
-            SphericalWaveBasis(destination.modes, positions=values[0]),
-            SphericalWaveBasis(source.modes, positions=values[1]),
+            type(destination)(destination.modes, positions=values[0]),
+            type(source)(source.modes, positions=values[1]),
             values[2],
             poltype=poltype,
             singular=singular,
@@ -203,3 +202,34 @@ def expansion(
         return value, context.pullback
 
     return _call((destination_positions, source_positions, ks), forward)
+
+
+def cylinder(
+    kzs: ArrayLike,
+    mmax: int,
+    k0: ArrayLike,
+    radii: ArrayLike,
+    epsilon: ArrayLike,
+    mu: ArrayLike | None = None,
+    kappa: ArrayLike | None = None,
+) -> NDArray[np.complex128]:
+    """Differentiable multilayer/chiral cylinder T-matrix."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.cylinder(
+            values[0], mmax, float(np.asarray(values[1])), *values[2:]
+        )
+        return value, context.pullback
+
+    shape = np.shape(epsilon)
+    return _call(
+        (
+            kzs,
+            k0,
+            radii,
+            epsilon,
+            np.ones(shape) if mu is None else mu,
+            np.zeros(shape) if kappa is None else kappa,
+        ),
+        forward,
+    )

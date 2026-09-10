@@ -119,3 +119,40 @@ def field(
     helicity: bool,
     outgoing: bool,
 ) -> tuple[NDArray[np.complex128], FieldContext]: ...
+
+class CylinderMatrixContext:
+    def pullback(
+        self, cotangent: NDArray[np.complex128]
+    ) -> tuple[
+        NDArray[np.float64],
+        float,
+        NDArray[np.float64],
+        NDArray[np.complex128],
+        NDArray[np.complex128],
+        NDArray[np.complex128],
+    ]: ...
+
+def cylinder(
+    kzs: NDArray[np.float64],
+    mmax: int,
+    k0: float,
+    radii: NDArray[np.float64],
+    epsilon: NDArray[np.complex128],
+    mu: NDArray[np.complex128],
+    kappa: NDArray[np.complex128],
+) -> tuple[NDArray[np.complex128], CylinderMatrixContext]: ...
+def cyl_expansion(
+    to: list[tuple[int, float, int, int]],
+    source: list[tuple[int, float, int, int]],
+    to_positions: list[list[float]],
+    source_positions: list[list[float]],
+    ks: tuple[complex, complex],
+    outgoing: bool,
+) -> tuple[NDArray[np.complex128], ExpansionContext]: ...
+def cyl_translation(
+    to: tuple[float, int, int],
+    source: tuple[float, int, int],
+    k: complex,
+    position: tuple[float, float, float],
+    outgoing: bool,
+) -> tuple[complex, tuple[complex, complex, complex], complex, complex]: ...

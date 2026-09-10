@@ -4,6 +4,7 @@ pub mod angular;
 pub mod basis;
 pub mod coeffs;
 pub mod cylinder;
+pub mod cylwaves;
 pub mod fields;
 pub mod interaction;
 pub mod special;

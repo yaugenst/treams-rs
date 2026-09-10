@@ -184,4 +184,33 @@ proptest! {
         prop_assert!((spatial-spectral).abs()<1e-10);
     }
 
+    #[test]
+    fn cylinder_matrix_differentiated_optical_theorem(radius in 0.1_f64..1.0, epsilon in 1.1_f64..5.0, mmax in 0_u32..4) {
+        let material=Material{epsilon:Complex::new(epsilon,0.0),kappa:Complex::new(0.02,0.0),..Material::default()};
+        let forward=crate::cylinder::cylinder(&[0.2,-0.3],mmax,1.2,&[radius],&[material,Material::default()]).unwrap();
+        let dim=forward.value.nrows();
+        let optical=forward.value.trace().re+forward.value.norm_squared();
+        prop_assert!(optical.abs()<1e-10);
+        let g=DMatrix::identity(dim,dim)+&forward.value*Complex::new(2.0,0.0);
+        let gradient=forward.pullback(&g).unwrap();
+        prop_assert!(gradient.kzs.iter().all(|g|g.abs()<1e-9) && gradient.k0.abs()<1e-9);
+        prop_assert!(gradient.layers.sizes.iter().all(|g|g.abs()<1e-9));
+        prop_assert!(gradient.layers.epsilon.iter().chain(&gradient.layers.mu).chain(&gradient.layers.kappa).all(|g|g.re.abs()<1e-9));
+    }
+
+    #[test]
+    fn cylindrical_translation_scale_identity(m in -7_i32..8, mu in -7_i32..8, x in -1.0_f64..1.0, y in 0.5_f64..2.0, outgoing in any::<bool>()) {
+        let k=Complex::new(1.2,0.1);
+        let kz=0.3;
+        let to=crate::cylwaves::Mode{kz,m:mu,pol:1};
+        let source=crate::cylwaves::Mode{kz,m,pol:1};
+        let position=[x,y,0.4];
+        let radial=if outgoing {Radial::Outgoing}else{Radial::Regular};
+        let jet=crate::cylwaves::translate(to,source,k,position,radial).unwrap();
+        let spatial:Complex=jet.position.iter().zip(position).map(|(g,p)|g*p).sum();
+        prop_assert!((spatial-k*jet.k-kz*jet.kz).norm()<1e-9*(1.0+jet.value.norm()));
+        let scaled=crate::cylwaves::translate(crate::cylwaves::Mode{kz:kz/1.3,..to},crate::cylwaves::Mode{kz:kz/1.3,..source},k/1.3,position.map(|v|v*1.3),radial).unwrap();
+        prop_assert!((scaled.value-jet.value).norm()<1e-10*(1.0+jet.value.norm()));
+    }
+
 }
