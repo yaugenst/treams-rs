@@ -19,3 +19,8 @@ implementation and its cited scientific references. The incomplete-gamma
 continued fraction and exponential-integral series follow DLMF 8.9 and 6.6;
 complex complementary error functions use the MIT-licensed `errorfunctions`
 crate (a Rust implementation of Steven G. Johnson's Faddeeva algorithms).
+
+Chiral Fresnel coefficients and plane-wave power-flux conventions are ported from
+the MIT-licensed treams implementation. Native S-matrix composition uses the
+Redheffer product, eliminating both internal fields with one LU factorization and
+reusing it in the analytic adjoint.

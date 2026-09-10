@@ -13,6 +13,26 @@ if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
 
 
+def smatrix_add(
+    lower: ArrayLike, upper: ArrayLike
+) -> tuple[NDArray[np.complex128], _native.SMatrixContext]:
+    """Couple four-block S matrices; pullback returns (lower_bar, upper_bar)."""
+    return _native.smatrix_add(
+        np.ascontiguousarray(lower, dtype=np.complex128),
+        np.ascontiguousarray(upper, dtype=np.complex128),
+    )
+
+
+def propagation(
+    vectors: ArrayLike, distance: ArrayLike
+) -> tuple[NDArray[np.complex128], _native.PropagationContext]:
+    """Propagate upgoing wavevectors by a Cartesian distance; VJP returns (vectors, distance)."""
+    return _native.propagation(
+        np.asarray(vectors, dtype=np.complex128).tolist(),
+        np.asarray(distance, dtype=np.float64).tolist(),
+    )
+
+
 def sphere(
     lmax: int,
     k0: float,

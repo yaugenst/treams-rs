@@ -116,6 +116,36 @@ def interaction(local: ArrayLike, coupling: ArrayLike) -> NDArray[np.complex128]
     return _call((local, coupling), forward)
 
 
+def smatrix_add(lower: ArrayLike, upper: ArrayLike) -> NDArray[np.complex128]:
+    """Differentiable Redheffer composition, with arrays shaped (2, 2, n, n)."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.smatrix_add(values[0], values[1])
+        return value, context.pullback
+
+    return _call((lower, upper), forward)
+
+
+def fresnel(ks: ArrayLike, kzs: ArrayLike, zs: ArrayLike) -> NDArray[np.complex128]:
+    """Differentiable chiral planar-interface coefficients."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = coeffs.fresnel_with_context(*values)
+        return value, context.pullback
+
+    return _call((ks, kzs, zs), forward)
+
+
+def propagation(vectors: ArrayLike, distance: ArrayLike) -> NDArray[np.complex128]:
+    """Differentiable propagation for upgoing wavevectors and a Cartesian displacement."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.propagation(values[0], values[1])
+        return value, context.pullback
+
+    return _call((vectors, distance), forward)
+
+
 def mie(
     degree: int, sizes: ArrayLike, epsilon: ArrayLike, mu: ArrayLike, kappa: ArrayLike
 ) -> NDArray[np.complex128]:

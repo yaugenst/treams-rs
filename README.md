@@ -87,3 +87,16 @@ The illumination may also be expanded explicitly with `wave.expand(basis)`.
 `plane_wave_angle(theta, phi, pol, ...)` accepts angles in radians. Illumination
 parameters currently remain ordinary constants when used in an Advect objective;
 scattering and field parameters retain their native VJPs.
+
+Planar stacks use explicit up/down plane-wave channels:
+
+```python
+basis = tr.PlaneWaveBasisByComp.default([[0, 0]])
+slab = tr.SMatrices.slab(0.4, basis, 1.3, [1, 2.5 + 0.1j, 1])
+print(slab.tr(tr.plane_wave([0, 0, 1], 1, k0=1.3)))
+```
+
+Use `ad.fresnel`, `ad.propagation`, and `ad.smatrix_add` to differentiate complete
+stacks. Their arrays have shape `(2, 2, number_of_modes, number_of_modes)`, indexing
+outgoing direction, incoming direction, output mode, and input mode. Directions
+are ordered up/down; low-level Fresnel polarization indices are ordered 0/1.

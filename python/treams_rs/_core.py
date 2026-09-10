@@ -79,9 +79,73 @@ class Material:
     def ks(self, k0: float) -> NDArray[np.complex128]:
         return k0 * self.nmp
 
+    def kzs(
+        self, k0: float, kx: ArrayLike, ky: ArrayLike, pol: ArrayLike = (0, 1)
+    ) -> NDArray[np.complex128]:
+        """Axial wavevectors on the outgoing branch (nonnegative imaginary part)."""
+        value = np.sqrt(
+            self.ks(k0)[np.asarray(pol, dtype=np.int64)] ** 2
+            - np.asarray(kx) ** 2
+            - np.asarray(ky) ** 2
+        )
+        return np.where(value.imag < 0, -value, value)
+
 
 type MaterialLike = Material | complex | tuple[complex, ...] | list[complex]
 type Mode = tuple[int, int, int, int]
+
+
+class PlaneWaveBasisByComp:
+    """Plane modes (kx, ky, pol), with the remaining component set by the medium."""
+
+    def __init__(self, modes: Iterable[Sequence[float]]):
+        values = []
+        for row in modes:
+            if len(row) != 3:
+                raise ValueError("plane modes require (kx, ky, pol)")
+            kx, ky, pol = row
+            if not math.isfinite(kx) or not math.isfinite(ky) or pol not in (0, 1):
+                raise ValueError(
+                    "plane components must be finite and polarization 0 or 1"
+                )
+            values.append((float(kx), float(ky), int(pol)))
+        if not values or len(set(values)) != len(values):
+            raise ValueError("basis must contain distinct nonempty modes")
+        self.modes: tuple[tuple[float, float, int], ...] = tuple(values)
+
+    def __len__(self) -> int:
+        return len(self.modes)
+
+    def __iter__(self) -> Iterator[tuple[float, float, int]]:
+        return iter(self.modes)
+
+    @classmethod
+    def default(cls, kpars: ArrayLike) -> PlaneWaveBasisByComp:
+        values = np.atleast_2d(np.asarray(kpars, dtype=np.float64))
+        if values.shape[1] != 2:
+            raise ValueError("transverse wavevectors require shape (n, 2)")
+        return cls((float(kx), float(ky), pol) for kx, ky in values for pol in (1, 0))
+
+    @property
+    def kx(self) -> NDArray[np.float64]:
+        return np.array([m[0] for m in self.modes])
+
+    @property
+    def ky(self) -> NDArray[np.float64]:
+        return np.array([m[1] for m in self.modes])
+
+    @property
+    def pol(self) -> NDArray[np.int64]:
+        return np.array([m[2] for m in self.modes])
+
+    def kvecs(
+        self, k0: float, material: MaterialLike = 1, modetype: str = "up"
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.complex128]]:
+        if modetype not in ("up", "down"):
+            raise ValueError("modetype must be up or down")
+        kx, ky = self.kx, self.ky
+        kz = Material(material).kzs(k0, kx, ky, self.pol)
+        return kx, ky, kz if modetype == "up" else -kz
 
 
 class _WaveBasis[M: tuple[int, float, int, int]]:

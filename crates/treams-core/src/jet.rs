@@ -1,4 +1,4 @@
-//! Local first-order chain rules for the sixteen continuous Ewald parameters.
+//! Fixed-size local first-order chain rules for numerical kernels.
 //! N=0 compiles out all derivative storage and arithmetic in forward evaluations.
 #![allow(clippy::suspicious_arithmetic_impl, clippy::indexing_slicing)] // Product and quotient rules.
 

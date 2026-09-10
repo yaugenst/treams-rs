@@ -6,6 +6,7 @@ mod basis;
 mod cylinder;
 mod fields;
 mod lattice;
+mod smatrix;
 mod tmatrix;
 
 use num_complex::Complex64;
@@ -128,6 +129,7 @@ fn build_profile() -> &'static str {
 
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    smatrix::register(m)?;
     tmatrix::register(m)?;
     cylinder::register(m)?;
     basis::register(m)?;

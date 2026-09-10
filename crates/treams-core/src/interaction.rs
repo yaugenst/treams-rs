@@ -11,14 +11,14 @@ use nalgebra::DMatrix;
 
 use crate::{Complex, Error, Result, finite};
 
-fn view(matrix: &DMatrix<Complex>) -> MatRef<'_, Complex> {
+pub(crate) fn view(matrix: &DMatrix<Complex>) -> MatRef<'_, Complex> {
     MatRef::from_column_major_slice(matrix.as_slice(), matrix.nrows(), matrix.ncols())
 }
-fn view_mut(matrix: &mut DMatrix<Complex>) -> MatMut<'_, Complex> {
+pub(crate) fn view_mut(matrix: &mut DMatrix<Complex>) -> MatMut<'_, Complex> {
     let (rows, cols) = matrix.shape();
     MatMut::from_column_major_slice_mut(matrix.as_mut_slice(), rows, cols)
 }
-fn product(left: &DMatrix<Complex>, right: &DMatrix<Complex>) -> DMatrix<Complex> {
+pub(crate) fn product(left: &DMatrix<Complex>, right: &DMatrix<Complex>) -> DMatrix<Complex> {
     let mut result = DMatrix::zeros(left.nrows(), right.ncols());
     matmul(
         view_mut(&mut result),

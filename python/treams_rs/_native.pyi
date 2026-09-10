@@ -4,6 +4,31 @@ from numpy.typing import NDArray
 type ComplexArray = NDArray[np.complex128]
 type RealArray = NDArray[np.float64]
 
+class SMatrixContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[ComplexArray, ComplexArray]: ...
+
+def smatrix_add(
+    lower: ComplexArray, upper: ComplexArray
+) -> tuple[ComplexArray, SMatrixContext]: ...
+
+class FresnelContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[ComplexArray, ComplexArray, ComplexArray]: ...
+
+def fresnel(
+    ks: list[list[complex]], kz: list[list[complex]], z: list[complex]
+) -> tuple[ComplexArray, FresnelContext]: ...
+
+class PropagationContext:
+    def pullback(self, cotangent: ComplexArray) -> tuple[ComplexArray, RealArray]: ...
+
+def propagation(
+    vectors: list[list[complex]], distance: list[float]
+) -> tuple[ComplexArray, PropagationContext]: ...
+
 class MieContext:
     def pullback(
         self, cotangent: ComplexArray

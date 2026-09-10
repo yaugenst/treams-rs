@@ -7,7 +7,13 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from . import _native
-from ._core import CylindricalWaveBasis, Material, MaterialLike, SphericalWaveBasis
+from ._core import (
+    CylindricalWaveBasis,
+    Material,
+    MaterialLike,
+    PlaneWaveBasisByComp,
+    SphericalWaveBasis,
+)
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
@@ -91,10 +97,25 @@ class PlaneWave:
         return self.material.ks(self.k0)[:, None] * self.direction
 
     def expand(
-        self, basis: SphericalWaveBasis | CylindricalWaveBasis
+        self, basis: SphericalWaveBasis | CylindricalWaveBasis | PlaneWaveBasisByComp
     ) -> NDArray[np.complex128]:
         """Regular multipole amplitudes at the supplied basis origins."""
         values = np.zeros(len(basis), dtype=np.complex128)
+        if isinstance(basis, PlaneWaveBasisByComp):
+            for pol in (0, 1):
+                if self.amplitudes[pol] == 0:
+                    continue
+                matching = (
+                    (basis.pol == pol)
+                    & np.isclose(basis.kx, self.kvecs[pol, 0], rtol=1e-13, atol=1e-14)
+                    & np.isclose(basis.ky, self.kvecs[pol, 1], rtol=1e-13, atol=1e-14)
+                )
+                if np.count_nonzero(matching) != 1:
+                    raise ValueError(
+                        "plane-wave illumination requires exactly one matching basis mode"
+                    )
+                values[matching] = self.amplitudes[pol]
+            return values
         for pol in (0, 1):
             if self.amplitudes[pol] != 0:
                 vector = tuple(complex(v) for v in self.kvecs[pol])

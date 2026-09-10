@@ -16,7 +16,8 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 | Testing | Native proptest invariants and adjoint identities; Hypothesis physical invariants; treams/SciPy reference comparisons; complete Python workflows | Expand qualification with every ported subsystem |
 | Performance | Cached angular plans and radial tables, faer LU and matmul, block-diagonal local storage, Rayon coupling assembly | See measured scope and limitations in benchmarks.md |
 | Cylindrical scattering | Complex J/H and derivatives; multilayer chiral coefficients and complete T-matrix with all parameter VJPs; cylindrical bases, translations, clusters and cross widths | Cylindrical fields and conversions to spherical/plane waves |
-| Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections | Partial-wavevector bases, plane-wave direction/material VJPs, interfaces and layered S matrices |
+| Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections; xy-component plane-wave bases and slab illumination | General basis alignments, diffraction-order generation and plane-wave direction/material VJPs |
+| Planar layers | Native chiral Fresnel coefficients and propagation; one-LU S-matrix composition with reused-factor adjoint; interfaces, multilayer slabs, stacking/doubling, polarization conversion and power-flux transmittance/reflectance | Periodic particle-to-plane-wave channels; internal-field convenience; full SMatrix annotation API |
 | Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D, displaced sources, periodic coupling and interaction solves; all continuous-input native pullbacks and Advect composition; direct-sum, reference and Bloch/split/scale invariants | S-matrix channels and reflection/transmission |
 | Remaining public API | Not implemented | Field-operator conveniences, EBCM, band calculations, I/O and remaining observables |
 
@@ -56,3 +57,16 @@ point excluded under perturbation. Cylindrical axial labels remain fixed.
 The core propagates analytic local chain rules through at most sixteen continuous
 Ewald parameters, with derivative arithmetic compiled out of forward-only calls.
 No full output-by-parameter Jacobian is stored in the residual.
+
+Planar interfaces, propagation and S-matrix composition have native pullbacks and
+Advect adapters (`fresnel`, `propagation`, `smatrix_add`). Fresnel pullbacks cover all
+complex full/axial wavenumbers and impedances for one interface; propagation covers
+complex wavevectors and real Cartesian displacement; composition covers both full
+four-block arrays. Material-to-wavevector arithmetic can be composed in Advect,
+as checked by complete slab gradients. The metadata-bearing SMatrices convenience
+class itself accepts ordinary arrays rather than tracked parameters.
+
+The new plane-wave basis fixes the transverse plane to xy. Slab power calculations
+accept one incident amplitude vector or PlaneWave object per direction. Arrays are
+explicit rather than inheriting upstream's ndarray metadata. Fresnel's low-level
+API currently evaluates one (two-media, two-helicity) interface at a time.

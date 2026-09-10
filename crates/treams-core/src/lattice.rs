@@ -4,7 +4,7 @@
 
 use std::f64::consts::PI;
 
-use crate::lattice_jet::Jet;
+use crate::jet::Jet;
 use nalgebra::Matrix3;
 
 use crate::{Complex, Error, Result, angular, finite, integrals};

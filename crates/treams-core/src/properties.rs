@@ -19,6 +19,54 @@ use crate::{
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
+    #[test]
+    #[allow(clippy::indexing_slicing)] // Fixed two-medium arrays.
+    fn fresnel_dimensionless_adjoint(k in 1.0_f64..3.0, q in 0.0_f64..0.6, z in 0.7_f64..1.3) {
+        let ks=[[Complex::new(k,0.1),Complex::new(k+0.2,0.1)],[Complex::new(k+0.5,0.2),Complex::new(k+0.8,0.2)]];
+        let kz=ks.map(|r|r.map(|k|(k*k-q*q).sqrt()));
+        let impedance=[Complex::new(z,0.03),Complex::new(z+0.2,0.04)];
+        let result=crate::smatrix::fresnel(ks,kz,impedance).unwrap();
+        let g=std::array::from_fn(|b|DMatrix::from_fn(2,2,|i,j|Complex::new(if b==i+j {0.7}else{0.2},0.1)));
+        let (gk,gkz,gz)=result.pullback(&g).unwrap();
+        let euler:Complex=(0..2).flat_map(|i|(0..2).map(move|j|gk[i][j].conj()*ks[i][j]+gkz[i][j].conj()*kz[i][j])).sum();
+        prop_assert!(euler.norm()<1e-10);
+        prop_assert!((gz[0].conj()*impedance[0]+gz[1].conj()*impedance[1]).norm()<1e-10);
+    }
+
+    #[test]
+    fn propagation_phase_conserves_power(k in 0.5_f64..3.0, distance in 0.0_f64..10.0) {
+        let result=crate::smatrix::propagation(vec![[Complex::new(0.1,0.0),Complex::new(0.2,0.0),Complex::new(k,0.0)]],[0.2,-0.3,distance]).unwrap();
+        let g=result.value.clone().map(|b|b*Complex::new(2.0,0.0));
+        let (vectors,r)=result.pullback(&g).unwrap();
+        prop_assert!(r.into_iter().all(|g|g.abs()<1e-12));
+        prop_assert!(vectors.into_iter().flatten().all(|g|g.re.abs()<1e-12));
+    }
+
+    #[test]
+    #[allow(clippy::indexing_slicing)] // Fixed four-block arrays, matching native block order.
+    fn smatrix_composition_and_adjoint(x in -0.3_f64..0.3, y in -0.3_f64..0.3) {
+        use crate::smatrix::{Blocks, add};
+        let make = |x:f64,y:f64| -> Blocks { std::array::from_fn(|b|DMatrix::from_fn(2,2,|i,j|Complex::new(x*(if i==j {1.0}else{0.2}), y*(if b==i+j {1.0}else{0.1})))) };
+        let a=make(x,y);
+        let b=make(y,x);
+        let c=make(0.1,-0.1);
+        let res=add(a.clone(),b.clone()).unwrap();
+        let left=add(res.value.clone(),c.clone()).unwrap().value;
+        let right=add(a.clone(),add(b.clone(),c).unwrap().value).unwrap().value;
+        for (l,r) in left.iter().zip(right) {prop_assert!((l-r).norm()<1e-12);}
+        let g=make(0.3,0.2);
+        let da=make(0.1,-0.2);
+        let db=make(-0.2,0.1);
+        let (ga,gb)=res.pullback(&g).unwrap();
+        let h=1e-5;
+        let shifted=|sign:f64|add(std::array::from_fn(|i|&a[i]+&da[i]*Complex::new(sign*h,0.0)),std::array::from_fn(|i|&b[i]+&db[i]*Complex::new(sign*h,0.0))).unwrap().value;
+        let plus=shifted(1.0);
+        let minus=shifted(-1.0);
+        let analytic:f64=(0..4).map(|i|ga[i].dotc(&da[i]).re+gb[i].dotc(&db[i]).re).sum();
+        let numerical:f64=(0..4).map(|i|g[i].dotc(&((&plus[i]-&minus[i])*Complex::new(0.5/h,0.0))).re).sum();
+        prop_assert!((analytic-numerical).abs()<1e-8);
+    }
+
 
 
     #[test]
