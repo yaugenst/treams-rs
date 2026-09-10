@@ -124,6 +124,36 @@ impl TranslationPlan {
             .collect())
     }
 
+    pub(crate) fn pullback_periodic(
+        &self,
+        k: Complex,
+        position: [f64; 3],
+        lattice: &crate::lattice::Lattice,
+        eta: Complex,
+        cotangent: &[Complex],
+    ) -> Result<crate::lattice::Gradient> {
+        let modes: Vec<_> = (0..=self.order)
+            .flat_map(|l| (-l..=l).map(move |m| (l, m)))
+            .collect();
+        let mut g = vec![Complex::default(); modes.len()];
+        for (terms, &input) in self.entries.iter().zip(cotangent) {
+            for term in terms {
+                g[term.index] += input * term.weight.conj();
+            }
+        }
+        for (g, &(l, m)) in g.iter_mut().zip(&modes) {
+            *g /= crate::lattice::normalization(l, m);
+        }
+        let waves: Vec<_> = modes
+            .into_iter()
+            .map(|(l, m)| crate::lattice::Wave::Spherical { l, m })
+            .collect();
+        let mut result =
+            crate::lattice::pullback(&waves, k, lattice, position.map(|r| -r), eta, &g)?;
+        result.position = result.position.map(|g| -g);
+        Ok(result)
+    }
+
     pub(crate) fn pullback(
         &self,
         k: Complex,

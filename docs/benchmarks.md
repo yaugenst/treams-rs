@@ -1,4 +1,4 @@
-# Finite-sphere cluster benchmarks
+# Scattering and field benchmarks
 
 Measured on [redacted-host], AMD Ryzen 9 9950X (16 physical cores), Linux x86-64,
 Python 3.13.1, treams 0.4.5. Rust uses the optimized build, faer and Rayon.
@@ -35,7 +35,7 @@ radial/angular term once per displacement, replacing generic LU/matmul with faer
 storing local particle matrices as blocks, and using disjoint Rayon workers to
 assemble coupling columns. Dense interacting output and LU still cost O(D²)
 space; factorization remains O(D³). No claim is made here about GPU performance,
-large periodic systems, cylinders, gradient runtime, or arbitrary user geometries.
+cylinders, or arbitrary user geometries.
 
 Reproduce after `uv sync --locked --group dev` and `just build-ext-release`:
 
@@ -59,3 +59,34 @@ The native path contracts amplitudes as it evaluates each sample, so it does not
 allocate upstream's sample-by-component-by-mode matrix. Reverse mode recomputes
 local wave derivatives and reduces cotangents with Rayon; no dense Jacobian is
 retained. This is one qualified field workload, not a claim about all field sizes.
+
+## Periodic sphere arrays and adjoints
+
+The periodic workload includes local sphere coefficients, the 2D Ewald coupling,
+and the full interacting response matrix, retaining every native pullback context.
+The unit cell contains a square grid with spacing 0.8, the same particle parameters
+as above, and Bloch wavevector (0.1, 0.15). Basis setup is outside both timings.
+
+| Spheres | lmax | Threads | treams ms | Rust ms | Speedup | treams / Rust peak MiB |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 4 | 3 | 1 | 103.57 | 49.24 | 2.10x | 89.2 / 41.6 |
+| 4 | 3 | 4 | 118.94 | 14.06 | 8.46x | 89.5 / 40.7 |
+| 9 | 3 | 4 | 571.90 | 70.05 | 8.16x | 184.5 / 49.8 |
+
+Complete native reverse passes took 146.59 ms and 749.60 ms for the four-thread
+four- and nine-sphere cases, respectively. These include the dense adjoint solve,
+all particle pullbacks, and both origin sets, medium wavenumbers, Bloch vector and
+lattice geometry. Peak process RSS through the reverse pass was 43.4 and 60.0 MiB.
+Reverse timings exclude preparing a fresh forward context and use a fixed complex
+output cotangent. The benchmark currently spends about ten forward evaluations'
+time on one complete periodic reverse pass; recomputation keeps residual memory
+small, but reverse runtime still needs optimization. No derivative speedup over
+Dreams or another autodiff implementation has been measured.
+
+Raw results: `periodic-n4-l3-t1.json`, `periodic-adjoint-n4-l3-t4.json`, and
+`periodic-adjoint-n9-l3-t4.json` in `benchmarks/results`. The harness now records
+native reverse timings separately from the forward comparison:
+
+```sh
+uv run --no-sync python scripts/benchmark_cluster.py --workload periodic --particles 4 --lmax 3 --threads 4
+```

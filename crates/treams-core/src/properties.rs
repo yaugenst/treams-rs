@@ -20,6 +20,28 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
 
+
+    #[test]
+    fn ewald_complete_derivative(pitch in 1.3_f64..2.0, bloch in 0.05_f64..0.3, order in 0_i32..4) {
+        use crate::lattice::{Lattice, Wave, sum, derivatives};
+        let lattice = Lattice::new(&[vec![pitch]], &[bloch]).unwrap();
+        let wave = Wave::Cylindrical { m: order };
+        let k = Complex::new(2.1,0.2);
+        let r = [0.19,0.13,0.0];
+        let eta = Complex::new(1.2,0.0);
+        let d = derivatives(wave,k,&lattice,r,eta).unwrap();
+        let euler = r.iter().zip(d.position).map(|(r,d)|r*d).sum::<Complex>() + pitch*d.vectors[0][0] - k*d.k - bloch*d.bloch[0];
+        prop_assert!(euler.norm() < 1e-9*(1.0+d.value.norm()));
+        let h = 1e-5;
+        let dk = Complex::new(0.1,0.2);
+        let direction = dk*d.k + 0.1*d.position[0] - 0.07*d.position[1] + 0.2*d.vectors[0][0] + 0.13*d.bloch[0];
+        let plus = Lattice::new(&[vec![pitch+0.2*h]], &[bloch+0.13*h]).unwrap();
+        let minus = Lattice::new(&[vec![pitch-0.2*h]], &[bloch-0.13*h]).unwrap();
+        let numerical = (sum(wave,k+h*dk,&plus,[r[0]+0.1*h,r[1]-0.07*h,0.0],eta).unwrap()
+            - sum(wave,k-h*dk,&minus,[r[0]-0.1*h,r[1]+0.07*h,0.0],eta).unwrap())/(2.0*h);
+        prop_assert!((numerical-direction).norm()<2e-7*(1.0+direction.norm()));
+    }
+
     #[test]
     fn ewald_bloch_split_and_scale(pitch in 1.3_f64..2.0, bloch in 0.05_f64..0.3, order in 0_i32..4, scale in 0.8_f64..1.2) {
         use crate::lattice::{Lattice, Wave, sum};

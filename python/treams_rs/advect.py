@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, cast
 import advect as ad
 import numpy as np
 
-from . import coeffs, diff
+from . import coeffs, diff, lattice
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -233,3 +233,36 @@ def cylinder(
         ),
         forward,
     )
+
+
+def lattice_expansion(
+    destination_positions: ArrayLike,
+    source_positions: ArrayLike,
+    ks: ArrayLike,
+    kpar: ArrayLike,
+    a: ArrayLike,
+    *,
+    destination: SphericalWaveBasis | CylindricalWaveBasis,
+    source: SphericalWaveBasis | CylindricalWaveBasis,
+    poltype: str = "helicity",
+    eta: complex = 0,
+) -> NDArray[np.complex128]:
+    """Periodic coupling with native VJPs for origins, two ks, Bloch and lattice vectors.
+
+    The Ewald split eta is a numerical constant; its exact physical derivative is zero.
+    Cylindrical axial wavenumbers remain fixed basis labels.
+    """
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = lattice.expansion_with_context(
+            type(destination)(destination.modes, positions=values[0]),
+            type(source)(source.modes, positions=values[1]),
+            values[2],
+            values[4],
+            values[3],
+            poltype=poltype,
+            eta=eta,
+        )
+        return value, context.pullback
+
+    return _call((destination_positions, source_positions, ks, kpar, a), forward)

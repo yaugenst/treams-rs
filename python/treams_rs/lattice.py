@@ -175,7 +175,7 @@ def lsumcw2d(
     return lsumcw(2, m, k, kpar, a, r, eta)
 
 
-def expansion(
+def expansion_with_context(
     destination: SphericalWaveBasis | CylindricalWaveBasis,
     source: SphericalWaveBasis | CylindricalWaveBasis,
     ks: ArrayLike,
@@ -184,10 +184,13 @@ def expansion(
     *,
     poltype: str = "helicity",
     eta: complex = 0,
-) -> NDArray[np.complex128]:
+) -> tuple[NDArray[np.complex128], _native.PeriodicContext]:
     """Periodic outgoing-to-regular coupling, including nonzero self images."""
     wavenumbers = np.asarray(ks, dtype=np.complex128)
-    wavenumbers = np.broadcast_to(wavenumbers, (2,))
+    if wavenumbers.shape != (2,):
+        raise ValueError(
+            "context requires two medium wavenumbers, one per polarization"
+        )
     if poltype not in ("helicity", "parity") or (
         poltype == "parity" and wavenumbers[0] != wavenumbers[1]
     ):
@@ -223,3 +226,25 @@ def expansion(
             eta,
         )
     raise ValueError("periodic expansion requires matching wave families")
+
+
+def expansion(
+    destination: SphericalWaveBasis | CylindricalWaveBasis,
+    source: SphericalWaveBasis | CylindricalWaveBasis,
+    ks: ArrayLike,
+    a: ArrayLike,
+    kpar: ArrayLike,
+    *,
+    poltype: str = "helicity",
+    eta: complex = 0,
+) -> NDArray[np.complex128]:
+    """Periodic outgoing-to-regular coupling, including nonzero self images."""
+    return expansion_with_context(
+        destination,
+        source,
+        np.broadcast_to(np.asarray(ks, dtype=np.complex128), (2,)),
+        a,
+        kpar,
+        poltype=poltype,
+        eta=eta,
+    )[0]

@@ -9,6 +9,7 @@ pub mod fields;
 pub mod integrals;
 pub mod interaction;
 pub mod lattice;
+mod lattice_jet;
 pub mod plane;
 pub mod special;
 pub mod tmatrix;

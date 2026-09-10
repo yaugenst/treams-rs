@@ -193,7 +193,7 @@ def periodic_expansion(
     bloch: list[float],
     vectors: list[list[float]],
     eta: complex,
-) -> ComplexArray: ...
+) -> tuple[ComplexArray, PeriodicContext]: ...
 def periodic_cyl_expansion(
     to: list[tuple[int, float, int, int]],
     source: list[tuple[int, float, int, int]],
@@ -203,4 +203,28 @@ def periodic_cyl_expansion(
     bloch: list[float],
     vectors: list[list[float]],
     eta: complex,
-) -> ComplexArray: ...
+) -> tuple[ComplexArray, PeriodicContext]: ...
+def lattice_derivatives(
+    spherical: bool,
+    mode: tuple[int, int],
+    k: complex,
+    bloch: list[float],
+    vectors: list[list[float]],
+    shift: tuple[float, float, float],
+    eta: complex,
+) -> tuple[
+    complex,
+    complex,
+    tuple[complex, complex, complex],
+    tuple[complex, complex, complex],
+    tuple[
+        tuple[complex, complex, complex],
+        tuple[complex, complex, complex],
+        tuple[complex, complex, complex],
+    ],
+]: ...
+
+class PeriodicContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[RealArray, RealArray, ComplexArray, RealArray, RealArray]: ...

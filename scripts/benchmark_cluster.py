@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = ["numpy", "treams==0.4.5", "threadpoolctl"]
 # ///
-"""Isolated-process, matched-thread benchmarks of full cluster T-matrices.
+"""Isolated-process, matched-thread benchmarks of scattering and fields.
 
 Run after `just build-ext-release`: uv run --no-sync python scripts/benchmark_cluster.py.
 The parent never imports either solver, keeping peak-RSS measurements separate.
@@ -31,7 +31,7 @@ def worker(
     from threadpoolctl import threadpool_info, threadpool_limits
 
     if backend in ("rust", "check"):
-        from treams_rs import SphericalWaveBasis, _native, diff
+        from treams_rs import SphericalWaveBasis, _native, diff, lattice
 
         if _native.build_profile() != "release":
             raise RuntimeError("benchmark requires just build-ext-release")
@@ -45,6 +45,23 @@ def worker(
         positions = np.column_stack(
             [np.arange(particles) * 0.8, np.zeros((particles, 2))]
         )
+
+        if workload == "periodic":
+            width = int(np.ceil(np.sqrt(particles)))
+            positions = (
+                np.column_stack(
+                    [
+                        np.arange(particles) % width,
+                        np.arange(particles) // width,
+                        np.zeros(particles),
+                    ]
+                )
+                * 0.8
+            )
+            vectors = np.diag([width * 0.8, width * 0.8])
+            bloch = np.array([0.1, 0.15])
+            if backend in ("rust", "check"):
+                basis = SphericalWaveBasis.default(order, particles, positions)
 
         if workload == "field":
             points = np.column_stack(
@@ -67,6 +84,23 @@ def worker(
         def rust():
             if workload == "field":
                 return diff.field(amplitudes, points, basis, [1.3, 1.3], singular=True)
+            if workload == "periodic":
+                dimension = len(basis)
+                local = np.zeros((dimension, dimension), dtype=complex)
+                contexts = []
+                block = dimension // particles
+                for index, (radius, eps) in enumerate(zip(radii, epsilon, strict=True)):
+                    value, context = diff.sphere(order, 1.3, [radius], [eps, 1])
+                    contexts.append(context)
+                    local[
+                        index * block : (index + 1) * block,
+                        index * block : (index + 1) * block,
+                    ] = value
+                coupling, coupling_context = lattice.expansion_with_context(
+                    basis, basis, [1.3, 1.3], vectors, bloch
+                )
+                value, context = diff.interaction(local, coupling)
+                return value, (contexts, coupling_context, context)
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
@@ -87,7 +121,10 @@ def worker(
                 treams.TMatrix.sphere(order, 1.3, r, [e, 1])
                 for r, e in zip(radii, epsilon, strict=True)
             ]
-            return treams.TMatrix.cluster(spheres, positions).interaction.solve()
+            cluster = treams.TMatrix.cluster(spheres, positions)
+            if workload == "periodic":
+                return cluster.latticeinteraction.solve(vectors, bloch)
+            return cluster.interaction.solve()
 
         if backend == "check":
             expected = upstream()
@@ -105,6 +142,36 @@ def worker(
             times.append(time.perf_counter() - start)
             del result
         peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+        backward_times = []
+        if backend == "rust":
+            for iteration in range(repeats + 1):
+                value, context = rust()
+                cotangent = np.full_like(value, (1 + 0.3j) / value.size)
+                start = time.perf_counter()
+                if workload == "periodic":
+                    sphere_contexts, coupling_context, solve_context = context
+                    local_gradient, coupling_gradient = solve_context.pullback(
+                        cotangent
+                    )
+                    coupling_result = coupling_context.pullback(coupling_gradient)
+                    block = len(basis) // particles
+                    sphere_results = [
+                        item.pullback(
+                            local_gradient[
+                                i * block : (i + 1) * block,
+                                i * block : (i + 1) * block,
+                            ].copy()
+                        )
+                        for i, item in enumerate(sphere_contexts)
+                    ]
+                    del coupling_result, sphere_results
+                else:
+                    context.pullback(cotangent)
+                elapsed = time.perf_counter() - start
+                if iteration:
+                    backward_times.append(elapsed)
+                del value, context, cotangent
+        backward_peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
         print(
             json.dumps(
                 {
@@ -131,6 +198,13 @@ def worker(
                     "peak_rss_mib": peak,
                     "baseline_rss_mib": baseline,
                     "samples_seconds": times,
+                    "backward_median_seconds": statistics.median(backward_times)
+                    if backward_times
+                    else None,
+                    "backward_samples_seconds": backward_times,
+                    "forward_and_backward_peak_rss_mib": backward_peak
+                    if backward_times
+                    else None,
                     "blas": threadpool_info(),
                 }
             )
@@ -139,7 +213,9 @@ def worker(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--workload", choices=["cluster", "field"], default="cluster")
+    parser.add_argument(
+        "--workload", choices=["cluster", "field", "periodic"], default="cluster"
+    )
     parser.add_argument("--samples", type=int, default=2048)
     parser.add_argument("--worker", choices=["rust", "treams", "check"])
     parser.add_argument("--particles", type=int, default=8)

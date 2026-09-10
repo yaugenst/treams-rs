@@ -161,13 +161,13 @@ fn assemble(
 
 /// Periodic outgoing-to-regular spherical coupling, including nonzero lattice images of self blocks.
 pub fn periodic(
-    destination: &Basis,
-    source: &Basis,
+    destination: Basis,
+    source: Basis,
     ks: [Complex; 2],
     helicity: bool,
-    lattice: &crate::lattice::Lattice,
+    lattice: crate::lattice::Lattice,
     eta: Complex,
-) -> Result<DMatrix<Complex>> {
+) -> Result<PeriodicResidual> {
     destination.validate()?;
     source.validate()?;
     if ks.iter().any(|&k| !finite(k)) || (!helicity && ks[0] != ks[1]) {
@@ -175,10 +175,114 @@ pub fn periodic(
             "finite wave numbers required; parity requires an achiral medium".into(),
         ));
     }
-    let blocks = blocks(destination, source, helicity)?;
-    assemble(destination, source, ks, &blocks, |plan, k, displacement| {
-        plan.evaluate_periodic(k, displacement, lattice, eta)
+    let blocks = blocks(&destination, &source, helicity)?;
+    let value = assemble(
+        &destination,
+        &source,
+        ks,
+        &blocks,
+        |plan, k, displacement| plan.evaluate_periodic(k, displacement, &lattice, eta),
+    )?;
+    Ok(PeriodicResidual {
+        destination,
+        source,
+        ks,
+        lattice,
+        eta,
+        blocks,
+        value,
     })
+}
+
+/// Spherical periodic coupling context; angular plans are shared across origin pairs.
+#[derive(Debug)]
+pub struct PeriodicResidual {
+    destination: Basis,
+    source: Basis,
+    ks: [Complex; 2],
+    lattice: crate::lattice::Lattice,
+    eta: Complex,
+    blocks: Vec<Block>,
+    /// Periodic outgoing-to-regular coupling.
+    pub value: DMatrix<Complex>,
+}
+
+/// Periodic coupling cotangents including the lattice geometry.
+#[derive(Debug)]
+pub struct PeriodicGradient {
+    /// Origin and medium-wavenumber cotangents.
+    pub expansion: TranslationGradient,
+    /// Bloch wavevector cotangent in lattice coordinates.
+    pub bloch: Vec<f64>,
+    /// Row lattice-vector cotangent.
+    pub vectors: DMatrix<f64>,
+}
+impl PeriodicGradient {
+    pub(crate) fn new(destination: usize, source: usize, dim: usize) -> Self {
+        Self {
+            expansion: TranslationGradient {
+                destination: vec![[0.0; 3]; destination],
+                source: vec![[0.0; 3]; source],
+                ks: [Complex::default(); 2],
+            },
+            bloch: vec![0.0; dim],
+            vectors: DMatrix::zeros(dim, dim),
+        }
+    }
+    pub(crate) fn lattice(&mut self, g: &crate::lattice::Gradient) {
+        for (j, value) in self.bloch.iter_mut().enumerate() {
+            *value += g.bloch[j];
+            for i in 0..self.vectors.nrows() {
+                self.vectors[(i, j)] += g.vectors[i][j];
+            }
+        }
+    }
+}
+impl PeriodicResidual {
+    /// Consume the context and recompute contracted analytic Ewald derivatives.
+    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<PeriodicGradient> {
+        if cotangent.shape() != self.value.shape() || cotangent.iter().any(|&g| !finite(g)) {
+            return Err(Error::InvalidInput(
+                "invalid periodic expansion cotangent".into(),
+            ));
+        }
+        let mut result = PeriodicGradient::new(
+            self.destination.positions.len(),
+            self.source.positions.len(),
+            self.lattice.dimension(),
+        );
+        for block in self.blocks {
+            let displacement = std::array::from_fn(|a| {
+                self.destination.positions[block.destination][a]
+                    - self.source.positions[block.source][a]
+            });
+            for pol in 0..2 {
+                let mut g = vec![Complex::default(); block.rows.len() * block.cols.len()];
+                for (j, &col) in block.cols.iter().enumerate() {
+                    if usize::from(block.polarizations[j]) != pol {
+                        continue;
+                    }
+                    for (i, &row) in block.rows.iter().enumerate() {
+                        g[j * block.rows.len() + i] = cotangent[(row, col)];
+                    }
+                }
+                let gradient = block.plan.pullback_periodic(
+                    self.ks[pol],
+                    displacement,
+                    &self.lattice,
+                    self.eta,
+                    &g,
+                )?;
+                result.lattice(&gradient);
+                result.expansion.ks[pol] += gradient.k;
+                for (axis, value) in gradient.position.into_iter().enumerate() {
+                    result.expansion.destination[block.destination][axis] += value;
+                    result.expansion.source[block.source][axis] -= value;
+                }
+            }
+        }
+        Ok(result)
+    }
 }
 
 /// Expansion cotangents, separating destination and source origin dependence.

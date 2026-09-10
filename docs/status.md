@@ -17,7 +17,7 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 | Performance | Cached angular plans and radial tables, faer LU and matmul, block-diagonal local storage, Rayon coupling assembly | See measured scope and limitations in benchmarks.md |
 | Cylindrical scattering | Complex J/H and derivatives; multilayer chiral coefficients and complete T-matrix with all parameter VJPs; cylindrical bases, translations, clusters and cross widths | Cylindrical fields and conversions to spherical/plane waves |
 | Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections | Partial-wavevector bases, plane-wave direction/material VJPs, interfaces and layered S matrices |
-| Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D, displaced sources, periodic coupling and interaction solves; direct-sum, reference and Bloch/split/scale invariants | Periodic native pullbacks, S-matrix channels and reflection/transmission |
+| Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D, displaced sources, periodic coupling and interaction solves; all continuous-input native pullbacks and Advect composition; direct-sum, reference and Bloch/split/scale invariants | S-matrix channels and reflection/transmission |
 | Remaining public API | Not implemented | Field-operator conveniences, EBCM, band calculations, I/O and remaining observables |
 
 The optimized `diff.cluster` is restricted to non-overlapping homogeneous,
@@ -47,3 +47,12 @@ Periodic sums currently broadcast multipole indices for one lattice geometry. Th
 reject exact diffraction thresholds rather than replacing singularities with an
 arbitrary finite constant. `latticeinteraction.solve` returns an array of periodic
 response coefficients; isolated-particle cross-section formulae do not apply.
+
+Periodic pullbacks cover both sets of expansion origins, complex medium
+wavenumbers, the real Bloch wavevector and every lattice-vector component.
+The split parameter eta is held fixed because the exact sum is independent of it.
+At coincident origins, derivatives use the regular image sum with that lattice
+point excluded under perturbation. Cylindrical axial labels remain fixed.
+The core propagates analytic local chain rules through at most sixteen continuous
+Ewald parameters, with derivative arithmetic compiled out of forward-only calls.
+No full output-by-parameter Jacobian is stored in the residual.

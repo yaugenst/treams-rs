@@ -251,3 +251,227 @@ def test_public_lattice_mode_broadcasting():
         rtol=2e-8,
         atol=1e-9,
     )
+
+
+@pytest.mark.parametrize(
+    "spherical,dim", [(True, 1), (True, 2), (True, 3), (False, 1), (False, 2)]
+)
+@pytest.mark.parametrize("l,m", [(0, 0), (1, -1), (2, 0), (3, 1)])
+@pytest.mark.parametrize("origin", [True, False])
+def test_all_continuous_lattice_derivatives(spherical, dim, l, m, origin):
+    a = np.diag(np.linspace(1.5, 1.8, dim))
+    if dim > 1:
+        a[1, 0] = 0.17
+    q = np.zeros(dim) if origin else np.linspace(0.1, 0.3, dim)
+    r = np.zeros(3) if origin else np.array([0.21, -0.14, 0.17 if spherical else 0])
+    k = 2.1 + 0.2j
+    value, dk, dr, dq, da = _native.lattice_derivatives(
+        spherical, (l, m), k, q.tolist(), a.tolist(), tuple(r), 1.2
+    )
+    assert_allclose(
+        value, evaluate(spherical, dim, l, m, k, q, a, r, 1.2), rtol=2e-9, atol=2e-9
+    )
+    qdir = np.linspace(0.1, -0.2, dim)
+    adir = np.arange(1, 1 + dim * dim).reshape(dim, dim) * 0.05
+    rdir = np.array([0.12, 0.09, -0.1 if spherical else 0])
+    directions = [
+        (0.3 + 0.1j, np.zeros(dim), np.zeros_like(a), np.zeros(3), dk * (0.3 + 0.1j)),
+        (0, qdir, np.zeros_like(a), np.zeros(3), np.dot(dq[:dim], qdir)),
+        (
+            0,
+            np.zeros(dim),
+            adir,
+            np.zeros(3),
+            np.sum(np.asarray(da)[:dim, :dim] * adir),
+        ),
+    ]
+    if not origin:
+        directions.append((0, np.zeros(dim), np.zeros_like(a), rdir, np.dot(dr, rdir)))
+    for kdir, qdir, adir, rdir, analytical in directions:
+        h = 2e-5
+        plus = evaluate(
+            spherical,
+            dim,
+            l,
+            m,
+            k + h * kdir,
+            q + h * qdir,
+            a + h * adir,
+            r + h * rdir,
+            1.2,
+        )
+        minus = evaluate(
+            spherical,
+            dim,
+            l,
+            m,
+            k - h * kdir,
+            q - h * qdir,
+            a - h * adir,
+            r - h * rdir,
+            1.2,
+        )
+        assert_allclose(analytical, (plus - minus) / (2 * h), rtol=2e-7, atol=2e-8)
+    euler = (
+        -k * dk
+        - np.dot(q, dq[:dim])
+        + np.dot(r, dr)
+        + np.sum(a * np.asarray(da)[:dim, :dim])
+    )
+    assert_allclose(euler, 0, atol=2e-9 * (1 + abs(value)))
+
+
+@pytest.mark.parametrize(
+    "spherical,dim", [(True, 1), (True, 2), (True, 3), (False, 1), (False, 2)]
+)
+def test_periodic_matrix_pullback(spherical, dim):
+    from treams_rs import CylindricalWaveBasis, SphericalWaveBasis, lattice
+
+    basis = (
+        SphericalWaveBasis.default(1)
+        if spherical
+        else CylindricalWaveBasis.default([0.3], 1)
+    )
+    destination = type(basis)(basis.modes, [[0.21, 0.12, 0.15]])
+    source = type(basis)(basis.modes, [[0, 0, 0]])
+    ks = np.array([2.0 + 0.1j, 2.1 + 0.1j])
+    q = np.linspace(0.1, 0.2, dim)
+    a = np.diag([1.6] * dim)
+    value, context = lattice.expansion_with_context(
+        destination, source, ks, a, q, eta=1.2
+    )
+    rng = np.random.default_rng(21)
+    g = rng.normal(size=value.shape) + 1j * rng.normal(size=value.shape)
+    gradients = context.pullback(g)
+    parameters = [destination.positions, source.positions, ks, q, a]
+    directions = [rng.normal(size=x.shape) * 0.1 for x in parameters]
+    directions[2] = directions[2] + 0.12j
+    h = 2e-5
+
+    def function(values):
+        return lattice.expansion(
+            type(basis)(basis.modes, values[0]),
+            type(basis)(basis.modes, values[1]),
+            values[2],
+            values[4],
+            values[3],
+            eta=1.2,
+        )
+
+    for axis, (gradient, direction) in enumerate(
+        zip(gradients, directions, strict=True)
+    ):
+        plus, minus = list(parameters), list(parameters)
+        plus[axis] = plus[axis] + h * direction
+        minus[axis] = minus[axis] - h * direction
+        numerical = np.vdot(g, (function(plus) - function(minus)) / (2 * h)).real
+        assert_allclose(
+            np.vdot(gradient, direction).real, numerical, rtol=2e-7, atol=2e-7
+        )
+    assert_allclose(gradients[0].sum(axis=0) + gradients[1].sum(axis=0), 0, atol=1e-12)
+    with pytest.raises(ValueError, match="consumed"):
+        context.pullback(g)
+
+
+@settings(max_examples=8, deadline=None)
+@given(
+    spherical=st.booleans(),
+    pitch=st.floats(1.4, 1.9),
+    radius=st.floats(0.1, 0.22),
+    bloch=st.floats(0.0, 0.3),
+)
+def test_advect_periodic_complete_solve(spherical, pitch, radius, bloch):
+    import advect
+    import advect.numpy as anp
+
+    from treams_rs import CylindricalWaveBasis, SphericalWaveBasis
+    from treams_rs import advect as ad
+
+    basis = (
+        SphericalWaveBasis.default(1)
+        if spherical
+        else CylindricalWaveBasis.default([0.3], 1)
+    )
+    positions = np.array([[0.1, 0.03, 0.02]])
+
+    def objective(radii, vectors, q):
+        local = (
+            ad.sphere(1, 2.0, radii, np.array([3.0 + 0.1j, 1.0]))
+            if spherical
+            else ad.cylinder(
+                np.array([0.3]), 1, 2.0, radii, np.array([3.0 + 0.1j, 1.0])
+            )
+        )
+        coupling = ad.lattice_expansion(
+            positions,
+            positions,
+            np.array([2.0, 2.0]),
+            q,
+            vectors,
+            destination=basis,
+            source=basis,
+        )
+        effective = ad.interaction(local, coupling)
+        return anp.sum(anp.real(effective * anp.conj(effective))) + 0.07 * anp.sum(
+            anp.real(effective)
+        )
+
+    values = [np.array([radius]), np.diag([pitch, pitch * 1.1]), np.array([bloch, 0.1])]
+    gradients = advect.grad(objective, argnums=(0, 1, 2))(*values)
+    directions = [
+        np.array([0.2]),
+        np.array([[0.1, 0.03], [-0.02, -0.1]]),
+        np.array([0.07, -0.1]),
+    ]
+    h = 1e-5
+    plus = [v + h * d for v, d in zip(values, directions, strict=True)]
+    minus = [v - h * d for v, d in zip(values, directions, strict=True)]
+    actual = sum(np.vdot(g, d).real for g, d in zip(gradients, directions, strict=True))
+    assert_allclose(
+        actual, (objective(*plus) - objective(*minus)) / (2 * h), rtol=2e-6, atol=1e-10
+    )
+
+
+@pytest.mark.parametrize(
+    "spherical,dim", [(True, 1), (True, 2), (True, 3), (False, 1), (False, 2)]
+)
+@pytest.mark.parametrize("m", [-1, 0, 1])
+def test_coincident_origin_regular_image_derivative(spherical, dim, m):
+    a = np.diag([1.7] * dim)
+    q = np.linspace(0.1, 0.2, dim)
+    k = 2.0 + 1.2j
+    indices = np.array(list(itertools.product(range(-13, 14), repeat=dim)))
+    indices = indices[np.any(indices != 0, axis=1)]
+    vectors = indices @ a
+    embedded = np.zeros((len(vectors), 3))
+    axes = [2] if spherical and dim == 1 else list(range(dim))
+    embedded[:, axes] = vectors
+    phase = np.exp(1j * (vectors @ q))
+
+    def direct(r):
+        shift = -embedded - r
+        radius = np.linalg.norm(shift, axis=1)
+        phi = np.arctan2(shift[:, 1], shift[:, 0])
+        if spherical:
+            theta = np.arctan2(np.hypot(shift[:, 0], shift[:, 1]), shift[:, 2])
+            wave = (
+                np.sqrt(np.pi / (2 * k * radius))
+                * sp.hankel1(1.5, k * radius)
+                * sp.sph_harm_y(1, m, theta, phi)
+            )
+        else:
+            wave = sp.hankel1(m, k * radius) * np.exp(1j * m * phi)
+        return np.sum(wave * phase)
+
+    result = _native.lattice_derivatives(
+        spherical, (1, m), k, q.tolist(), a.tolist(), (0, 0, 0), 1.2
+    )
+    assert_allclose(result[0], direct(np.zeros(3)), rtol=2e-8, atol=1e-10)
+    for axis in range(3 if spherical else 2):
+        step = np.eye(3)[axis] * 1e-5
+        assert_allclose(
+            result[2][axis],
+            (direct(step) - direct(-step)) / (2e-5),
+            rtol=2e-7,
+            atol=2e-9,
+        )

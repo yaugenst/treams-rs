@@ -217,12 +217,12 @@ impl ExpansionResidual {
 /// Periodic cylindrical coupling with exact axial/polarization selection and cached orders.
 #[allow(clippy::float_cmp)] // Axial wavenumbers are exact discrete basis labels.
 pub fn periodic(
-    destination: &Basis,
-    source: &Basis,
+    destination: Basis,
+    source: Basis,
     ks: [Complex; 2],
-    lattice: &crate::lattice::Lattice,
+    lattice: crate::lattice::Lattice,
     eta: Complex,
-) -> Result<DMatrix<Complex>> {
+) -> Result<PeriodicResidual> {
     use rayon::prelude::*;
     use std::collections::HashMap;
     destination.validate()?;
@@ -263,7 +263,7 @@ pub fn periodic(
             Ok(crate::lattice::sum(
                 crate::lattice::Wave::Cylindrical { m },
                 krho,
-                lattice,
+                &lattice,
                 [r[0], r[1], 0.0],
                 eta,
             )? * (-Complex::i() * kz * r[2]).exp())
@@ -273,5 +273,102 @@ pub fn periodic(
     for (i, j, index) in entries {
         matrix[(i, j)] = values[index];
     }
-    Ok(matrix)
+    Ok(PeriodicResidual {
+        destination,
+        source,
+        ks,
+        lattice,
+        eta,
+        requests,
+        value: matrix,
+    })
+}
+
+/// Cylindrical periodic coupling context; equal axial labels remain fixed selections.
+#[derive(Debug)]
+pub struct PeriodicResidual {
+    destination: Basis,
+    source: Basis,
+    ks: [Complex; 2],
+    lattice: crate::lattice::Lattice,
+    eta: Complex,
+    requests: Vec<(usize, usize, u64, u8, i32)>,
+    /// Periodic outgoing-to-regular coupling.
+    pub value: DMatrix<Complex>,
+}
+impl PeriodicResidual {
+    /// Consume the context and differentiate origins, medium wavenumbers and lattice geometry.
+    #[allow(clippy::float_cmp)] // Fixed axial labels.
+    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<crate::basis::PeriodicGradient> {
+        use rayon::prelude::*;
+        use std::collections::HashMap;
+        if cotangent.shape() != self.value.shape() || cotangent.iter().any(|&g| !finite(g)) {
+            return Err(Error::InvalidInput(
+                "invalid periodic expansion cotangent".into(),
+            ));
+        }
+        let indices: HashMap<_, _> = self
+            .requests
+            .iter()
+            .enumerate()
+            .map(|(i, &key)| (key, i))
+            .collect();
+        let mut g = vec![Complex::default(); self.requests.len()];
+        for (j, &(q, from)) in self.source.modes.iter().enumerate() {
+            for (i, &(p, to)) in self.destination.modes.iter().enumerate() {
+                if to.kz != from.kz || to.pol != from.pol {
+                    continue;
+                }
+                g[indices[&(p, q, from.kz.to_bits(), from.pol, from.m - to.m)]] +=
+                    cotangent[(i, j)];
+            }
+        }
+        let gradients = self
+            .requests
+            .par_iter()
+            .zip(g)
+            .map(|(&(p, q, kz, pol, m), g)| {
+                let kz = f64::from_bits(kz);
+                let k = self.ks[usize::from(pol)];
+                let mut krho = (k * k - kz * kz).sqrt();
+                if krho.im < 0.0 {
+                    krho = -krho;
+                }
+                let r: [f64; 3] = std::array::from_fn(|a| {
+                    self.source.positions[q][a] - self.destination.positions[p][a]
+                });
+                let phase = (-Complex::i() * kz * r[2]).exp();
+                let jet = crate::lattice::derivatives(
+                    crate::lattice::Wave::Cylindrical { m },
+                    krho,
+                    &self.lattice,
+                    [r[0], r[1], 0.0],
+                    self.eta,
+                )?;
+                let scalar_g = g * phase.conj();
+                let mut gradient = crate::lattice::Gradient {
+                    k: (jet.k * k / krho).conj() * scalar_g,
+                    position: jet.position.map(|d| (scalar_g.conj() * d).re),
+                    bloch: jet.bloch.map(|d| (scalar_g.conj() * d).re),
+                    vectors: jet.vectors.map(|row| row.map(|d| (scalar_g.conj() * d).re)),
+                };
+                gradient.position[2] = (g.conj() * (-Complex::i() * kz) * phase * jet.value).re;
+                Ok((p, q, pol, gradient))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let mut result = crate::basis::PeriodicGradient::new(
+            self.destination.positions.len(),
+            self.source.positions.len(),
+            self.lattice.dimension(),
+        );
+        for (p, q, pol, g) in gradients {
+            result.lattice(&g);
+            result.expansion.ks[usize::from(pol)] += g.k;
+            for (axis, value) in g.position.into_iter().enumerate() {
+                result.expansion.destination[p][axis] -= value;
+                result.expansion.source[q][axis] += value;
+            }
+        }
+        Ok(result)
+    }
 }
