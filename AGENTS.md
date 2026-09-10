@@ -1,6 +1,9 @@
 # treams-rs
 
-Personal Rust rewrite of tfp-photonics/treams. Follow Photonoodle's division:
+Personal Rust rewrite of tfp-photonics/treams.
+GitHub owner is `[redacted]` and this repository must remain private. Never publish
+this project under `[redacted]` or a Flexcompute organization. Use the repository
+credential helper for Git; scope GitHub CLI authentication to `[redacted]`. Follow Photonoodle's division:
 Rust owns numerical execution and derivatives; Python owns user semantics and
 framework adapters. Autodiff frameworks compose the native forward/pullback.
 

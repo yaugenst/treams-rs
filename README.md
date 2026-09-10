@@ -44,3 +44,26 @@ uv run python scripts/benchmark_cluster.py --particles 16 --lmax 3 --threads 4
 ```
 
 Measured scope and caveats are in [benchmarks](docs/benchmarks.md).
+
+
+Optional Autograd integration composes ordinary objectives around the native solver:
+
+```python
+import autograd.numpy as np
+from autograd import grad
+from treams_rs import autograd as ad
+
+
+def loss(radii):
+    t, positions = 1.3, np.array([[0, 0, 0], [0, 0, 0.8]])
+    matrix = ad.cluster(2, t, radii, np.array([4.0, 3.0]), positions)
+    return np.sum(np.real(matrix * np.conj(matrix)))
+
+
+print(grad(loss)(np.array([0.2, 0.25])))
+```
+
+Install `treams-rs[autograd]` when using a wheel, or `uv sync --extra autograd`
+from source. This is a first-order, one-use VJP contract. A new forward call is
+required for another VJP; higher-order derivatives and Jacobian-building helpers
+that repeatedly call one residual are unsupported.
