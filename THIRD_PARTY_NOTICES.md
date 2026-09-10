@@ -13,3 +13,9 @@ Photonoodle project. The numerical core uses `complex-bessel` for
 complex Bessel functions, `nalgebra` for small matrices, and `faer` with
 `rayon` for dense CPU algebra and parallel particle coupling; see Cargo.lock for
 the exact dependency versions.
+
+Ewald lattice sums and Kambe recurrences follow the MIT-licensed treams
+implementation and its cited scientific references. The incomplete-gamma
+continued fraction and exponential-integral series follow DLMF 8.9 and 6.6;
+complex complementary error functions use the MIT-licensed `errorfunctions`
+crate (a Rust implementation of Steven G. Johnson's Faddeeva algorithms).

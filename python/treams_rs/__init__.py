@@ -1,6 +1,6 @@
 """T-matrix scattering with a Rust numerical core and native pullbacks."""
 
-from . import coeffs, diff
+from . import coeffs, diff, lattice
 from ._core import CylindricalWaveBasis, Material, SphericalWaveBasis
 from ._plane import PlaneWave, plane_wave, plane_wave_angle
 from ._tmatrix import TMatrix, TMatrixC
@@ -14,6 +14,7 @@ __all__ = [
     "TMatrixC",
     "coeffs",
     "diff",
+    "lattice",
     "plane_wave",
     "plane_wave_angle",
 ]

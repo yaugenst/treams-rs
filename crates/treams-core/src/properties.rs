@@ -19,6 +19,24 @@ use crate::{
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
+
+    #[test]
+    fn ewald_bloch_split_and_scale(pitch in 1.3_f64..2.0, bloch in 0.05_f64..0.3, order in 0_i32..4, scale in 0.8_f64..1.2) {
+        use crate::lattice::{Lattice, Wave, sum};
+        let lattice = Lattice::new(&[vec![pitch]], &[bloch]).unwrap();
+        let wave = Wave::Cylindrical { m: order };
+        let k = Complex::new(2.2, 0.3);
+        let r = [0.19, 0.13, 0.0];
+        let eta = Complex::new(1.2, 0.0);
+        let value = sum(wave, k, &lattice, r, eta).unwrap();
+        let shifted = sum(wave, k, &lattice, [r[0]+pitch, r[1], 0.0], eta).unwrap();
+        prop_assert!((shifted-(-Complex::i()*bloch*pitch).exp()*value).norm() < 1e-9*(1.0+value.norm()));
+        let resplit = sum(wave, k, &lattice, r, Complex::new(1.6,0.0)).unwrap();
+        prop_assert!((resplit-value).norm() < 1e-8*(1.0+value.norm()));
+        let scaled = Lattice::new(&[vec![pitch*scale]], &[bloch/scale]).unwrap();
+        prop_assert!((sum(wave, k/scale, &scaled, r.map(|x|x*scale), eta).unwrap()-value).norm() < 1e-9*(1.0+value.norm()));
+    }
+
     #[test]
     fn differentiated_optical_theorem(size in 0.3_f64..2.0, epsilon in 1.2_f64..6.0, l in 1_u32..6) {
         let material=Material{epsilon:Complex::new(epsilon,0.0),..Material::default()};

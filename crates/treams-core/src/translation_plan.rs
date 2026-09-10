@@ -6,6 +6,7 @@ use crate::{
     special::{Radial, spherical},
     waves::{Mode, Translation, harmonic, terms},
 };
+use rayon::prelude::*;
 
 #[derive(Clone, Debug)]
 struct Term {
@@ -91,6 +92,35 @@ impl TranslationPlan {
             .entries
             .iter()
             .map(|terms| terms.iter().map(|t| t.weight * table[t.index].value).sum())
+            .collect())
+    }
+
+    pub(crate) fn evaluate_periodic(
+        &self,
+        k: Complex,
+        position: [f64; 3],
+        lattice: &crate::lattice::Lattice,
+        eta: Complex,
+    ) -> Result<Vec<Complex>> {
+        let modes: Vec<_> = (0..=self.order)
+            .flat_map(|l| (-l..=l).map(move |m| (l, m)))
+            .collect();
+        let table = modes
+            .par_iter()
+            .map(|&(l, m)| {
+                Ok(crate::lattice::sum(
+                    crate::lattice::Wave::Spherical { l, m },
+                    k,
+                    lattice,
+                    position.map(|x| -x),
+                    eta,
+                )? / crate::lattice::normalization(l, m))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(self
+            .entries
+            .iter()
+            .map(|terms| terms.iter().map(|t| t.weight * table[t.index]).sum())
             .collect())
     }
 

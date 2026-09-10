@@ -5,6 +5,7 @@
 mod basis;
 mod cylinder;
 mod fields;
+mod lattice;
 mod tmatrix;
 
 use num_complex::Complex64;
@@ -131,6 +132,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     cylinder::register(m)?;
     basis::register(m)?;
     fields::register(m)?;
+    lattice::register(m)?;
     m.add_class::<MieContext>()?;
     m.add_function(wrap_pyfunction!(build_profile, m)?)?;
     m.add_function(wrap_pyfunction!(mie, m)?)?;

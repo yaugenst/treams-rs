@@ -17,7 +17,7 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 | Performance | Cached angular plans and radial tables, faer LU and matmul, block-diagonal local storage, Rayon coupling assembly | See measured scope and limitations in benchmarks.md |
 | Cylindrical scattering | Complex J/H and derivatives; multilayer chiral coefficients and complete T-matrix with all parameter VJPs; cylindrical bases, translations, clusters and cross widths | Cylindrical fields and conversions to spherical/plane waves |
 | Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections | Partial-wavevector bases, plane-wave direction/material VJPs, interfaces and layered S matrices |
-| Periodic scattering | Not implemented | 1D/2D/3D lattice sums, periodic coupling and derivatives |
+| Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D, displaced sources, periodic coupling and interaction solves; direct-sum, reference and Bloch/split/scale invariants | Periodic native pullbacks, S-matrix channels and reflection/transmission |
 | Remaining public API | Not implemented | Field-operator conveniences, EBCM, band calculations, I/O and remaining observables |
 
 The optimized `diff.cluster` is restricted to non-overlapping homogeneous,
@@ -42,3 +42,8 @@ Cylindrical basis expansion treats axial wavenumbers as fixed mode labels becaus
 unequal labels decouple exactly; its public VJP covers origins and medium
 wavenumbers. Exact cylindrical cutoffs require a limiting formulation and are
 explicitly unsupported.
+
+Periodic sums currently broadcast multipole indices for one lattice geometry. They
+reject exact diffraction thresholds rather than replacing singularities with an
+arbitrary finite constant. `latticeinteraction.solve` returns an array of periodic
+response coefficients; isolated-particle cross-section formulae do not apply.

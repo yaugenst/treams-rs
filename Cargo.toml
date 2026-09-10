@@ -14,6 +14,7 @@ description = "T-matrix scattering with a Rust numerical core and native pullbac
 faer = { version = "0.24.4", default-features = false, features = ["std", "rayon", "linalg"] }
 rayon = "1"
 complex-bessel = "0.2.0"
+errorfunctions = "0.2.0"
 libm = "0.2"
 nalgebra = { version = "0.35", default-features = false, features = ["std"] }
 num-complex = "0.4"

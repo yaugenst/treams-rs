@@ -10,6 +10,7 @@ description.workspace = true
 faer.workspace = true
 rayon.workspace = true
 complex-bessel.workspace = true
+errorfunctions.workspace = true
 libm.workspace = true
 nalgebra.workspace = true
 num-complex.workspace = true

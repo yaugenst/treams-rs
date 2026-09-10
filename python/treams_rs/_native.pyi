@@ -172,3 +172,35 @@ def plane_to_cylindrical(
     vector: tuple[complex, ...],
     pol: int,
 ) -> NDArray[np.complex128]: ...
+def incgamma(n: float, z: complex) -> complex: ...
+def intkambe(n: int, z: complex, eta: complex) -> complex: ...
+def lattice_sum(
+    spherical: bool,
+    modes: list[tuple[int, int]],
+    k: complex,
+    bloch: list[float],
+    vectors: list[list[float]],
+    shift: tuple[float, float, float],
+    eta: complex,
+) -> list[complex]: ...
+def periodic_expansion(
+    to: list[tuple[int, int, int, int]],
+    source: list[tuple[int, int, int, int]],
+    to_positions: list[list[float]],
+    source_positions: list[list[float]],
+    ks: tuple[complex, complex],
+    helicity: bool,
+    bloch: list[float],
+    vectors: list[list[float]],
+    eta: complex,
+) -> ComplexArray: ...
+def periodic_cyl_expansion(
+    to: list[tuple[int, float, int, int]],
+    source: list[tuple[int, float, int, int]],
+    to_positions: list[list[float]],
+    source_positions: list[list[float]],
+    ks: tuple[complex, complex],
+    bloch: list[float],
+    vectors: list[list[float]],
+    eta: complex,
+) -> ComplexArray: ...

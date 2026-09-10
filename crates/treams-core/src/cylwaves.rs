@@ -213,3 +213,65 @@ impl ExpansionResidual {
         Ok(result)
     }
 }
+
+/// Periodic cylindrical coupling with exact axial/polarization selection and cached orders.
+#[allow(clippy::float_cmp)] // Axial wavenumbers are exact discrete basis labels.
+pub fn periodic(
+    destination: &Basis,
+    source: &Basis,
+    ks: [Complex; 2],
+    lattice: &crate::lattice::Lattice,
+    eta: Complex,
+) -> Result<DMatrix<Complex>> {
+    use rayon::prelude::*;
+    use std::collections::HashMap;
+    destination.validate()?;
+    source.validate()?;
+    if ks.iter().any(|&k| !finite(k) || k == Complex::default()) {
+        return Err(Error::InvalidInput(
+            "finite nonzero medium wavenumbers required".into(),
+        ));
+    }
+    let mut indices = HashMap::new();
+    let mut requests = Vec::new();
+    let mut entries = Vec::new();
+    for (j, &(q, from)) in source.modes.iter().enumerate() {
+        for (i, &(p, to)) in destination.modes.iter().enumerate() {
+            if to.kz != from.kz || to.pol != from.pol {
+                continue;
+            }
+            let key = (p, q, from.kz.to_bits(), from.pol, from.m - to.m);
+            let next = requests.len();
+            let index = *indices.entry(key).or_insert_with(|| {
+                requests.push(key);
+                next
+            });
+            entries.push((i, j, index));
+        }
+    }
+    let values = requests
+        .par_iter()
+        .map(|&(p, q, kz, pol, m)| {
+            let kz = f64::from_bits(kz);
+            let k = ks[usize::from(pol)];
+            let mut krho = (k * k - kz * kz).sqrt();
+            if krho.im < 0.0 {
+                krho = -krho;
+            }
+            let r: [f64; 3] =
+                std::array::from_fn(|a| source.positions[q][a] - destination.positions[p][a]);
+            Ok(crate::lattice::sum(
+                crate::lattice::Wave::Cylindrical { m },
+                krho,
+                lattice,
+                [r[0], r[1], 0.0],
+                eta,
+            )? * (-Complex::i() * kz * r[2]).exp())
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let mut matrix = DMatrix::zeros(destination.modes.len(), source.modes.len());
+    for (i, j, index) in entries {
+        matrix[(i, j)] = values[index];
+    }
+    Ok(matrix)
+}

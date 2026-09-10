@@ -119,7 +119,7 @@ fn expansion(
     ))
 }
 
-fn make_cyl_basis(
+pub(crate) fn make_cyl_basis(
     modes: Vec<(usize, f64, i32, u8)>,
     positions: Vec<[f64; 3]>,
 ) -> treams_core::cylwaves::Basis {

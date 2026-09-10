@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import numpy as np
 
-from . import diff
+from . import diff, lattice
 from ._core import CylindricalWaveBasis, Material, MaterialLike, SphericalWaveBasis
 from ._plane import PlaneWave
 
@@ -139,6 +139,10 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
     def interaction(self) -> _Interaction[Self]:
         return _Interaction(self)
 
+    @property
+    def latticeinteraction(self) -> _PeriodicInteraction[Self]:
+        return _PeriodicInteraction(self)
+
     def changepoltype(self, poltype: str | None = None) -> Self:
         poltype = (
             ("parity" if self.poltype == "helicity" else "helicity")
@@ -228,6 +232,36 @@ class _Interaction[M: _TMatrix[Any]]:
         return type(tm)(
             result, k0=tm.k0, basis=tm.basis, material=tm.material, poltype=tm.poltype
         )
+
+
+class _PeriodicInteraction[M: _TMatrix[Any]]:
+    def __init__(self, matrix: M):
+        self.matrix = matrix
+
+    def coupling(
+        self, a: ArrayLike, kpar: ArrayLike, *, eta: complex = 0
+    ) -> NDArray[np.complex128]:
+        tm = self.matrix
+        return lattice.expansion(
+            tm.basis, tm.basis, tm.ks, a, kpar, poltype=tm.poltype, eta=eta
+        )
+
+    def __call__(
+        self, a: ArrayLike, kpar: ArrayLike, *, eta: complex = 0
+    ) -> NDArray[np.complex128]:
+        return np.eye(
+            len(self.matrix), dtype=np.complex128
+        ) - self.matrix.array @ self.coupling(a, kpar, eta=eta)
+
+    def solve(
+        self, a: ArrayLike, kpar: ArrayLike, *, eta: complex = 0
+    ) -> NDArray[np.complex128]:
+        """Effective periodic response in local multipole channels.
+
+        This is not an isolated-particle T-matrix; finite-particle cross-section
+        formulae do not apply. Use its array with incident channel coefficients.
+        """
+        return diff.interaction(self.matrix.array, self.coupling(a, kpar, eta=eta))[0]
 
 
 class TMatrix(_TMatrix[SphericalWaveBasis]):

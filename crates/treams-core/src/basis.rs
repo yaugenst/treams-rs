@@ -82,8 +82,26 @@ pub fn translation(
             "finite wave numbers required; parity requires an achiral medium".into(),
         ));
     }
+    let blocks = blocks(&destination, &source, helicity)?;
+    let value = assemble(
+        &destination,
+        &source,
+        ks,
+        &blocks,
+        |plan, k, displacement| plan.evaluate_with(k, displacement, radial),
+    )?;
+    Ok(TranslationResidual {
+        destination,
+        source,
+        ks,
+        radial,
+        blocks,
+        value,
+    })
+}
+
+fn blocks(destination: &Basis, source: &Basis, helicity: bool) -> Result<Vec<Block>> {
     let mut plans = HashMap::new();
-    let mut value = DMatrix::zeros(destination.modes.len(), source.modes.len());
     let mut blocks = Vec::new();
     let source_groups = source.groups();
     for (p, (rows, to)) in destination.groups() {
@@ -96,24 +114,6 @@ pub fn translation(
                 plans.insert(key, Arc::clone(&plan));
                 plan
             };
-            let displacement =
-                std::array::from_fn(|a| destination.positions[p][a] - source.positions[q][a]);
-            let first = plan.evaluate_with(ks[0], displacement, radial)?;
-            let second = if ks[0] == ks[1] {
-                None
-            } else {
-                Some(plan.evaluate_with(ks[1], displacement, radial)?)
-            };
-            for (j, &col) in cols.iter().enumerate() {
-                let values = if from[j].pol == 1 {
-                    second.as_ref().unwrap_or(&first)
-                } else {
-                    &first
-                };
-                for (i, &row) in rows.iter().enumerate() {
-                    value[(row, col)] = values[j * rows.len() + i];
-                }
-            }
             blocks.push(Block {
                 destination: p,
                 source: q,
@@ -124,13 +124,60 @@ pub fn translation(
             });
         }
     }
-    Ok(TranslationResidual {
-        destination,
-        source,
-        ks,
-        radial,
-        blocks,
-        value,
+    Ok(blocks)
+}
+
+fn assemble(
+    destination: &Basis,
+    source: &Basis,
+    ks: [Complex; 2],
+    blocks: &[Block],
+    evaluate: impl Fn(&TranslationPlan, Complex, [f64; 3]) -> Result<Vec<Complex>>,
+) -> Result<DMatrix<Complex>> {
+    let mut value = DMatrix::zeros(destination.modes.len(), source.modes.len());
+    for block in blocks {
+        let displacement = std::array::from_fn(|a| {
+            destination.positions[block.destination][a] - source.positions[block.source][a]
+        });
+        let first = evaluate(&block.plan, ks[0], displacement)?;
+        let second = if ks[0] == ks[1] {
+            None
+        } else {
+            Some(evaluate(&block.plan, ks[1], displacement)?)
+        };
+        for (j, &col) in block.cols.iter().enumerate() {
+            let values = if block.polarizations[j] == 1 {
+                second.as_ref().unwrap_or(&first)
+            } else {
+                &first
+            };
+            for (i, &row) in block.rows.iter().enumerate() {
+                value[(row, col)] = values[j * block.rows.len() + i];
+            }
+        }
+    }
+    Ok(value)
+}
+
+/// Periodic outgoing-to-regular spherical coupling, including nonzero lattice images of self blocks.
+pub fn periodic(
+    destination: &Basis,
+    source: &Basis,
+    ks: [Complex; 2],
+    helicity: bool,
+    lattice: &crate::lattice::Lattice,
+    eta: Complex,
+) -> Result<DMatrix<Complex>> {
+    destination.validate()?;
+    source.validate()?;
+    if ks.iter().any(|&k| !finite(k)) || (!helicity && ks[0] != ks[1]) {
+        return Err(Error::InvalidInput(
+            "finite wave numbers required; parity requires an achiral medium".into(),
+        ));
+    }
+    let blocks = blocks(destination, source, helicity)?;
+    assemble(destination, source, ks, &blocks, |plan, k, displacement| {
+        plan.evaluate_periodic(k, displacement, lattice, eta)
     })
 }
 
