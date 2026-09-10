@@ -216,3 +216,36 @@ def test_unsupported_transforms_fail_before_native_execution(
 
     with pytest.raises(error, match=match):
         transform(loss, 0.2)
+
+
+@pytest.mark.ad_contract
+@given(z=st.floats(0.8, 2.0), imaginary=st.floats(0.01, 0.2))
+def test_expansion_joint_position_and_complex_wavenumber_gradient(z, imaginary):
+    from treams_rs import SphericalWaveBasis
+
+    basis = SphericalWaveBasis.default(2)
+    positions = np.array([[0.1, 0.2, z]])
+    ks = np.array([1.2 + imaginary * 1j, 1.3 + imaginary * 1j])
+
+    def loss(position, wavenumbers):
+        matrix = ad.expansion(
+            position,
+            [[0, 0, 0]],
+            wavenumbers,
+            destination=basis,
+            source=basis,
+            singular=True,
+        )
+        return np.sum(np.sin(np.real(matrix)) + np.imag(matrix) * 0.03)
+
+    gp, gk = grad(loss, argnums=(0, 1))(positions, ks)
+    dp = np.array([[0.1, -0.2, 0.3]])
+    dk = np.array([0.2 + 0.1j, -0.1 + 0.3j])
+    h = 1e-6
+    np.testing.assert_allclose(
+        np.real(np.vdot(gp, dp) + np.vdot(gk, dk)),
+        (loss(positions + h * dp, ks + h * dk) - loss(positions - h * dp, ks - h * dk))
+        / (2 * h),
+        rtol=2e-6,
+        atol=1e-5,
+    )

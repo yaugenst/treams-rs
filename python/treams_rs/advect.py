@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 
     from numpy.typing import ArrayLike, NDArray
 
+    from ._core import SphericalWaveBasis
+
 
 type _Values = tuple[ArrayLike, ...]
 type _Pullback = Callable[[NDArray[np.complex128]], _Values]
@@ -147,3 +149,57 @@ def mie_cyl(
         return value, context.pullback
 
     return _call((kz, k0, radii, epsilon, mu, kappa), forward)
+
+
+def field(
+    coefficients: ArrayLike,
+    points: ArrayLike,
+    origins: ArrayLike,
+    ks: ArrayLike,
+    *,
+    basis: SphericalWaveBasis,
+    poltype: str = "helicity",
+    singular: bool = False,
+) -> NDArray[np.complex128]:
+    """Electric field; differentiable in amplitudes, points, origins and wavenumbers."""
+    from ._core import SphericalWaveBasis
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        dynamic_basis = SphericalWaveBasis(basis.modes, positions=values[2])
+        value, context = diff.field(
+            values[0],
+            values[1],
+            dynamic_basis,
+            values[3],
+            poltype=poltype,
+            singular=singular,
+        )
+        return value, context.pullback
+
+    return _call((coefficients, points, origins, ks), forward)
+
+
+def expansion(
+    destination_positions: ArrayLike,
+    source_positions: ArrayLike,
+    ks: ArrayLike,
+    *,
+    destination: SphericalWaveBasis,
+    source: SphericalWaveBasis,
+    poltype: str = "helicity",
+    singular: bool = False,
+) -> NDArray[np.complex128]:
+    """Expansion matrix, differentiable in both origin arrays and wavenumbers."""
+    from ._core import SphericalWaveBasis
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.expansion(
+            SphericalWaveBasis(destination.modes, positions=values[0]),
+            SphericalWaveBasis(source.modes, positions=values[1]),
+            values[2],
+            poltype=poltype,
+            singular=singular,
+        )
+        return value, context.pullback
+
+    return _call((destination_positions, source_positions, ks), forward)

@@ -57,6 +57,16 @@ pub fn spherical_wave(
     helicity: bool,
     radial: Radial,
 ) -> Result<VectorWave> {
+    spherical_wave_impl::<true>(mode, k, position, helicity, radial)
+}
+
+fn spherical_wave_impl<const DERIVATIVES: bool>(
+    mode: Mode,
+    k: Complex,
+    position: [f64; 3],
+    helicity: bool,
+    radial: Radial,
+) -> Result<VectorWave> {
     mode.validate()?;
     if !finite(k) || k.norm_sqr() == 0.0 || position.iter().any(|v| !v.is_finite()) {
         return Err(Error::InvalidInput(
@@ -68,12 +78,16 @@ pub fn spherical_wave(
     let degree = f64::from(l);
     let c = scaled_radial(l, k, r2.sqrt(), radial)?;
     let e = scaled_radial(l + 1, k, r2.sqrt(), radial)?;
-    let f = scaled_radial(l + 2, k, r2.sqrt(), radial)?;
+    let f = if DERIVATIVES {
+        scaled_radial(l + 2, k, r2.sqrt(), radial)?
+    } else {
+        Complex::default()
+    };
     let ck = degree / k * c - r2 * e;
     let ek = (degree + 1.0) / k * e - r2 * f;
     let d = (degree + 1.0) / k * c - r2 * e;
     let dk = (degree + 1.0) / k * ck - (degree + 1.0) / k.powu(2) * c - r2 * ek;
-    let solid = solid::<true>(mode.l, mode.m, position);
+    let solid = solid::<DERIVATIVES>(mode.l, mode.m, position);
     let vector = position.map(|v| Complex::new(v, 0.0));
     let rotation = cross(vector, solid.gradient);
     let normalization = Complex::i()
@@ -106,7 +120,7 @@ pub fn spherical_wave(
         )
     });
     let mut jacobian = [[Complex::default(); 3]; 3];
-    for axis in 0..3 {
+    for axis in 0..if DERIVATIVES { 3 } else { 0 } {
         let ca = -k * e * position[axis];
         let ea = -k * f * position[axis];
         let da = (degree + 1.0) / k * ca - 2.0 * position[axis] * e - r2 * ea;
@@ -134,4 +148,142 @@ pub fn spherical_wave(
         position: jacobian,
         k: wave_k,
     })
+}
+
+/// Field samples and the data needed for an analytic reverse pass.
+/// Storage is linear in sample and mode count; no sample-by-mode Jacobian is retained.
+#[derive(Debug)]
+pub struct FieldResidual {
+    basis: crate::basis::Basis,
+    coefficients: Vec<Complex>,
+    points: Vec<[f64; 3]>,
+    ks: [Complex; 2],
+    helicity: bool,
+    radial: Radial,
+    /// Electric field at each Cartesian sample.
+    pub value: Vec<[Complex; 3]>,
+}
+
+/// Field cotangents under the real Hermitian pairing.
+#[derive(Debug)]
+pub struct FieldGradient {
+    /// Complex multipole amplitude cotangents.
+    pub coefficients: Vec<Complex>,
+    /// Real sample-coordinate cotangents.
+    pub points: Vec<[f64; 3]>,
+    /// Real expansion-origin cotangents.
+    pub origins: Vec<[f64; 3]>,
+    /// Complex negative/positive helicity wavenumber cotangents.
+    pub ks: [Complex; 2],
+}
+
+/// Evaluate weighted electric fields in parallel over samples.
+pub fn field(
+    basis: crate::basis::Basis,
+    coefficients: Vec<Complex>,
+    points: Vec<[f64; 3]>,
+    ks: [Complex; 2],
+    helicity: bool,
+    radial: Radial,
+) -> Result<FieldResidual> {
+    use rayon::prelude::*;
+    basis.validate()?;
+    if coefficients.len() != basis.modes.len()
+        || coefficients.iter().any(|&v| !finite(v))
+        || points.iter().flatten().any(|v| !v.is_finite())
+        || ks.iter().any(|&v| !finite(v) || v.norm_sqr() == 0.0)
+        || (!helicity && ks[0] != ks[1])
+    {
+        return Err(Error::InvalidInput("require one finite coefficient per mode, finite points and nonzero wavenumbers; parity requires an achiral medium".into()));
+    }
+    let value = points
+        .par_iter()
+        .map(|point| {
+            let mut value = [Complex::default(); 3];
+            for (&(particle, mode), &amplitude) in basis.modes.iter().zip(&coefficients) {
+                let position = std::array::from_fn(|a| point[a] - basis.positions[particle][a]);
+                let wave = spherical_wave_impl::<false>(
+                    mode,
+                    ks[usize::from(mode.pol)],
+                    position,
+                    helicity,
+                    radial,
+                )?;
+                for (v, f) in value.iter_mut().zip(wave.value) {
+                    *v += amplitude * f;
+                }
+            }
+            Ok(value)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok(FieldResidual {
+        basis,
+        coefficients,
+        points,
+        ks,
+        helicity,
+        radial,
+        value,
+    })
+}
+
+impl FieldResidual {
+    /// Contract analytic field derivatives without storing a dense Jacobian.
+    pub fn pullback(self, cotangent: &[[Complex; 3]]) -> Result<FieldGradient> {
+        use rayon::prelude::*;
+        if cotangent.len() != self.points.len() || cotangent.iter().flatten().any(|&v| !finite(v)) {
+            return Err(Error::InvalidInput("invalid field cotangent".into()));
+        }
+        let mut points = vec![[0.0; 3]; self.points.len()];
+        let zero = || FieldGradient {
+            coefficients: vec![Complex::default(); self.coefficients.len()],
+            points: Vec::new(),
+            origins: vec![[0.0; 3]; self.basis.positions.len()],
+            ks: [Complex::default(); 2],
+        };
+        let mut result = points
+            .par_iter_mut()
+            .zip(self.points.par_iter())
+            .zip(cotangent.par_iter())
+            .try_fold(zero, |mut sum, ((point_gradient, point), g)| {
+                for (i, &(particle, mode)) in self.basis.modes.iter().enumerate() {
+                    let position =
+                        std::array::from_fn(|a| point[a] - self.basis.positions[particle][a]);
+                    let pol = usize::from(mode.pol);
+                    let wave =
+                        spherical_wave(mode, self.ks[pol], position, self.helicity, self.radial)?;
+                    let amplitude = self.coefficients[i];
+                    for (component, &cot) in g.iter().enumerate() {
+                        sum.coefficients[i] += wave.value[component].conj() * cot;
+                        sum.ks[pol] += (amplitude * wave.k[component]).conj() * cot;
+                        for (axis, point_derivative) in point_gradient.iter_mut().enumerate() {
+                            let derivative =
+                                (cot.conj() * amplitude * wave.position[component][axis]).re;
+                            *point_derivative += derivative;
+                            sum.origins[particle][axis] -= derivative;
+                        }
+                    }
+                }
+                Ok(sum)
+            })
+            .try_reduce(zero, |mut a, b| {
+                for (x, y) in a.coefficients.iter_mut().zip(b.coefficients) {
+                    *x += y;
+                }
+                for (x, y) in a
+                    .origins
+                    .iter_mut()
+                    .flatten()
+                    .zip(b.origins.iter().flatten())
+                {
+                    *x += y;
+                }
+                for (x, y) in a.ks.iter_mut().zip(b.ks) {
+                    *x += y;
+                }
+                Ok(a)
+            })?;
+        result.points = points;
+        Ok(result)
+    }
 }

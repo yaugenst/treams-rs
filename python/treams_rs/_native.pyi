@@ -99,3 +99,23 @@ def spherical_wave(
     helicity: bool,
     outgoing: bool,
 ) -> tuple[Vector, tuple[Vector, Vector, Vector], Vector]: ...
+
+class FieldContext:
+    def pullback(
+        self, cotangent: NDArray[np.complex128]
+    ) -> tuple[
+        NDArray[np.complex128],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.complex128],
+    ]: ...
+
+def field(
+    modes: list[tuple[int, int, int, int]],
+    origins: list[list[float]],
+    coefficients: NDArray[np.complex128],
+    points: NDArray[np.float64],
+    ks: tuple[complex, complex],
+    helicity: bool,
+    outgoing: bool,
+) -> tuple[NDArray[np.complex128], FieldContext]: ...

@@ -161,4 +161,27 @@ proptest! {
         }
     }
 
+    #[test]
+    fn field_amplitude_adjoint_and_coordinate_scale_identity(values in prop::collection::vec(-0.5_f64..0.5, 24), z in 0.8_f64..2.0) {
+        let modes=(-1..=1).flat_map(|m|(0..2).map(move |pol|(0,Mode{l:1,m,pol}))).collect();
+        let basis=crate::basis::Basis{modes,positions:vec![[0.1,0.2,0.3]]};
+        let mut values=values.as_chunks::<2>().0.iter().map(|&[re,im]|Complex::new(re,im));
+        let coefficients:Vec<_>=values.by_ref().take(6).collect();
+        let cotangent:Vec<[Complex;3]>=(0..2).map(|_|std::array::from_fn(|_|values.next().unwrap())).collect();
+        let points=vec![[0.7,0.1,z],[0.0,0.0,z]];
+        let ks=[Complex::new(1.1,0.1),Complex::new(1.3,0.1)];
+        let forward=crate::fields::field(basis.clone(),coefficients.clone(),points.clone(),ks,true,Radial::Outgoing).unwrap();
+        let loss:f64=forward.value.iter().flatten().zip(cotangent.iter().flatten()).map(|(f,g)|(g.conj()*f).re).sum();
+        let gradient=forward.pullback(&cotangent).unwrap();
+        let amplitude_pairing:f64=gradient.coefficients.iter().zip(coefficients).map(|(g,c)|(g.conj()*c).re).sum();
+        prop_assert!((loss-amplitude_pairing).abs()<1e-10);
+        for axis in 0..3 {
+            let total=gradient.points.iter().chain(&gradient.origins).map(|g|g.get(axis).unwrap()).sum::<f64>();
+            prop_assert!(total.abs()<1e-10);
+        }
+        let spatial:f64=gradient.points.iter().flatten().chain(gradient.origins.iter().flatten()).zip(points.iter().flatten().chain(basis.positions.iter().flatten())).map(|(g,p)|g*p).sum();
+        let spectral:f64=gradient.ks.iter().zip(ks).map(|(g,k)|(g.conj()*k).re).sum();
+        prop_assert!((spatial-spectral).abs()<1e-10);
+    }
+
 }

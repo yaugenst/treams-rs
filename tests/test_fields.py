@@ -111,3 +111,136 @@ def test_field_position_and_wavenumber_derivatives(position, mode):
         atol=2e-10,
         rtol=3e-8,
     )
+
+
+@pytest.mark.oracle_numerical
+@pytest.mark.filterwarnings(
+    "ignore:`scipy.special.sph_harm` is deprecated.*:DeprecationWarning"
+)
+@pytest.mark.parametrize("poltype", ["helicity", "parity"])
+@pytest.mark.parametrize("singular", [False, True])
+def test_batched_fields_reference(poltype, singular):
+    import treams
+
+    from treams_rs import SphericalWaveBasis, diff
+
+    basis = SphericalWaveBasis.default(
+        3, nmax=2, positions=[[0, 0, 0], [0.1, 0.2, 0.3]]
+    )
+    oracle_basis = treams.SphericalWaveBasis(basis.modes, positions=basis.positions)
+    points = np.array([[0.7, -0.1, 1.0], [-0.5, 0.4, 0.2], [0.0, 0.0, 1.0]])
+    rng = np.random.default_rng(491)
+    amplitudes = rng.normal(size=len(basis)) + 1j * rng.normal(size=len(basis))
+    material = treams.Material(2.0 + 0.1j, 1.1, 0.05 if poltype == "helicity" else 0)
+    ks = material.ks(1.2)
+    actual, _ = diff.field(
+        amplitudes, points, basis, ks, poltype=poltype, singular=singular
+    )
+    expected = (
+        np.asarray(
+            treams.efield(
+                points,
+                basis=oracle_basis,
+                k0=1.2,
+                material=material,
+                poltype=poltype,
+                modetype="singular" if singular else "regular",
+            )
+        )
+        @ amplitudes
+    )
+    np.testing.assert_allclose(actual, expected, rtol=2e-11, atol=2e-11)
+
+
+@pytest.mark.ad_contract
+@given(scale=st.floats(0.7, 1.4), offset=st.floats(-0.2, 0.2), singular=st.booleans())
+def test_batched_field_pullback_all_inputs_and_translation_invariance(
+    scale, offset, singular
+):
+    from treams_rs import SphericalWaveBasis, diff
+
+    rng = np.random.default_rng(945)
+    basis = SphericalWaveBasis.default(
+        2, nmax=2, positions=[[0, 0, 0], [0.1, 0.2, 0.3]]
+    )
+    amplitudes = scale * (
+        rng.normal(size=len(basis)) + 1j * rng.normal(size=len(basis))
+    )
+    points = np.array([[0.8 + offset, 0.1, 1.0], [0, 0, 1.0]])
+    ks = np.array([1.1 + 0.1j, 1.3 + 0.1j])
+    weight = rng.normal(size=(2, 3)) + 1j * rng.normal(size=(2, 3))
+    inputs = [amplitudes, points, basis.positions, ks]
+    directions = [
+        rng.normal(size=v.shape)
+        + (1j * rng.normal(size=v.shape) if np.iscomplexobj(v) else 0)
+        for v in inputs
+    ]
+
+    def forward(values):
+        return diff.field(
+            values[0],
+            values[1],
+            SphericalWaveBasis(basis.modes, positions=values[2]),
+            values[3],
+            singular=singular,
+        )
+
+    _, context = forward(inputs)
+    gradients = context.pullback(weight)
+    step = 1e-6
+    numerical = np.real(
+        np.vdot(
+            weight,
+            (
+                forward(
+                    [v + step * d for v, d in zip(inputs, directions, strict=True)]
+                )[0]
+                - forward(
+                    [v - step * d for v, d in zip(inputs, directions, strict=True)]
+                )[0]
+            )
+            / (2 * step),
+        )
+    )
+    analytic = sum(
+        np.real(np.vdot(g, d)) for g, d in zip(gradients, directions, strict=True)
+    )
+    np.testing.assert_allclose(analytic, numerical, rtol=3e-7, atol=2e-7)
+    np.testing.assert_allclose(
+        gradients[1].sum(axis=0) + gradients[2].sum(axis=0), 0, atol=2e-8
+    )
+    with pytest.raises(ValueError, match="consumed"):
+        context.pullback(weight)
+
+
+@pytest.mark.ad_contract
+def test_advect_field_composes_through_native_interaction():
+    import advect
+
+    from treams_rs import SphericalWaveBasis
+    from treams_rs import advect as ad
+
+    basis = SphericalWaveBasis.default(1)
+    incident = np.arange(6) * (0.02 + 0.03j)
+    points = np.array([[0.1, 0.2, 1.1], [0, 0, 1.0]])
+
+    def loss(radii):
+        matrix = ad.sphere(1, 1.2, radii, [3.0, 1.0])
+        field = ad.field(
+            matrix @ incident,
+            points,
+            [[0, 0, 0]],
+            [1.2, 1.2],
+            basis=basis,
+            singular=True,
+        )
+        return np.sum(np.abs(field) ** 2)
+
+    radii = np.array([0.3])
+    h = 1e-6
+    np.testing.assert_allclose(
+        advect.grad(loss)(radii)[0],
+        (loss(radii + h) - loss(radii - h)) / (2 * h),
+        rtol=2e-6,
+        atol=1e-10,
+    )

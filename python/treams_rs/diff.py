@@ -88,3 +88,33 @@ def expansion(
         poltype == "helicity",
         singular,
     )
+
+
+def field(
+    coefficients: ArrayLike,
+    points: ArrayLike,
+    basis: SphericalWaveBasis,
+    ks: ArrayLike,
+    *,
+    poltype: str = "helicity",
+    singular: bool = False,
+) -> tuple[NDArray[np.complex128], _native.FieldContext]:
+    """Electric samples (N, 3); VJP returns (coefficients, points, origins, ks).
+
+    Inputs are multipole amplitudes, Cartesian points (N, 3), a spherical basis,
+    and negative/positive helicity wavenumbers. The residual uses linear storage.
+    """
+    values = np.asarray(ks, dtype=np.complex128)
+    if values.shape != (2,):
+        raise ValueError("ks must contain negative and positive helicity wavenumbers")
+    if poltype not in ("helicity", "parity"):
+        raise ValueError("invalid polarization type")
+    return _native.field(
+        list(basis.modes),
+        basis.positions.tolist(),
+        np.ascontiguousarray(coefficients, dtype=np.complex128),
+        np.ascontiguousarray(points, dtype=np.float64),
+        (complex(values[0]), complex(values[1])),
+        poltype == "helicity",
+        singular,
+    )

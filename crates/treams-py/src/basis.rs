@@ -57,7 +57,7 @@ impl ExpansionContext {
     }
 }
 
-fn make_basis(modes: Vec<(usize, i32, i32, u8)>, positions: Vec<[f64; 3]>) -> Basis {
+pub(crate) fn make_basis(modes: Vec<(usize, i32, i32, u8)>, positions: Vec<[f64; 3]>) -> Basis {
     Basis {
         modes: modes
             .into_iter()

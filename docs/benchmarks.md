@@ -42,3 +42,20 @@ Reproduce after `uv sync --locked --group dev` and `just build-ext-release`:
 ```sh
 uv run --no-sync python scripts/benchmark_cluster.py --particles 16 --lmax 3 --threads 4
 ```
+
+## Batched spherical fields
+
+The same harness accepts `--workload field --samples 2048`. It compares weighted
+outgoing electric fields, including a retained native pullback context, against
+`treams.efield(...) @ coefficients`. Basis setup and input generation are outside
+the timed region for both implementations; upstream's field operator allocation
+is part of its evaluation. Correctness is checked before isolated timing.
+
+For four origins, order 3 (120 modes), 2,048 samples and four threads, the measured
+median was 40.82 ms in Rust versus 822.27 ms in treams (20.14x). Peak process RSS
+was 40.98 MiB versus 96.94 MiB; post-import baselines were 40.22 and 64.00 MiB.
+Raw samples and binary identity: `benchmarks/results/fields-n4-l3-p2048-t4.json`.
+The native path contracts amplitudes as it evaluates each sample, so it does not
+allocate upstream's sample-by-component-by-mode matrix. Reverse mode recomputes
+local wave derivatives and reduces cotangents with Rayon; no dense Jacobian is
+retained. This is one qualified field workload, not a claim about all field sizes.

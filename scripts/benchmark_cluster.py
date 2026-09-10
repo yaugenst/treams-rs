@@ -4,7 +4,7 @@
 # ///
 """Isolated-process, matched-thread benchmarks of full cluster T-matrices.
 
-Run after `just build-ext-release`: uv run python scripts/benchmark_cluster.py.
+Run after `just build-ext-release`: uv run --no-sync python scripts/benchmark_cluster.py.
 The parent never imports either solver, keeping peak-RSS measurements separate.
 """
 
@@ -24,12 +24,14 @@ import time
 from pathlib import Path
 
 
-def worker(backend: str, particles: int, order: int, repeats: int) -> None:
+def worker(
+    backend: str, particles: int, order: int, repeats: int, workload: str, samples: int
+) -> None:
     import numpy as np
     from threadpoolctl import threadpool_info, threadpool_limits
 
     if backend in ("rust", "check"):
-        from treams_rs import _native, diff
+        from treams_rs import SphericalWaveBasis, _native, diff
 
         if _native.build_profile() != "release":
             raise RuntimeError("benchmark requires just build-ext-release")
@@ -44,10 +46,43 @@ def worker(backend: str, particles: int, order: int, repeats: int) -> None:
             [np.arange(particles) * 0.8, np.zeros((particles, 2))]
         )
 
+        if workload == "field":
+            points = np.column_stack(
+                [
+                    np.linspace(0.1, particles * 0.8 + 0.2, samples),
+                    np.full(samples, 1.1),
+                    np.full(samples, 0.4),
+                ]
+            )
+            rng = np.random.default_rng(5)
+            dimension = particles * 2 * order * (order + 2)
+            amplitudes = rng.normal(size=dimension) + 1j * rng.normal(size=dimension)
+            if backend in ("rust", "check"):
+                basis = SphericalWaveBasis.default(order, particles, positions)
+            if backend in ("treams", "check"):
+                oracle_basis = treams.SphericalWaveBasis.default(
+                    order, particles, positions
+                )
+
         def rust():
+            if workload == "field":
+                return diff.field(amplitudes, points, basis, [1.3, 1.3], singular=True)
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload == "field":
+                return (
+                    np.asarray(
+                        treams.efield(
+                            points,
+                            basis=oracle_basis,
+                            k0=1.3,
+                            modetype="singular",
+                            poltype="helicity",
+                        )
+                    )
+                    @ amplitudes
+                )
             spheres = [
                 treams.TMatrix.sphere(order, 1.3, r, [e, 1])
                 for r, e in zip(radii, epsilon, strict=True)
@@ -86,6 +121,8 @@ def worker(backend: str, particles: int, order: int, repeats: int) -> None:
                     "native_profile": _native.build_profile()
                     if backend == "rust"
                     else None,
+                    "workload": workload,
+                    "samples": samples if workload == "field" else None,
                     "particles": particles,
                     "lmax": order,
                     "dimension": particles * 2 * order * (order + 2),
@@ -102,6 +139,8 @@ def worker(backend: str, particles: int, order: int, repeats: int) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--workload", choices=["cluster", "field"], default="cluster")
+    parser.add_argument("--samples", type=int, default=2048)
     parser.add_argument("--worker", choices=["rust", "treams", "check"])
     parser.add_argument("--particles", type=int, default=8)
     parser.add_argument("--lmax", type=int, default=3)
@@ -109,7 +148,14 @@ def main() -> None:
     parser.add_argument("--threads", type=int, default=1)
     args = parser.parse_args()
     if args.worker:
-        worker(args.worker, args.particles, args.lmax, args.repeats)
+        worker(
+            args.worker,
+            args.particles,
+            args.lmax,
+            args.repeats,
+            args.workload,
+            args.samples,
+        )
         return
     env = dict(
         os.environ,
@@ -126,6 +172,10 @@ def main() -> None:
             __file__,
             "--worker",
             backend,
+            "--workload",
+            args.workload,
+            "--samples",
+            str(args.samples),
             "--particles",
             str(args.particles),
             "--lmax",

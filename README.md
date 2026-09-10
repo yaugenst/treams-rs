@@ -29,7 +29,7 @@ print(global_matrix.xs_sca_avg)
 ```
 
 For derivatives, use `tr.diff.sphere`, `tr.diff.cluster`, `tr.diff.expansion`, or
-`tr.diff.interaction`. Each returns `(array, context)`; call
+`tr.diff.interaction` / `tr.diff.field`. Each returns `(array, context)`; call
 `context.pullback(output_cotangent)` once. Complex cotangents satisfy
 `dL = real(vdot(cotangent, doutput))`. See [test strategy](docs/test-strategy.md).
 
@@ -67,3 +67,9 @@ Install `treams-rs[advect]` when using a wheel, or `uv sync --extra advect`
 from source. This is a first-order, one-use VJP contract. A new forward call is
 required for another VJP; forward mode, higher-order derivatives, staging, checkpointing, and Jacobian-building
 helpers that repeatedly call one residual are unsupported.
+
+Batched Cartesian electric fields use `tr.diff.field(coefficients, points, basis, ks)`.
+The output has shape `(number_of_points, 3)`. Its pullback returns cotangents for
+amplitudes, sample coordinates, basis origins, and the two helicity wavenumbers.
+`tr.advect.field` composes this calculation with scattering and ordinary NumPy
+objectives; `tr.advect.expansion` similarly differentiates basis translations.
