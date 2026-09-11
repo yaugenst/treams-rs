@@ -1,7 +1,15 @@
 //! Dense linear solves and general complex eigensystems with native pullbacks.
 #![allow(clippy::indexing_slicing)] // Validated matrix dimensions and eigenvector pivots.
 
-use faer::linalg::solvers::{Eigen, PartialPivLu, Solve, Svd};
+use faer::{
+    Conj, MatMut, Spec,
+    dyn_stack::{MemBuffer, MemStack},
+    linalg::{
+        lu::partial_pivoting::{factor, solve as lu_solve},
+        solvers::{Eigen, Svd},
+    },
+    perm::Perm,
+};
 use nalgebra::DMatrix;
 
 use crate::{
@@ -10,31 +18,116 @@ use crate::{
     ratio,
 };
 
+/// Packed pivoted LU: overwrite the operator and share its triangular storage.
+#[derive(Clone, Debug)]
+pub(crate) struct Lu {
+    factors: DMatrix<Complex>,
+    permutation: Perm<usize>,
+}
+
+impl Lu {
+    pub(crate) fn new(mut factors: DMatrix<Complex>) -> Result<Self> {
+        let n = factors.nrows();
+        if n == 0 || !factors.is_square() || factors.iter().any(|&z| !finite(z)) {
+            return Err(Error::InvalidInput(
+                "require a finite nonempty square operator".into(),
+            ));
+        }
+        let par = faer::get_global_parallelism();
+        let mut forward = vec![0usize; n];
+        let mut inverse = vec![0usize; n];
+        factor::lu_in_place(
+            view_mut(&mut factors),
+            &mut forward,
+            &mut inverse,
+            par,
+            MemStack::new(&mut MemBuffer::new(factor::lu_in_place_scratch::<
+                usize,
+                Complex,
+            >(
+                n, n, par, Spec::default()
+            ))),
+            Spec::default(),
+        );
+        if factors.diagonal().iter().any(|&z| z == Complex::default()) {
+            return Err(Error::Singular);
+        }
+        Ok(Self {
+            factors,
+            permutation: Perm::new_checked(
+                forward.into_boxed_slice(),
+                inverse.into_boxed_slice(),
+                n,
+            ),
+        })
+    }
+
+    pub(crate) fn solve_in_place(&self, rhs: MatMut<'_, Complex>) {
+        let par = faer::get_global_parallelism();
+        let columns = rhs.ncols();
+        lu_solve::solve_in_place(
+            view(&self.factors),
+            view(&self.factors),
+            self.permutation.as_ref(),
+            rhs,
+            par,
+            MemStack::new(&mut MemBuffer::new(lu_solve::solve_in_place_scratch::<
+                usize,
+                Complex,
+            >(
+                self.factors.nrows(), columns, par
+            ))),
+        );
+    }
+
+    pub(crate) fn solve_adjoint_in_place(&self, rhs: MatMut<'_, Complex>) {
+        let par = faer::get_global_parallelism();
+        let columns = rhs.ncols();
+        lu_solve::solve_transpose_in_place_with_conj(
+            view(&self.factors),
+            view(&self.factors),
+            self.permutation.as_ref(),
+            Conj::Yes,
+            rhs,
+            par,
+            MemStack::new(&mut MemBuffer::new(
+                lu_solve::solve_transpose_in_place_scratch::<usize, Complex>(
+                    self.factors.nrows(),
+                    columns,
+                    par,
+                ),
+            )),
+        );
+    }
+}
+
 /// Factorization and solution retained for a linear solve's implicit adjoint.
 #[derive(Clone, Debug)]
 pub struct SolveResidual {
-    lu: PartialPivLu<Complex>,
+    lu: Lu,
     /// Solution of A X = B, with one or more right-hand sides.
     pub value: DMatrix<Complex>,
 }
 
 /// Solve A X = B with pivoted LU; B is a matrix of right-hand sides.
-pub fn solve(operator: &DMatrix<Complex>, mut rhs: DMatrix<Complex>) -> Result<SolveResidual> {
+pub fn solve(operator: &DMatrix<Complex>, rhs: DMatrix<Complex>) -> Result<SolveResidual> {
+    solve_owned(operator.clone(), rhs)
+}
+
+/// Solve while reusing the owned operator buffer for its LU factors.
+pub fn solve_owned(operator: DMatrix<Complex>, mut rhs: DMatrix<Complex>) -> Result<SolveResidual> {
     let n = operator.nrows();
     if n == 0
         || !operator.is_square()
         || rhs.nrows() != n
         || rhs.ncols() == 0
-        || operator.iter().chain(rhs.iter()).any(|&z| !finite(z))
+        || rhs.iter().any(|&z| !finite(z))
     {
         return Err(Error::InvalidInput(
             "require a finite nonempty square operator and matching right-hand sides".into(),
         ));
     }
-    let lu = PartialPivLu::new(view(operator));
-    if (0..n).any(|i| lu.U()[(i, i)] == Complex::default()) {
-        return Err(Error::Singular);
-    }
+    let lu = Lu::new(operator)?;
     lu.solve_in_place(view_mut(&mut rhs));
     if rhs.iter().any(|&z| !finite(z)) {
         return Err(Error::Singular);
@@ -106,9 +199,9 @@ impl SingularResidual {
             view_mut(&mut result),
             faer::Accum::Replace,
             view(&weighted),
-            faer::Conj::No,
+            Conj::No,
             v.transpose(),
-            faer::Conj::Yes,
+            Conj::Yes,
             Complex::new(1.0, 0.0),
             faer::get_global_parallelism(),
         );
@@ -250,11 +343,8 @@ impl EigenResidual {
                 }
             }
         }
-        let lu = PartialPivLu::new(view(&self.vectors));
-        if (0..n).any(|i| lu.U()[(i, i)] == Complex::default()) {
-            return Err(Error::Singular);
-        }
         let mut result = product_adjoint_right(&g, &self.vectors);
+        let lu = Lu::new(self.vectors)?;
         lu.solve_adjoint_in_place(view_mut(&mut result));
         if result.iter().any(|&z| !finite(z)) {
             return Err(Error::Singular);

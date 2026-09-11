@@ -54,7 +54,7 @@ def worker(
             [np.arange(particles) * 0.8, np.zeros((particles, 2))]
         )
 
-        if workload == "internal-field":
+        if workload in ("internal-field", "internal-field-forward"):
             n = 2 * particles * order
             rng = np.random.default_rng(81)
             lower, upper = [
@@ -276,7 +276,11 @@ def worker(
                     out=basis,
                     legacy=True,
                 )
-            if workload == "internal-field":
+            if workload in ("internal-field", "internal-field-forward"):
+                if workload == "internal-field-forward":
+                    return _native.smatrix_illuminate_forward(
+                        lower, upper, up, down
+                    ), None
                 return diff.smatrix_illuminate(lower, upper, up, down)
             if workload == "slab":
                 return SMatrices.slab(
@@ -361,7 +365,7 @@ def worker(
                     surface_zs,
                     (oracle_basis.l, oracle_basis.m, oracle_basis.pol),
                 )
-            if workload == "internal-field":
+            if workload in ("internal-field", "internal-field-forward"):
                 return np.asarray(oracle_lower.illuminate(up, down, smat=oracle_upper))
             if workload == "slab":
                 value = treams.SMatrices.slab(
@@ -477,7 +481,7 @@ def worker(
             del result
         peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
         backward_times = []
-        if backend == "rust":
+        if backend == "rust" and workload != "internal-field-forward":
             for iteration in range(repeats + 1):
                 value, context = (
                     diff.layer_stack(layer_ks, layer_zs, q, layer_thickness)
@@ -542,6 +546,7 @@ def worker(
                     in (
                         "field",
                         "internal-field",
+                        "internal-field-forward",
                         "ebcm",
                         "cylindrical-field",
                         "field-operator",
@@ -561,7 +566,7 @@ def worker(
                     "dimension": 2 * samples
                     if workload == "slab"
                     else 2 * particles * order
-                    if workload == "internal-field"
+                    if workload in ("internal-field", "internal-field-forward")
                     else 2 * samples * (2 * order + 1)
                     if workload == "periodic-conversion"
                     else particles
@@ -602,6 +607,7 @@ def main() -> None:
             "slab",
             "field",
             "internal-field",
+            "internal-field-forward",
             "ebcm",
             "cylindrical-field",
             "field-operator",
@@ -625,6 +631,17 @@ def main() -> None:
     parser.add_argument("--lmax", type=int, default=3)
     parser.add_argument("--repeats", type=int, default=7)
     parser.add_argument("--threads", type=int, default=1)
+    parser.add_argument(
+        "--require-speedup",
+        type=float,
+        default=0,
+        help="Fail if upstream/Rust median runtime falls below this ratio",
+    )
+    parser.add_argument(
+        "--require-rss-ratio",
+        type=float,
+        help="Fail if Rust/upstream peak RSS exceeds this ratio",
+    )
     args = parser.parse_args()
     if args.worker:
         worker(
@@ -676,6 +693,21 @@ def main() -> None:
             indent=2,
         )
     )
+    if (
+        results[0]["median_seconds"] / results[1]["median_seconds"]
+        < args.require_speedup
+    ):
+        raise SystemExit(
+            "Performance gate failed: Rust runtime exceeds the required ratio"
+        )
+    if (
+        args.require_rss_ratio is not None
+        and results[1]["peak_rss_mib"] / results[0]["peak_rss_mib"]
+        > args.require_rss_ratio
+    ):
+        raise SystemExit(
+            "Performance gate failed: Rust peak RSS exceeds the required ratio"
+        )
 
 
 if __name__ == "__main__":

@@ -51,6 +51,13 @@ uv run --no-sync python scripts/benchmark_cluster.py --workload ebcm --particles
 | 8 | 5 | 560 | 4 | 691.96 | 12.69 | 54.5× | 100.2 / 64.5 |
 | 32 | 3 | 960 | 4 | 1636.14 | 43.41 | 37.7× | 156.4 / 113.6 |
 
+After switching the shared solve to packed in-place LU, matched-four-thread
+rechecks remain faster and smaller than upstream: dimension 240 takes 2.19 ms
+versus 89.95 ms (41.0x; 46.6 versus 75.0 MiB), and dimension 960 takes 35.63 ms
+versus 1641.15 ms (46.1x; 100.9 versus 159.0 MiB). These are fresh comparisons,
+not controlled speed ratios against the older Rust measurements above. Full raw
+results are in `benchmarks/results/packed-lu-cluster-d{240,960}.json`.
+
 Raw samples and environment details are in `benchmarks/results/release-*.json`.
 Each row uses seven samples after a warmup. A separate correctness process first
 compares the entire complex T-matrix with treams at `rtol=2e-9, atol=1e-12`.
@@ -341,30 +348,49 @@ particle construction and the periodic interaction solve.
 
 ## Dense internal illumination
 
-Two general dense S matrices, one incident right-hand side in each direction,
-four matched threads and seven samples after warmup. Random complex reflections
-scale as 0.1/sqrt(N), with identity transmission plus similarly sized perturbations;
-seed 81 makes the well-conditioned algebra benchmark reproducible. This measures
-illumination of supplied S matrices, excluding their physical construction. All
-four outgoing/internal fields are checked against treams before timing.
+Two general dense S matrices, four matched threads and seven samples after
+warmup. Random complex reflections scale as 0.1/sqrt(N), with identity transmission
+plus similarly sized perturbations; seed 81. All four fields are checked against
+treams before timing. Construction of the supplied S matrices is excluded.
 
-| Modes | treams ms | Rust ms | Speedup | Rust reverse ms | treams / Rust forward peak MiB |
+The former 1024-mode regression (68 ms and 355.7 MiB versus treams' 60.7 ms and
+258.0 MiB) is corrected on the ordinary forward path. `SMatrices.illuminate`
+now borrows its input blocks and avoids recording unused adjoint inputs. The
+shared native LU overwrites the operator in one packed buffer, rather than
+copying it and allocating separate dense L and U matrices.
+
+| Modes | RHS columns | treams ms | Rust forward ms | Speedup | treams / Rust peak MiB |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 256 | 3.60 | 2.88 | 1.25x | 1.17 | 82.4 / 64.1 |
-| 1024 | 60.65 | 68.00 | 0.89x | 32.15 | 258.0 / 355.7 |
+| 256 | 1 | 3.61 | 1.40 | 2.58x | 82.0 / 57.9 |
+| 256 | 8 | 3.73 | 1.75 | 2.13x | 82.7 / 57.3 |
+| 1024 | 1 | 61.72 | 37.00 | 1.67x | 258.7 / 234.8 |
+| 1024 | 8 | 63.25 | 33.54 | 1.89x | 259.4 / 234.4 |
 
-The larger forward case remains slower and uses more memory. Rust includes owned
-input copies and a retained LU for its native pullback; treams returns fields only.
-Copying protects reverse correctness if Python subsequently mutates the inputs.
-Tiled parallel input copies reduced the 1024-mode forward from an initial 92 ms
-to 68 ms. Adjoint matrix views, rank-one contractions and releasing primal S
-matrices before allocating their gradients reduced reverse from 92 ms to 32 ms.
-The initial forward-plus-reverse peak was about 595 MiB. These improvements do not
-establish universal outperformance of treams.
+Differentiable illumination is measured separately and still includes owned
+input snapshots plus the retained LU. Snapshots preserve the pullback after
+Python input mutation. In reverse, their buffers are overwritten with the block
+gradients after the incident-amplitude cotangents have been computed. Rank-P
+contractions avoid dense operator cotangents and conjugate-transpose copies.
 
-Raw results: `/tmp/internal-field-parallel-copy-n256-p1-t4.json` and
-`/tmp/internal-field-parallel-copy-n1024-p1-t4.json` on [redacted-host]. Reproduce
-with `--workload internal-field --particles 1 --lmax 512 --samples 1 --threads 4`.
+| Modes | RHS columns | treams forward ms | Rust recorded forward ms | Speedup | Rust reverse ms | Rust forward / through-reverse peak MiB |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 256 | 1 | 3.69 | 3.06 | 1.21x | 0.89 | 62.6 / 66.3 |
+| 256 | 8 | 4.13 | 3.33 | 1.24x | 0.99 | 62.9 / 67.2 |
+| 1024 | 1 | 65.52 | 60.22 | 1.09x | 21.66 | 331.9 / 388.0 |
+| 1024 | 8 | 68.45 | 60.54 | 1.13x | 24.82 | 332.3 / 391.3 |
+
+Recording the 1024-mode adjoint still uses more memory than upstream's forward-only
+operation: about 332 versus 259 MiB. This cost is explicit, not hidden in the
+forward-only result. The previous reverse took 32 ms with a 435 MiB peak. RSS
+includes imports, setup allocations and allocator retention, not just live arrays.
+These cases establish no universal speed guarantee for arbitrary matrices or hosts.
+
+Raw samples, binary hashes and environments are stored in
+`benchmarks/results/internal-{forward,adjoint}-l{128,512}-p{1,8}.json`.
+`just bench-performance` reruns all eight accuracy-checked cases on an idle host,
+failing if Rust is slower; forward-only cases also fail if Rust uses more peak RSS.
+The harness also accepts `--require-speedup` and `--require-rss-ratio` for other
+workloads. Timing gates are separate from shared hosted correctness CI.
 Here lmax is only a size argument: the dense matrix has 2*lmax modes.
 
 ## Plane translation phases

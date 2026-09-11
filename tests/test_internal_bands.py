@@ -9,6 +9,7 @@ from numpy.testing import assert_allclose
 from scipy.optimize import linear_sum_assignment
 
 import treams_rs as tr
+from treams_rs import _native
 from treams_rs import advect as ad
 
 
@@ -273,3 +274,47 @@ def test_complete_advect_layer_observables(observable):
         assert_allclose(
             np.vdot(gradients[i], directions[i]).real, numeric, rtol=3e-6, atol=3e-8
         )
+
+
+@pytest.mark.parametrize("layout", ["C", "F", "block-F", "strided", "reversed"])
+@given(columns=st.integers(1, 4), seed=st.integers(0, 100))
+def test_internal_borrowed_forward_and_owned_adjoint(layout, columns, seed):
+    rng = np.random.default_rng(seed)
+    values = [_blocks(seed), _blocks(seed + 1)] + [
+        rng.normal(size=(4, columns)).astype(complex) + 0.2j for _ in range(2)
+    ]
+    expected, context = tr.diff.smatrix_illuminate(*values)
+    g = rng.normal(size=expected.shape).astype(complex) + 0.13j
+    expected_gradients = context.pullback(g)
+
+    def arrange(a):
+        if layout == "F":
+            return np.asfortranarray(a)
+        if layout == "block-F":
+            return np.ascontiguousarray(a.swapaxes(-1, -2)).swapaxes(-1, -2)
+        if layout in ("strided", "reversed"):
+            storage = np.zeros((*a.shape[:-1], a.shape[-1] * 2), dtype=complex)
+            view = storage[..., ::2] if layout == "strided" else storage[..., ::-2]
+            view[:] = a
+            return view
+        return a.copy()
+
+    inputs = [arrange(a) for a in values]
+    assert_allclose(_native.smatrix_illuminate_forward(*inputs), expected, atol=1e-12)
+    value, residual = tr.diff.smatrix_illuminate(*inputs)
+    assert_allclose(value, expected, atol=1e-12)
+    for a in inputs:
+        a[:] = np.nan
+    for gradient, wanted in zip(residual.pullback(g), expected_gradients, strict=True):
+        assert_allclose(gradient, wanted, atol=1e-12)
+
+
+@pytest.mark.parametrize("record", [False, True])
+def test_internal_nonfinite_input_is_rejected(record):
+    function = (
+        tr.diff.smatrix_illuminate if record else _native.smatrix_illuminate_forward
+    )
+    lower = _blocks(5)
+    lower[0, 1, 1, 2] = np.nan
+    with pytest.raises(ValueError, match="finite"):
+        function(lower, _blocks(6), np.ones((4, 1), complex), np.zeros((4, 1), complex))

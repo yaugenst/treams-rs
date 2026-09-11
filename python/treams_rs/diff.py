@@ -139,10 +139,10 @@ def smatrix_illuminate(
     sides. Pullback returns lower, upper, up and down cotangents.
     """
     return _native.smatrix_illuminate(
-        np.ascontiguousarray(lower, dtype=np.complex128),
-        np.ascontiguousarray(upper, dtype=np.complex128),
-        np.ascontiguousarray(up, dtype=np.complex128),
-        np.ascontiguousarray(down, dtype=np.complex128),
+        np.asarray(lower, dtype=np.complex128),
+        np.asarray(upper, dtype=np.complex128),
+        np.asarray(up, dtype=np.complex128),
+        np.asarray(down, dtype=np.complex128),
     )
 
 

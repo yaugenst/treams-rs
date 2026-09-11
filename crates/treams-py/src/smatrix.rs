@@ -1,11 +1,12 @@
 //! Native S-matrix blocks and owned reverse contexts.
 #![allow(clippy::indexing_slicing)] // Validated four-block NumPy shapes.
 
+use faer::MatRef;
 use nalgebra::DMatrix;
 use numpy::{
     IntoPyArray, PyArray1, PyArray2, PyArray3, PyArray4, PyArray5, PyReadonlyArray1,
     PyReadonlyArray2, PyReadonlyArray3, PyReadonlyArray4, PyReadonlyArray5,
-    ndarray::{Array2, Array3, Array4, Array5, s},
+    ndarray::{Array2, Array3, Array4, Array5, ArrayView2, s},
 };
 use pyo3::{exceptions::PyValueError, prelude::*};
 use treams_core::{
@@ -23,18 +24,58 @@ fn from_array(value: PyReadonlyArray4<'_, Complex>) -> PyResult<Blocks> {
             "S matrices require shape (2, 2, n, n) with n > 0",
         ));
     }
-    if a.iter().any(|z| !z.re.is_finite() || !z.im.is_finite()) {
-        return Err(PyValueError::new_err("S matrices must be finite"));
-    }
     Ok(std::array::from_fn(|b| {
         crate::tmatrix::matrix_from_view(a.slice(s![b / 2, b % 2, .., ..]))
     }))
+}
+fn cotangent_blocks(value: PyReadonlyArray4<'_, Complex>) -> PyResult<Blocks> {
+    let blocks = from_array(value)?;
+    if blocks
+        .iter()
+        .flatten()
+        .any(|z| !z.re.is_finite() || !z.im.is_finite())
+    {
+        return Err(PyValueError::new_err("S matrices must be finite"));
+    }
+    Ok(blocks)
 }
 fn array<'py>(py: Python<'py>, value: &Blocks) -> Bound<'py, PyArray4<Complex>> {
     let (d, c) = value[0].shape();
     Array4::from_shape_fn((2, 2, c, d), |(a, b, j, i)| value[2 * a + b][(i, j)])
         .permuted_axes([0, 1, 3, 2])
         .into_pyarray(py)
+}
+
+fn array_owned(py: Python<'_>, value: Blocks) -> PyResult<Bound<'_, PyArray4<Complex>>> {
+    let (rows, cols) = value[0].shape();
+    let [first, second, third, fourth] = value;
+    let mut data = Vec::from(first.data);
+    data.reserve(3 * rows * cols);
+    for block in [second, third, fourth] {
+        data.extend(Vec::from(block.data));
+    }
+    Array4::from_shape_vec((2, 2, cols, rows), data)
+        .map(|a| a.permuted_axes([0, 1, 3, 2]).into_pyarray(py))
+        .map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
+#[allow(clippy::expect_used)] // Caller packs every non-contiguous view.
+fn borrowed_matrix<'a>(
+    a: &'a ArrayView2<'_, Complex>,
+    packed: Option<&'a DMatrix<Complex>>,
+) -> MatRef<'a, Complex> {
+    if let Some(packed) = packed {
+        MatRef::from_column_major_slice(packed.as_slice(), a.nrows(), a.ncols())
+    } else {
+        let data = a
+            .as_slice_memory_order()
+            .expect("contiguous input or packed copy");
+        if a.strides()[0] == 1 {
+            MatRef::from_column_major_slice(data, a.nrows(), a.ncols())
+        } else {
+            MatRef::from_row_major_slice(data, a.nrows(), a.ncols())
+        }
+    }
 }
 
 #[pyclass]
@@ -50,7 +91,7 @@ impl ArrayContext {
         py: Python<'py>,
         cotangent: PyReadonlyArray4<'py, Complex>,
     ) -> PyResult<ArrayGradient<'py>> {
-        let g = from_array(cotangent)?;
+        let g = cotangent_blocks(cotangent)?;
         let residual = self
             .residual
             .as_ref()
@@ -110,7 +151,7 @@ impl SMatrixContext {
         py: Python<'py>,
         cotangent: PyReadonlyArray4<'py, Complex>,
     ) -> PyResult<Pair<'py>> {
-        let g = from_array(cotangent)?;
+        let g = cotangent_blocks(cotangent)?;
         let residual = self
             .residual
             .as_ref()
@@ -155,6 +196,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<SMatrixPeriodicContext>()?;
     module.add_class::<BandContext>()?;
     module.add_function(wrap_pyfunction!(smatrix_illuminate, module)?)?;
+    module.add_function(wrap_pyfunction!(smatrix_illuminate_forward, module)?)?;
     module.add_function(wrap_pyfunction!(smatrix_periodic, module)?)?;
     module.add_function(wrap_pyfunction!(bands, module)?)?;
     module.add_class::<ArrayContext>()?;
@@ -272,8 +314,8 @@ impl IlluminationContext {
             .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
         let (lower, upper, [up, down]) = py.detach(move || residual.pullback(&g)).map_err(error)?;
         Ok((
-            array(py, &lower),
-            array(py, &upper),
+            array_owned(py, lower)?,
+            array_owned(py, upper)?,
             crate::tmatrix::matrix(py, &up),
             crate::tmatrix::matrix(py, &down),
         ))
@@ -305,6 +347,43 @@ fn smatrix_illuminate<'py>(
             residual: Some(residual),
         },
     ))
+}
+
+#[pyfunction]
+fn smatrix_illuminate_forward<'py>(
+    py: Python<'py>,
+    lower: PyReadonlyArray4<'py, Complex>,
+    upper: PyReadonlyArray4<'py, Complex>,
+    up: PyReadonlyArray2<'py, Complex>,
+    down: PyReadonlyArray2<'py, Complex>,
+) -> PyResult<Bound<'py, PyArray3<Complex>>> {
+    let arrays = [lower.as_array(), upper.as_array()];
+    if arrays.iter().any(|a| a.shape()[0..2] != [2, 2]) {
+        return Err(PyValueError::new_err(
+            "S matrices require shape (2, 2, n, n)",
+        ));
+    }
+    let blocks: [ArrayView2<'_, Complex>; 8] =
+        std::array::from_fn(|i| arrays[i / 4].slice(s![i / 2 % 2, i % 2, .., ..]));
+    let inputs = [up.as_array(), down.as_array()];
+    let packed = blocks.each_ref().map(|a| {
+        a.as_slice_memory_order()
+            .is_none()
+            .then(|| crate::tmatrix::matrix_from_view(*a))
+    });
+    let packed_inputs = inputs.each_ref().map(|a| {
+        a.as_slice_memory_order()
+            .is_none()
+            .then(|| crate::tmatrix::matrix_from_view(*a))
+    });
+    let lower = std::array::from_fn(|i| borrowed_matrix(&blocks[i], packed[i].as_ref()));
+    let upper = std::array::from_fn(|i| borrowed_matrix(&blocks[i + 4], packed[i + 4].as_ref()));
+    let incoming = std::array::from_fn(|i| borrowed_matrix(&inputs[i], packed_inputs[i].as_ref()));
+    let value = py
+        .detach(|| smatrix::illuminate_forward(lower, upper, incoming))
+        .map_err(error)?;
+    let (n, p) = value[0].shape();
+    Ok(Array3::from_shape_fn((4, n, p), |(b, i, j)| value[b][(i, j)]).into_pyarray(py))
 }
 
 #[pyclass]
@@ -438,7 +517,7 @@ impl FresnelContext {
         py: Python<'py>,
         cotangent: PyReadonlyArray4<'py, Complex>,
     ) -> PyResult<FresnelGradient<'py>> {
-        let g = from_array(cotangent)?;
+        let g = cotangent_blocks(cotangent)?;
         if g[0].nrows() != 2 {
             return Err(PyValueError::new_err(
                 "Fresnel cotangent requires shape (2, 2, 2, 2)",
@@ -493,7 +572,7 @@ impl InterfaceContext {
         py: Python<'py>,
         cotangent: PyReadonlyArray4<'py, Complex>,
     ) -> PyResult<InterfaceGradient<'py>> {
-        let g = from_array(cotangent)?;
+        let g = cotangent_blocks(cotangent)?;
         if g[0].nrows() != 2 {
             return Err(PyValueError::new_err(
                 "interface cotangent requires shape (2, 2, 2, 2)",
@@ -550,7 +629,7 @@ impl PropagationContext {
         py: Python<'py>,
         cotangent: PyReadonlyArray4<'py, Complex>,
     ) -> PyResult<PropagationGradient<'py>> {
-        let g = from_array(cotangent)?;
+        let g = cotangent_blocks(cotangent)?;
         let residual = self
             .residual
             .as_ref()

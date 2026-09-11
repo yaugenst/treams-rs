@@ -1,13 +1,16 @@
 //! Plane-wave scattering composition and its factorization-reusing adjoint.
 #![allow(clippy::indexing_slicing)] // Four blocks, validated equal matrix dimensions.
 
-use faer::linalg::solvers::{PartialPivLu, Solve};
+use faer::MatRef;
 use nalgebra::DMatrix;
 
 use crate::{
     Complex, Error, Result, finite,
-    interaction::{product, product_adjoint_left, product_adjoint_right, view, view_mut},
-    linalg::{self, SolveResidual},
+    interaction::{
+        product, product_adjoint_left, product_adjoint_right, product_adjoint_right_into,
+        product_views, view, view_mut,
+    },
+    linalg::{self, Lu, SolveResidual},
     ratio,
 };
 
@@ -140,6 +143,14 @@ impl ChiralityResidual {
     }
 }
 
+fn internal_operator(lower: MatRef<'_, Complex>, upper: MatRef<'_, Complex>) -> DMatrix<Complex> {
+    let mut value = -product_views(lower, upper);
+    for i in 0..value.nrows() {
+        value[(i, i)] += 1.0;
+    }
+    value
+}
+
 /// Internal-field solve for specified incident amplitudes, retaining one LU.
 #[derive(Debug)]
 pub struct IlluminationResidual {
@@ -157,35 +168,11 @@ pub fn illuminate(
     upper: Blocks,
     incoming: [DMatrix<Complex>; 2],
 ) -> Result<([DMatrix<Complex>; 4], IlluminationResidual)> {
-    let n = dimension(&lower)?;
-    let p = incoming[0].ncols();
-    if dimension(&upper)? != n
-        || p == 0
-        || incoming
-            .iter()
-            .any(|a| a.shape() != (n, p) || a.iter().any(|&z| !finite(z)))
-    {
-        return Err(Error::InvalidInput(
-            "require matching S matrices and finite mode-by-illumination inputs".into(),
-        ));
-    }
-    let direct = product(&upper[3], &incoming[1]);
-    let rhs = product(&lower[0], &incoming[0]) + product(&lower[1], &direct);
-    let solve = linalg::solve(
-        &(DMatrix::identity(n, n) - product(&lower[1], &upper[2])),
-        rhs,
+    let (top, bottom, down, solve) = illumination_fields(
+        lower.each_ref().map(view),
+        upper.each_ref().map(view),
+        incoming.each_ref().map(view),
     )?;
-    let down = product(&upper[2], &solve.value) + direct;
-    let top = product(&upper[0], &solve.value) + product(&upper[1], &incoming[1]);
-    let bottom = product(&lower[2], &incoming[0]) + product(&lower[3], &down);
-    if top
-        .iter()
-        .chain(bottom.iter())
-        .chain(down.iter())
-        .any(|&z| !finite(z))
-    {
-        return Err(Error::Singular);
-    }
     let value = [top, bottom, solve.value.clone(), down.clone()];
     Ok((
         value,
@@ -197,6 +184,65 @@ pub fn illuminate(
             down,
         },
     ))
+}
+
+/// Illuminate borrowed scattering blocks without retaining an adjoint context.
+/// Inputs can be row- or column-major; only the operator and thin fields are owned.
+pub fn illuminate_forward(
+    lower: [MatRef<'_, Complex>; 4],
+    upper: [MatRef<'_, Complex>; 4],
+    incoming: [MatRef<'_, Complex>; 2],
+) -> Result<[DMatrix<Complex>; 4]> {
+    let (top, bottom, down, solve) = illumination_fields(lower, upper, incoming)?;
+    Ok([top, bottom, solve.value, down])
+}
+
+type InternalFields = (
+    DMatrix<Complex>,
+    DMatrix<Complex>,
+    DMatrix<Complex>,
+    SolveResidual,
+);
+
+fn illumination_fields(
+    lower: [MatRef<'_, Complex>; 4],
+    upper: [MatRef<'_, Complex>; 4],
+    incoming: [MatRef<'_, Complex>; 2],
+) -> Result<InternalFields> {
+    let n = lower[0].nrows();
+    let p = incoming[0].ncols();
+    if n == 0
+        || p == 0
+        || lower.iter().chain(&upper).any(|a| a.shape() != (n, n))
+        || incoming.iter().any(|a| a.shape() != (n, p))
+        || lower.iter().chain(&upper).chain(&incoming).any(|&a| {
+            let a = if a.row_stride() == 1 {
+                a
+            } else {
+                a.transpose()
+            };
+            (0..a.ncols()).any(|j| (0..a.nrows()).any(|i| !finite(a[(i, j)])))
+        })
+    {
+        return Err(Error::InvalidInput(
+            "require matching finite S matrices and mode-by-illumination inputs".into(),
+        ));
+    }
+    let direct = product_views(upper[3], incoming[1]);
+    let rhs = product_views(lower[0], incoming[0]) + product_views(lower[1], view(&direct));
+    let solve = linalg::solve_owned(internal_operator(lower[1], upper[2]), rhs)?;
+    let down = product_views(upper[2], view(&solve.value)) + direct;
+    let top = product_views(upper[0], view(&solve.value)) + product_views(upper[1], incoming[1]);
+    let bottom = product_views(lower[2], incoming[0]) + product_views(lower[3], view(&down));
+    if top
+        .iter()
+        .chain(bottom.iter())
+        .chain(down.iter())
+        .any(|&z| !finite(z))
+    {
+        return Err(Error::Singular);
+    }
+    Ok((top, bottom, down, solve))
 }
 
 impl IlluminationResidual {
@@ -230,22 +276,26 @@ impl IlluminationResidual {
             product_adjoint_left(&self.upper[1], &g[0])
                 + product_adjoint_left(&self.upper[3], &direct),
         ];
-        drop(self.lower);
-        drop(self.upper);
-        // Contract the coupled field equations directly. Rank-P products avoid
-        // multiplying dense N-by-N operator cotangents in the weighted reverse.
-        let lower = [
-            product_adjoint_right(&rhs, &self.incoming[0]),
-            product_adjoint_right(&rhs, &self.down),
-            product_adjoint_right(&g[1], &self.incoming[0]),
-            product_adjoint_right(&g[1], &self.down),
-        ];
-        let upper = [
-            product_adjoint_right(&g[0], &self.solve.value),
-            product_adjoint_right(&g[0], &self.incoming[1]),
-            product_adjoint_right(&direct, &self.solve.value),
-            product_adjoint_right(&direct, &self.incoming[1]),
-        ];
+        // The primal blocks are dead after the amplitude pullback. Overwrite
+        // them with rank-P gradients instead of allocating eight dense matrices.
+        let mut lower = self.lower;
+        let mut upper = self.upper;
+        for ((output, left), right) in lower.iter_mut().zip([&rhs, &rhs, &g[1], &g[1]]).zip([
+            &self.incoming[0],
+            &self.down,
+            &self.incoming[0],
+            &self.down,
+        ]) {
+            product_adjoint_right_into(output, left, right);
+        }
+        for ((output, left), right) in upper.iter_mut().zip([&g[0], &g[0], &direct, &direct]).zip([
+            &self.solve.value,
+            &self.incoming[1],
+            &self.solve.value,
+            &self.incoming[1],
+        ]) {
+            product_adjoint_right_into(output, left, right);
+        }
         Ok((lower, upper, incoming))
     }
 }
@@ -269,7 +319,7 @@ pub fn periodic(blocks: Blocks) -> Result<(DMatrix<Complex>, PeriodicResidual)> 
     for i in 0..n {
         rhs[(i, n + i)] += 1.0;
     }
-    let solve = linalg::solve(&down, rhs)?;
+    let solve = linalg::solve_owned(down, rhs)?;
     let mut value = DMatrix::zeros(2 * n, 2 * n);
     value.rows_mut(0, n).copy_from(&top);
     value.rows_mut(n, n).copy_from(&solve.value);
@@ -471,7 +521,7 @@ pub struct StackResidual {
     upper: Blocks,
     up: DMatrix<Complex>,
     down: DMatrix<Complex>,
-    lu: PartialPivLu<Complex>,
+    lu: Lu,
     /// Coupled scattering blocks.
     pub value: Blocks,
 }
@@ -482,11 +532,7 @@ pub fn add(lower: Blocks, upper: Blocks) -> Result<StackResidual> {
     if dimension(&upper)? != n {
         return Err(Error::InvalidInput("S matrix dimensions must match".into()));
     }
-    let operator = DMatrix::identity(n, n) - product(&lower[1], &upper[2]);
-    let lu = PartialPivLu::new(view(&operator));
-    if (0..n).any(|i| lu.U()[(i, i)].norm_sqr() == 0.0) {
-        return Err(Error::Singular);
-    }
+    let lu = Lu::new(internal_operator(view(&lower[1]), view(&upper[2])))?;
     let mut up = DMatrix::zeros(n, 2 * n);
     up.columns_mut(0, n).copy_from(&lower[0]);
     up.columns_mut(n, n)

@@ -12,6 +12,7 @@ name = "_native"
 crate-type = ["cdylib"]
 
 [dependencies]
+faer.workspace = true
 rayon.workspace = true
 nalgebra.workspace = true
 treams-core.workspace = true

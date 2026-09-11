@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from . import coeffs, diff
+from . import _native, coeffs, diff
 from ._core import (
     Material,
     MaterialLike,
@@ -335,9 +335,9 @@ class SMatrices:
             )
         up, down = (first, second) if modetype == "up" else (second, first)
         if smat is not None:
-            fields = diff.smatrix_illuminate(
+            fields = _native.smatrix_illuminate_forward(
                 self.array, smat.array, up[:, None], down[:, None]
-            )[0]
+            )
             return tuple(fields[:, :, 0])
         return self[0, 0] @ up + self[0, 1] @ down, self[1, 0] @ up + self[1, 1] @ down
 

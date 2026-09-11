@@ -189,6 +189,9 @@ def smatrix_illuminate(
 def smatrix_periodic(
     smats: ComplexArray,
 ) -> tuple[ComplexArray, SMatrixPeriodicContext]: ...
+def smatrix_illuminate_forward(
+    lower: ComplexArray, upper: ComplexArray, up: ComplexArray, down: ComplexArray
+) -> ComplexArray: ...
 
 class BandContext:
     def pullback(

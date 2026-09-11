@@ -50,7 +50,9 @@ fn linear_solve<'py>(
 ) -> PyResult<(Bound<'py, PyArray2<Complex>>, SolveContext)> {
     let a = from_array(operator)?;
     let b = from_array(rhs)?;
-    let residual = py.detach(move || linalg::solve(&a, b)).map_err(error)?;
+    let residual = py
+        .detach(move || linalg::solve_owned(a, b))
+        .map_err(error)?;
     Ok((
         matrix(py, &residual.value),
         SolveContext {

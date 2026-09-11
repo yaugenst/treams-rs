@@ -1446,6 +1446,7 @@ dependencies = [
 name = "treams-py"
 version = "0.1.0"
 dependencies = [
+ "faer",
  "nalgebra",
  "num-complex",
  "numpy",

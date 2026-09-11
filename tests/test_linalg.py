@@ -280,3 +280,20 @@ def test_singular_bad_cotangent_preserves_context():
     context.pullback(np.ones(4))
     with pytest.raises(ValueError, match="consumed"):
         context.pullback(np.ones(4))
+
+
+@given(
+    permutation=st.permutations([0, 1, 2, 3]),
+    scale=st.sampled_from([1e-200, 1.0, 1e200]),
+)
+def test_packed_lu_pivoting_and_adjoint(permutation, scale):
+    a = np.array([[1, 0.2j, 0, 0], [0.1, 2, 0.3, 0], [0, 0.2, 3, 0.1j], [0, 0, 0.1, 4]])
+    a = a[list(permutation)]
+    b = np.arange(8).reshape(4, 2) + 0.2j
+    value, residual = diff.solve(a * scale, b * scale)
+    assert_allclose(value, np.linalg.solve(a, b), atol=2e-14)
+    g = np.array([[0.3, 0.2j], [0.1j, 0.2], [0.7, 0.1], [0.5, 0.4j]])
+    ga, gb = residual.pullback(g)
+    expected = np.linalg.solve(a.conj().T, g)
+    assert_allclose(gb * scale, expected, atol=2e-14)
+    assert_allclose(ga * scale, -expected @ value.conj().T, atol=2e-14)

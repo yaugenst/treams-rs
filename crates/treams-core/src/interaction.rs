@@ -2,14 +2,11 @@
 
 use faer::{
     Accum, Conj, MatMut, MatRef,
-    linalg::{
-        matmul::{matmul, matmul_with_conj},
-        solvers::{PartialPivLu, Solve},
-    },
+    linalg::matmul::{matmul, matmul_with_conj},
 };
 use nalgebra::DMatrix;
 
-use crate::{Complex, Error, Result, finite};
+use crate::{Complex, Error, Result, finite, linalg::Lu};
 
 pub(crate) fn view(matrix: &DMatrix<Complex>) -> MatRef<'_, Complex> {
     MatRef::from_column_major_slice(matrix.as_slice(), matrix.nrows(), matrix.ncols())
@@ -19,7 +16,22 @@ pub(crate) fn view_mut(matrix: &mut DMatrix<Complex>) -> MatMut<'_, Complex> {
     MatMut::from_column_major_slice_mut(matrix.as_mut_slice(), rows, cols)
 }
 pub(crate) fn product(left: &DMatrix<Complex>, right: &DMatrix<Complex>) -> DMatrix<Complex> {
-    product_op(left, right, false, false)
+    product_views(view(left), view(right))
+}
+pub(crate) fn product_views(
+    left: MatRef<'_, Complex>,
+    right: MatRef<'_, Complex>,
+) -> DMatrix<Complex> {
+    let mut result = DMatrix::zeros(left.nrows(), right.ncols());
+    matmul(
+        view_mut(&mut result),
+        Accum::Replace,
+        left,
+        right,
+        Complex::new(1.0, 0.0),
+        faer::get_global_parallelism(),
+    );
+    result
 }
 pub(crate) fn product_adjoint_left(
     left: &DMatrix<Complex>,
@@ -33,6 +45,23 @@ pub(crate) fn product_adjoint_right(
 ) -> DMatrix<Complex> {
     product_op(left, right, false, true)
 }
+pub(crate) fn product_adjoint_right_into(
+    result: &mut DMatrix<Complex>,
+    left: &DMatrix<Complex>,
+    right: &DMatrix<Complex>,
+) {
+    matmul_with_conj(
+        view_mut(result),
+        Accum::Replace,
+        view(left),
+        Conj::No,
+        view(right).transpose(),
+        Conj::Yes,
+        Complex::new(1.0, 0.0),
+        faer::get_global_parallelism(),
+    );
+}
+
 fn product_op(
     left: &DMatrix<Complex>,
     right: &DMatrix<Complex>,
@@ -131,7 +160,7 @@ impl LocalMatrix {
 pub struct InteractionResidual {
     local: LocalMatrix,
     coupling: DMatrix<Complex>,
-    lu: PartialPivLu<Complex>,
+    lu: Lu,
     /// Interacting T-matrix.
     pub value: DMatrix<Complex>,
 }
@@ -178,11 +207,7 @@ pub(crate) fn forward_blocks(
 fn factor(local: LocalMatrix, coupling: DMatrix<Complex>) -> Result<InteractionResidual> {
     let mut operator = -local.apply(&coupling, false);
     operator.set_diagonal(&(operator.diagonal().add_scalar(Complex::new(1.0, 0.0))));
-    let lu = PartialPivLu::new(view(&operator));
-    if (0..local.dimension()).any(|i| lu.U()[(i, i)].norm_sqr() == 0.0) {
-        return Err(Error::Singular);
-    }
-    drop(operator);
+    let lu = Lu::new(operator)?;
     let mut value = local.dense();
     lu.solve_in_place(view_mut(&mut value));
     if value.iter().any(|z| !finite(*z)) {

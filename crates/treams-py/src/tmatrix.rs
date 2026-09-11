@@ -35,6 +35,11 @@ pub(crate) fn from_array(value: PyReadonlyArray2<'_, Complex>) -> PyResult<DMatr
 pub(crate) fn matrix_from_view(a: ArrayView2<'_, Complex>) -> DMatrix<Complex> {
     // Tile the NumPy-to-column-major copy so large C-order inputs do not walk
     // one cache line per element. Both tiles fit in the CPU's L1 data cache.
+    if a.strides()[0] == 1
+        && let Some(data) = a.as_slice_memory_order()
+    {
+        return DMatrix::from_column_slice(a.nrows(), a.ncols(), data);
+    }
     let mut result = DMatrix::zeros(a.nrows(), a.ncols());
     if a.is_empty() {
         return result;

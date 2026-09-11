@@ -72,3 +72,15 @@ check-wheel: build-wheel
         assert loaded.material == cluster.material
     print("Clean wheel: optional HDF5 chirality, origins and units round trip passed")
     PY
+
+# Run on an idle performance host; hosted CI machines have uncontrolled CPU sharing.
+bench-performance: build-ext-release
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p benchmarks/results
+    for order in 128 512; do
+        for columns in 1 8; do
+            uv run --no-sync python scripts/benchmark_cluster.py --workload internal-field-forward --particles 1 --lmax "$order" --samples "$columns" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/internal-forward-l${order}-p${columns}.json"
+            uv run --no-sync python scripts/benchmark_cluster.py --workload internal-field --particles 1 --lmax "$order" --samples "$columns" --threads 4 --require-speedup 1 > "benchmarks/results/internal-adjoint-l${order}-p${columns}.json"
+        done
+    done

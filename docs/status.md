@@ -321,11 +321,17 @@ up/down coefficients between adjacent stacks. It checks the shared medium and
 uses the correct outer medium for each PlaneWave input. The native
 `diff.smatrix_illuminate` and Advect adapter also accept multiple independent
 illuminations as matrix columns. Forward solves only those right-hand sides;
-reverse reuses the LU and contracts the coupled field equations with rank-P
-products. It avoids constructing the complete combined S matrix, dense operator
+reverse reuses the packed LU and contracts the coupled field equations with rank-P
+products, overwriting the no-longer-needed primal blocks with their cotangents. It avoids constructing the complete combined S matrix, dense operator
 cotangents and explicit conjugate-transpose copies. Tests cover all four input
 pullbacks, treams coefficients, Cartesian E/H boundary continuity for every normal,
 amplitude identities and complete lossy/chiral multilayer Advect gradients.
+Ordinary illumination borrows contiguous blocks without recording an adjoint;
+strided blocks are packed. Hypothesis tests cover C/F/block-F/reversed/strided
+layouts and owned pullbacks after all original inputs are overwritten.
+`just bench-performance` checks runtime and forward memory against upstream
+at 256/1024 modes and one/eight illuminations. The recorded adjoint still owns
+input snapshots and has a larger memory footprint than forward alone.
 
 `SMatrices.periodic()` and `bands_kz(period)` require matching outer media and
 use the basis normal (z/x/y for xy/yz/zx). The transfer construction solves both
