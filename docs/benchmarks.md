@@ -254,3 +254,33 @@ Raw results: `/tmp/cylindrical-plane-expansion-n4-m12-k128-t4.json` and
 `/tmp/plane-expansion-phases-n2-l8-k64-t4.json` on [redacted-host]. The cylindrical
 case uses `--workload cylindrical-plane-expansion --particles 4 --lmax 12
 --samples 128 --threads 4 --repeats 7`.
+
+## Compact planar multilayers
+
+Four interior layers, alternating permittivities 2.3+0.1j and 1.7+0.05j in
+vacuum, thicknesses 0.1–0.4, k0=1.3, transverse qx=0.1–0.8 and qy=0.2.
+Four matched threads, seven samples after warmup, isolated backend processes.
+Both forward timings use the public `SMatrices.slab` and return the complete
+four-block dense array; it is compared with upstream before timing.
+
+| Channels | Plane modes | treams ms | Rust ms | Speedup | Compact Rust reverse ms | treams / Rust peak MiB |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 128 | 256 | 84.37 | 2.81 | 30.0x | 1.16 | 88.9 / 52.0 |
+| 512 | 1024 | 2152.16 | 23.58 | 91.3x | 3.28 | 378.2 / 187.9 |
+
+Reverse timings use the compact `diff.layer_stack` output cotangent and cover
+all medium wavenumbers, impedances, transverse components and layer thicknesses.
+They exclude packing a dense cotangent into its independent channel blocks.
+The native solve and retained residual scale linearly with channel count;
+materializing the legacy dense output still costs quadratic time and memory.
+For objectives on selected transmission/reflection channels, the compact Advect
+API avoids that output expansion. Partial-polarization slab bases currently use
+the general projected composition path instead of this optimization.
+
+Profiling the earlier dense implementation put most slab time in generic
+S-matrix composition. A preliminary single-layer, 256-mode case improved from
+about 23 ms to 1.5 ms after solving channels independently. The table above is the
+subsequent isolated four-layer measurement, not that preliminary timing.
+Raw results: `/tmp/slab-l4-q128-t4.json` and `/tmp/slab-l4-q512-t4.json` on
+[redacted-host]. Reproduce with `--workload slab --layers 4 --channels 512
+--threads 4 --repeats 7`.

@@ -12,6 +12,7 @@ pub mod integrals;
 pub mod interaction;
 mod jet;
 pub mod lattice;
+pub mod layers;
 pub mod plane;
 pub mod rotation;
 pub mod smatrix;

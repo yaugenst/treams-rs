@@ -547,3 +547,33 @@ def interface(
         return value, pullback
 
     return _call((ks, zs) if fixed_q else (ks, zs, q), forward)
+
+
+def layer_stack(
+    ks: ArrayLike,
+    zs: ArrayLike,
+    q: ArrayLike,
+    thickness: ArrayLike,
+    *,
+    alignment: str = "xy",
+    fixed_q: bool = False,
+) -> NDArray[np.complex128]:
+    """Compact native layer stack with linear channel storage and analytic pullback."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.layer_stack(
+            values[0],
+            values[1],
+            q if fixed_q else values[2],
+            values[2] if fixed_q else values[3],
+            alignment=alignment,
+            fixed_q=fixed_q,
+        )
+
+        def pullback(g: NDArray[np.complex128]) -> _Values:
+            gk, gz, gq, gd = context.pullback(g)
+            return (gk, gz, gd) if fixed_q else (gk, gz, gq, gd)
+
+        return value, pullback
+
+    return _call((ks, zs, thickness) if fixed_q else (ks, zs, q, thickness), forward)

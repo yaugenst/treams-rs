@@ -34,6 +34,7 @@ def worker(
         from treams_rs import (
             CylindricalWaveBasis,
             PlaneWaveBasisByComp,
+            SMatrices,
             SphericalWaveBasis,
             _native,
             diff,
@@ -52,6 +53,26 @@ def worker(
         positions = np.column_stack(
             [np.arange(particles) * 0.8, np.zeros((particles, 2))]
         )
+
+        if workload == "slab":
+            q = np.column_stack([np.linspace(0.1, 0.8, samples), np.full(samples, 0.2)])
+            layer_eps = np.array(
+                [
+                    1,
+                    *[
+                        2.3 + 0.1j if i % 2 == 0 else 1.7 + 0.05j
+                        for i in range(particles)
+                    ],
+                    1,
+                ]
+            )
+            layer_ks = np.repeat((1.3 * np.sqrt(layer_eps))[:, None], 2, axis=1)
+            layer_zs = 1 / np.sqrt(layer_eps)
+            layer_thickness = np.linspace(0.1, 0.4, particles)
+            if backend in ("rust", "check"):
+                basis = PlaneWaveBasisByComp.default(q)
+            if backend in ("treams", "check"):
+                oracle_basis = treams.PlaneWaveBasisByComp.default(q)
 
         if workload in ("plane-field", "plane-operator"):
             q = np.column_stack(
@@ -190,6 +211,10 @@ def worker(
         eta = 0.7 if workload == "cylindrical-array" else 0
 
         def rust():
+            if workload == "slab":
+                return SMatrices.slab(
+                    layer_thickness, basis, 1.3, list(layer_eps)
+                ).array, None
             if workload in ("plane-expansion", "cylindrical-plane-expansion"):
                 return diff.plane_expansion(basis, vectors, source_basis.pol)
             if workload in ("plane-field", "plane-operator"):
@@ -252,6 +277,13 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload == "slab":
+                value = treams.SMatrices.slab(
+                    layer_thickness, oracle_basis, 1.3, list(layer_eps)
+                )
+                return np.array(
+                    [[np.asarray(value[i, j]) for j in range(2)] for i in range(2)]
+                )
             if workload in ("plane-expansion", "cylindrical-plane-expansion"):
                 return treams.expand((oracle_basis, oracle_source), k0=1.3)
             if workload in ("plane-field", "plane-operator"):
@@ -357,7 +389,11 @@ def worker(
         backward_times = []
         if backend == "rust":
             for iteration in range(repeats + 1):
-                value, context = rust()
+                value, context = (
+                    diff.layer_stack(layer_ks, layer_zs, q, layer_thickness)
+                    if workload == "slab"
+                    else rust()
+                )
                 cotangent = np.full_like(value, (1 + 0.3j) / value.size)
                 start = time.perf_counter()
                 if workload in ("periodic", "array", "cylindrical-array"):
@@ -423,9 +459,13 @@ def worker(
                         "cylindrical-plane-expansion",
                     )
                     else None,
-                    "particles": particles,
+                    "particles": particles if workload != "slab" else None,
+                    "layers": particles if workload == "slab" else None,
+                    "channels": samples if workload == "slab" else None,
                     "lmax": order,
-                    "dimension": particles
+                    "dimension": 2 * samples
+                    if workload == "slab"
+                    else particles
                     * (
                         2 * order
                         if workload in ("plane-field", "plane-operator")
@@ -460,6 +500,7 @@ def main() -> None:
         "--workload",
         choices=[
             "cluster",
+            "slab",
             "field",
             "cylindrical-field",
             "field-operator",
@@ -475,9 +516,9 @@ def main() -> None:
         ],
         default="cluster",
     )
-    parser.add_argument("--samples", type=int, default=2048)
+    parser.add_argument("--samples", "--channels", type=int, default=2048)
     parser.add_argument("--worker", choices=["rust", "treams", "check"])
-    parser.add_argument("--particles", type=int, default=8)
+    parser.add_argument("--particles", "--layers", type=int, default=8)
     parser.add_argument("--lmax", type=int, default=3)
     parser.add_argument("--repeats", type=int, default=7)
     parser.add_argument("--threads", type=int, default=1)

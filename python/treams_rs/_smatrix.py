@@ -94,6 +94,10 @@ class SMatrices:
         if len(materials) != 2:
             raise ValueError("an interface requires two materials, below then above")
         below, above = (Material(m) for m in materials)
+        if poltype not in ("helicity", "parity") or (
+            poltype == "parity" and (below.ischiral or above.ischiral)
+        ):
+            raise ValueError("invalid polarization type for embedding media")
         ks = np.array([below.ks(k0), above.ks(k0)])
         zs = np.array([below.impedance, above.impedance])
         result = np.zeros((2, 2, len(basis), len(basis)), dtype=np.complex128)
@@ -106,15 +110,16 @@ class SMatrices:
                     ks, zs, [kx, ky], alignment=basis.alignment, fixed_q=True
                 )[0]
             )
+            if poltype == "parity":
+                change = np.array([[-1, 1], [1, 1]]) * np.sqrt(0.5)
+                value = change @ value @ change.T
             indices = [
                 (i, pol) for i, (x, y, pol) in enumerate(basis) if (x, y) == (kx, ky)
             ]
             for i, pol in indices:
                 for j, pol2 in indices:
                     result[:, :, i, j] = value[:, :, pol, pol2]
-        return cls(result, basis=basis, k0=k0, material=(above, below)).changepoltype(
-            poltype
-        )
+        return cls(result, basis=basis, k0=k0, material=(above, below), poltype=poltype)
 
     @classmethod
     def from_array(
@@ -255,6 +260,39 @@ class SMatrices:
             raise ValueError(
                 "slabs require nonnegative thicknesses and two exterior materials"
             )
+        groups: dict[tuple[float, float], list[int]] = {}
+        for i, (x, y, _) in enumerate(basis):
+            groups.setdefault((x, y), []).append(i)
+        if all(len(indices) == 2 for indices in groups.values()):
+            media = [Material(m) for m in materials]
+            if poltype not in ("helicity", "parity") or (
+                poltype == "parity" and any(m.ischiral for m in media)
+            ):
+                raise ValueError("invalid polarization type for embedding media")
+            compact, _ = diff.layer_stack(
+                [m.ks(k0) for m in media],
+                [m.impedance for m in media],
+                list(groups),
+                values,
+                alignment=basis.alignment,
+                fixed_q=True,
+            )
+            if poltype == "parity":
+                change = np.array([[-1, 1], [1, 1]]) * np.sqrt(0.5)
+                compact = change @ compact @ change.T
+            array = np.zeros((2, 2, len(basis), len(basis)), complex)
+            for q, indices in enumerate(groups.values()):
+                index = np.array(indices)
+                pol = basis.pol[index]
+                array[:, :, index[:, None], index] = compact[q][:, :, pol[:, None], pol]
+            return cls(
+                array,
+                k0=k0,
+                basis=basis,
+                material=(media[-1], media[0]),
+                poltype=poltype,
+            )
+        # A partial polarization basis retains its existing projected-step semantics.
         result = cls.interface(basis, k0, materials[:2], poltype)
         for d, lower, upper in zip(values, materials[1:-1], materials[2:], strict=True):
             result = result.add(cls.propagation(d, basis, k0, lower, poltype)).add(

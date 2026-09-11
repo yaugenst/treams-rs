@@ -144,3 +144,24 @@ print("Clean wheel: cylindrical plane-illumination operator passed")
 oriented_slab = tr.SMatrices.slab(0.4, cports, 1.3, [1, 2.3, 1])
 np.testing.assert_allclose(sum(carray.add(oriented_slab).tr([1, 0])), 1, atol=2e-10)
 print("Clean wheel: cylindrical array plus oriented slab conserves power")
+
+
+def compact_reflectance(thickness):
+    value = ad.layer_stack(
+        [[1.3, 1.3], [2.0, 2.0], [1.3, 1.3]],
+        [1.0, 0.65, 1.0],
+        [[0.2, 0.3], [0.0, 0.0]],
+        anp.reshape(thickness, (1,)),
+        alignment="zx",
+    )
+    reflected = value[:, 1, 0, :, 0]
+    return anp.sum(anp.real(reflected * anp.conj(reflected)))
+
+
+np.testing.assert_allclose(
+    advect.grad(compact_reflectance)(np.array(0.4)),
+    (compact_reflectance(0.4 + h) - compact_reflectance(0.4 - h)) / (2 * h),
+    rtol=1e-7,
+    atol=1e-9,
+)
+print("Clean wheel: compact multilayer thickness adjoint passed")

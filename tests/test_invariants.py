@@ -1,5 +1,7 @@
 """Shrinking property tests against physical invariants and the upstream oracle."""
 
+from itertools import pairwise
+
 import numpy as np
 import pytest
 import treams
@@ -52,7 +54,9 @@ def test_identical_layer_split(size, epsilon, fraction, degree):
 @given(
     degree=st.integers(1, 4),
     order=st.integers(-1, 1),
-    x=st.floats(-1.0, 1.0),
+    # Upstream angular functions lose small transverse components through cos(theta).
+    # The independent resolved-angle limit below covers the near-axis regime.
+    x=st.one_of(st.just(0.0), st.floats(-1.0, -0.02), st.floats(0.02, 1.0)),
     z=positive,
     outgoing=st.booleans(),
 )
@@ -152,4 +156,49 @@ def test_complete_cluster_directional_derivative(parameter):
         finite_difference,
         atol=2e-8,
         rtol=2e-6,
+    )
+
+
+@pytest.mark.parametrize("outgoing", [False, True])
+@pytest.mark.parametrize("z", [-0.5, 0.5])
+@given(exponent=st.integers(8, 300), y_fraction=st.floats(-1, 1))
+def test_near_axis_translation_against_resolved_angle_limit(
+    outgoing, z, exponent, y_fraction
+):
+    # For this azimuthal difference the translation is (x-i*y)*slope + O(rho**3).
+    # Extrapolate the slope from four resolvable upstream angles, where its
+    # associated Legendre evaluation has not rounded to the axis.
+    k = 1.2 + 0.1j
+    estimates = []
+    for h in (0.01, 0.005, 0.0025, 0.00125):
+        spherical = treams.special.car2sph([h, 0, z])
+        estimates.append(
+            treams.sw.translate(
+                4,
+                0,
+                1,
+                2,
+                -1,
+                1,
+                k * spherical[0],
+                spherical[1],
+                spherical[2],
+                singular=outgoing,
+            )
+            / h
+        )
+    for order in range(1, 4):
+        estimates = [
+            (4**order * b - a) / (4**order - 1) for a, b in pairwise(estimates)
+        ]
+    slope = estimates[0]
+    scale = 10.0 ** (-exponent)
+    value, gradient, _ = _native.translation(
+        (4, 0, 1), (2, -1, 1), k, (scale, scale * y_fraction, z), True, outgoing
+    )
+    np.testing.assert_allclose(
+        value / scale, slope * (1 - 1j * y_fraction), rtol=2e-9, atol=1e-12
+    )
+    np.testing.assert_allclose(
+        gradient[:2], [slope, -1j * slope], rtol=2e-9, atol=1e-12
     )

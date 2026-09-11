@@ -271,6 +271,19 @@ impl FresnelResidual {
 type InterfaceMatrix = nalgebra::SMatrix<Complex, 4, 4>;
 type BoundaryJets<const N: usize> = [[Jet<N>; 4]; 4];
 
+pub(crate) fn normal_component<const N: usize>(k: Jet<N>, q: [Jet<N>; 2]) -> Result<Jet<N>> {
+    let mut normal = (k * k - q[0] * q[0] - q[1] * q[1]).sqrt();
+    if normal.value == Complex::default() {
+        return Err(Error::InvalidInput(
+            "interface at exact diffraction threshold requires a limiting formulation".into(),
+        ));
+    }
+    if normal.value.im < 0.0 || (normal.value.im == 0.0 && normal.value.re < 0.0) {
+        normal = -normal;
+    }
+    Ok(normal)
+}
+
 fn interface_boundary<const N: usize>(
     ks: [[Jet<N>; 2]; 2],
     z: [Jet<N>; 2],
@@ -283,17 +296,7 @@ fn interface_boundary<const N: usize>(
     for (medium, sides) in waves.iter_mut().enumerate() {
         for (side, polarizations) in sides.iter_mut().enumerate() {
             for (pol, wave) in polarizations.iter_mut().enumerate() {
-                let mut normal =
-                    (ks[medium][pol] * ks[medium][pol] - q[0] * q[0] - q[1] * q[1]).sqrt();
-                if normal.value == Complex::default() {
-                    return Err(Error::InvalidInput(
-                        "interface at exact diffraction threshold requires a limiting formulation"
-                            .into(),
-                    ));
-                }
-                if normal.value.im < 0.0 || (normal.value.im == 0.0 && normal.value.re < 0.0) {
-                    normal = -normal;
-                }
+                let normal = normal_component(ks[medium][pol], q)?;
                 let mut vector = [Jet::default(); 3];
                 vector[a] = q[0];
                 vector[b] = q[1];

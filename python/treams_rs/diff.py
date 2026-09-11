@@ -424,3 +424,30 @@ def interface(
         {"xy": 2, "yz": 0, "zx": 1}[alignment],
         fixed_q,
     )
+
+
+def layer_stack(
+    ks: ArrayLike,
+    zs: ArrayLike,
+    q: ArrayLike,
+    thickness: ArrayLike,
+    *,
+    alignment: str = "xy",
+    fixed_q: bool = False,
+) -> tuple[NDArray[np.complex128], _native.LayersContext]:
+    """Independent planar channels, shape (channels, 2, 2, 2, 2).
+
+    Final axes are outgoing/incoming direction then polarization 0/1.
+    Media run below to above; thickness has one entry per interior medium.
+    VJP returns (wavenumbers, impedances, transverse components, thickness).
+    """
+    if alignment not in ("xy", "yz", "zx"):
+        raise ValueError("layer alignment must be xy, yz or zx")
+    return _native.layer_stack(
+        np.asarray(ks, dtype=np.complex128).tolist(),
+        np.asarray(zs, dtype=np.complex128).tolist(),
+        np.asarray(q, dtype=np.float64).tolist(),
+        np.atleast_1d(np.asarray(thickness, dtype=np.float64)).tolist(),
+        {"xy": 2, "yz": 0, "zx": 1}[alignment],
+        fixed_q,
+    )

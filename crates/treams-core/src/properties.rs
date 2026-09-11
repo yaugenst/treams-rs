@@ -20,6 +20,22 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    fn compact_layer_scale_adjoint(k in 1.1_f64..2.0, d in 0.1_f64..0.8, axis in 0_usize..3) {
+        let ks=vec![[Complex::new(k,0.0);2],[Complex::new(1.7*k,0.0),Complex::new(1.8*k,0.0)],[Complex::new(k,0.0);2]];
+        let zs=[Complex::new(1.0,0.0),Complex::new(0.7,0.0),Complex::new(1.0,0.0)];
+        let q=vec![[0.1,0.2],[0.3,0.2]];
+        let (value,residual)=crate::layers::stack(ks.clone(),&zs,q.clone(),&[d],axis).unwrap();
+        let g=value.iter().map(|_|std::array::from_fn(|_|DMatrix::from_element(2,2,Complex::new(0.2,0.1)))).collect();
+        let gradient=residual.pullback(g,false).unwrap();
+        let spectral:f64=gradient.ks.iter().flatten().zip(ks.iter().flatten()).map(|(g,k)|(g.conj()*k).re).sum();
+        let transverse:f64=gradient.q.iter().flatten().zip(q.iter().flatten()).map(|(g,q)|g*q).sum();
+        let spatial:f64=gradient.thickness.iter().map(|g|g*d).sum();
+        prop_assert!((spatial-spectral-transverse).abs()<1e-10);
+        let (scaled,_)=crate::layers::stack(ks.iter().map(|v|v.map(|k|k/1.7)).collect(),&zs,q.iter().map(|v|v.map(|q|q/1.7)).collect(),&[d*1.7],axis).unwrap();
+        for (a,b) in value.iter().flatten().zip(scaled.iter().flatten()) {prop_assert!((a-b).norm()<1e-12);}
+    }
+
+    #[test]
     #[allow(clippy::indexing_slicing)] // Two material/helicity slots and four blocks.
     fn cartesian_interface_identity_and_adjoint(k in 1.1_f64..2.0, q in 0.1_f64..0.5, axis in 0_usize..3) {
         let ks=[[Complex::new(k,0.1),Complex::new(k+0.2,0.15)];2];

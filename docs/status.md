@@ -198,3 +198,19 @@ of the S blocks, avoiding the intermediate polarization azimuth singularity.
 slabs compose with cylindrical array S matrices. Cartesian boundary continuity,
 lossless power, slab splitting, native identity adjoints and complete Advect slab
 gradients cover the new path. Exact diffraction thresholds remain unsupported.
+
+`diff.layer_stack` and `advect.layer_stack` solve each transverse channel as an
+independent two-polarization system. Their compact output has shape
+(channels, 2, 2, 2, 2); material and thickness cotangents accumulate across channels.
+Storage for the native reverse grows linearly with channels and layers. The public
+`SMatrices.slab` uses this path for complete polarization pairs, materializing its
+familiar dense matrix only at the boundary. Partial bases retain projected-step
+semantics; interfaces convert local polarization pairs before selecting requested
+modes, which also supports partial parity bases. Tests cover both orderings,
+partial bases, all coordinate normals, all parameter pullbacks, lossless power,
+scale identities and complete Advect multilayer gradients.
+
+Near-axis spherical translation tests separate the upstream angular routine's
+valid range from its rounded-axis regime. An extrapolated, resolved-angle
+reference independently checks values and Cartesian gradients through transverse
+offsets of 1e-300; the Rust result preserves terms that upstream rounds to zero.

@@ -387,3 +387,17 @@ class InterfaceContext:
 def interface(
     ks: list[list[complex]], z: list[complex], q: list[float], axis: int, fixed_q: bool
 ) -> tuple[ComplexArray, InterfaceContext]: ...
+
+class LayersContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[ComplexArray, ComplexArray, RealArray, RealArray]: ...
+
+def layer_stack(
+    ks: list[list[complex]],
+    zs: list[complex],
+    q: list[list[float]],
+    thickness: list[float],
+    axis: int,
+    fixed_q: bool,
+) -> tuple[ComplexArray, LayersContext]: ...

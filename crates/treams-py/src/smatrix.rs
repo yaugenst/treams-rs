@@ -3,8 +3,9 @@
 
 use nalgebra::DMatrix;
 use numpy::{
-    IntoPyArray, PyArray1, PyArray2, PyArray4, PyReadonlyArray2, PyReadonlyArray4,
-    ndarray::{Array2, Array4},
+    IntoPyArray, PyArray1, PyArray2, PyArray4, PyArray5, PyReadonlyArray2, PyReadonlyArray4,
+    PyReadonlyArray5,
+    ndarray::{Array2, Array4, Array5},
 };
 use pyo3::{exceptions::PyValueError, prelude::*};
 use treams_core::{
@@ -154,6 +155,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PropagationContext>()?;
     module.add_function(wrap_pyfunction!(fresnel, module)?)?;
     module.add_class::<InterfaceContext>()?;
+    module.add_class::<LayersContext>()?;
+    module.add_function(wrap_pyfunction!(layer_stack, module)?)?;
     module.add_function(wrap_pyfunction!(interface, module)?)?;
     module.add_function(wrap_pyfunction!(propagation, module)?)?;
     Ok(())
@@ -325,6 +328,84 @@ fn propagation(
         array(py, &residual.value),
         PropagationContext {
             residual: Some(residual),
+        },
+    ))
+}
+
+#[pyclass]
+#[derive(Debug)]
+struct LayersContext {
+    residual: Option<treams_core::layers::LayersResidual>,
+    fixed_q: bool,
+}
+type LayersGradient<'py> = (
+    Bound<'py, PyArray2<Complex>>,
+    Bound<'py, PyArray1<Complex>>,
+    Bound<'py, PyArray2<f64>>,
+    Bound<'py, PyArray1<f64>>,
+);
+#[pymethods]
+impl LayersContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray5<'py, Complex>,
+    ) -> PyResult<LayersGradient<'py>> {
+        let g = cotangent.as_array();
+        let residual = self
+            .residual
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        if g.shape() != [residual.channel_count(), 2, 2, 2, 2]
+            || g.iter().any(|v| !v.re.is_finite() || !v.im.is_finite())
+        {
+            return Err(PyValueError::new_err(
+                "compact layer cotangent must be finite and match shape (channels, 2, 2, 2, 2)",
+            ));
+        }
+        let g = (0..residual.channel_count())
+            .map(|q| {
+                std::array::from_fn(|b| DMatrix::from_fn(2, 2, |i, j| g[(q, b / 2, b % 2, i, j)]))
+            })
+            .collect();
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let fixed_q = self.fixed_q;
+        let result = py
+            .detach(move || residual.pullback(g, fixed_q))
+            .map_err(error)?;
+        Ok((
+            Array2::from_shape_fn((result.ks.len(), 2), |(i, j)| result.ks[i][j]).into_pyarray(py),
+            result.zs.into_pyarray(py),
+            Array2::from_shape_fn((result.q.len(), 2), |(i, j)| result.q[i][j]).into_pyarray(py),
+            result.thickness.into_pyarray(py),
+        ))
+    }
+}
+#[pyfunction]
+fn layer_stack(
+    py: Python<'_>,
+    ks: Vec<[Complex; 2]>,
+    zs: Vec<Complex>,
+    q: Vec<[f64; 2]>,
+    thickness: Vec<f64>,
+    axis: usize,
+    fixed_q: bool,
+) -> PyResult<(Bound<'_, PyArray5<Complex>>, LayersContext)> {
+    let (values, residual) = py
+        .detach(move || treams_core::layers::stack(ks, &zs, q, &thickness, axis))
+        .map_err(error)?;
+    let array = Array5::from_shape_fn((values.len(), 2, 2, 2, 2), |(q, a, b, i, j)| {
+        values[q][2 * a + b][(i, j)]
+    })
+    .into_pyarray(py);
+    Ok((
+        array,
+        LayersContext {
+            residual: Some(residual),
+            fixed_q,
         },
     ))
 }
