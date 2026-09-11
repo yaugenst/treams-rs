@@ -8,14 +8,14 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 | Project | Cargo/PyO3/maturin/uv, lockfiles, just, Ruff, strict Pyrefly, Clippy, pre-commit; hosted Linux CI passing on Python 3.12 and 3.13 | Broader packaged-platform qualification |
 | Spherical functions | Complex regular/outgoing radial values and first two derivatives; Legendre functions; Wigner 3j; Cartesian harmonics | Wider extreme-argument/order qualification; full special namespace |
 | Sphere coefficients | Multilayer, lossy, magnetic, chiral Mie; all continuous input VJPs | Extreme-layer-conditioning analysis |
-| Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks | Conversions between wave families; plane-wave basis rotations |
+| Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks; regular cylindrical-to-spherical conversion and native origin/wavenumber VJPs | Remaining wave-family conversions; plane-wave basis rotations |
 | Multipole fields | Spherical/cylindrical Cartesian waves and analytic axis limits; weighted fields and full field operators with native position/wavenumber VJPs and linear residuals; electric, magnetic, displacement and flux operators; Advect magnetic samples including impedance gradients | Plane-wave and Riemann-Silberstein fields, cylindrical axial-label derivatives and upstream operator-attribute machinery |
 | Finite scattering | Dense solve and factorization-reusing adjoint; optimized sphere clusters; heterogeneous local matrices via public API | Native end-to-end heterogeneous-cluster parameter context |
 | Python interface | Material, spherical/cylindrical bases, TMatrix.sphere, TMatrixC.cylinder, clusters, interaction.solve, changepoltype, expand, xs/xw and averaged cross sections | Full upstream ndarray annotation machinery is not reproduced; explicit .array is used |
 | Differentiation | Opaque one-use native contexts in coeffs and diff; arbitrary complex output cotangents; Advect adapters for spherical/cylindrical T-matrices, clusters, interactions, expansions, fields and sphere/cylinder coefficients | Higher derivatives and other framework adapters |
 | Testing | Native proptest invariants and adjoint identities; Hypothesis physical invariants; treams/SciPy reference comparisons; complete Python workflows | Expand qualification with every ported subsystem |
 | Performance | Cached angular plans and radial tables, faer LU and matmul, block-diagonal local storage, Rayon coupling assembly | See measured scope and limitations in benchmarks.md |
-| Cylindrical scattering | Complex J/H and derivatives; multilayer chiral coefficients and complete T-matrix with all parameter VJPs; cylindrical bases, translations, clusters, electric fields and cross widths | Conversions to spherical/plane waves |
+| Cylindrical scattering | Complex J/H and derivatives; multilayer chiral coefficients and complete T-matrix with all parameter VJPs; cylindrical bases, translations, clusters, electric fields and cross widths; regular spherical conversion | Periodic conversion to plane waves |
 | Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections; xy-component plane-wave bases, diffraction orders and slab illumination | General basis alignments and standalone PlaneWave direction/material VJPs |
 | Planar layers | Native chiral Fresnel coefficients and propagation; one-LU S-matrix composition with reused-factor adjoint; interfaces, multilayer slabs, stacking/doubling, polarization conversion and power-flux transmittance/reflectance | Internal-field convenience; full SMatrix annotation API |
 | Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D; periodic coupling and solves; spherical 2D particle-to-plane channels and S matrices; complete native pullbacks and Advect reflectance gradients; direct-sum, reference, energy, Bloch/split/scale invariants | Cylindrical radiation channels; broader combined particle/layer workflows |
@@ -116,3 +116,13 @@ retaining geometry only; `advect.field_operator` composes the same boundary.
 polarization/impedance scaling in Advect. The metadata-bearing convenience
 functions themselves accept ordinary arrays. Prefer weighted `diff.field` or
 `advect.field`/`hfield` when the full sample-by-mode operator is not needed.
+
+`expand((destination, source), ...)` now exposes multipole addition theorems and
+regular cylindrical-to-spherical conversion. The latter includes all explicit
+origin pairs by translating the cylindrical wave before its spherical expansion;
+upstream's same-origin angular coefficients and reconstructed displaced fields
+are independently checked. It does not reproduce upstream's particle-index mask
+for this cross-family operator. `diff.expansion` and `advect.expansion` share its
+native origin and complex-wavenumber pullback, holding axial labels fixed.
+On-axis evaluation skips azimuthal orders that vanish analytically, retaining
+adjacent orders in reverse because their first position derivatives can be nonzero.

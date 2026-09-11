@@ -7,7 +7,7 @@ from ._core import (
     PlaneWaveBasisByComp,
     SphericalWaveBasis,
 )
-from ._operators import bfield, dfield, efield, hfield, rotate
+from ._operators import bfield, dfield, efield, expand, hfield, rotate
 from ._plane import PlaneWave, plane_wave, plane_wave_angle
 from ._smatrix import SMatrices, poynting_avg_z
 from ._tmatrix import TMatrix, TMatrixC
@@ -26,6 +26,7 @@ __all__ = [
     "dfield",
     "diff",
     "efield",
+    "expand",
     "hfield",
     "lattice",
     "plane_wave",

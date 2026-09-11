@@ -5,7 +5,7 @@ use nalgebra::DMatrix;
 use rayon::prelude::*;
 
 use crate::{
-    Complex, Error, Result, basis::Basis, finite, jet::Jet, special::legendre_factor, waves::Mode,
+    Complex, Error, Result, basis::Basis, finite, jet::Jet, special::angular_jets, waves::Mode,
 };
 
 struct Geometry<const N: usize> {
@@ -69,14 +69,7 @@ impl<const N: usize> Geometry<N> {
             return [Jet::default(); 2];
         }
         let (l, m) = (mode.l, mode.m);
-        let legendre =
-            |order: i32| self.sine.powi(order.abs()) * legendre_factor(l, order, self.cosine);
-        let pi = if m == 0 {
-            Jet::default()
-        } else {
-            f64::from(m) * self.sine.powi(m.abs() - 1) * legendre_factor(l, m, self.cosine)
-        };
-        let tau = 0.5 * (legendre(m + 1) - f64::from((l + m) * (l - m + 1)) * legendre(m - 1));
+        let [pi, tau] = angular_jets(l, m, self.cosine, self.sine);
         let angular = if helicity {
             tau + (2.0 * f64::from(pol) - 1.0) * pi
         } else if mode.pol == pol {

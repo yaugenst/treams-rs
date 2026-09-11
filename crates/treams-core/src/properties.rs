@@ -20,6 +20,29 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    #[allow(clippy::indexing_slicing)] // Fixed Cartesian triples and two helicities.
+    fn conversion_field_and_adjoint(m in -2_i32..3, kz in -0.7_f64..0.7, x in -0.3_f64..0.3, helicity in any::<bool>()) {
+        let destination=crate::basis::Basis{modes:(1..=8).flat_map(|l|(-l..=l).flat_map(move|m|(0..2).map(move|pol|(0,Mode{l,m,pol})))).collect(),positions:vec![[x,0.1,-0.2]]};
+        let source=crate::cylwaves::Basis{modes:vec![(0,crate::cylwaves::Mode{kz,m,pol:1})],positions:vec![[0.2,-0.1,0.1]]};
+        let ks=[Complex::new(1.3,0.1);2];
+        let converted=crate::conversion::cylindrical_to_spherical(destination.clone(),source.clone(),ks,helicity).unwrap();
+        let points=vec![[x+0.1,0.2,-0.1]];
+        let actual=crate::fields::field(destination.clone(),converted.value.as_slice().to_vec(),points.clone(),ks,helicity,Radial::Regular).unwrap();
+        let expected=crate::fields::field(source.clone(),vec![Complex::new(1.0,0.0)],points,ks,helicity,Radial::Regular).unwrap();
+        for (a,b) in actual.value.iter().flatten().zip(expected.value.iter().flatten()) {prop_assert!((*a-b).norm()<1e-10);}
+        let g=DMatrix::from_element(converted.value.nrows(),1,Complex::new(0.2,0.1));
+        let gradient=converted.pullback(&g).unwrap();
+        for a in 0..3 {prop_assert!((gradient.destination[0][a]+gradient.source[0][a]).abs()<1e-12);}
+        let h=1e-5;
+        let shifted=|sign:f64|{
+            let mut to=destination.clone(); to.positions[0][0]+=sign*h;
+            crate::conversion::cylindrical_to_spherical(to,source.clone(),ks,helicity).unwrap().value
+        };
+        let numeric=g.dotc(&((shifted(1.0)-shifted(-1.0))/Complex::new(2.0*h,0.0))).re;
+        prop_assert!((gradient.destination[0][0]-numeric).abs()<1e-7);
+    }
+
+    #[test]
     #[allow(clippy::indexing_slicing)] // Fixed Cartesian samples and six dipole modes.
     fn field_operator_amplitude_contraction(values in prop::collection::vec(-0.5_f64..0.5,12)) {
         let basis=crate::basis::Basis{modes:(-1..=1).flat_map(|m|(0..2).map(move|pol|(0,Mode{l:1,m,pol}))).collect(),positions:vec![[0.1,0.2,0.3]]};

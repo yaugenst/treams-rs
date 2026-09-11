@@ -157,10 +157,25 @@ def expansion(
             (complex(values[0]), complex(values[1])),
             singular,
         )
+    if isinstance(destination, SphericalWaveBasis) and isinstance(
+        source, CylindricalWaveBasis
+    ):
+        if singular:
+            raise ValueError(
+                "cylindrical-to-spherical conversion requires regular waves"
+            )
+        return _native.cw_to_sw(
+            list(destination.modes),
+            list(source.modes),
+            destination.positions.tolist(),
+            source.positions.tolist(),
+            (complex(values[0]), complex(values[1])),
+            poltype == "helicity",
+        )
     if not isinstance(destination, SphericalWaveBasis) or not isinstance(
         source, SphericalWaveBasis
     ):
-        raise ValueError("source and destination must use the same wave family")
+        raise ValueError("unsupported wave-family conversion")
     return _native.expansion(
         list(destination.modes),
         list(source.modes),

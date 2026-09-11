@@ -128,6 +128,24 @@ pub(crate) fn legendre_factor<const N: usize>(
     p
 }
 
+/// Local analytic angular functions with the sine factor kept explicit at poles.
+pub(crate) fn angular_jets<const N: usize>(
+    l: i32,
+    m: i32,
+    cosine: crate::jet::Jet<N>,
+    sine: crate::jet::Jet<N>,
+) -> [crate::jet::Jet<N>; 2] {
+    use crate::jet::Jet;
+    let legendre = |order: i32| sine.powi(order.abs()) * legendre_factor(l, order, cosine);
+    let pi = if m == 0 {
+        Jet::default()
+    } else {
+        f64::from(m) * sine.powi(m.abs() - 1) * legendre_factor(l, m, cosine)
+    };
+    let tau = 0.5 * (legendre(m + 1) - f64::from((l + m) * (l - m + 1)) * legendre(m - 1));
+    [pi, tau]
+}
+
 /// Angular pi function, including its polar-axis limits.
 #[must_use]
 pub fn pi_fun(l: i32, m: i32, z: Complex) -> Complex {

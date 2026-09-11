@@ -148,3 +148,19 @@ forward timings include constructing angular blocks. Rust retains the small-d
 blocks for an analytic Euler-angle reverse pass. Raw samples and binary identity
 are in `rotation-n2-l8-t4.json`; reproduce with
 `--workload rotation --particles 2 --lmax 8 --threads 4`.
+
+## Cylindrical-to-spherical conversion
+
+Release, four matched threads, one common origin, spherical lmax=12 (336 modes),
+32 axial wavenumbers between -0.7 and 0.7 and cylindrical mmax=12 (1,600 modes).
+The full 336-by-1,600 matrix is checked against treams before timing.
+treams takes 23.13 ms and Rust 3.34 ms: **6.92x** on this case. The native pullback
+for arbitrary origin and complex-wavenumber cotangents takes 5.80 ms; forward peak
+RSS is 73.9 MiB versus 55.9 MiB. Seven samples after warmup, isolated processes.
+
+The first implementation took 20.48 ms forward and 23.63 ms reverse. Skipping
+analytically zero azimuthal orders at coincident transverse origins reduced those
+times without suppressing adjacent-order position derivatives. This measurement
+covers common-origin conversion; it does not establish displaced-origin speedup.
+Raw results: `/tmp/conversion-before-l12-k32-t4.json` and
+`/tmp/conversion-l12-k32-t4.json` on [redacted-host].

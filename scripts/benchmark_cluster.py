@@ -53,6 +53,19 @@ def worker(
             [np.arange(particles) * 0.8, np.zeros((particles, 2))]
         )
 
+        if workload == "conversion":
+            if particles != 1:
+                raise ValueError(
+                    "the upstream conversion benchmark uses one common origin"
+                )
+            kz = np.linspace(-0.7, 0.7, samples)
+            if backend in ("rust", "check"):
+                basis = SphericalWaveBasis.default(order)
+                source_basis = CylindricalWaveBasis.default(kz, order)
+            if backend in ("treams", "check"):
+                oracle_basis = treams.SphericalWaveBasis.default(order)
+                oracle_source = treams.CylindricalWaveBasis.default(kz, order)
+
         if workload == "rotation":
             if backend in ("rust", "check"):
                 basis = SphericalWaveBasis.default(order, particles, positions)
@@ -114,6 +127,8 @@ def worker(
                 )
 
         def rust():
+            if workload == "conversion":
+                return diff.expansion(basis, source_basis, [1.3, 1.3])
             if workload == "rotation":
                 return diff.rotation([0.2, 0.7, -0.3], basis)
             if workload == "field-operator":
@@ -151,6 +166,8 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload == "conversion":
+                return treams.expand((oracle_basis, oracle_source), k0=1.3)
             if workload == "rotation":
                 return treams.rotate(0.2, 0.7, -0.3, basis=oracle_basis)
             if workload in ("field", "cylindrical-field", "field-operator"):
@@ -256,7 +273,8 @@ def worker(
                     else None,
                     "workload": workload,
                     "samples": samples
-                    if workload in ("field", "cylindrical-field", "field-operator")
+                    if workload
+                    in ("field", "cylindrical-field", "field-operator", "conversion")
                     else None,
                     "particles": particles,
                     "lmax": order,
@@ -296,6 +314,7 @@ def main() -> None:
             "periodic",
             "array",
             "rotation",
+            "conversion",
         ],
         default="cluster",
     )

@@ -25,6 +25,44 @@ def rotate(
     return diff.rotation([phi, theta, psi], destination, source)[0]
 
 
+def expand(
+    basis: Basis | tuple[Basis, Basis],
+    modetype: str | tuple[str, str] | None = None,
+    *,
+    k0: float,
+    material: MaterialLike = 1,
+    poltype: str = "helicity",
+) -> NDArray[np.complex128]:
+    """Multipole expansion, including regular cylindrical-to-spherical waves.
+
+    A basis pair is (destination, source). All explicit origin pairs are included.
+    """
+    destination, source = basis if isinstance(basis, tuple) else (basis, basis)
+    types = (
+        ("regular", "regular")
+        if modetype is None
+        else (modetype if isinstance(modetype, tuple) else (modetype, modetype))
+    )
+    if types not in (
+        ("regular", "regular"),
+        ("singular", "singular"),
+        ("regular", "singular"),
+    ):
+        raise ValueError("unsupported multipole expansion mode types")
+    if not np.isfinite(k0) or k0 <= 0:
+        raise ValueError("k0 must be positive and finite")
+    if type(destination) is not type(source) and types != ("regular", "regular"):
+        raise ValueError("cylindrical-to-spherical conversion requires regular waves")
+    # Equal radial types use the regular addition theorem.
+    return diff.expansion(
+        destination,
+        source,
+        Material(material).ks(k0),
+        poltype=poltype,
+        singular=types == ("regular", "singular"),
+    )[0]
+
+
 def _field(
     kind: str,
     r: ArrayLike,

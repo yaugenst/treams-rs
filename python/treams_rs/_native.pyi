@@ -159,6 +159,14 @@ def expansion(
     helicity: bool,
     outgoing: bool,
 ) -> tuple[ComplexArray, ExpansionContext]: ...
+def cw_to_sw(
+    to: list[tuple[int, int, int, int]],
+    source: list[tuple[int, float, int, int]],
+    to_positions: list[list[float]],
+    source_positions: list[list[float]],
+    ks: tuple[complex, complex],
+    helicity: bool,
+) -> tuple[ComplexArray, ExpansionContext]: ...
 def build_profile() -> str: ...
 
 class CylinderContext:

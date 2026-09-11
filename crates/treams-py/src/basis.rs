@@ -16,12 +16,14 @@ use treams_core::{
 enum Expansion {
     Spherical(TranslationResidual),
     Cylindrical(treams_core::cylwaves::ExpansionResidual),
+    Conversion(treams_core::conversion::ConversionResidual),
 }
 impl Expansion {
     fn value(&self) -> &nalgebra::DMatrix<Complex> {
         match self {
             Self::Spherical(r) => &r.value,
             Self::Cylindrical(r) => &r.value,
+            Self::Conversion(r) => &r.value,
         }
     }
     fn pullback(
@@ -31,6 +33,7 @@ impl Expansion {
         match self {
             Self::Spherical(r) => r.pullback(g),
             Self::Cylindrical(r) => r.pullback(g),
+            Self::Conversion(r) => r.pullback(g),
         }
     }
 }
@@ -236,6 +239,29 @@ fn cyl_expansion(
     ))
 }
 
+#[pyfunction]
+fn cw_to_sw(
+    py: Python<'_>,
+    to: Vec<(usize, i32, i32, u8)>,
+    source: Vec<(usize, f64, i32, u8)>,
+    to_positions: Vec<[f64; 3]>,
+    source_positions: Vec<[f64; 3]>,
+    ks: [Complex; 2],
+    helicity: bool,
+) -> PyResult<(Bound<'_, PyArray2<Complex>>, ExpansionContext)> {
+    let to = make_basis(to, to_positions);
+    let source = make_cyl_basis(source, source_positions);
+    let residual = py
+        .detach(move || treams_core::conversion::cylindrical_to_spherical(to, source, ks, helicity))
+        .map_err(error)?;
+    Ok((
+        matrix(py, &residual.value),
+        ExpansionContext {
+            residual: Some(Expansion::Conversion(residual)),
+        },
+    ))
+}
+
 type CylJet = (Complex, [Complex; 3], Complex, Complex);
 #[pyfunction]
 fn cyl_translation(
@@ -315,6 +341,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(plane_polarization, m)?)?;
     m.add_function(wrap_pyfunction!(expansion, m)?)?;
     m.add_function(wrap_pyfunction!(cyl_expansion, m)?)?;
+    m.add_function(wrap_pyfunction!(cw_to_sw, m)?)?;
     m.add_function(wrap_pyfunction!(cyl_translation, m)?)?;
     Ok(())
 }
