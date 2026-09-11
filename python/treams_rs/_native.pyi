@@ -348,3 +348,15 @@ def plane_field(
     helicity: bool,
     fixed_vectors: bool,
 ) -> tuple[ComplexArray, PlaneFieldContext]: ...
+
+class PlaneExpansionContext:
+    def pullback(self, cotangent: ComplexArray) -> tuple[RealArray, ComplexArray]: ...
+
+def plane_expansion(
+    modes: list[tuple[int, int, int, int]],
+    origins: list[list[float]],
+    vectors: list[list[complex]],
+    polarizations: list[int],
+    helicity: bool,
+    fixed_vectors: bool,
+) -> tuple[ComplexArray, PlaneExpansionContext]: ...

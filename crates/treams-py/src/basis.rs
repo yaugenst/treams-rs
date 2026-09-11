@@ -1,4 +1,5 @@
 //! Python expansion contexts.
+#![allow(clippy::indexing_slicing)] // Native gradient dimensions and Cartesian triples are validated.
 use crate::{
     error,
     tmatrix::{from_array, matrix},
@@ -331,7 +332,76 @@ fn plane_to_cylindrical(
         .into_pyarray(py))
 }
 
+#[pyclass]
+#[derive(Debug)]
+struct PlaneExpansionContext {
+    residual: Option<treams_core::plane::ExpansionResidual>,
+    fixed_vectors: bool,
+}
+type PlaneGradient<'py> = (Bound<'py, PyArray2<f64>>, Bound<'py, PyArray2<Complex>>);
+#[pymethods]
+impl PlaneExpansionContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'py, Complex>,
+    ) -> PyResult<PlaneGradient<'py>> {
+        let g = from_array(cotangent)?;
+        let residual = self
+            .residual
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        if g.shape() != residual.shape() {
+            return Err(PyValueError::new_err(
+                "cotangent shape does not match forward output",
+            ));
+        }
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let fixed = self.fixed_vectors;
+        let gradient = py
+            .detach(move || residual.pullback(&g, fixed))
+            .map_err(error)?;
+        Ok((
+            Array2::from_shape_fn((gradient.origins.len(), 3), |(i, j)| gradient.origins[i][j])
+                .into_pyarray(py),
+            Array2::from_shape_fn((gradient.vectors.len(), 3), |(i, j)| gradient.vectors[i][j])
+                .into_pyarray(py),
+        ))
+    }
+}
+#[pyfunction]
+fn plane_expansion(
+    py: Python<'_>,
+    modes: Vec<(usize, i32, i32, u8)>,
+    origins: Vec<[f64; 3]>,
+    vectors: Vec<[Complex; 3]>,
+    polarizations: Vec<u8>,
+    helicity: bool,
+    fixed_vectors: bool,
+) -> PyResult<(Bound<'_, PyArray2<Complex>>, PlaneExpansionContext)> {
+    let basis = make_basis(modes, origins);
+    let (value, residual) = py
+        .detach(move || treams_core::plane::expansion(basis, vectors, polarizations, helicity))
+        .map_err(error)?;
+    let array = Array2::from_shape_vec((value.ncols(), value.nrows()), Vec::from(value.data))
+        .map_err(|e| PyValueError::new_err(e.to_string()))?
+        .reversed_axes()
+        .into_pyarray(py);
+    Ok((
+        array,
+        PlaneExpansionContext {
+            residual: Some(residual),
+            fixed_vectors,
+        },
+    ))
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PlaneExpansionContext>()?;
+    m.add_function(wrap_pyfunction!(plane_expansion, m)?)?;
     m.add_class::<RotationContext>()?;
     m.add_function(wrap_pyfunction!(rotation, m)?)?;
     m.add_function(wrap_pyfunction!(cyl_rotation, m)?)?;

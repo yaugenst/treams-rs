@@ -330,3 +330,30 @@ def plane_field(
         poltype == "helicity",
         fixed_vectors,
     )
+
+
+def plane_expansion(
+    destination: SphericalWaveBasis,
+    vectors: ArrayLike,
+    polarizations: ArrayLike,
+    *,
+    poltype: str = "helicity",
+    fixed_vectors: bool = False,
+) -> tuple[NDArray[np.complex128], _native.PlaneExpansionContext]:
+    """Regular plane-to-spherical expansion; VJP returns (origins, full wavevectors).
+
+    At axial propagation, fixed_vectors enables origin gradients at fixed incidence.
+    """
+    if poltype not in ("helicity", "parity"):
+        raise ValueError("invalid polarization type")
+    pols = np.asarray(polarizations)
+    if not np.all((pols == 0) | (pols == 1)):
+        raise ValueError("polarizations must be 0 or 1")
+    return _native.plane_expansion(
+        list(destination.modes),
+        destination.positions.tolist(),
+        np.asarray(vectors, dtype=np.complex128).tolist(),
+        pols.astype(np.int64).tolist(),
+        poltype == "helicity",
+        fixed_vectors,
+    )

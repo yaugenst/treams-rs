@@ -16,7 +16,7 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 | Testing | Native proptest invariants and adjoint identities; Hypothesis physical invariants; treams/SciPy reference comparisons; complete Python workflows | Expand qualification with every ported subsystem |
 | Performance | Cached angular plans and radial tables, faer LU and matmul, block-diagonal local storage, Rayon coupling assembly | See measured scope and limitations in benchmarks.md |
 | Cylindrical scattering | Complex J/H and derivatives; multilayer chiral coefficients and complete T-matrix with all parameter VJPs; cylindrical bases, translations, clusters, electric fields and cross widths; regular spherical conversion | Periodic conversion to plane waves |
-| Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections; xy-component plane-wave bases, diffraction orders, native Cartesian fields and slab illumination | General basis alignments and standalone plane-to-multipole conversion VJPs |
+| Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections; xy-component plane-wave bases, diffraction orders, native Cartesian fields and slab illumination | General basis alignments and cylindrical plane-expansion VJPs |
 | Planar layers | Native chiral Fresnel coefficients and propagation; one-LU S-matrix composition with reused-factor adjoint; interfaces, multilayer slabs, stacking/doubling, polarization conversion and power-flux transmittance/reflectance | Internal-field convenience; full SMatrix annotation API |
 | Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D; periodic coupling and solves; spherical 2D particle-to-plane channels and S matrices; complete native pullbacks and Advect reflectance gradients; direct-sum, reference, energy, Bloch/split/scale invariants | Cylindrical radiation channels; broader combined particle/layer workflows |
 | Remaining public API | Not implemented | Field-operator conveniences, EBCM, band calculations, I/O and remaining observables |
@@ -141,3 +141,15 @@ propagation. `PlaneWave.efield` uses the weighted native kernel. All field
 operators now transfer owned Rust buffers to NumPy without copying; their strides
 need not be C-contiguous. Cotangent checks cover contiguous, permuted and reversed
 views, and malformed cotangents leave the one-use residual available for retry.
+
+`expand` also maps xy-component plane bases into regular spherical bases.
+`diff.plane_expansion` and `advect.plane_expansion` expose arbitrary complex plane
+wavevectors and native origin/vector pullbacks. A complete Advect test includes
+incidence angles, frequency, sphere radius and position through illumination,
+scattering and total-field intensity. The angular coefficient uses the same
+transverse branch as Cartesian polarization; this fixes a physical reconstruction
+failure for complex directions where upstream's additional principal square root
+flips that branch. For example, k=(0.2+i, 0.1+0.3i, 1.3-0.8i) reconstructs to
+about 1e-13 absolute error, whereas upstream coefficients err by about 1.25 on the
+same samples. Tests cover both polarizations, helicity/parity and native adjoint
+scale identities. Fixed-vector mode enables origin gradients at axial incidence.

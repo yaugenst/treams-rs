@@ -7,12 +7,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from . import diff
-from ._core import Material, PlaneWaveBasisByComp
+from ._core import Material, PlaneWaveBasisByComp, SphericalWaveBasis
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
 
-    from ._core import CylindricalWaveBasis, MaterialLike, SphericalWaveBasis
+    from ._core import CylindricalWaveBasis, MaterialLike
 
     type Basis = SphericalWaveBasis | CylindricalWaveBasis
     type FieldBasis = Basis | PlaneWaveBasisByComp
@@ -27,7 +27,7 @@ def rotate(
 
 
 def expand(
-    basis: Basis | tuple[Basis, Basis],
+    basis: FieldBasis | tuple[FieldBasis, FieldBasis],
     modetype: str | tuple[str, str] | None = None,
     *,
     k0: float,
@@ -39,6 +39,37 @@ def expand(
     A basis pair is (destination, source). All explicit origin pairs are included.
     """
     destination, source = basis if isinstance(basis, tuple) else (basis, basis)
+    if isinstance(source, PlaneWaveBasisByComp):
+        if not isinstance(destination, SphericalWaveBasis):
+            raise ValueError(
+                "plane expansion currently requires a spherical destination"
+            )
+        medium = Material(material)
+        if not np.isfinite(k0) or k0 <= 0 or (poltype == "parity" and medium.ischiral):
+            raise ValueError(
+                "invalid frequency or embedding medium for the polarization type"
+            )
+        types = (
+            ("regular", "up")
+            if modetype is None
+            else (modetype if isinstance(modetype, tuple) else ("regular", modetype))
+        )
+        if types[0] != "regular" or types[1] not in ("up", "down"):
+            raise ValueError(
+                "plane waves expand into regular multipoles from up/down modes"
+            )
+        return diff.plane_expansion(
+            destination,
+            np.column_stack(source.kvecs(k0, medium, types[1])),
+            source.pol,
+            poltype=poltype,
+            fixed_vectors=True,
+        )[0]
+    if isinstance(destination, PlaneWaveBasisByComp):
+        raise ValueError(
+            "multipole-to-plane expansion requires a periodic radiation operator"
+        )
+
     types = (
         ("regular", "regular")
         if modetype is None

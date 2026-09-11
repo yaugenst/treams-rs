@@ -4,12 +4,7 @@
 use nalgebra::DMatrix;
 use rayon::prelude::*;
 
-use crate::{
-    Complex, Error, Result, finite,
-    jet::Jet,
-    special::{pi_fun, tau_fun},
-    waves::Mode,
-};
+use crate::{Complex, Error, Result, finite, jet::Jet, special::angular_jets, waves::Mode};
 
 // Scale before squaring or dividing: nearly axial directions may have transverse
 // components small enough that their squares underflow while their azimuth matters.
@@ -56,7 +51,46 @@ fn wavenumbers(vector: [Complex; 3]) -> Result<(Complex, Complex, [Complex; 2])>
     Ok((k, transverse, xy))
 }
 
-/// Plane-wave electric vector at the origin in treams normalization.
+struct Direction<const N: usize> {
+    k: Jet<N>,
+    transverse: Jet<N>,
+    xy: [Jet<N>; 2],
+}
+impl<const N: usize> Direction<N> {
+    fn new(vector: [Complex; 3]) -> Result<Self> {
+        let (k, transverse, xy) = wavenumbers(vector)?;
+        if N != 0 && transverse == Complex::default() {
+            return Err(Error::InvalidInput("plane-wave direction derivative is undefined on the polarization axis; fix the wavevectors".into()));
+        }
+        let wave = Jet {
+            value: k,
+            derivative: std::array::from_fn(|a| ratio(vector[a], k)),
+        };
+        let radial = Jet {
+            value: transverse,
+            derivative: std::array::from_fn(|a| if a < 2 { xy[a] } else { Complex::default() }),
+        };
+        let xy: [Jet<N>; 2] = std::array::from_fn(|a| Jet {
+            value: xy[a],
+            derivative: std::array::from_fn(|b| {
+                if b < 2 {
+                    ratio(
+                        Complex::new(if a == b { 1.0 } else { 0.0 }, 0.0) - xy[a] * xy[b],
+                        transverse,
+                    )
+                } else {
+                    Complex::default()
+                }
+            }),
+        });
+        Ok(Self {
+            k: wave,
+            transverse: radial,
+            xy,
+        })
+    }
+}
+
 fn polarization_jet<const N: usize>(
     vector: [Complex; 3],
     pol: u8,
@@ -65,33 +99,13 @@ fn polarization_jet<const N: usize>(
     if pol > 1 {
         return Err(Error::InvalidInput("polarization must be 0 or 1".into()));
     }
-    let (k, transverse, xy) = wavenumbers(vector)?;
-    if N != 0 && transverse == Complex::default() {
-        return Err(Error::InvalidInput("plane-wave direction derivative is undefined on the polarization axis; fix the wavevectors".into()));
-    }
-    let wave = Jet {
-        value: k,
-        derivative: std::array::from_fn(|a| ratio(vector[a], k)),
-    };
-    let radial = Jet {
-        value: transverse,
-        derivative: std::array::from_fn(|a| if a < 2 { xy[a] } else { Complex::default() }),
-    };
-    let xy_jet: [Jet<N>; 2] = std::array::from_fn(|a| Jet {
-        value: xy[a],
-        derivative: std::array::from_fn(|b| {
-            if b < 2 {
-                ratio(
-                    Complex::new(if a == b { 1.0 } else { 0.0 }, 0.0) - xy[a] * xy[b],
-                    transverse,
-                )
-            } else {
-                Complex::default()
-            }
-        }),
-    });
+    let Direction {
+        k: wave,
+        transverse: radial,
+        xy: xy_jet,
+    } = Direction::new(vector)?;
     let z = vector[2];
-    let (m, n) = if xy == [Complex::default(); 2] {
+    let (m, n) = if radial.value == Complex::default() {
         let sign = if z.im == 0.0 {
             if z.re >= 0.0 { 1.0 } else { -1.0 }
         } else if z.im >= 0.0 {
@@ -133,38 +147,56 @@ pub fn polarization(vector: [Complex; 3], pol: u8, helicity: bool) -> Result<[Co
     Ok(polarization_jet::<0>(vector, pol, helicity)?.map(|p| p.value))
 }
 
+fn spherical_coefficient<const N: usize>(
+    mode: Mode,
+    vector: [Complex; 3],
+    direction: &Direction<N>,
+    pol: u8,
+    helicity: bool,
+) -> Jet<N> {
+    if helicity && mode.pol != pol {
+        return Jet::default();
+    }
+    let (l, m) = (mode.l, mode.m);
+    let axis = direction.transverse.value == Complex::default();
+    let azimuth = if axis {
+        Jet::constant(1.0)
+    } else {
+        (direction.xy[0] - Complex::i() * direction.xy[1]).powi(m)
+    };
+    let cosine = if axis {
+        Jet::constant(if (vector[2] / direction.k.value).re >= 0.0 {
+            1.0
+        } else {
+            -1.0
+        })
+    } else {
+        Jet::variable(vector[2], 2) / direction.k
+    };
+    // Keep the same transverse branch as the Cartesian polarization. Taking a
+    // second principal square root of 1-cos(theta)^2 can flip complex directions.
+    let sine = direction.transverse / direction.k;
+    let [pi, tau] = angular_jets(l, m, cosine, sine);
+    let angular = if helicity {
+        tau + (2.0 * f64::from(pol) - 1.0) * pi
+    } else if mode.pol == pol {
+        tau
+    } else {
+        pi
+    };
+    let normalization = 2.0
+        * (std::f64::consts::PI * f64::from(2 * l + 1) / f64::from(l * (l + 1))).sqrt()
+        * (0.5 * (libm::lgamma(f64::from(l - m + 1)) - libm::lgamma(f64::from(l + m + 1)))).exp();
+    normalization * Complex::i().powi(l) * azimuth * angular
+}
+
 /// Spherical expansion coefficient for a unit-amplitude plane wave.
 pub fn to_spherical(mode: Mode, vector: [Complex; 3], pol: u8, helicity: bool) -> Result<Complex> {
     mode.validate()?;
     if pol > 1 {
         return Err(Error::InvalidInput("polarization must be 0 or 1".into()));
     }
-    let (k, _, xy) = wavenumbers(vector)?;
-    if helicity && mode.pol != pol {
-        return Ok(Complex::default());
-    }
-    let (l, m) = (mode.l, mode.m);
-    let azimuth = if xy == [Complex::default(); 2] {
-        Complex::new(1.0, 0.0)
-    } else {
-        (xy[0] - Complex::i() * xy[1]).powi(m)
-    };
-    let normalization = 2.0
-        * (std::f64::consts::PI * f64::from(2 * l + 1) / f64::from(l * (l + 1))).sqrt()
-        * (0.5 * (libm::lgamma(f64::from(l - m + 1)) - libm::lgamma(f64::from(l + m + 1)))).exp();
-    let z = if xy == [Complex::default(); 2] {
-        Complex::new(if (vector[2] / k).re >= 0.0 { 1.0 } else { -1.0 }, 0.0)
-    } else {
-        vector[2] / k
-    };
-    let angular = if helicity {
-        tau_fun(l, m, z) + (2.0 * f64::from(pol) - 1.0) * pi_fun(l, m, z)
-    } else if mode.pol == pol {
-        tau_fun(l, m, z)
-    } else {
-        pi_fun(l, m, z)
-    };
-    Ok(normalization * Complex::i().powi(l) * azimuth * angular)
+    Ok(spherical_coefficient(mode, vector, &Direction::<0>::new(vector)?, pol, helicity).value)
 }
 
 /// Regular spherical multipole amplitudes of one plane wave.
@@ -175,6 +207,10 @@ pub fn spherical(
     helicity: bool,
 ) -> Result<Vec<Complex>> {
     basis.validate()?;
+    if pol > 1 {
+        return Err(Error::InvalidInput("polarization must be 0 or 1".into()));
+    }
+    let direction = Direction::<0>::new(vector)?;
     basis
         .modes
         .iter()
@@ -186,7 +222,7 @@ pub fn spherical(
                     .map(|(k, r)| k * r)
                     .sum::<Complex>())
             .exp();
-            Ok(phase * to_spherical(mode, vector, pol, helicity)?)
+            Ok(phase * spherical_coefficient(mode, vector, &direction, pol, helicity).value)
         })
         .collect()
 }
@@ -411,6 +447,141 @@ impl FieldResidual {
                     *a += b;
                 }
                 for (a, b) in a.points.iter_mut().flatten().zip(b.points.iter().flatten()) {
+                    *a += b;
+                }
+                Ok(a)
+            })
+    }
+}
+
+/// Inputs retained for plane-to-spherical conversion; no output Jacobian is stored.
+#[derive(Debug)]
+pub struct ExpansionResidual {
+    basis: crate::basis::Basis,
+    vectors: Vec<[Complex; 3]>,
+    polarizations: Vec<u8>,
+    helicity: bool,
+}
+/// Plane-expansion cotangents.
+#[derive(Debug)]
+pub struct ExpansionGradient {
+    /// Spherical origin cotangents.
+    pub origins: Vec<[f64; 3]>,
+    /// Full complex plane-wavevector cotangents.
+    pub vectors: Vec<[Complex; 3]>,
+}
+/// Expand multiple plane waves in a regular spherical basis.
+pub fn expansion(
+    basis: crate::basis::Basis,
+    vectors: Vec<[Complex; 3]>,
+    polarizations: Vec<u8>,
+    helicity: bool,
+) -> Result<(DMatrix<Complex>, ExpansionResidual)> {
+    basis.validate()?;
+    if vectors.is_empty()
+        || vectors.len() != polarizations.len()
+        || polarizations.iter().any(|&p| p > 1)
+    {
+        return Err(Error::InvalidInput(
+            "require nonempty plane vectors and matching polarizations 0/1".into(),
+        ));
+    }
+    let mut value = DMatrix::zeros(basis.modes.len(), vectors.len());
+    value
+        .as_mut_slice()
+        .par_chunks_mut(basis.modes.len())
+        .enumerate()
+        .try_for_each(|(j, column)| -> Result<()> {
+            let direction = Direction::<0>::new(vectors[j])?;
+            for (out, &(p, mode)) in column.iter_mut().zip(&basis.modes) {
+                *out =
+                    spherical_coefficient(mode, vectors[j], &direction, polarizations[j], helicity)
+                        .value
+                        * phase(vectors[j], basis.positions[p]);
+            }
+            Ok(())
+        })?;
+    Ok((
+        value,
+        ExpansionResidual {
+            basis,
+            vectors,
+            polarizations,
+            helicity,
+        },
+    ))
+}
+impl ExpansionResidual {
+    /// Spherical output and plane input mode counts.
+    #[must_use]
+    pub fn shape(&self) -> (usize, usize) {
+        (self.basis.modes.len(), self.vectors.len())
+    }
+    /// Differentiate origin phases and the full direction-dependent angular coefficient.
+    pub fn pullback(self, g: &DMatrix<Complex>, fixed_vectors: bool) -> Result<ExpansionGradient> {
+        if g.shape() != self.shape() || g.iter().any(|&v| !finite(v)) {
+            return Err(Error::InvalidInput(
+                "invalid plane-expansion cotangent".into(),
+            ));
+        }
+        let zero = || ExpansionGradient {
+            origins: vec![[0.0; 3]; self.basis.positions.len()],
+            vectors: vec![[Complex::default(); 3]; self.vectors.len()],
+        };
+        self.vectors
+            .par_iter()
+            .enumerate()
+            .try_fold(zero, |mut result, (j, &vector)| -> Result<_> {
+                let direction = if fixed_vectors {
+                    let d = Direction::<0>::new(vector)?;
+                    Direction {
+                        k: Jet::constant(d.k.value),
+                        transverse: Jet::constant(d.transverse.value),
+                        xy: d.xy.map(|v| Jet::constant(v.value)),
+                    }
+                } else {
+                    Direction::<3>::new(vector)?
+                };
+                for (i, &(p, mode)) in self.basis.modes.iter().enumerate() {
+                    let position = self.basis.positions[p];
+                    let angular = spherical_coefficient(
+                        mode,
+                        vector,
+                        &direction,
+                        self.polarizations[j],
+                        self.helicity,
+                    );
+                    let phase = phase(vector, position);
+                    let value = phase * angular.value;
+                    for axis in 0..3 {
+                        result.origins[p][axis] +=
+                            (g[(i, j)].conj() * value * Complex::i() * vector[axis]).re;
+                        if !fixed_vectors {
+                            result.vectors[j][axis] += g[(i, j)]
+                                * (phase
+                                    * (angular.derivative[axis]
+                                        + Complex::i() * position[axis] * angular.value))
+                                    .conj();
+                        }
+                    }
+                }
+                Ok(result)
+            })
+            .try_reduce(zero, |mut a, b| {
+                for (a, b) in a
+                    .origins
+                    .iter_mut()
+                    .flatten()
+                    .zip(b.origins.iter().flatten())
+                {
+                    *a += b;
+                }
+                for (a, b) in a
+                    .vectors
+                    .iter_mut()
+                    .flatten()
+                    .zip(b.vectors.iter().flatten())
+                {
                     *a += b;
                 }
                 Ok(a)

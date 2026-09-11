@@ -20,6 +20,26 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    fn plane_expansion_scale_adjoint(kx in 0.1_f64..0.7, kz in -1.0_f64..1.0, x in -0.3_f64..0.3, helicity in any::<bool>(), complex_transverse in any::<bool>()) {
+        let basis=crate::basis::Basis{modes:(1..=4).flat_map(|l|(-l..=l).flat_map(move|m|(0..2).map(move|pol|(0,Mode{l,m,pol})))).collect(),positions:vec![[x,0.1,0.2]]};
+        let vector=if complex_transverse {[Complex::new(kx,1.0),Complex::new(0.2,0.3),Complex::new(1.3,-0.8)]}else{[Complex::new(kx,0.0),Complex::new(0.2,0.0),Complex::new(kz,0.1)]};
+        let vectors=vec![vector];
+        let (value,residual)=crate::plane::expansion(basis.clone(),vectors.clone(),vec![1],helicity).unwrap();
+        let k=vector.iter().map(|v|v*v).sum::<Complex>().sqrt();
+        let reconstructed=crate::fields::field(basis.clone(),value.as_slice().to_vec(),basis.positions.clone(),[k,k],helicity,Radial::Regular).unwrap();
+        let (expected,_)=crate::plane::field(vectors.clone(),vec![1],basis.positions.clone(),Some(vec![Complex::new(1.0,0.0)]),helicity).unwrap();
+        for (a,b) in reconstructed.value.iter().flatten().zip(expected.iter()){prop_assert!((*a-b).norm()<1e-12);}
+        let g=DMatrix::from_element(value.nrows(),1,Complex::new(0.2,0.1));
+        let gradient=residual.pullback(&g,false).unwrap();
+        let spatial:f64=gradient.origins.iter().flatten().zip(basis.positions.iter().flatten()).map(|(g,x)|g*x).sum();
+        let spectral:f64=gradient.vectors.iter().flatten().zip(vectors.iter().flatten()).map(|(g,k)|(g.conj()*k).re).sum();
+        prop_assert!((spatial-spectral).abs()<1e-10);
+        let scaled=crate::basis::Basis{positions:basis.positions.iter().map(|p|p.map(|x|1.7*x)).collect(),..basis};
+        let (other,_)=crate::plane::expansion(scaled,vectors.iter().map(|v|v.map(|k|k/1.7)).collect(),vec![1],helicity).unwrap();
+        prop_assert!((value-other).norm()<1e-10);
+    }
+
+    #[test]
     #[allow(clippy::indexing_slicing)] // Fixed two-mode matrix and Cartesian triples.
     fn plane_field_operator_and_scale_adjoint(kx in 0.1_f64..0.7, x in -0.5_f64..0.5, helicity in any::<bool>()) {
         let vectors=vec![[Complex::new(kx,0.0),Complex::new(0.2,0.0),Complex::new(1.3,0.1)],[Complex::new(1.5,0.0),Complex::new(-0.1,0.0),Complex::new(0.0,0.2)]];

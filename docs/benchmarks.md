@@ -195,3 +195,15 @@ Raw results on [redacted-host]: `/tmp/plane-field-d128-p4096-t4.json`,
 `/tmp/field-operator-zero-copy-n4-l3-p2048-t4.json`. Development baselines include
 `/tmp/plane-field-before-d128-p4096-t4.json` and
 `/tmp/plane-operator-d128-p4096-t4.json`.
+
+## Plane-to-spherical illumination
+
+Four matched threads, two spherical origins, lmax=8 (320 modes), and 64 transverse
+vectors with both polarizations (128 plane modes). At k0=1.3 the directions include
+propagating and evanescent waves. Complete output agreement is checked first.
+treams takes 14.07 ms and Rust 0.598 ms: **23.6x** for this case. The native reverse
+pass, including all origin and full complex-wavevector cotangents, takes 1.23 ms.
+Forward peak RSS is 67.5 / 40.2 MiB. Rust shares the normalized direction across
+multipoles, uses Rayon over incident modes, and transfers the output buffer to
+NumPy without retaining it in the residual. Seven samples after warmup.
+Raw result: `/tmp/plane-expansion-before-n2-l8-k64-t4.json` on [redacted-host].

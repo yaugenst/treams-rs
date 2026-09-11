@@ -90,13 +90,21 @@ def worker(
                 oracle_basis = treams.SphericalWaveBasis.default(order)
                 oracle_source = treams.CylindricalWaveBasis.default(kz, order)
 
-        if workload == "rotation":
+        if workload in ("rotation", "plane-expansion"):
             if backend in ("rust", "check"):
                 basis = SphericalWaveBasis.default(order, particles, positions)
             if backend in ("treams", "check"):
                 oracle_basis = treams.SphericalWaveBasis.default(
                     order, particles, positions
                 )
+
+        if workload == "plane-expansion":
+            q = np.column_stack([np.linspace(0.1, 1.7, samples), np.full(samples, 0.2)])
+            if backend in ("rust", "check"):
+                source_basis = PlaneWaveBasisByComp.default(q)
+                vectors = np.column_stack(source_basis.kvecs(1.3))
+            if backend in ("treams", "check"):
+                oracle_source = treams.PlaneWaveBasisByComp.default(q)
 
         if workload in ("periodic", "array"):
             width = int(np.ceil(np.sqrt(particles)))
@@ -151,6 +159,8 @@ def worker(
                 )
 
         def rust():
+            if workload == "plane-expansion":
+                return diff.plane_expansion(basis, vectors, source_basis.pol)
             if workload in ("plane-field", "plane-operator"):
                 return diff.plane_field(
                     None if workload == "plane-operator" else amplitudes,
@@ -197,6 +207,8 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload == "plane-expansion":
+                return treams.expand((oracle_basis, oracle_source), k0=1.3)
             if workload in ("plane-field", "plane-operator"):
                 operator = np.asarray(
                     treams.efield(points, basis=oracle_basis, k0=1.3, modetype="up")
@@ -357,6 +369,7 @@ def main() -> None:
             "conversion",
             "plane-field",
             "plane-operator",
+            "plane-expansion",
         ],
         default="cluster",
     )

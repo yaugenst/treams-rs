@@ -457,3 +457,32 @@ def plane_field(
         return value, pullback
 
     return _call(dynamic, forward)
+
+
+def plane_expansion(
+    origins: ArrayLike,
+    vectors: ArrayLike,
+    *,
+    destination: SphericalWaveBasis,
+    polarizations: ArrayLike,
+    poltype: str = "helicity",
+    fixed_vectors: bool = False,
+) -> NDArray[np.complex128]:
+    """Plane-to-spherical illumination with native origin and wavevector pullbacks."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.plane_expansion(
+            type(destination)(destination.modes, values[0]),
+            vectors if fixed_vectors else values[1],
+            polarizations,
+            poltype=poltype,
+            fixed_vectors=fixed_vectors,
+        )
+
+        def pullback(g: NDArray[np.complex128]) -> _Values:
+            gradients = context.pullback(g)
+            return gradients[:1] if fixed_vectors else gradients
+
+        return value, pullback
+
+    return _call((origins,) if fixed_vectors else (origins, vectors), forward)
