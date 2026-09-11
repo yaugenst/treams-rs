@@ -301,9 +301,8 @@ impl<const N: usize> CylGeometry<N> {
             period: Jet::variable(period, 5),
         })
     }
-    #[allow(clippy::float_cmp)] // Axial wavenumbers are fixed mode labels.
     fn entry(&self, mode: crate::cylwaves::Mode, pol: u8, position: [f64; 3]) -> [Jet<N>; 2] {
-        if mode.pol != pol || mode.kz != self.vector[2].value.re {
+        if !crate::plane::cylindrical_mode_matches(mode, self.vector[2].value, pol) {
             return [Jet::default(); 2];
         }
         let phase = (Complex::i()

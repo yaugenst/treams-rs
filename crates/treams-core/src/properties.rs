@@ -182,6 +182,25 @@ proptest! {
     }
 
     #[test]
+    fn cylindrical_illumination_survives_vector_normalization(phi in -3.1_f64..3.1, kz in 0.01_f64..1.0, scale in 1e-6_f64..1e6) {
+        let radius = (1.69-kz*kz).sqrt();
+        let direction = [radius*phi.cos(),radius*phi.sin(),kz];
+        let norm = direction.iter().map(|v|v*v).sum::<f64>().sqrt();
+        let mut vector = direction.map(|v|Complex::new(v/norm*1.3*scale,0.0));
+        vector[2].re = vector[2].re.next_up();
+        let basis=crate::cylwaves::Basis{modes:(-3..=3).flat_map(|m|(0..2).map(move|pol|(0,crate::cylwaves::Mode{kz:kz*scale,m,pol}))).collect(),positions:vec![[0.0;3]]};
+        let (value,residual)=crate::plane::expansion(basis.clone(),vec![vector],vec![0],true).unwrap();
+        for (coefficient, &(_, mode)) in value.iter().zip(&basis.modes) {
+            let expected = if mode.pol==0 {1.0}else{0.0};
+            prop_assert!((coefficient.norm()-expected).abs()<1e-12);
+        }
+        let gradient=residual.pullback(&value,false).unwrap();
+        prop_assert!(gradient.vectors.iter().flatten().all(|g|g.re.abs()*scale<1e-10));
+        let other=crate::cylwaves::Mode{kz:kz*scale*(1.0+1e-8),m:0,pol:0};
+        prop_assert!(!crate::plane::cylindrical_mode_matches(other,vector[2],0));
+    }
+
+    #[test]
     fn cylindrical_plane_expansion_scale_adjoint(kx in 0.1_f64..0.7, x in -0.3_f64..0.3, helicity in any::<bool>()) {
         let basis=crate::cylwaves::Basis{modes:(-3..=3).flat_map(|m|(0..2).map(move|pol|(0,crate::cylwaves::Mode{kz:0.0,m,pol}))).collect(),positions:vec![[x,0.1,0.2]]};
         let vectors=vec![[Complex::new(kx,0.1),Complex::new(0.3,0.2),Complex::default()]];

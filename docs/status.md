@@ -285,6 +285,18 @@ references and Hypothesis lossless power and coordinate scaling invariants pass.
 Cross-family conversions include displaced origin pairs, rather than reproducing
 upstream's matching-particle-index mask.
 
+`TMatrixC.xw` excludes evanescent outgoing modes from radiated power. Its incident
+coefficients must be propagating; this normalization does not define an evanescent
+incident flux. Averaged widths uniformly average over azimuth and the represented
+propagating (kz, polarization) channels, with helicity-dependent cutoffs in chiral
+media. Adding closed channels leaves these averages unchanged. Diffraction cutoffs
+are explicitly unsupported. Hypothesis tests compare the averages with explicit
+plane-wave illumination and enforce lossless conservation and lossy passivity.
+Global cross sections avoid constructing an identity overlap matrix. Native plane
+illumination tolerates normalization roundoff when matching a static axial label,
+with a relative tolerance independent of length units; discrete basis labels stay
+fixed for differentiation.
+
 `SMatrices.illuminate(..., smat=upper)` returns outgoing up/down and internal
 up/down coefficients between adjacent stacks. It checks the shared medium and
 uses the correct outer medium for each PlaneWave input. The native

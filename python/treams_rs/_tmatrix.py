@@ -202,6 +202,15 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
             )
         return ks.real[self.basis.pol]
 
+    def _cross_section_weights(self, power: int) -> NDArray[np.float64]:
+        ks = self._propagating_ks()
+        weights = 1 / ks**power
+        if isinstance(self.basis, CylindricalWaveBasis):
+            if np.any(abs(self.basis.kz) == abs(ks)):
+                raise ValueError("cross widths are undefined at a diffraction cutoff")
+            weights[abs(self.basis.kz) > abs(ks)] = 0
+        return weights
+
     def _cross_sections(
         self, illu: ArrayLike | PlaneWave, flux: float, power: int, factor: float
     ) -> tuple[float, float]:
@@ -213,14 +222,21 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
             or flux <= 0
         ):
             raise ValueError("require finite incident coefficients and positive flux")
+        weights = self._cross_section_weights(power)
+        if np.any(incident[weights == 0] != 0):
+            raise ValueError("cross widths require propagating incident modes")
         scattered = self @ incident
-        weighted = scattered / self._propagating_ks() ** power
-        overlap, _ = diff.expansion(
-            self.basis, self.basis, self.ks, poltype=self.poltype
+        weighted = scattered * weights
+        if self.isglobal:
+            radiated = weighted
+        else:
+            overlap, _ = diff.expansion(
+                self.basis, self.basis, self.ks, poltype=self.poltype
+            )
+            radiated = overlap @ weighted
+        return float(np.vdot(scattered, radiated).real * factor / flux), float(
+            -np.vdot(incident, weighted).real * factor / flux
         )
-        return float(
-            np.vdot(scattered, overlap @ weighted).real * factor / flux
-        ), float(-np.vdot(incident, weighted).real * factor / flux)
 
 
 class _Interaction[M: _TMatrix[Any]]:
@@ -438,26 +454,32 @@ class TMatrixC(_TMatrix[CylindricalWaveBasis]):
         values = np.sqrt(self.ks[self.basis.pol] ** 2 - self.basis.kz**2)
         return np.where(values.imag < 0, -values, values)
 
-    @property
-    def xw_ext_avg(self) -> float:
+    def _averaging_weights(self) -> NDArray[np.float64]:
         if not self.isglobal:
             raise NotImplementedError("expand to a global basis before averaging")
-        return float(
-            -2
-            * np.sum(np.diag(self.array).real / self._propagating_ks())
-            / len(np.unique(self.basis.kz))
-        )
+        weights = self._cross_section_weights(1)
+        channels = np.column_stack((self.basis.kz, self.basis.pol))[weights != 0]
+        count = len(np.unique(channels, axis=0))
+        if count == 0:
+            raise ValueError("cross-width average requires propagating incident modes")
+        return weights * (4 / count)
+
+    @property
+    def xw_ext_avg(self) -> float:
+        """Mean over azimuth and the represented propagating (kz, pol) channels."""
+        return float(-np.sum(np.diag(self.array).real * self._averaging_weights()))
 
     @property
     def xw_sca_avg(self) -> float:
-        if not self.isglobal:
-            raise NotImplementedError("expand to a global basis before averaging")
-        return float(
-            2
-            * np.sum(abs(self.array) ** 2 / self._propagating_ks()[:, None])
-            / len(np.unique(self.basis.kz))
-        )
+        """Mean radiated width over the same incoming ensemble as xw_ext_avg."""
+        weights = self._averaging_weights()
+        return float(np.sum(abs(self.array[:, weights != 0]) ** 2 * weights[:, None]))
 
     def xw(self, illu: ArrayLike | PlaneWave, flux: float = 0.5) -> tuple[float, float]:
-        """Scattering and extinction widths for incident cylindrical coefficients."""
+        """Radiated and extinguished widths for propagating incident coefficients.
+
+        Evanescent outgoing orders remain in the solution but carry no far-field
+        power. Evanescent illumination has no incident far-field flux and is not
+        supported by this cross-width normalization.
+        """
         return self._cross_sections(illu, flux, 1, 2.0)

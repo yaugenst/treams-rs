@@ -251,14 +251,21 @@ pub fn spherical(
         .collect()
 }
 
-#[allow(clippy::float_cmp)] // Axial wavenumbers are exact static mode labels.
+/// Match a continuous plane vector to a static axial label after normalization.
+/// Keep the tolerance relative so a change of length units cannot merge orders.
+pub(crate) fn cylindrical_mode_matches(mode: crate::cylwaves::Mode, kz: Complex, pol: u8) -> bool {
+    mode.pol == pol
+        && kz.im == 0.0
+        && (mode.kz - kz.re).abs() <= 16.0 * f64::EPSILON * mode.kz.abs().max(kz.re.abs())
+}
+
 fn cylindrical_coefficient<const N: usize>(
     mode: crate::cylwaves::Mode,
     vector: [Complex; 3],
     direction: &Direction<N>,
     pol: u8,
 ) -> Jet<N> {
-    if mode.pol != pol || Complex::new(mode.kz, 0.0) != vector[2] {
+    if !cylindrical_mode_matches(mode, vector[2], pol) {
         Jet::default()
     } else if direction.transverse.value == Complex::default() {
         Jet::constant(Complex::i().powi(mode.m))

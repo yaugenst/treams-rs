@@ -40,6 +40,21 @@ def test_sphere_api_and_optical_theorem(degree, radius, epsilon, parity):
 
 
 @pytest.mark.public_e2e
+@given(radius=st.floats(0.1, 0.4), kappa=st.floats(0.03, 0.2))
+def test_chiral_sphere_parity_retains_magnetoelectric_coupling(radius, kappa):
+    actual = rust.TMatrix.sphere(2, 1.3, radius, [(3.1, 1, kappa), 1], "parity")
+    # Upstream #27: direct parity construction erases the off-diagonal EM terms.
+    expected = treams.TMatrix.sphere(
+        2, 1.3, radius, [(3.1, 1, kappa), 1], "helicity"
+    ).changepoltype("parity")
+    np.testing.assert_allclose(actual, expected, rtol=2e-11, atol=3e-13)
+    assert np.max(abs(actual.array[0::2, 1::2])) > 1e-7
+    np.testing.assert_allclose(
+        actual.xs_ext_avg, actual.xs_sca_avg, rtol=3e-11, atol=1e-12
+    )
+
+
+@pytest.mark.public_e2e
 @pytest.mark.parametrize(
     "poltype,embedding", [("helicity", (1.2, 1.1, 0.02)), ("parity", (1.2, 1.1, 0))]
 )

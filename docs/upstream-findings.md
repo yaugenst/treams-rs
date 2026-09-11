@@ -10,6 +10,13 @@ The skew-cell omission is also tracked upstream in
 checked on 2026-09-11. This was independently reproduced during the rewrite;
 it is not claimed as a new discovery.
 
+Two further existing reports are reproduced and covered here:
+[evanescent scattering widths (#20)](https://github.com/tfp-photonics/treams/issues/20)
+and [chiral-sphere parity coupling (#27)](https://github.com/tfp-photonics/treams/issues/27).
+The cross-width check also caught the same mistake in the rewrite; both illuminated
+and averaged widths now exclude closed radiation channels. The rewrite's sphere
+constructor already retained the correct parity coupling.
+
 ## Behavioral defects
 
 | Finding | Evidence and impact | Regression |
@@ -22,6 +29,8 @@ it is not claimed as a new discovery.
 | EBCM radial area factor | Upstream `ebcm.qmat` uses `sin(theta) * [r, -dr, 0]`; the surface element requires another factor of r. For r=0.3(1+0.23 cos²(theta)), lossless eps=3.1, kappa=0.07 and k0=1.3, max abs(SᴴS-I) stays about 0.00135 at degrees 2, 4 and 6. Restoring r gives 6.39e-6, 2.02e-7 and 1.22e-8. With identical vacuum inside/outside, degree 2 produces spurious max abs(T)=5.88e-4; the corrected integral gives 8.41e-18. | [EBCM tests](../tests/test_ebcm.py) cover sphere/Mie agreement, lossless convergence, Hypothesis zero-contrast shapes and both adjoints. The default includes r; explicit `legacy=True` reproduces upstream. |
 | Complex plane-wave branch | For k=(0.2+i, 0.1+0.3i, 1.3-0.8i), an extra principal square root in the angular coefficients can disagree with the Cartesian polarization branch. Reconstructed fields differ by about 1.25 on the recorded samples; the corrected expansion is accurate to about 1e-13. | `test_complex_transverse_branch_reconstruction_and_gradient` in [plane-expansion tests](../tests/test_plane_expansion.py). |
 | Missing skew-cell diffraction orders | For lattice rows (2,-3), (0,1.7), zero Bloch vector and cutoff 4, upstream omits integer reciprocal orders (-2,1) and (2,-1). Both lie inside the cutoff. | `test_diffraction_basis_skew_completeness` in [channel tests](../tests/test_channels.py), checked against independent integer enumeration. |
+| Evanescent cylindrical scattering widths (#20) | Closed outgoing orders are included as radiated power. For a lossless eps=3.1 sphere of radius 0.2, z period 1.7, k0=1.3 and axial orders 0 and +/-2 pi/period, scattering is 0.00409310 versus extinction 0.000248301. The corrected scattering equals extinction. Averaged widths also need to exclude evanescent incident channels and normalize by the remaining incident ensemble. | `test_array_cross_width_with_evanescent_orders` in [periodic-conversion tests](../tests/test_periodic_conversion.py) checks passivity, lossless conservation, explicit angular averaging, chiral helicity cutoffs and invariance to closed-channel inclusion. |
+| Chiral sphere in parity basis (#27) | Direct parity construction drops the magnetoelectric blocks even when the sphere is chiral. For radius 0.2, k0=1.3, eps=3.1, mu=1, kappa=0.12 in vacuum, it differs from helicity construction followed by parity conversion by 2.86987e-4. | `test_chiral_sphere_parity_retains_magnetoelectric_coupling` in [API tests](../tests/test_api.py) checks the converted upstream reference and lossless optical theorem. |
 
 ## Numerical accuracy limitations
 

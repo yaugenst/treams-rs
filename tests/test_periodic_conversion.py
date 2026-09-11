@@ -3,7 +3,7 @@ import advect.numpy as anp
 import numpy as np
 import pytest
 import treams
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 from numpy.testing import assert_allclose
 
@@ -46,6 +46,74 @@ def test_array_lossless_power_and_scale(radius, scale):
         kpar=bloch / scale,
     )
     assert_allclose(scaled.array, value, rtol=2e-10, atol=2e-12)
+
+
+@pytest.mark.parametrize(
+    "poltype,kappa", [("helicity", 0), ("parity", 0), ("helicity", 0.12)]
+)
+@settings(max_examples=20)
+@given(radius=st.floats(0.1, 0.3), loss=st.floats(0, 0.2))
+def test_array_cross_width_with_evanescent_orders(poltype, kappa, radius, loss):
+    period, bloch, k0 = 5.2, 0.15, 1.3
+    medium = (1, 1, kappa)
+    particle = tr.TMatrix.sphere(
+        3, k0, radius, [(3.1 + loss * 1j, 1, 0.04), medium], poltype=poltype
+    )
+    basis = tr.CylindricalWaveBasis.default(
+        bloch + 2 * np.pi / period * np.arange(-1, 2), 3
+    )
+    tm = tr.TMatrixC.from_array(particle, basis, lattice=period, kpar=bloch)
+    radiating = abs(basis.kz) < tm.ks[basis.pol].real
+    assert radiating.any() and not radiating.all()
+    widths = []
+    # Seven angles integrate all Fourier differences through m=3 exactly.
+    for kz, pol in np.unique(np.column_stack((basis.kz, basis.pol))[radiating], axis=0):
+        k = tm.ks[int(pol)].real
+        rho = np.sqrt(k**2 - kz**2)
+        for phi in np.arange(7) * 2 * np.pi / 7:
+            wave = tr.plane_wave(
+                [rho * np.cos(phi), rho * np.sin(phi), kz],
+                int(pol),
+                k0=k0,
+                material=medium,
+                poltype=poltype,
+            )
+            incident = wave.expand(basis)
+            assert_allclose(np.vdot(incident, incident).real, 7, atol=2e-13)
+            widths.append(tm.xw(wave))
+    widths = np.asarray(widths)
+    assert np.all(widths[:, 0] <= widths[:, 1] + 2e-12)
+    if loss == 0:
+        assert_allclose(widths[:, 0], widths[:, 1], atol=2e-12)
+    assert_allclose(
+        [tm.xw_sca_avg, tm.xw_ext_avg], widths.mean(axis=0), rtol=2e-12, atol=2e-13
+    )
+    # Adding closed incoming/outgoing channels cannot change a far-field average.
+    truncated = tr.TMatrixC(
+        tm.array[np.ix_(radiating, radiating)],
+        k0=k0,
+        basis=tr.CylindricalWaveBasis(np.asarray(basis.modes)[radiating]),
+        material=medium,
+        poltype=poltype,
+    )
+    assert_allclose(
+        [tm.xw_sca_avg, tm.xw_ext_avg],
+        [truncated.xw_sca_avg, truncated.xw_ext_avg],
+        atol=2e-13,
+    )
+
+
+@pytest.mark.parametrize("kz", [1.3, 2.0])
+def test_cross_width_rejects_evanescent_illumination_and_cutoff(kz):
+    basis = tr.CylindricalWaveBasis.default([kz], 0)
+    tm = tr.TMatrixC(np.eye(2), k0=1.3, basis=basis)
+    for operation in (
+        lambda: tm.xw([1, 0]),
+        lambda: tm.xw_sca_avg,
+        lambda: tm.xw_ext_avg,
+    ):
+        with pytest.raises(ValueError, match=r"cutoff|propagating incident"):
+            operation()
 
 
 @pytest.mark.parametrize("cylindrical", [False, True])
