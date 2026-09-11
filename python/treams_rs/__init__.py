@@ -19,6 +19,7 @@ from ._operators import (
     gfield,
     hfield,
     rotate,
+    translate,
 )
 from ._plane import PlaneWave, plane_wave, plane_wave_angle
 from ._smatrix import SMatrices, chirality_density, poynting_avg_z
@@ -56,4 +57,5 @@ __all__ = [
     "poynting_avg_z",
     "rotate",
     "spherical_wave",
+    "translate",
 ]

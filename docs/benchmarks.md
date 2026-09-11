@@ -366,3 +366,28 @@ Raw results: `/tmp/internal-field-parallel-copy-n256-p1-t4.json` and
 `/tmp/internal-field-parallel-copy-n1024-p1-t4.json` on [redacted-host]. Reproduce
 with `--workload internal-field --particles 1 --lmax 512 --samples 1 --threads 4`.
 Here lmax is only a size argument: the dense matrix has 2*lmax modes.
+
+## Plane translation phases
+
+Compact exp(i k.r) tables at 4096 displacements, including propagating and
+evanescent wavevectors. Both backends receive precomputed vectors; the reference
+is the treams 0.4.5 `pw.translate` ufunc. Release extension, matched four-thread
+limits, separate processes, seven timed repetitions and the harness's unchanged
+accuracy gate (rtol 2e-9, atol 1e-12).
+
+| Plane modes | treams ms | Rust ms | Speedup | Rust reverse ms | treams / Rust forward peak MiB |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 128 | 7.81 | 1.81 | 4.31x | 7.95 | 90.5 / 50.2 |
+| 1024 | 72.69 | 22.53 | 3.23x | 64.42 | 258.9 / 108.0 |
+
+The context retains only positions and wavevectors. Rust transfers the phase
+table directly into NumPy. Borrowing contiguous cotangents reduced the large
+forward-plus-reverse peak from 235.1 to 172.3 MiB and reverse time from 79.33 to
+64.42 ms; strided inputs still require packing. Peak RSS includes interpreter,
+imports, output tables and cotangents. These measurements cover the compact phase
+kernel, not an entire scattering solve or the dense masked translation operator.
+
+Raw results are `/tmp/treams-plane-phases-borrow-n128-t4.json` and
+`/tmp/treams-plane-phases-borrow-n1024-t4.json` on [redacted-host]. Reproduce with
+`--workload plane-phases --particles 16 --lmax 32 --samples 4096 --threads 4`;
+the number of plane modes is 2*particles*lmax. The smaller case uses 8 and 8.

@@ -265,7 +265,86 @@ fn plane_field<'py>(
     ))
 }
 
+#[pyclass]
+#[derive(Debug)]
+struct PlanePhaseContext {
+    residual: Option<treams_core::plane::PhaseResidual>,
+}
+type PhaseGradient<'py> = (Bound<'py, PyArray2<f64>>, Bound<'py, PyArray2<Complex>>);
+#[pymethods]
+impl PlanePhaseContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'py, Complex>,
+    ) -> PyResult<PhaseGradient<'py>> {
+        let g = cotangent.as_array();
+        let residual = self
+            .residual
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        if g.dim() != residual.shape() {
+            return Err(PyValueError::new_err(
+                "cotangent shape does not match forward output",
+            ));
+        }
+        if g.iter().any(|v| !v.re.is_finite() || !v.im.is_finite()) {
+            return Err(PyValueError::new_err("cotangent must be finite"));
+        }
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let gradient = if let (Some(data), Ok(row), Ok(column)) = (
+            g.as_slice_memory_order().filter(|data| !data.is_empty()),
+            usize::try_from(g.strides()[0]),
+            usize::try_from(g.strides()[1]),
+        ) {
+            // Borrow contiguous C/F cotangents while the read-only Python borrow
+            // is alive. Strided or reversed inputs use the existing packed copy.
+            let view = nalgebra::DMatrixView::from_slice_with_strides(
+                data,
+                g.nrows(),
+                g.ncols(),
+                row,
+                column,
+            );
+            py.detach(move || residual.pullback(&view))
+        } else {
+            let packed = crate::tmatrix::matrix_from_view(g);
+            py.detach(move || residual.pullback(&packed))
+        }
+        .map_err(error)?;
+        Ok((array(py, &gradient.points), array(py, &gradient.vectors)))
+    }
+}
+
+#[pyfunction]
+fn plane_phases<'py>(
+    py: Python<'py>,
+    points: PyReadonlyArray2<'py, f64>,
+    vectors: PyReadonlyArray2<'py, Complex>,
+) -> PyResult<(Bound<'py, PyArray2<Complex>>, PlanePhaseContext)> {
+    let points = triples(points)?;
+    let vectors = triples(vectors)?;
+    let (value, residual) = py
+        .detach(move || treams_core::plane::phases(points, vectors))
+        .map_err(error)?;
+    let output = Array2::from_shape_vec((value.ncols(), value.nrows()), Vec::from(value.data))
+        .map_err(|e| PyValueError::new_err(e.to_string()))?
+        .reversed_axes()
+        .into_pyarray(py);
+    Ok((
+        output,
+        PlanePhaseContext {
+            residual: Some(residual),
+        },
+    ))
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PlanePhaseContext>()?;
+    m.add_function(wrap_pyfunction!(plane_phases, m)?)?;
     m.add_class::<PlaneFieldContext>()?;
     m.add_function(wrap_pyfunction!(plane_field, m)?)?;
     m.add_class::<FieldContext>()?;

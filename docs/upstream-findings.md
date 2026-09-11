@@ -31,6 +31,7 @@ constructor already retained the correct parity coupling.
 | Missing skew-cell diffraction orders | For lattice rows (2,-3), (0,1.7), zero Bloch vector and cutoff 4, upstream omits integer reciprocal orders (-2,1) and (2,-1). Both lie inside the cutoff. | `test_diffraction_basis_skew_completeness` in [channel tests](../tests/test_channels.py), checked against independent integer enumeration. |
 | Evanescent cylindrical scattering widths (#20) | Closed outgoing orders are included as radiated power. For a lossless eps=3.1 sphere of radius 0.2, z period 1.7, k0=1.3 and axial orders 0 and +/-2 pi/period, scattering is 0.00409310 versus extinction 0.000248301. The corrected scattering equals extinction. Averaged widths also need to exclude evanescent incident channels and normalize by the remaining incident ensemble. | `test_array_cross_width_with_evanescent_orders` in [periodic-conversion tests](../tests/test_periodic_conversion.py) checks passivity, lossless conservation, explicit angular averaging, chiral helicity cutoffs and invariance to closed-channel inclusion. |
 | Chiral sphere in parity basis (#27) | Direct parity construction drops the magnetoelectric blocks even when the sphere is chiral. For radius 0.2, k0=1.3, eps=3.1, mu=1, kappa=0.12 in vacuum, it differs from helicity construction followed by parity conversion by 2.86987e-4. | `test_chiral_sphere_parity_retains_magnetoelectric_coupling` in [API tests](../tests/test_api.py) checks the converted upstream reference and lossless optical theorem. |
+| Plane-to-plane expansion mixes polarizations | Expanding a two-polarization basis into itself returns a 2-by-2 matrix of ones instead of the identity: the matching mask compares wavevectors but omits polarization. Reproduced for both unit-vector and component bases in vacuum with k0=1.3. | `test_plane_basis_conversion_and_translation_preserve_fields` in [translation tests](../tests/test_translation.py) enforces identity, inverse conversion, polarization preservation and Cartesian field reconstruction for propagating/evanescent modes and both polarization types. |
 
 ## Numerical accuracy limitations
 
@@ -66,4 +67,15 @@ with h5py.File("roundtrip.h5", "w", driver="core", backing_store=False) as f:
     treams.io.save_hdf5(f, [tm])
     loaded = treams.io.load_hdf5(f)[0]
     print(tm.material.kappa, loaded.material.kappa)  # 0.08 0
+```
+
+## Plane expansion reproducer
+
+```python
+import numpy as np
+import treams
+
+basis = treams.PlaneWaveBasisByComp.default([[0.2, 0.3]])
+print(np.asarray(treams.expand(basis, k0=1.3, poltype="helicity")))
+# [[1, 1], [1, 1]]; a basis expanded into itself must give the identity.
 ```

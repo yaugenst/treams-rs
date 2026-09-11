@@ -631,6 +631,16 @@ def lattice_expansion(
     return _call((destination_positions, source_positions, ks, kpar, a), forward)
 
 
+def plane_phases(points: ArrayLike, vectors: ArrayLike) -> NDArray[np.complex128]:
+    """Plane translation phases with native displacement and wavevector VJPs."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.plane_phases(values[0], values[1])
+        return value, context.pullback
+
+    return _call((points, vectors), forward)
+
+
 def plane_field(
     coefficients: ArrayLike | None,
     points: ArrayLike,

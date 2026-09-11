@@ -182,6 +182,20 @@ proptest! {
     }
 
     #[test]
+    fn plane_translation_composition_and_scale_adjoint(x in -0.8_f64..0.8, k in 0.1_f64..2.0) {
+        let points=vec![[x,0.2,0.3],[-0.1,x,0.4]];
+        let vectors=vec![[Complex::new(k,0.1),Complex::new(0.2,-0.1),Complex::new(0.3,0.2)],[Complex::default(),Complex::default(),Complex::new(k,0.1)]];
+        let (value,residual)=crate::plane::phases(points.clone(),vectors.clone()).unwrap();
+        let (twice,_)=crate::plane::phases(points.iter().map(|p|p.map(|v|2.0*v)).collect(),vectors.clone()).unwrap();
+        prop_assert!((value.component_mul(&value)-twice).norm()<1e-12);
+        let g=DMatrix::from_element(2,2,Complex::new(0.2,0.3));
+        let gradient=residual.pullback(&g).unwrap();
+        let spatial:f64=gradient.points.iter().flatten().zip(points.iter().flatten()).map(|(g,r)|g*r).sum();
+        let spectral:f64=gradient.vectors.iter().flatten().zip(vectors.iter().flatten()).map(|(g,k)|(g.conj()*k).re).sum();
+        prop_assert!((spatial-spectral).abs()<1e-12);
+    }
+
+    #[test]
     fn cylindrical_illumination_survives_vector_normalization(phi in -3.1_f64..3.1, kz in 0.01_f64..1.0, scale in 1e-6_f64..1e6) {
         let radius = (1.69-kz*kz).sqrt();
         let direction = [radius*phi.cos(),radius*phi.sin(),kz];

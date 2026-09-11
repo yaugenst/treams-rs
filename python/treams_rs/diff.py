@@ -444,6 +444,20 @@ def cylinder(
     )
 
 
+def plane_phases(
+    points: ArrayLike, vectors: ArrayLike
+) -> tuple[NDArray[np.complex128], _native.PlanePhaseContext]:
+    """exp(i k.r) for (P, 3) real displacements and (N, 3) complex wavevectors.
+
+    Returns a (P, N) array and an inputs-only native context. Pullback returns
+    displacement and complex-wavevector cotangents; axial vectors are supported.
+    """
+    return _native.plane_phases(
+        np.ascontiguousarray(points, dtype=np.float64),
+        np.ascontiguousarray(vectors, dtype=np.complex128),
+    )
+
+
 def plane_field(
     coefficients: ArrayLike | None,
     points: ArrayLike,

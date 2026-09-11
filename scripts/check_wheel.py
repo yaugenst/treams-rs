@@ -345,3 +345,21 @@ np.testing.assert_allclose(
     source.changepoltype().efield(points), source.efield(points), atol=1e-12
 )
 print("Clean wheel: shared polarization conversion preserves source fields")
+
+np.testing.assert_array_equal(tr.expand(plane, k0=1.3), np.eye(len(plane)))
+np.testing.assert_allclose(
+    tr.translate([0, 0, 0], basis=plane, k0=1.3), np.eye(len(plane)), atol=0
+)
+
+
+def phase_scale(scale):
+    phases = ad.plane_phases(
+        np.array([[0.2, 0.1, -0.3]]) * scale, np.array([[0.2, 0.3, 1.3 + 0.1j]]) / scale
+    )
+    return anp.real(anp.sum(phases))
+
+
+np.testing.assert_allclose(advect.grad(phase_scale)(np.array(1.0)), 0, atol=1e-12)
+print(
+    "Clean wheel: plane translation, identity expansion and native phase adjoint passed"
+)

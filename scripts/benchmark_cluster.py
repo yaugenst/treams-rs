@@ -117,7 +117,7 @@ def worker(
             if backend in ("treams", "check"):
                 oracle_basis = treams.PlaneWaveBasisByComp.default(q)
 
-        if workload in ("plane-field", "plane-operator"):
+        if workload in ("plane-field", "plane-operator", "plane-phases"):
             q = np.column_stack(
                 [
                     np.linspace(0.1, 1.7, particles * order),
@@ -140,6 +140,7 @@ def worker(
                 vectors = np.column_stack(basis.kvecs(1.3))
             if backend in ("treams", "check"):
                 oracle_basis = treams.PlaneWaveBasisByComp.default(q)
+                oracle_vectors = np.column_stack(oracle_basis.kvecs(1.3))
 
         if workload in ("conversion", "periodic-conversion"):
             if particles != 1:
@@ -262,6 +263,8 @@ def worker(
         eta = 0.7 if workload == "cylindrical-array" else 0
 
         def rust():
+            if workload == "plane-phases":
+                return diff.plane_phases(points, vectors)
             if workload == "ebcm":
                 return diff.ebcm_qmat(
                     surface_radii,
@@ -343,6 +346,13 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload == "plane-phases":
+                return treams.pw.translate(
+                    *oracle_vectors.T,
+                    points[:, None, 0],
+                    points[:, None, 1],
+                    points[:, None, 2],
+                )
             if workload == "ebcm":
                 return reference_qmat(
                     lambda t: 0.3 * (1 + 0.23 * np.cos(t) ** 2),
@@ -539,6 +549,7 @@ def worker(
                         "periodic-conversion",
                         "plane-field",
                         "plane-operator",
+                        "plane-phases",
                         "plane-expansion",
                         "cylindrical-plane-expansion",
                     )
@@ -556,7 +567,7 @@ def worker(
                     else particles
                     * (
                         2 * order
-                        if workload in ("plane-field", "plane-operator")
+                        if workload in ("plane-field", "plane-operator", "plane-phases")
                         else 4 * (2 * order + 1)
                         if workload == "cylindrical-field"
                         else 2 * (2 * order + 1)
@@ -601,6 +612,7 @@ def main() -> None:
             "periodic-conversion",
             "plane-field",
             "plane-operator",
+            "plane-phases",
             "plane-expansion",
             "cylindrical-plane-expansion",
             "cylindrical-array",

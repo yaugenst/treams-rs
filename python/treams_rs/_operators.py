@@ -75,20 +75,35 @@ def expand(
     k0: float,
     material: MaterialLike = 1,
     poltype: str = "helicity",
+    where: ArrayLike = True,
 ) -> NDArray[np.complex128]:
     """Multipole expansion, including regular cylindrical-to-spherical waves.
 
     A basis pair is (destination, source). All explicit origin pairs are included.
     """
     destination, source = basis if isinstance(basis, tuple) else (basis, basis)
+    medium = Material(material)
+    if (
+        not np.isfinite(k0)
+        or k0 <= 0
+        or poltype not in ("helicity", "parity")
+        or (poltype == "parity" and medium.ischiral)
+    ):
+        raise ValueError(
+            "invalid frequency or embedding medium for the polarization type"
+        )
+    mask = np.asarray(where, dtype=bool)
     if isinstance(source, (PlaneWaveBasisByComp, PlaneWaveBasisByUnitVector)):
-        if not isinstance(destination, (SphericalWaveBasis, CylindricalWaveBasis)):
-            raise ValueError("plane expansion requires a multipole destination")
-        medium = Material(material)
-        if not np.isfinite(k0) or k0 <= 0 or (poltype == "parity" and medium.ischiral):
-            raise ValueError(
-                "invalid frequency or embedding medium for the polarization type"
-            )
+        if isinstance(destination, (PlaneWaveBasisByComp, PlaneWaveBasisByUnitVector)):
+            sides = modetype if isinstance(modetype, tuple) else (modetype or "up",) * 2
+            return (
+                _plane_wave_match(
+                    np.column_stack(destination.kvecs(k0, medium, sides[0])),
+                    np.column_stack(source.kvecs(k0, medium, sides[1])),
+                )
+                & (destination.pol[:, None] == source.pol)
+                & mask
+            ).astype(np.complex128)
         types = (
             ("regular", "up")
             if modetype is None
@@ -100,13 +115,14 @@ def expand(
             raise ValueError(
                 "plane waves expand into regular multipoles from up/down modes"
             )
-        return diff.plane_expansion(
+        value = diff.plane_expansion(
             destination,
             np.column_stack(source.kvecs(k0, medium, types[1])),
             source.pol,
             poltype=poltype,
             fixed_vectors=True,
         )[0]
+        return _masked(value, where)
     if isinstance(destination, (PlaneWaveBasisByComp, PlaneWaveBasisByUnitVector)):
         raise ValueError(
             "multipole-to-plane expansion requires a periodic radiation operator"
@@ -123,18 +139,102 @@ def expand(
         ("regular", "singular"),
     ):
         raise ValueError("unsupported multipole expansion mode types")
-    if not np.isfinite(k0) or k0 <= 0:
-        raise ValueError("k0 must be positive and finite")
     if type(destination) is not type(source) and types != ("regular", "regular"):
         raise ValueError("cylindrical-to-spherical conversion requires regular waves")
     # Equal radial types use the regular addition theorem.
-    return diff.expansion(
+    value = diff.expansion(
         destination,
         source,
-        Material(material).ks(k0),
+        medium.ks(k0),
         poltype=poltype,
         singular=types == ("regular", "singular"),
     )[0]
+    return _masked(value, where)
+
+
+def _masked(value: NDArray[np.complex128], where: ArrayLike) -> NDArray[np.complex128]:
+    if where is not True:
+        value *= np.asarray(where, dtype=bool)
+    return value
+
+
+def _plane_wave_match(
+    destination: NDArray[np.complex128], source: NDArray[np.complex128]
+) -> NDArray[np.bool_]:
+    if not np.isfinite(destination).all() or not np.isfinite(source).all():
+        raise ValueError("plane wavevectors must be finite")
+    tolerance = (
+        32
+        * np.finfo(float).eps
+        * np.maximum(
+            np.max(abs(destination), axis=1)[:, None], np.max(abs(source), axis=1)
+        )
+    )
+    same = np.ones((len(destination), len(source)), dtype=bool)
+    for axis in range(3):
+        same &= abs(destination[:, None, axis] - source[:, axis]) <= tolerance
+    return same
+
+
+def translate(
+    r: ArrayLike,
+    *,
+    basis: FieldBasis | tuple[FieldBasis, FieldBasis],
+    k0: float,
+    material: MaterialLike = 1,
+    poltype: str = "helicity",
+    modetype: str = "up",
+    where: ArrayLike = True,
+) -> NDArray[np.complex128]:
+    """Regular translation at fixed local origins, with displacement shape (..., 3).
+
+    Multipole translations pair equal particle indices and ignore the stored
+    origins. Use expand for all physical origin pairs. Plane translations apply
+    exp(i k.r) to matching wavevectors and polarizations.
+    """
+    destination, source = basis if isinstance(basis, tuple) else (basis, basis)
+    offsets = np.asarray(r, dtype=np.float64)
+    medium = Material(material)
+    if offsets.ndim == 0 or offsets.shape[-1] != 3 or not np.isfinite(offsets).all():
+        raise ValueError("translations require finite Cartesian displacements (..., 3)")
+    if (
+        not np.isfinite(k0)
+        or k0 <= 0
+        or poltype not in ("helicity", "parity")
+        or (poltype == "parity" and medium.ischiral)
+    ):
+        raise ValueError(
+            "invalid frequency or embedding medium for the polarization type"
+        )
+    shape = (*offsets.shape[:-1], len(destination), len(source))
+    if isinstance(
+        source, (PlaneWaveBasisByComp, PlaneWaveBasisByUnitVector)
+    ) and isinstance(destination, (PlaneWaveBasisByComp, PlaneWaveBasisByUnitVector)):
+        vectors = np.column_stack(source.kvecs(k0, medium, modetype))
+        matching = _plane_wave_match(
+            np.column_stack(destination.kvecs(k0, medium, modetype)), vectors
+        ) & (destination.pol[:, None] == source.pol)
+        phases = diff.plane_phases(offsets.reshape(-1, 3), vectors)[0]
+        return _masked((phases[:, None, :] * matching).reshape(shape), where)
+    if (
+        not isinstance(source, (SphericalWaveBasis, CylindricalWaveBasis))
+        or not isinstance(destination, (SphericalWaveBasis, CylindricalWaveBasis))
+        or type(destination) is not type(source)
+    ):
+        raise ValueError("translation requires matching wave families")
+    incoming = type(source)(source.modes, np.zeros_like(source.positions))
+    matching = destination.pidx[:, None] == source.pidx
+    points = offsets.reshape(-1, 3)
+    ks = medium.ks(k0)
+    result = np.empty((len(points), len(destination), len(source)), dtype=np.complex128)
+    for i, offset in enumerate(points):
+        outgoing = type(destination)(
+            destination.modes, np.broadcast_to(offset, destination.positions.shape)
+        )
+        result[i] = (
+            diff.expansion(outgoing, incoming, ks, poltype=poltype)[0] * matching
+        )
+    return _masked(result.reshape(shape), where)
 
 
 def _field(

@@ -37,6 +37,25 @@ need their actual polarization vectors in the forms and are explicitly unsupport
 | HDF5 interchange | Optional h5py adapter; scalar matrices and rectangular parameter sweeps; streamed matrix writes; chirality, mode origins/indices and length-unit round trips; legacy treams names and rectangular incident/scattered mode sets | Gmsh mesh helper and extended tmat.h5 v1 submission metadata |
 | Remaining public API | Not implemented | Remaining field-operator conveniences and public low-level namespace coverage |
 
+`translate` covers spherical, cylindrical and both plane basis families, including
+batched displacements, rectangular mode subsets and masks. Multipoles translate
+equal particle indices at fixed local origins; `expand` handles all physical origin
+pairs. Both reuse the existing native addition theorems. Plane translations use
+`diff.plane_phases` / `advect.plane_phases`: a compact exp(i k.r) kernel with real
+displacement and complex wavevector pullbacks, including axial vectors. The native
+residual retains only inputs, output storage transfers directly to NumPy, and
+large phase tables use Rayon. Reverse recomputes phases in two reductions to avoid
+sample-by-mode residuals or per-thread gradient arrays. The binding borrows
+contiguous C/F cotangents during reverse and packs noncontiguous inputs. Tests
+cover both layouts, strided/reversed cotangents and empty sample sets.
+
+`expand` also maps plane bases by full wavevector and polarization, supports unit/
+component conversion and reordered subsets, and preserves fields for real and
+evanescent directions. Matching tolerates normalization roundoff relative to the
+wavevector scale. This is a discrete basis map; moving unmatched labels through a
+match is not differentiable. The implementation fixes upstream's missing
+polarization mask rather than reproducing its all-ones identity expansion.
+
 The optimized `diff.cluster` is restricted to non-overlapping homogeneous,
 nonmagnetic spheres in vacuum with a common multipole cutoff. Its pullback covers
 radii, positions, complex sphere permittivities and vacuum wavenumber. The public

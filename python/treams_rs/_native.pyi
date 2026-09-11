@@ -411,6 +411,13 @@ class PeriodicContext:
         self, cotangent: ComplexArray
     ) -> tuple[RealArray, RealArray, ComplexArray, RealArray, RealArray]: ...
 
+class PlanePhaseContext:
+    def pullback(self, cotangent: ComplexArray) -> tuple[RealArray, ComplexArray]: ...
+
+def plane_phases(
+    points: RealArray, vectors: ComplexArray
+) -> tuple[ComplexArray, PlanePhaseContext]: ...
+
 class PlaneFieldContext:
     def pullback(
         self, cotangent: ComplexArray

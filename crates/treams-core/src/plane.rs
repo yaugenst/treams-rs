@@ -343,6 +343,115 @@ fn phase(vector: [Complex; 3], point: [f64; 3]) -> Complex {
             .sum::<Complex>())
     .exp()
 }
+
+/// Inputs retained for exp(i k.r); no sample-by-mode values or Jacobian are kept.
+#[derive(Debug)]
+pub struct PhaseResidual {
+    points: Vec<[f64; 3]>,
+    vectors: Vec<[Complex; 3]>,
+}
+/// Cotangents of real displacements and complex full wavevectors.
+#[derive(Debug)]
+pub struct PhaseGradient {
+    /// Real displacement cotangents.
+    pub points: Vec<[f64; 3]>,
+    /// Complex wavevector cotangents in the real Hermitian pairing.
+    pub vectors: Vec<[Complex; 3]>,
+}
+
+/// Plane-wave translation phases with shape (displacements, wavevectors).
+pub fn phases(
+    points: Vec<[f64; 3]>,
+    vectors: Vec<[Complex; 3]>,
+) -> Result<(DMatrix<Complex>, PhaseResidual)> {
+    if vectors.is_empty()
+        || vectors.iter().flatten().any(|&k| !finite(k))
+        || points.iter().flatten().any(|r| !r.is_finite())
+    {
+        return Err(Error::InvalidInput(
+            "require finite displacements and nonempty finite wavevectors".into(),
+        ));
+    }
+    let mut value = DMatrix::zeros(points.len(), vectors.len());
+    let fill = |(j, column): (usize, &mut [Complex])| {
+        for (out, &point) in column.iter_mut().zip(&points) {
+            *out = phase(vectors[j], point);
+        }
+    };
+    if value.len() >= 4096 {
+        value
+            .as_mut_slice()
+            .par_chunks_mut(points.len().max(1))
+            .enumerate()
+            .for_each(fill);
+    } else {
+        value
+            .as_mut_slice()
+            .chunks_mut(points.len().max(1))
+            .enumerate()
+            .for_each(fill);
+    }
+    if value.iter().any(|&v| !finite(v)) {
+        return Err(Error::InvalidInput(
+            "plane translation phase overflow".into(),
+        ));
+    }
+    Ok((value, PhaseResidual { points, vectors }))
+}
+impl PhaseResidual {
+    /// Number of displacements and wavevectors.
+    #[must_use]
+    pub fn shape(&self) -> (usize, usize) {
+        (self.points.len(), self.vectors.len())
+    }
+    /// Recompute local phases in two reductions, avoiding per-thread gradient arrays.
+    pub fn pullback<S: nalgebra::Storage<Complex, nalgebra::Dyn, nalgebra::Dyn> + Sync>(
+        self,
+        g: &nalgebra::Matrix<Complex, nalgebra::Dyn, nalgebra::Dyn, S>,
+    ) -> Result<PhaseGradient> {
+        if g.shape() != self.shape() || g.iter().any(|&v| !finite(v)) {
+            return Err(Error::InvalidInput("invalid plane-phase cotangent".into()));
+        }
+        let point_gradient = |i: usize| {
+            let mut result = [0.0; 3];
+            for (j, &vector) in self.vectors.iter().enumerate() {
+                let factor = g[(i, j)].conj() * Complex::i() * phase(vector, self.points[i]);
+                for axis in 0..3 {
+                    result[axis] += (factor * vector[axis]).re;
+                }
+            }
+            result
+        };
+        let vector_gradient = |j: usize| {
+            let mut result = [Complex::default(); 3];
+            for (i, &point) in self.points.iter().enumerate() {
+                let factor = g[(i, j)] * (Complex::i() * phase(self.vectors[j], point)).conj();
+                for axis in 0..3 {
+                    result[axis] += factor * point[axis];
+                }
+            }
+            result
+        };
+        let (points, vectors) = if g.len() >= 4096 {
+            (
+                (0..self.points.len())
+                    .into_par_iter()
+                    .map(point_gradient)
+                    .collect(),
+                (0..self.vectors.len())
+                    .into_par_iter()
+                    .map(vector_gradient)
+                    .collect(),
+            )
+        } else {
+            (
+                (0..self.points.len()).map(point_gradient).collect(),
+                (0..self.vectors.len()).map(vector_gradient).collect(),
+            )
+        };
+        Ok(PhaseGradient { points, vectors })
+    }
+}
 /// Evaluate weighted plane fields, or the full operator when coefficients are absent.
 pub fn field(
     vectors: Vec<[Complex; 3]>,
