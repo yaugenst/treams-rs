@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from ._core import CylindricalWaveBasis, Material, MaterialLike, SphericalWaveBasis
-from ._operators import _field, _rs_weights, expand
+from ._operators import _field, _rs_weights, changepoltype, expand
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike, DTypeLike, NDArray
@@ -58,6 +58,29 @@ class MultipoleWave:
         self, dtype: DTypeLike | None = None, copy: bool | None = None
     ) -> NDArray[np.generic]:
         return np.asarray(self.array, dtype=dtype, copy=copy)
+
+    def changepoltype(self, poltype: str | None = None) -> MultipoleWave:
+        """Express the same field in the other polarization convention."""
+        poltype = (
+            ("parity" if self.poltype == "helicity" else "helicity")
+            if poltype is None
+            else poltype
+        )
+        if poltype == self.poltype:
+            return self
+        change = changepoltype(poltype, basis=self.basis)
+        if not np.all(np.count_nonzero(change, axis=0) == 2):
+            raise ValueError(
+                "polarization conversion requires both polarizations of each mode"
+            )
+        return type(self)(
+            change @ self.array,
+            basis=self.basis,
+            k0=self.k0,
+            material=self.material,
+            modetype=self.modetype,
+            poltype=poltype,
+        )
 
     def expand(
         self, basis: Basis, *, modetype: str = "regular"

@@ -25,6 +25,41 @@ if TYPE_CHECKING:
     type FieldBasis = Basis | PlaneWaveBasisByComp | PlaneWaveBasisByUnitVector
 
 
+def changepoltype(
+    poltype: str | tuple[str, str] | None = None,
+    *,
+    basis: FieldBasis | tuple[FieldBasis, FieldBasis],
+    where: ArrayLike = True,
+) -> NDArray[np.float64]:
+    """Explicit helicity/parity conversion, including rectangular basis subsets.
+
+    poltype names the destination type, or a (destination, source) pair.
+    The real transformation is its own inverse for complete polarization pairs.
+    Mode labels, origins and masks are discrete metadata.
+    """
+    poltype = "helicity" if poltype is None else poltype
+    if poltype not in (
+        "helicity",
+        "parity",
+        ("helicity", "parity"),
+        ("parity", "helicity"),
+    ):
+        raise ValueError("polarization conversion must switch helicity and parity")
+    destination, source = basis if isinstance(basis, tuple) else (basis, basis)
+    if type(destination) is not type(source):
+        raise ValueError("polarization conversion requires the same wave family")
+    if (
+        isinstance(destination, PlaneWaveBasisByComp)
+        and isinstance(source, PlaneWaveBasisByComp)
+        and destination.alignment != source.alignment
+    ):
+        raise ValueError("polarization conversion requires matching alignments")
+    out, incoming = np.asarray(destination.modes), np.asarray(source.modes)
+    same = np.all(out[:, None, :-1] == incoming[None, :, :-1], axis=-1)
+    signs = np.where((destination.pol[:, None] == 0) & (source.pol == 0), -1, 1)
+    return (same & np.asarray(where, dtype=bool)) * signs * np.sqrt(0.5)
+
+
 def rotate(
     phi: float, theta: float = 0, psi: float = 0, *, basis: Basis | tuple[Basis, Basis]
 ) -> NDArray[np.complex128]:

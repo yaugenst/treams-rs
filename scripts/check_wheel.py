@@ -340,3 +340,8 @@ print("Clean wheel: multipole-source scattering and weighted magnetic samples pa
 
 np.testing.assert_allclose(carray.cd([1, 0])[1], 0, atol=1e-10)
 print("Clean wheel: lossless S-matrix outgoing-power contrast passed")
+
+np.testing.assert_allclose(
+    source.changepoltype().efield(points), source.efield(points), atol=1e-12
+)
+print("Clean wheel: shared polarization conversion preserves source fields")

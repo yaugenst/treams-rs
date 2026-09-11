@@ -8,7 +8,7 @@ import numpy as np
 
 from . import diff, lattice
 from ._core import CylindricalWaveBasis, Material, MaterialLike, SphericalWaveBasis
-from ._operators import expandlattice
+from ._operators import changepoltype, expandlattice
 from ._plane import PlaneWave
 from ._source import MultipoleWave
 
@@ -157,13 +157,8 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
         )
         if poltype == self.poltype:
             return self
-        if poltype not in ("helicity", "parity"):
-            raise ValueError("invalid polarization type")
-        modes = np.array(self.basis.modes)
-        same = np.all(modes[:, None, :3] == modes[None, :, :3], axis=-1)
-        signs = np.where((modes[:, None, 3] == 0) & (modes[None, :, 3] == 0), -1, 1)
-        change = same * signs * np.sqrt(0.5)
-        if not np.all(same.sum(axis=0) == 2):
+        change = changepoltype(poltype, basis=self.basis)
+        if not np.all(np.count_nonzero(change, axis=0) == 2):
             raise ValueError(
                 "polarization change requires both polarizations of each mode"
             )

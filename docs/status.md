@@ -56,6 +56,12 @@ label. Helicity swapping matches actual transverse directions, including reorder
 bases; parity flips the magnetic polarization amplitude. It accepts PlaneWave
 illumination and explicit up/down direction through the existing flux calculation.
 
+The public `changepoltype` operator handles all four basis families, rectangular
+subsets and masks. T matrices, S matrices and multipole-source objects share this
+mode-matching rule. Complete object conversions require both polarization partners;
+the explicit operator can project onto partial bases. These are discrete linear
+maps, so amplitude derivatives compose through ordinary matrix multiplication.
+
 Tests exercise degrees through 30 for radial functions, through 10 for Mie, and
 smaller orders for full derivative/cluster checks. An input bound of 128 does not
 constitute a claim of accuracy throughout that range. Dense solve storage still

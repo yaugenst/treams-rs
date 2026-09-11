@@ -9,6 +9,8 @@ have been sent from this project.
 
 | Finding | Evidence and impact | Regression |
 | --- | --- | --- |
+| HDF5 embedding chirality is lost | `save_hdf5` writes `embedding/chirality`, while `load_hdf5` reads `embedding/chirality_parameter`. A material with kappa=0.08 reloads with kappa=0, so the numerical T matrix acquires incorrect embedding metadata. | Reproduced with treams 0.4.5 and h5py; minimal example below. Rewrite HDF5 support is still pending. |
+| HDF5 single-matrix save fails | Passing one TMatrix directly to `save_hdf5` raises IndexError because it slices a zero-dimensional object array with `[:]`. Passing `[tm]` avoids this particular error. | Same example below: replace `[tm]` with `tm` in the save call. |
 | Multi-direction parity interface | `SMatrices.interface` applies a fixed 2-by-2 polarization mask to an N-by-N matrix. For transverse directions (0.2,0.1), (-0.3,0.5), k0=1.7 and materials [1,2.5], direct parity construction raises an IndexError (mask axis 2 versus matrix axis 4). | `test_slab_reference` in [S-matrix tests](../tests/test_smatrix.py) checks our direct parity construction against upstream helicity construction followed by polarization conversion, including multiple directions. |
 | Plane-wave chirality interval | For a single propagating vacuum wave with transverse k=(0.2,0.3), k0=1.3, the positive-helicity coefficient should stay 2 under averaging. Upstream returns 2 at z=(0,0), 2.56210 at (0,1), and 4.83423 at (0,2): its hyperbolic average uses Re(kz) instead of Im(kz). It also drops the complex up/down interference phase for shifted intervals and ignores the position of a zero-width interval. | [Chirality-density tests](../tests/test_chirality_density.py) check direct Cartesian E/H quadrature, single-wave invariance, native interval additivity and full k/normal/endpoint adjoints. Corrected xy-basis forms preserve the origin convention and retain the coherent cross phase. |
 | EBCM radial area factor | Upstream `ebcm.qmat` uses `sin(theta) * [r, -dr, 0]`; the surface element requires another factor of r. For r=0.3(1+0.23 cos²(theta)), lossless eps=3.1, kappa=0.07 and k0=1.3, max abs(SᴴS-I) stays about 0.00135 at degrees 2, 4 and 6. Restoring r gives 6.39e-6, 2.02e-7 and 1.22e-8. With identical vacuum inside/outside, degree 2 produces spurious max abs(T)=5.88e-4; the corrected integral gives 8.41e-18. | [EBCM tests](../tests/test_ebcm.py) cover sphere/Mie agreement, lossless convergence, Hypothesis zero-contrast shapes and both adjoints. The default includes r; explicit `legacy=True` reproduces upstream. |
@@ -33,3 +35,20 @@ are mathematical restrictions, not automatically upstream bugs.
 `SMatrices.cd` is also a terminology caveat: upstream's second return value is
 the normalized contrast of total outgoing power T+R, although its docstring calls
 it absorption CD. The rewrite preserves this formula and names it explicitly.
+
+## HDF5 reproducer
+
+Run with treams 0.4.5 and h5py installed. The file stays in memory.
+
+```python
+import h5py
+import treams
+import treams.io
+
+medium = treams.Material(1.3, 1.1, 0.08)
+tm = treams.TMatrix.sphere(1, 1.3, 0.2, [treams.Material(3), medium])
+with h5py.File("roundtrip.h5", "w", driver="core", backing_store=False) as f:
+    treams.io.save_hdf5(f, [tm])
+    loaded = treams.io.load_hdf5(f)[0]
+    print(tm.material.kappa, loaded.material.kappa)  # 0.08 0
+```

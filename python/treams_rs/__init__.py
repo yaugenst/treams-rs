@@ -10,6 +10,7 @@ from ._core import (
 )
 from ._operators import (
     bfield,
+    changepoltype,
     dfield,
     efield,
     expand,
@@ -36,6 +37,7 @@ __all__ = [
     "TMatrix",
     "TMatrixC",
     "bfield",
+    "changepoltype",
     "chirality_density",
     "coeffs",
     "cylindrical_wave",

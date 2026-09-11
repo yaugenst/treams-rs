@@ -3,7 +3,7 @@ import advect.numpy as anp
 import numpy as np
 import pytest
 import treams
-from hypothesis import given
+from hypothesis import example, given
 from hypothesis import strategies as st
 from numpy.testing import assert_allclose
 
@@ -45,6 +45,7 @@ def test_plane_expansion_reference(poltype, modetype):
 
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 @given(kx=st.floats(0.1, 0.7), kz=st.floats(-0.8, 1.3))
+@example(kx=0.119140625, kz=0.0)
 def test_plane_expansion_pullback_and_field(poltype, kx, kz):
     basis = tr.SphericalWaveBasis.default(8)
     vectors = np.array([[kx, 0.2, kz + 0.1j], [1.5, -0.1, 0.2j]])
@@ -56,7 +57,10 @@ def test_plane_expansion_pullback_and_field(poltype, kx, kz):
     g = rng.normal(size=value.shape) + 1j * rng.normal(size=value.shape)
     go, gv = context.pullback(g)
     directions = [np.array([[0.2, -0.1, 0.3]]), np.full(vectors.shape, 0.1 + 0.03j)]
-    h = 1e-5
+    # The degree-8 angular response has a large third derivative near small k.
+    # A five-point stencil removes the observed O(h²) oracle error while keeping
+    # h large enough to avoid cancellation; the analytic kernel is unchanged.
+    h = 1e-4
     for i in range(2):
 
         def shifted(sign, i=i):
@@ -70,7 +74,9 @@ def test_plane_expansion_pullback_and_field(poltype, kx, kz):
                 poltype=poltype,
             )[0]
 
-        numeric = np.vdot(g, (shifted(1) - shifted(-1)) / (2 * h)).real
+        numeric = np.vdot(
+            g, (-shifted(2) + 8 * shifted(1) - 8 * shifted(-1) + shifted(-2)) / (12 * h)
+        ).real
         assert_allclose(
             np.vdot((go, gv)[i], directions[i]).real, numeric, rtol=2e-7, atol=2e-7
         )

@@ -12,7 +12,7 @@ from ._core import (
     MaterialLike,
     PlaneWaveBasisByComp,
 )
-from ._operators import _periodic_channels, efield, hfield
+from ._operators import _periodic_channels, changepoltype, efield, hfield
 from ._plane import PlaneWave
 
 if TYPE_CHECKING:
@@ -269,14 +269,11 @@ class SMatrices:
         )
         if poltype == self.poltype:
             return self
-        q = self.basis.components
-        same = np.all(q[:, None, :] == q[None, :, :], axis=-1)
-        if not np.all(same.sum(axis=0) == 2):
+        change = changepoltype(poltype, basis=self.basis)
+        if not np.all(np.count_nonzero(change, axis=0) == 2):
             raise ValueError(
                 "polarization conversion requires both polarizations per direction"
             )
-        signs = np.where((self.basis.pol[:, None] == 0) & (self.basis.pol == 0), -1, 1)
-        change = same * signs * np.sqrt(0.5)
         return type(self)(
             change @ self.array @ change.T,
             basis=self.basis,
