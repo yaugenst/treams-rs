@@ -128,3 +128,13 @@ and `array-n*-l3-t*.json`. Derivative speed relative to Dreams remains unmeasure
 ```sh
 uv run --no-sync python scripts/benchmark_cluster.py --workload array --particles 9 --lmax 3 --threads 4
 ```
+
+## Multipole rotations
+
+For two spherical origins and all degrees through 8 (320 modes), the complete
+rotation takes 0.510 ms versus treams' 5.597 ms (10.98x) with four matched threads.
+Native reverse takes 0.753 ms; forward peak RSS is 42.27 versus 67.03 MiB. Both
+forward timings include constructing angular blocks. Rust retains the small-d
+blocks for an analytic Euler-angle reverse pass. Raw samples and binary identity
+are in `rotation-n2-l8-t4.json`; reproduce with
+`--workload rotation --particles 2 --lmax 8 --threads 4`.

@@ -119,3 +119,8 @@ Rust. Channel derivatives cover origins, complex wavenumbers, transverse vectors
 and cell area. At exact normal incidence use `fixed_q=True` to hold the undefined
 polarization azimuth fixed; frequency, shape, material and cell gradients remain
 available. See `tests/test_channels.py` for a complete reflected-power objective.
+
+Local multipole rotations use `tr.rotate(phi, theta, psi, basis=basis)` or
+`matrix.rotate(phi, theta, psi)`. `ad.rotation(angles, destination=basis)`
+differentiates all three spherical Euler angles. Cylindrical bases permit only
+rotation around their fixed axis (`theta=0`). Basis origins are not displaced.

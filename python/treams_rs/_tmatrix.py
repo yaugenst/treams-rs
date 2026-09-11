@@ -181,6 +181,18 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
             poltype=self.poltype,
         )
 
+    def rotate(self, phi: float, theta: float = 0, psi: float = 0) -> Self:
+        """Rotate the local multipole channels at their fixed expansion origins."""
+        rotation, _ = diff.rotation([phi, theta, psi], self.basis)
+        inverse, _ = diff.rotation([-psi, -theta, -phi], self.basis)
+        return type(self)(
+            rotation @ self.array @ inverse,
+            k0=self.k0,
+            basis=self.basis,
+            material=self.material,
+            poltype=self.poltype,
+        )
+
     def _propagating_ks(self) -> NDArray[np.float64]:
         ks = self.ks
         if not self.material.isreal or np.any(ks.imag != 0) or np.any(ks.real == 0):

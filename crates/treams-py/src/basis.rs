@@ -90,6 +90,82 @@ pub(crate) fn make_basis(modes: Vec<(usize, i32, i32, u8)>, positions: Vec<[f64;
     }
 }
 
+#[pyclass]
+#[derive(Debug)]
+struct RotationContext {
+    residual: Option<treams_core::rotation::RotationResidual>,
+}
+#[pymethods]
+impl RotationContext {
+    fn pullback(
+        &mut self,
+        py: Python<'_>,
+        cotangent: PyReadonlyArray2<'_, Complex>,
+    ) -> PyResult<[f64; 3]> {
+        let g = from_array(cotangent)?;
+        let residual = self
+            .residual
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        if g.shape() != residual.value.shape()
+            || g.iter().any(|g| !g.re.is_finite() || !g.im.is_finite())
+        {
+            return Err(PyValueError::new_err(
+                "cotangent must be finite and match the rotation shape",
+            ));
+        }
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        py.detach(move || residual.pullback(&g)).map_err(error)
+    }
+}
+
+#[pyfunction]
+fn rotation(
+    py: Python<'_>,
+    to: Vec<(usize, i32, i32, u8)>,
+    source: Vec<(usize, i32, i32, u8)>,
+    to_positions: Vec<[f64; 3]>,
+    source_positions: Vec<[f64; 3]>,
+    angles: [f64; 3],
+) -> PyResult<(Bound<'_, PyArray2<Complex>>, RotationContext)> {
+    let to = make_basis(to, to_positions);
+    let source = make_basis(source, source_positions);
+    let residual = py
+        .detach(move || treams_core::rotation::spherical(to, source, angles))
+        .map_err(error)?;
+    Ok((
+        matrix(py, &residual.value),
+        RotationContext {
+            residual: Some(residual),
+        },
+    ))
+}
+
+#[pyfunction]
+fn cyl_rotation(
+    py: Python<'_>,
+    to: Vec<(usize, f64, i32, u8)>,
+    source: Vec<(usize, f64, i32, u8)>,
+    to_positions: Vec<[f64; 3]>,
+    source_positions: Vec<[f64; 3]>,
+    angles: [f64; 3],
+) -> PyResult<(Bound<'_, PyArray2<Complex>>, RotationContext)> {
+    let to = make_cyl_basis(to, to_positions);
+    let source = make_cyl_basis(source, source_positions);
+    let residual = py
+        .detach(move || treams_core::rotation::cylindrical(&to, &source, angles))
+        .map_err(error)?;
+    Ok((
+        matrix(py, &residual.value),
+        RotationContext {
+            residual: Some(residual),
+        },
+    ))
+}
+
 #[pyfunction]
 fn expansion(
     py: Python<'_>,
@@ -230,6 +306,9 @@ fn plane_to_cylindrical(
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<RotationContext>()?;
+    m.add_function(wrap_pyfunction!(rotation, m)?)?;
+    m.add_function(wrap_pyfunction!(cyl_rotation, m)?)?;
     m.add_class::<ExpansionContext>()?;
     m.add_function(wrap_pyfunction!(plane_to_cylindrical, m)?)?;
     m.add_function(wrap_pyfunction!(plane_to_spherical, m)?)?;

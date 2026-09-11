@@ -12,6 +12,7 @@ pub mod interaction;
 mod jet;
 pub mod lattice;
 pub mod plane;
+pub mod rotation;
 pub mod smatrix;
 pub mod special;
 pub mod tmatrix;

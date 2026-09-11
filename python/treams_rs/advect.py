@@ -236,6 +236,21 @@ def mie_cyl(
     return _call((kz, k0, radii, epsilon, mu, kappa), forward)
 
 
+def rotation(
+    angles: ArrayLike,
+    *,
+    destination: SphericalWaveBasis | CylindricalWaveBasis,
+    source: SphericalWaveBasis | CylindricalWaveBasis | None = None,
+) -> NDArray[np.complex128]:
+    """Euler-angle derivatives; cylindrical theta must remain fixed at zero."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.rotation(values[0], destination, source)
+        return value, lambda g: (np.asarray(context.pullback(g)),)
+
+    return _call((angles,), forward)
+
+
 def field(
     coefficients: ArrayLike,
     points: ArrayLike,

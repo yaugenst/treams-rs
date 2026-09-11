@@ -20,6 +20,28 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    #[allow(clippy::indexing_slicing)] // Fixed triples of Euler angles.
+    fn rotation_group_and_adjoint(l in 1_i32..8, theta in -6.0_f64..6.0, phi in -3.0_f64..3.0, psi in -3.0_f64..3.0) {
+        let basis=crate::basis::Basis{modes:(-l..=l).map(|m|(0,Mode{l,m,pol:1})).collect(),positions:vec![[0.0;3]]};
+        let angles=[phi,theta,psi];
+        let rotation=crate::rotation::spherical(basis.clone(),basis.clone(),angles).unwrap();
+        let inverse=crate::rotation::spherical(basis.clone(),basis.clone(),[-psi,-theta,-phi]).unwrap();
+        let n=rotation.value.nrows();
+        prop_assert!((&rotation.value*&inverse.value-DMatrix::identity(n,n)).norm()<1e-11);
+        let g=DMatrix::from_fn(n,n,|i,j|Complex::new(if i==j {0.3} else {-0.2},0.1));
+        let analytic=rotation.pullback(&g).unwrap();
+        let direction=[0.2,-0.1,0.3];
+        let h=1e-5;
+        let shifted=|sign:f64|crate::rotation::spherical(basis.clone(),basis.clone(),std::array::from_fn(|i|angles[i]+sign*h*direction[i])).unwrap();
+        let numeric=g.dotc(&((shifted(1.0).value-shifted(-1.0).value)/Complex::new(2.0*h,0.0))).re;
+        prop_assert!((numeric-analytic.iter().zip(direction).map(|(g,d)|g*d).sum::<f64>()).abs()<1e-8);
+        let a=crate::rotation::wigner_d(l,theta).unwrap();
+        let b=crate::rotation::wigner_d(l,phi).unwrap();
+        let ab=crate::rotation::wigner_d(l,theta+phi).unwrap();
+        prop_assert!((a*b-ab).norm()<1e-11);
+    }
+
+    #[test]
     fn cylindrical_field_maxwell(m in -7_i32..8, pol in 0_u8..2, kz in -0.7_f64..0.7, x in -1.0_f64..1.0, y in 0.2_f64..1.2, outgoing in any::<bool>()) {
         let k=Complex::new(1.3,0.1);
         let radial=if outgoing {Radial::Outgoing} else {Radial::Regular};

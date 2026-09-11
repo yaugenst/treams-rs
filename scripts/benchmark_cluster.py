@@ -53,6 +53,14 @@ def worker(
             [np.arange(particles) * 0.8, np.zeros((particles, 2))]
         )
 
+        if workload == "rotation":
+            if backend in ("rust", "check"):
+                basis = SphericalWaveBasis.default(order, particles, positions)
+            if backend in ("treams", "check"):
+                oracle_basis = treams.SphericalWaveBasis.default(
+                    order, particles, positions
+                )
+
         if workload in ("periodic", "array"):
             width = int(np.ceil(np.sqrt(particles)))
             positions = (
@@ -106,6 +114,8 @@ def worker(
                 )
 
         def rust():
+            if workload == "rotation":
+                return diff.rotation([0.2, 0.7, -0.3], basis)
             if workload in ("field", "cylindrical-field"):
                 return diff.field(amplitudes, points, basis, [1.3, 1.3], singular=True)
             if workload in ("periodic", "array"):
@@ -139,6 +149,8 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload == "rotation":
+                return treams.rotate(0.2, 0.7, -0.3, basis=oracle_basis)
             if workload in ("field", "cylindrical-field"):
                 return (
                     np.asarray(
@@ -274,7 +286,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--workload",
-        choices=["cluster", "field", "cylindrical-field", "periodic", "array"],
+        choices=[
+            "cluster",
+            "field",
+            "cylindrical-field",
+            "periodic",
+            "array",
+            "rotation",
+        ],
         default="cluster",
     )
     parser.add_argument("--samples", type=int, default=2048)

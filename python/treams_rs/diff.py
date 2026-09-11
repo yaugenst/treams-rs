@@ -172,6 +172,36 @@ def expansion(
     )
 
 
+def rotation(
+    angles: ArrayLike,
+    destination: SphericalWaveBasis | CylindricalWaveBasis,
+    source: SphericalWaveBasis | CylindricalWaveBasis | None = None,
+) -> tuple[NDArray[np.complex128], _native.RotationContext]:
+    """Native z-y-z rotation; pullback returns the three Euler-angle cotangents.
+
+    Cylindrical bases permit only theta=0, which remains a fixed constraint.
+    Origins are local expansion labels and are not moved by this operator.
+    """
+    source = destination if source is None else source
+    values = np.asarray(angles, dtype=np.float64)
+    if values.shape != (3,):
+        raise ValueError("rotation requires three Euler angles")
+    args = (
+        destination.positions.tolist(),
+        source.positions.tolist(),
+        (float(values[0]), float(values[1]), float(values[2])),
+    )
+    if isinstance(destination, SphericalWaveBasis) and isinstance(
+        source, SphericalWaveBasis
+    ):
+        return _native.rotation(list(destination.modes), list(source.modes), *args)
+    if isinstance(destination, CylindricalWaveBasis) and isinstance(
+        source, CylindricalWaveBasis
+    ):
+        return _native.cyl_rotation(list(destination.modes), list(source.modes), *args)
+    raise ValueError("rotation bases must belong to the same wave family")
+
+
 def field(
     coefficients: ArrayLike,
     points: ArrayLike,

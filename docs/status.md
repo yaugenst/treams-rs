@@ -8,7 +8,7 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 | Project | Cargo/PyO3/maturin/uv, lockfiles, just, Ruff, strict Pyrefly, Clippy, pre-commit; hosted Linux CI passing on Python 3.12 and 3.13 | Broader packaged-platform qualification |
 | Spherical functions | Complex regular/outgoing radial values and first two derivatives; Legendre functions; Wigner 3j; Cartesian harmonics | Wider extreme-argument/order qualification; full special namespace |
 | Sphere coefficients | Multilayer, lossy, magnetic, chiral Mie; all continuous input VJPs | Extreme-layer-conditioning analysis |
-| Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs | Rotation operators and conversions between wave families |
+| Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks | Conversions between wave families; plane-wave basis rotations |
 | Multipole fields | Spherical and cylindrical Cartesian regular/outgoing vector waves; analytic axis limits, position and complex-wavenumber derivatives; batched fields with native VJPs and linear residual storage; Maxwell and reference checks | Magnetic fields, cylindrical axial-label derivatives and upstream field-operator convenience API |
 | Finite scattering | Dense solve and factorization-reusing adjoint; optimized sphere clusters; heterogeneous local matrices via public API | Native end-to-end heterogeneous-cluster parameter context |
 | Python interface | Material, spherical/cylindrical bases, TMatrix.sphere, TMatrixC.cylinder, clusters, interaction.solve, changepoltype, expand, xs/xw and averaged cross sections | Full upstream ndarray annotation machinery is not reproduced; explicit .array is used |
@@ -96,3 +96,13 @@ A requested direction derivative there raises an explicit error. Near-normal,
 evanescent, chiral and lossy channels are reference checked. Diffraction-order
 generation includes all reciprocal vectors inside the cutoff, including skew
 cells where upstream's simple iterator can omit orders.
+
+`rotate`, `TMatrix.rotate`, `TMatrixC.rotate`, `diff.rotation` and
+`advect.rotation` support local multipole rotations. Spherical rotations use the
+full z-y-z Euler convention and differentiate all three angles; cylindrical theta
+is constrained to zero. Expansion origins remain fixed. Complete angular blocks
+come from a symmetric angular-momentum eigensystem, avoiding factorial-sum
+cancellation. The reverse pass uses angular generators without retaining three
+full output Jacobians. Tests check reference values, arbitrary rectangular basis
+subsets, inverse/composition identities, angle pullbacks, unitarity through degree
+60 and first-order terms at angles down to 1e-100.

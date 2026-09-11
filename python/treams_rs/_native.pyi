@@ -4,6 +4,24 @@ from numpy.typing import NDArray
 type ComplexArray = NDArray[np.complex128]
 type RealArray = NDArray[np.float64]
 
+class RotationContext:
+    def pullback(self, cotangent: ComplexArray) -> list[float]: ...
+
+def rotation(
+    to: list[tuple[int, int, int, int]],
+    source: list[tuple[int, int, int, int]],
+    to_positions: list[list[float]],
+    source_positions: list[list[float]],
+    angles: tuple[float, float, float],
+) -> tuple[ComplexArray, RotationContext]: ...
+def cyl_rotation(
+    to: list[tuple[int, float, int, int]],
+    source: list[tuple[int, float, int, int]],
+    to_positions: list[list[float]],
+    source_positions: list[list[float]],
+    angles: tuple[float, float, float],
+) -> tuple[ComplexArray, RotationContext]: ...
+
 class ArrayContext:
     def pullback(
         self, cotangent: ComplexArray
