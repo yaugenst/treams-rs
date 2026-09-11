@@ -260,7 +260,7 @@ class _Interaction[M: _TMatrix[Any]]:
 
     def solve(self) -> M:
         tm = self.matrix
-        if tm._cluster_sizes is not None and isinstance(tm.basis, SphericalWaveBasis):
+        if tm._cluster_sizes is not None:
             local = []
             bases = []
             offset = 0
@@ -268,7 +268,7 @@ class _Interaction[M: _TMatrix[Any]]:
                 end = offset + size
                 local.append(tm.array[offset:end, offset:end])
                 bases.append(
-                    SphericalWaveBasis(mode[1:] for mode in tm.basis.modes[offset:end])
+                    type(tm.basis)(mode[1:] for mode in tm.basis.modes[offset:end])
                 )
                 offset = end
             result, _ = diff.particle_cluster(

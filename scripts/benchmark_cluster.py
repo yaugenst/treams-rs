@@ -83,21 +83,31 @@ def worker(
         if workload.startswith("bessel"):
             bessel_arguments = np.linspace(0.6, 8.0, samples) + 0.2j
 
-        if workload in ("particle-cluster", "particle-cluster-public"):
+        if "particle-cluster" in workload:
             degrees = [order + i % 2 for i in range(particles)]
-            particle_dimension = sum(2 * degree * (degree + 2) for degree in degrees)
+            cylindrical_particles = workload.startswith("cylindrical-")
+            particle_dimension = sum(
+                4 * (2 * degree + 1)
+                if cylindrical_particles
+                else 2 * degree * (degree + 2)
+                for degree in degrees
+            )
             if backend in ("rust", "check"):
-                from treams_rs import TMatrix
+                from treams_rs import TMatrix, TMatrixC
 
                 local_tmats = [
-                    TMatrix.sphere(degree, 1.3, radius, [eps, 1])
+                    TMatrixC.cylinder([0.2, 0.4], degree, 1.3, radius, [eps, 1])
+                    if cylindrical_particles
+                    else TMatrix.sphere(degree, 1.3, radius, [eps, 1])
                     for degree, radius, eps in zip(degrees, radii, epsilon, strict=True)
                 ]
                 local_bases = [tm.basis for tm in local_tmats]
                 local_arrays = [tm.array for tm in local_tmats]
             if backend in ("treams", "check"):
                 oracle_tmats = [
-                    treams.TMatrix.sphere(degree, 1.3, radius, [eps, 1])
+                    treams.TMatrixC.cylinder([0.2, 0.4], degree, 1.3, radius, [eps, 1])
+                    if cylindrical_particles
+                    else treams.TMatrix.sphere(degree, 1.3, radius, [eps, 1])
                     for degree, radius, eps in zip(degrees, radii, epsilon, strict=True)
                 ]
 
@@ -302,11 +312,11 @@ def worker(
                     kind="h1",
                     derivative=workload == "bessel-derivative",
                 )
-            if workload == "particle-cluster-public":
-                return TMatrix.cluster(
+            if "particle-cluster" in workload and workload.endswith("public"):
+                return type(local_tmats[0]).cluster(
                     local_tmats, positions
                 ).interaction.solve().array, None
-            if workload == "particle-cluster":
+            if "particle-cluster" in workload:
                 return diff.particle_cluster(
                     local_arrays, positions, [1.3, 1.3], bases=local_bases
                 )
@@ -414,10 +424,12 @@ def worker(
                     else treams.special.hankel1
                 )
                 return function(order, bessel_arguments)
-            if workload in ("particle-cluster", "particle-cluster-public"):
-                return treams.TMatrix.cluster(
-                    oracle_tmats, positions
-                ).interaction.solve()
+            if "particle-cluster" in workload:
+                return (
+                    type(oracle_tmats[0])
+                    .cluster(oracle_tmats, positions)
+                    .interaction.solve()
+                )
             if workload == "oriented-chirality":
                 q0, q1, normal = oracle_vectors.T
                 up = treams.special.vpw_A(normal, q0, q1, 0, 0, 0, oracle_basis.pol)
@@ -594,6 +606,7 @@ def worker(
         if backend == "rust" and workload not in (
             "internal-field-forward",
             "particle-cluster-public",
+            "cylindrical-particle-cluster-public",
             "bessel-forward",
             "bessel-derivative-forward",
         ):
@@ -690,7 +703,7 @@ def worker(
                     "dimension": samples
                     if workload.startswith("bessel")
                     else particle_dimension
-                    if workload in ("particle-cluster", "particle-cluster-public")
+                    if "particle-cluster" in workload
                     else 2 * samples
                     if workload == "slab"
                     else 2 * particles * order
@@ -746,7 +759,9 @@ def main() -> None:
             "bessel-derivative",
             "cluster",
             "particle-cluster",
+            "cylindrical-particle-cluster",
             "particle-cluster-public",
+            "cylindrical-particle-cluster-public",
             "slab",
             "field",
             "internal-field",

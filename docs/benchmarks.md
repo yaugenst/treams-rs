@@ -550,3 +550,26 @@ this table. No derivative-order or higher-order autodiff support is implied.
 Raw results: `benchmarks/results/bessel{,-derivative}{,-forward}-n{128,4096}.json`.
 Use `--workload bessel-forward --samples 4096 --particles 1 --lmax 3 --threads 4`;
 the other workload names match the result filenames. All use the same accuracy gate.
+
+
+## Heterogeneous cylindrical clusters
+
+Alternating azimuthal cutoffs 3/4, two fixed axial channels (0.2, 0.4), release
+extension and matched four threads. Local cylinder construction is outside both
+timers. These include forward result destruction and use independent processes.
+The public path includes cluster construction and the interaction solve.
+
+| Particles / modes | Path | Upstream ms | Rust ms | Speedup | Reverse ms | Upstream / Rust forward RSS MiB |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| 4 / 128 | Native blocks | 4.161 | 1.373 | 3.03x | 1.298 | 70.5 / 42.5 |
+| 16 / 512 | Native blocks | 67.254 | 20.640 | 3.26x | 25.596 | 96.1 / 59.3 |
+| 4 / 128 | Public API | 4.255 | 1.336 | 3.18x | — | 70.2 / 43.9 |
+| 16 / 512 | Public API | 67.142 | 23.677 | 2.84x | — | 96.8 / 70.2 |
+
+The native 512-mode run peaks at 83.0 MiB through reverse. Parallel cylindrical
+translation contractions reduced its reverse from 59.38 to 25.60 ms in the same
+benchmark; the 128-mode reverse fell from 3.01 to 1.30 ms. The serial measurements
+were exploratory; committed JSON files contain the final qualified implementation.
+Raw data: `benchmarks/results/cylindrical-particle-cluster{,-public}-n{4,16}-l3.json`.
+All four correctness, runtime and forward-RSS gates pass and are included in
+`just bench-performance`.

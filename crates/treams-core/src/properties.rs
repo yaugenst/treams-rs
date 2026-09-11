@@ -43,6 +43,23 @@ proptest! {
     }
 
     #[test]
+    fn cylindrical_particle_cluster_translation_and_adjoint(x in 0.7_f64..1.4, y in -0.3_f64..0.3) {
+        use crate::cylwaves::{Basis, Mode};
+        let local=vec![DMatrix::from_element(1,1,Complex::new(0.02,0.01)),DMatrix::from_element(1,1,Complex::new(0.04,-0.02))];
+        let modes=vec![(0,Mode{kz:0.2,m:1,pol:1}),(1,Mode{kz:0.2,m:-1,pol:1})];
+        let positions=vec![[0.0,0.0,0.0],[x,y,0.3]];
+        let ks=[Complex::new(1.3,0.02);2];
+        let result=crate::tmatrix::cylindrical_particle_cluster(local.clone(),Basis{modes:modes.clone(),positions:positions.clone()},ks,true).unwrap();
+        let shifted=positions.iter().map(|p| [p[0]+0.3,p[1]-0.4,p[2]+0.8]).collect();
+        let other=crate::tmatrix::cylindrical_particle_cluster(local,Basis{modes,positions:shifted},ks,true).unwrap();
+        prop_assert!((result.value()-other.value()).norm()<1e-14);
+        let g=DMatrix::from_element(2,2,Complex::new(0.3,0.2));
+        let gradient=result.pullback(&g).unwrap();
+        let total: [f64;3]=std::array::from_fn(|axis| gradient.positions.iter().map(|p|p.get(axis).unwrap()).sum());
+        prop_assert!(total.iter().all(|v|v.abs()<1e-14));
+    }
+
+    #[test]
     fn local_block_adjoint_matches_dense(x in -0.1_f64..0.1) {
         let a=DMatrix::from_fn(2,2,|i,j| Complex::new(if i==j {0.2} else {x}, if i<j {0.03} else {-0.04}));
         let b=DMatrix::from_fn(3,3,|i,j| Complex::new(if i==j {0.3} else {-0.01}, if i<j {x} else {0.02}));

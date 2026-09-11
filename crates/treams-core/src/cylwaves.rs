@@ -228,18 +228,27 @@ impl ExpansionResidual {
         self,
         cotangent: &DMatrix<Complex>,
     ) -> Result<crate::basis::TranslationGradient> {
-        if cotangent.shape() != self.value.shape() || cotangent.iter().any(|&g| !finite(g)) {
+        if cotangent.shape() != (self.destination.modes.len(), self.source.modes.len())
+            || cotangent.iter().any(|&g| !finite(g))
+        {
             return Err(Error::InvalidInput(
                 "invalid cylindrical expansion cotangent".into(),
             ));
         }
-        let mut result = crate::basis::TranslationGradient {
+        use rayon::prelude::*;
+        let empty = || crate::basis::TranslationGradient {
             destination: vec![[0.0; 3]; self.destination.positions.len()],
             source: vec![[0.0; 3]; self.source.positions.len()],
             ks: [Complex::default(); 2],
         };
-        for (j, &(q, from)) in self.source.modes.iter().enumerate() {
+        let accumulate = |mut result: crate::basis::TranslationGradient,
+                          (j, &(q, from)): (usize, &(usize, Mode))|
+         -> Result<_> {
             for (i, &(p, to)) in self.destination.modes.iter().enumerate() {
+                let g = cotangent[(i, j)];
+                if g == Complex::default() {
+                    continue;
+                }
                 let position = std::array::from_fn(|a| {
                     self.destination.positions[p][a] - self.source.positions[q][a]
                 });
@@ -250,7 +259,6 @@ impl ExpansionResidual {
                     position,
                     self.radial,
                 )?;
-                let g = cotangent[(i, j)];
                 result.ks[usize::from(from.pol)] += jet.k.conj() * g;
                 for axis in 0..3 {
                     let derivative = (g.conj() * jet.position[axis]).re;
@@ -258,8 +266,37 @@ impl ExpansionResidual {
                     result.source[q][axis] -= derivative;
                 }
             }
+            Ok(result)
+        };
+        if self.source.modes.len() < 64 {
+            return self
+                .source
+                .modes
+                .iter()
+                .enumerate()
+                .try_fold(empty(), accumulate);
         }
-        Ok(result)
+        self.source
+            .modes
+            .par_iter()
+            .enumerate()
+            .try_fold(empty, accumulate)
+            .try_reduce(empty, |mut left, right| {
+                for (a, b) in left
+                    .destination
+                    .iter_mut()
+                    .chain(&mut left.source)
+                    .zip(right.destination.into_iter().chain(right.source))
+                {
+                    for (out, value) in a.iter_mut().zip(b) {
+                        *out += value;
+                    }
+                }
+                for (out, value) in left.ks.iter_mut().zip(right.ks) {
+                    *out += value;
+                }
+                Ok(left)
+            })
     }
 }
 

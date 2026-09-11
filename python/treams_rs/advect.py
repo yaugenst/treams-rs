@@ -167,7 +167,7 @@ def particle_cluster(
     positions: ArrayLike,
     ks: ArrayLike,
     *,
-    bases: Sequence[SphericalWaveBasis],
+    bases: Sequence[SphericalWaveBasis | CylindricalWaveBasis],
     poltype: str = "helicity",
 ) -> NDArray[np.complex128]:
     """Heterogeneous local matrices with native geometry and embedding adjoints."""

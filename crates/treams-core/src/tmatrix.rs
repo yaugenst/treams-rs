@@ -297,10 +297,16 @@ impl SphereResidual {
     }
 }
 
-/// Heterogeneous spherical-particle solve with local matrices kept as separate blocks.
+#[derive(Debug)]
+enum ParticleExpansion {
+    Spherical(crate::basis::TranslationResidual),
+    Cylindrical(crate::cylwaves::ExpansionResidual),
+}
+
+/// Heterogeneous particle solve with local matrices kept as separate blocks.
 #[derive(Debug)]
 pub struct ParticleClusterResidual {
-    expansion: crate::basis::TranslationResidual,
+    expansion: ParticleExpansion,
     interaction: InteractionResidual,
 }
 
@@ -326,25 +332,11 @@ pub fn particle_cluster(
     helicity: bool,
 ) -> Result<ParticleClusterResidual> {
     basis.validate()?;
-    let mut offset = 0;
-    if local.len() != basis.positions.len()
-        || local.iter().map(DMatrix::nrows).sum::<usize>() != basis.modes.len()
-    {
-        return Err(Error::InvalidInput(
-            "one local matrix and mode block required per position".into(),
-        ));
-    }
-    for (i, block) in local.iter().enumerate() {
-        let end = offset + block.nrows();
-        if basis.modes[offset..end].iter().any(|&(p, _)| p != i)
-            || basis.positions[..i].contains(&basis.positions[i])
-        {
-            return Err(Error::InvalidInput(
-                "particle modes must be grouped at distinct origins".into(),
-            ));
-        }
-        offset = end;
-    }
+    validate_particle_blocks(
+        &local,
+        &basis.positions,
+        basis.modes.iter().map(|&(p, _)| p),
+    )?;
     let mut expansion = crate::basis::translation(
         basis.clone(),
         basis,
@@ -356,7 +348,70 @@ pub fn particle_cluster(
     let coupling = std::mem::take(&mut expansion.value);
     let interaction = interaction::forward_blocks(local, coupling)?;
     Ok(ParticleClusterResidual {
-        expansion,
+        expansion: ParticleExpansion::Spherical(expansion),
+        interaction,
+    })
+}
+
+fn validate_particle_blocks(
+    local: &[DMatrix<Complex>],
+    positions: &[[f64; 3]],
+    mut origins: impl ExactSizeIterator<Item = usize>,
+) -> Result<()> {
+    if local.len() != positions.len()
+        || local.iter().map(DMatrix::nrows).sum::<usize>() != origins.len()
+    {
+        return Err(Error::InvalidInput(
+            "one local matrix and mode block required per position".into(),
+        ));
+    }
+    for (i, block) in local.iter().enumerate() {
+        if origins.by_ref().take(block.nrows()).any(|p| p != i)
+            || positions[..i].contains(&positions[i])
+        {
+            return Err(Error::InvalidInput(
+                "particle modes must be grouped at distinct origins".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Couple heterogeneous cylindrical matrices with fixed axial mode labels.
+///
+/// Local modes are grouped in particle order. Enclosing cylinders must not overlap.
+#[allow(clippy::float_cmp)] // Exact common transverse origins are singular for cylinders.
+pub fn cylindrical_particle_cluster(
+    local: Vec<DMatrix<Complex>>,
+    basis: crate::cylwaves::Basis,
+    ks: [Complex; 2],
+    helicity: bool,
+) -> Result<ParticleClusterResidual> {
+    basis.validate()?;
+    validate_particle_blocks(
+        &local,
+        &basis.positions,
+        basis.modes.iter().map(|&(p, _)| p),
+    )?;
+    if !helicity && ks[0] != ks[1] {
+        return Err(Error::InvalidInput(
+            "parity requires an achiral medium".into(),
+        ));
+    }
+    for (i, position) in basis.positions.iter().enumerate() {
+        if basis.positions[..i].iter().any(|p| p[..2] == position[..2]) {
+            return Err(Error::InvalidInput(
+                "cylinders require distinct transverse origins".into(),
+            ));
+        }
+    }
+    let mut expansion =
+        crate::cylwaves::expansion(basis.clone(), basis, ks, crate::special::Radial::Outgoing)?;
+    // The solve owns the only coupling matrix; its adjoint needs just the geometry.
+    let coupling = std::mem::take(&mut expansion.value);
+    let interaction = interaction::forward_blocks(local, coupling)?;
+    Ok(ParticleClusterResidual {
+        expansion: ParticleExpansion::Cylindrical(expansion),
         interaction,
     })
 }
@@ -371,7 +426,10 @@ impl ParticleClusterResidual {
     /// Differentiate local matrices, all pair displacements and both wavenumbers.
     pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<ParticleClusterGradient> {
         let (local, coupling) = self.interaction.pullback_blocks(cotangent)?;
-        let geometry = self.expansion.pullback(&coupling)?;
+        let geometry = match self.expansion {
+            ParticleExpansion::Spherical(expansion) => expansion.pullback(&coupling)?,
+            ParticleExpansion::Cylindrical(expansion) => expansion.pullback(&coupling)?,
+        };
         let positions = geometry
             .destination
             .into_iter()

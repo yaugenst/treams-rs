@@ -11,9 +11,13 @@ import treams_rs as tr
 from treams_rs import advect as ad
 
 
-def _case(poltype):
-    bases = [tr.SphericalWaveBasis.default(1), tr.SphericalWaveBasis.default(2)]
-    bases.append(tr.SphericalWaveBasis([bases[1].modes[i] for i in [8, 3, 6, 1]]))
+def _case(poltype, cylindrical=False):
+    family = tr.CylindricalWaveBasis if cylindrical else tr.SphericalWaveBasis
+    bases = [
+        family.default([0.2, 0.4], i) if cylindrical else family.default(i)
+        for i in (1, 2)
+    ]
+    bases.append(family([bases[1].modes[i] for i in [8, 3, 6, 1]]))
     rng = np.random.default_rng(63)
     local = [
         0.002
@@ -30,22 +34,38 @@ def _case(poltype):
 
 
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
-def test_heterogeneous_native_reference_and_all_pullbacks(poltype):
-    bases, local, positions, material = _case(poltype)
+@pytest.mark.parametrize("cylindrical", [False, True])
+def test_heterogeneous_native_reference_and_all_pullbacks(poltype, cylindrical):
+    bases, local, positions, material = _case(poltype, cylindrical)
+    matrix_type = treams.TMatrixC if cylindrical else treams.TMatrix
+    basis_type = (
+        treams.CylindricalWaveBasis if cylindrical else treams.SphericalWaveBasis
+    )
     ks = material.ks(1.3)
     metadata = {"bases": bases, "poltype": poltype}
     value, context = tr.diff.particle_cluster(local, positions, ks, **metadata)
     particles = [
-        treams.TMatrix(
+        matrix_type(
             a,
-            basis=treams.SphericalWaveBasis(b.modes),
+            basis=basis_type(b.modes),
             k0=1.3,
             material=treams.Material(tuple(material)),
             poltype=poltype,
         )
         for a, b in zip(local, bases, strict=True)
     ]
-    expected = treams.TMatrix.cluster(particles, positions).interaction.solve()
+    expected = matrix_type.cluster(particles, positions).interaction.solve()
+    native_type = tr.TMatrixC if cylindrical else tr.TMatrix
+    native_particles = [
+        native_type(a, basis=b, k0=1.3, material=material, poltype=poltype)
+        for a, b in zip(local, bases, strict=True)
+    ]
+    assert_allclose(
+        native_type.cluster(native_particles, positions).interaction.solve().array,
+        expected,
+        rtol=2e-12,
+        atol=1e-15,
+    )
     assert_allclose(value, expected, rtol=2e-12, atol=1e-15)
     rng = np.random.default_rng(51)
     g = rng.normal(size=value.shape) + 1j * rng.normal(size=value.shape)
@@ -72,9 +92,12 @@ def test_heterogeneous_native_reference_and_all_pullbacks(poltype):
             atol=2e-10,
         )
     assert_allclose(gpositions.sum(axis=0), 0, atol=1e-14)
-    assert_allclose(
-        np.vdot(gpositions, positions).real - np.vdot(gks, ks).real, 0, atol=1e-13
-    )
+    if (
+        not cylindrical
+    ):  # Scaling cylindrical geometry also changes its fixed kz labels.
+        assert_allclose(
+            np.vdot(gpositions, positions).real - np.vdot(gks, ks).real, 0, atol=1e-13
+        )
     dense = np.zeros_like(value)
     offset = 0
     modes = []
@@ -83,7 +106,7 @@ def test_heterogeneous_native_reference_and_all_pullbacks(poltype):
         dense[offset:end, offset:end] = a
         modes.extend((p, *mode[1:]) for mode in basis.modes)
         offset = end
-    cluster_basis = tr.SphericalWaveBasis(modes, positions)
+    cluster_basis = type(bases[0])(modes, positions)
     coupling, _ = tr.diff.expansion(
         cluster_basis, cluster_basis, ks, singular=True, poltype=poltype
     )
@@ -102,8 +125,9 @@ def test_heterogeneous_native_reference_and_all_pullbacks(poltype):
         offset = end
 
 
-def test_heterogeneous_context_ownership_strides_and_invalid_retry():
-    bases, local, positions, material = _case("helicity")
+@pytest.mark.parametrize("cylindrical", [False, True])
+def test_heterogeneous_context_ownership_strides_and_invalid_retry(cylindrical):
+    bases, local, positions, material = _case("helicity", cylindrical)
     ks = material.ks(1.3)
     local = [np.asfortranarray(a).T for a in local]
     value, context = tr.diff.particle_cluster(local, positions, ks, bases=bases)
@@ -127,33 +151,57 @@ def test_heterogeneous_context_ownership_strides_and_invalid_retry():
         context.pullback(g)
 
 
+@pytest.mark.parametrize("cylindrical", [False, True])
 @given(scale=st.floats(0.5, 3), shift=st.tuples(*(st.floats(-3, 3) for _ in range(3))))
 @settings(max_examples=25)
-def test_heterogeneous_rigid_translation_and_scale(scale, shift):
-    bases, local, positions, material = _case("helicity")
+def test_heterogeneous_rigid_translation_and_scale(cylindrical, scale, shift):
+    bases, local, positions, material = _case("helicity", cylindrical)
     ks = material.ks(1.3)
     expected = tr.diff.particle_cluster(local, positions, ks, bases=bases)[0]
+    if cylindrical:
+        bases = [
+            tr.CylindricalWaveBasis([(p, kz / scale, m, pol) for p, kz, m, pol in b])
+            for b in bases
+        ]
     actual = tr.diff.particle_cluster(
         local, positions * scale + shift, ks / scale, bases=bases
     )[0]
     assert_allclose(actual, expected, rtol=1e-12, atol=1e-15)
 
 
-def test_complete_heterogeneous_material_and_geometry_advect():
-    bases = [tr.SphericalWaveBasis.default(1), tr.SphericalWaveBasis.default(2)]
+@pytest.mark.parametrize("cylindrical", [False, True])
+def test_complete_heterogeneous_material_and_geometry_advect(cylindrical):
+    bases = [
+        tr.CylindricalWaveBasis.default([0.2, 0.4], i)
+        if cylindrical
+        else tr.SphericalWaveBasis.default(i)
+        for i in (1, 2)
+    ]
 
     def objective(k0, radii, epsilon, mu, kappa, positions):
         materials = [anp.stack([epsilon[i], epsilon[2]]) for i in range(2)]
         permeabilities = [anp.stack([mu[i], mu[2]]) for i in range(2)]
         chiralities = [anp.stack([kappa[i], kappa[2]]) for i in range(2)]
         local = [
-            ad.sphere(
-                i + 1,
-                k0,
-                anp.reshape(radii[i], (1,)),
-                materials[i],
-                permeabilities[i],
-                chiralities[i],
+            (
+                ad.cylinder(
+                    [0.2, 0.4],
+                    i + 1,
+                    k0,
+                    anp.reshape(radii[i], (1,)),
+                    materials[i],
+                    permeabilities[i],
+                    chiralities[i],
+                )
+                if cylindrical
+                else ad.sphere(
+                    i + 1,
+                    k0,
+                    anp.reshape(radii[i], (1,)),
+                    materials[i],
+                    permeabilities[i],
+                    chiralities[i],
+                )
             )
             for i in range(2)
         ]
@@ -165,7 +213,7 @@ def test_complete_heterogeneous_material_and_geometry_advect():
     values = [
         np.array(1.3),
         np.array([0.13, 0.18]),
-        np.array([2.3 + 0.1j, 3.2 + 0.2j, 1.1]),
+        np.array([2.3 + 0.1j, 3.2 + 0.2j, 1.1 + 0.04j]),
         np.array([1.2, 1.3, 1.0]),
         np.array([0.05, -0.04, 0.03]),
         np.array([[0.1, 0.2, 0.3], [1.1, 0.3, -0.2]]),
@@ -206,3 +254,12 @@ def test_heterogeneous_invalid_inputs_and_single_particle():
     assert_allclose(glocal[0], 1)
     assert_allclose(gpositions, 0)
     assert_allclose(gks, 0)
+
+
+def test_cylindrical_cluster_excludes_coaxial_particles():
+    basis = tr.CylindricalWaveBasis.default([0.2], 1)
+    a = np.eye(len(basis), dtype=complex)
+    with pytest.raises(ValueError, match="transverse"):
+        tr.diff.particle_cluster(
+            [a, a], [[0, 0, 0], [0, 0, 1]], [1, 1], bases=[basis] * 2
+        )

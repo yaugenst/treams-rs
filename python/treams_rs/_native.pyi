@@ -188,6 +188,13 @@ def particle_cluster(
     ks: tuple[complex, complex],
     helicity: bool,
 ) -> tuple[ComplexArray, ParticleClusterContext]: ...
+def cylindrical_particle_cluster(
+    local: list[ComplexArray],
+    modes: list[tuple[int, float, int, int]],
+    positions: list[list[float]],
+    ks: tuple[complex, complex],
+    helicity: bool,
+) -> tuple[ComplexArray, ParticleClusterContext]: ...
 
 class ChiralityContext:
     def pullback(

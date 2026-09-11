@@ -25,7 +25,7 @@ gauge singularity; both values and derivatives use that limit.
 | Sphere coefficients | Multilayer, lossy, magnetic, chiral Mie; all continuous input VJPs | Extreme-layer-conditioning analysis |
 | Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks; regular cylindrical-to-spherical and periodic spherical-to-cylindrical conversion with native pullbacks; explicit expandlattice dispatch | Remaining low-level wave-family API coverage |
 | Multipole fields | Spherical/cylindrical Cartesian waves and analytic axis limits; weighted fields and full field operators with native position/wavenumber VJPs and linear residuals; electric, magnetic, displacement, flux and Riemann-Silberstein operators; Advect magnetic and G/F samples; native weighted/full plane fields and complex-wavevector VJPs | Cylindrical axial-label derivatives and upstream operator-attribute machinery |
-| Finite scattering | Dense solve and factorization-reusing adjoint; optimized sphere clusters; heterogeneous spherical local matrices with native local-block, position and medium-wavenumber pullbacks | Cylindrical heterogeneous-cluster context |
+| Finite scattering | Dense solve and factorization-reusing adjoint; optimized sphere clusters; heterogeneous spherical/cylindrical local matrices with native local-block, position and medium-wavenumber pullbacks | Broader conditioning qualification |
 | Python interface | Material, spherical/cylindrical bases, TMatrix.sphere, TMatrixC.cylinder, clusters, interaction.solve, changepoltype, expand, xs/xw and averaged cross sections; explicit spherical/cylindrical sources with weighted E/H/D/B/G/F fields and direct T-matrix illumination | Full upstream ndarray annotation machinery is not reproduced; explicit .array is used |
 | Differentiation | Opaque one-use native contexts in coeffs and diff; arbitrary complex output cotangents; Advect adapters for spherical/cylindrical T-matrices, clusters, interactions, expansions, fields and sphere/cylinder coefficients | Higher derivatives and other framework adapters |
 | Testing | Native proptest invariants and adjoint identities; Hypothesis physical invariants; treams/SciPy reference comparisons; complete Python workflows | Expand qualification with every ported subsystem |
@@ -66,11 +66,11 @@ radii, positions, complex sphere permittivities and vacuum wavenumber. The publi
 and a common, possibly chiral, embedding material. Its interaction solve now uses
 native block storage, avoiding multiplication of zero off-diagonal local blocks.
 `diff.particle_cluster` and `advect.particle_cluster` also accept arbitrary local
-spherical matrices with distinct cutoffs or mode subsets. They differentiate each
+spherical or cylindrical matrices with distinct cutoffs or mode subsets. They differentiate each
 local block, every position and both complex embedding wavenumbers. Complete
 Advect tests compose different sphere cutoffs with radius, epsilon, mu, kappa,
-frequency and position gradients. The caller ensures particle enclosing surfaces
-do not overlap. Native reverse contracts only the required local diagonal blocks,
+frequency and position gradients. Cylindrical axial labels remain fixed, and cylinders require distinct transverse
+origins. The caller ensures particle enclosing surfaces do not overlap. Native reverse contracts only the required local diagonal blocks,
 reuses the LU, and retains one coupling matrix rather than a second expansion copy.
 
 `spherical_wave` and `cylindrical_wave` return an explicit `MultipoleWave` with
@@ -426,3 +426,15 @@ reverse. Rust proptest checks the Wronskian and its derivative. Python tests cov
 all 16 function names, complex branch sides, real fractional cylindrical orders,
 origin limits, empty arrays, strided inputs, owned contexts and Advect composition.
 The measured 128/4096-value cases gate both forward-only and recorded performance.
+
+
+Heterogeneous cylindrical clusters share the spherical block-solve residual and
+reuse the native cylindrical translation adjoint, with parallel contractions over
+source modes. `TMatrixC.cluster(...).interaction.solve()` now takes this path.
+Tests cover mixed cutoffs, reordered partial bases, helicity/parity, chiral lossy
+media, every local-block/position/medium cotangent, owned strided inputs, native
+rigid-translation invariance and complete Advect radius/epsilon/mu/kappa/frequency/
+position gradients. Coordinate scaling also scales cylindrical axial labels.
+Derivatives hold the selected outgoing radial branch fixed; symmetric perturbations
+from a lossless medium into gain can cross that branch and are not a valid local
+gradient oracle. Complete material tests use a strictly passive embedding medium.

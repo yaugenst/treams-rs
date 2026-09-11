@@ -326,7 +326,7 @@ def particle_cluster(
     positions: ArrayLike,
     ks: ArrayLike,
     *,
-    bases: Sequence[SphericalWaveBasis],
+    bases: Sequence[SphericalWaveBasis | CylindricalWaveBasis],
     poltype: str = "helicity",
 ) -> tuple[NDArray[np.complex128], _native.ParticleClusterContext]:
     """Heterogeneous particles; VJP returns (local matrices, positions, ks).
@@ -338,23 +338,30 @@ def particle_cluster(
         raise ValueError("one local matrix and basis required per particle")
     if poltype not in ("helicity", "parity"):
         raise ValueError("invalid polarization type")
-    modes: list[tuple[int, int, int, int]] = []
+    family = type(bases[0])
+    modes: list[tuple[int, float, int, int]] = []
     arrays = []
     for particle, (value, basis) in enumerate(zip(local, bases, strict=True)):
-        if not isinstance(basis, SphericalWaveBasis) or not basis.isglobal:
-            raise ValueError("local particles require global spherical bases")
+        if type(basis) is not family or not basis.isglobal:
+            raise ValueError("local particles require global bases of one wave family")
         array = np.asarray(value, dtype=np.complex128)
         if array.shape != (len(basis), len(basis)):
             raise ValueError("local matrix shape must match its basis")
         arrays.append(array)
         modes.extend((particle, degree, order, pol) for _, degree, order, pol in basis)
     km, kp = np.asarray(ks, dtype=np.complex128)
-    return _native.particle_cluster(
-        arrays,
-        modes,
-        np.asarray(positions, dtype=np.float64).tolist(),
-        (complex(km), complex(kp)),
-        poltype == "helicity",
+    points = np.asarray(positions, dtype=np.float64).tolist()
+    wave_numbers = (complex(km), complex(kp))
+    if family is SphericalWaveBasis:
+        return _native.particle_cluster(
+            arrays,
+            [(p, int(degree), m, pol) for p, degree, m, pol in modes],
+            points,
+            wave_numbers,
+            poltype == "helicity",
+        )
+    return _native.cylindrical_particle_cluster(
+        arrays, modes, points, wave_numbers, poltype == "helicity"
     )
 
 

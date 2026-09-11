@@ -90,7 +90,7 @@ bench-performance: build-ext-release
     for order in 64 512; do
         uv run --no-sync python scripts/benchmark_cluster.py --workload oriented-chirality --particles 1 --lmax "$order" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/oriented-chirality-l${order}.json"
     done
-    for workload in particle-cluster particle-cluster-public; do
+    for workload in particle-cluster particle-cluster-public cylindrical-particle-cluster cylindrical-particle-cluster-public; do
         for particles in 4 16; do
             uv run --no-sync python scripts/benchmark_cluster.py --workload "$workload" --particles "$particles" --lmax 3 --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/${workload}-n${particles}-l3.json"
         done
