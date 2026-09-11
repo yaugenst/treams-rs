@@ -20,6 +20,43 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    fn helicity_metrics_scale_adjoint(x in -0.1_f64..0.1, scale in 0.5_f64..2.0) {
+        use crate::tmatrix::{Metric, metric};
+        let a = DMatrix::from_row_slice(2,2,&[
+            Complex::new(-0.2, x), Complex::new(0.01,0.02),
+            Complex::new(0.015,-0.03), Complex::new(-0.1,0.02)]);
+        for kind in [Metric::DualityBreaking, Metric::Chirality] {
+            let residual = metric(&a, &[0,1], [1.2,1.4], kind).unwrap();
+            let value = residual.value;
+            prop_assert!((0.0..=1.0).contains(&value));
+            let (gradient, ks) = residual.pullback(1.0).unwrap();
+            prop_assert!(gradient.dotc(&a).norm() < 1e-12);
+            prop_assert!(ks.iter().all(|&k| k == 0.0));
+            let other = metric(&(&a*Complex::new(scale,0.0)), &[1,0], [1.2,1.4], kind).unwrap();
+            prop_assert!((other.value-value).abs() < 1e-12);
+        }
+        let residual = metric(&a, &[0,1], [1.2,1.4], Metric::CircularDichroism).unwrap();
+        let (_, ks) = residual.pullback(1.0).unwrap();
+        prop_assert!((ks[0]*1.2+ks[1]*1.4).abs() < 1e-12);
+    }
+
+    #[test]
+    fn singular_values_frobenius_gradient(x in -0.3_f64..0.3, scale in 0.5_f64..2.0) {
+        let a = DMatrix::from_row_slice(3, 2, &[
+            Complex::new(1.2, x), Complex::new(0.1, 0.2),
+            Complex::new(-0.2, 0.1), Complex::new(2.0, 0.3),
+            Complex::new(x, 0.1), Complex::new(0.3, -0.2)]);
+        let residual = crate::linalg::svdvals(&a).unwrap();
+        let norm: f64 = residual.values.iter().map(|s| s * s).sum();
+        prop_assert!((norm - a.norm_squared()).abs() < 1e-12);
+        let weights: Vec<_> = residual.values.iter().map(|s| 2.0 * s).collect();
+        let gradient = residual.pullback(&weights).unwrap();
+        prop_assert!((gradient - &a * Complex::new(2.0,0.0)).norm() < 1e-12);
+        let scaled = crate::linalg::svdvals(&(&a * Complex::new(scale,0.0))).unwrap();
+        prop_assert!((scaled.values.iter().map(|s| (s / scale).powi(2)).sum::<f64>() - norm).abs() < 1e-12);
+    }
+
+    #[test]
     #[allow(clippy::indexing_slicing)] // Fixed two-mode eigensystem.
     fn general_eigensystem_scale_and_shift_adjoint(x in -0.3_f64..0.3) {
         let a=DMatrix::from_row_slice(2,2,&[Complex::new(1.2,0.1),Complex::new(0.2,x),Complex::new(0.1,-0.2),Complex::new(2.7,0.3)]);

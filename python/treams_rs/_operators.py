@@ -226,6 +226,74 @@ def bfield(
     return _field("B", r, basis, k0, material, modetype, poltype)
 
 
+def _rs_weights(
+    pol: int, basis: FieldBasis, poltype: str
+) -> tuple[NDArray[np.float64], float]:
+    if pol not in (-1, 0, 1):
+        raise ValueError("Riemann-Silberstein polarization must be -1, 0 or 1")
+    pol = max(pol, 0)
+    # Preserve upstream's different spherical and cylindrical/plane scalings.
+    normalization = np.sqrt(2) if isinstance(basis, SphericalWaveBasis) else 1.0
+    if poltype == "helicity":
+        return normalization * (basis.pol == pol), 0.0
+    if poltype == "parity":
+        return np.full(len(basis), normalization), normalization * (2 * pol - 1)
+    raise ValueError("polarization type must be helicity or parity")
+
+
+def gfield(
+    pol: int,
+    r: ArrayLike,
+    *,
+    basis: FieldBasis,
+    k0: float,
+    material: MaterialLike = 1,
+    modetype: str | None = None,
+    poltype: str = "helicity",
+) -> NDArray[np.complex128]:
+    """Riemann-Silberstein G operator with treams' family/polarization scaling.
+
+    Polarization -1 aliases 0. For a normalization independent of the basis
+    convention, form (E +/- i Z H)/sqrt(2) from efield and hfield directly.
+    """
+    electric, magnetic = _rs_weights(pol, basis, poltype)
+    value = _field("E", r, basis, k0, material, modetype, poltype) * electric
+    if magnetic:
+        value += (
+            1j
+            * Material(material).impedance
+            * magnetic
+            * _field("H", r, basis, k0, material, modetype, poltype)
+        )
+    return value
+
+
+def ffield(
+    pol: int,
+    r: ArrayLike,
+    *,
+    basis: FieldBasis,
+    k0: float,
+    material: MaterialLike = 1,
+    modetype: str | None = None,
+    poltype: str = "helicity",
+) -> NDArray[np.complex128]:
+    """Riemann-Silberstein F operator, including the chiral index weights."""
+    value = gfield(
+        pol,
+        r,
+        basis=basis,
+        k0=k0,
+        material=material,
+        modetype=modetype,
+        poltype=poltype,
+    )
+    if poltype == "helicity":
+        medium = Material(material)
+        value *= medium.nmp[basis.pol] / medium.n
+    return value
+
+
 def _periodic_channels(
     source: Basis,
     destination: PlaneWaveBasisByComp,

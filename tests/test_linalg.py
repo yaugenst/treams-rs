@@ -213,3 +213,70 @@ def test_advect_solve_and_eigenvectors():
         rtol=1e-7,
         atol=1e-8,
     )
+
+
+@pytest.mark.parametrize("shape", [(1, 1), (4, 4), (6, 3), (3, 6)])
+def test_singular_values_reference_and_vjp(shape):
+    rng = np.random.default_rng(82)
+    a = rng.normal(size=shape) + 1j * rng.normal(size=shape)
+    s, context = diff.svdvals(a)
+    assert_allclose(s, np.linalg.svd(a, compute_uv=False), atol=1e-12)
+    weights = np.linspace(0.2, 1.1, len(s))
+    gradient = context.pullback(weights)
+    direction = rng.normal(size=shape) + 0.13j
+    h = 1e-5
+    numeric = np.dot(
+        weights,
+        (diff.svdvals(a + h * direction)[0] - diff.svdvals(a - h * direction)[0])
+        / (2 * h),
+    )
+    assert_allclose(np.vdot(gradient, direction).real, numeric, rtol=1e-8, atol=1e-10)
+    assert_allclose(np.vdot(gradient, a).real, np.dot(weights, s), atol=1e-12)
+    assert_allclose(np.vdot(gradient, 1j * a).real, 0, atol=1e-12)
+
+
+@pytest.mark.parametrize("scale", [1e-200, 1e-100, 1e100, 1e200])
+def test_singular_values_extreme_scale(scale):
+    a = _matrix()
+    s, context = diff.svdvals(a * scale)
+    assert_allclose(s / scale, np.linalg.svd(a, compute_uv=False), atol=1e-12)
+    gradient = context.pullback(2 * s)
+    assert_allclose(gradient / scale, 2 * a, atol=1e-11)
+
+
+@given(x=st.floats(-0.3, 0.3), y=st.floats(-0.3, 0.3))
+def test_singular_value_energy_advect(x, y):
+    a = np.array([[1.2, x + 0.2j], [y, 2.1j], [0.3, -0.1j]])
+
+    def energy(a):
+        s = ad.svdvals(a)
+        return anp.sum(s**2)
+
+    assert_allclose(energy(a), np.vdot(a, a).real, atol=1e-12)
+    assert_allclose(advect.grad(energy)(a), 2 * a, atol=1e-12)
+
+
+def test_singular_degenerate_and_rank_deficient_spectra():
+    a = np.diag([2, 2, 0]).astype(complex)
+    s, context = diff.svdvals(a)
+    assert_allclose(context.pullback(2 * s), 2 * a, atol=1e-12)
+    _, context = diff.svdvals(a)
+    with pytest.raises(ValueError, match="repeated singular values"):
+        context.pullback(np.array([1.0, 0.0, 0.0]))
+    _, context = diff.svdvals(a)
+    with pytest.raises(ValueError, match="at zero"):
+        context.pullback(np.ones(3))
+    s, context = diff.svdvals(np.zeros((3, 2)))
+    assert_allclose(s, 0)
+    assert_allclose(context.pullback(np.zeros(2)), np.zeros((3, 2)))
+
+
+def test_singular_bad_cotangent_preserves_context():
+    _, context = diff.svdvals(_matrix())
+    with pytest.raises(ValueError, match="cotangent"):
+        context.pullback(np.ones(2))
+    with pytest.raises(ValueError, match="finite"):
+        context.pullback(np.full(4, np.nan))
+    context.pullback(np.ones(4))
+    with pytest.raises(ValueError, match="consumed"):
+        context.pullback(np.ones(4))

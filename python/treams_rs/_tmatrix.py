@@ -282,6 +282,32 @@ class TMatrix(_TMatrix[SphericalWaveBasis]):
 
     _basis_type = SphericalWaveBasis
 
+    def _metric(self, kind: str) -> float:
+        if not self.isglobal or self.poltype != "helicity":
+            raise NotImplementedError("metric requires a global helicity T-matrix")
+        ks = np.ones(2)
+        if kind == "cd":
+            self._propagating_ks()
+            ks = self.ks.real
+        return diff.tmatrix_metric(
+            self.array, ks, polarizations=self.basis.pol, kind=kind
+        )[0]
+
+    @property
+    def cd(self) -> float:
+        """Rotationally averaged absorption circular dichroism."""
+        return self._metric("cd")
+
+    @property
+    def db(self) -> float:
+        """Fraction of scattering that changes helicity (duality breaking)."""
+        return self._metric("db")
+
+    @property
+    def chi(self) -> float:
+        """Normalized electromagnetic chirality from helicity-block singular values."""
+        return self._metric("chi")
+
     @override
     def _default_basis(self, dimension: int) -> SphericalWaveBasis:
         return SphericalWaveBasis.default(SphericalWaveBasis.defaultlmax(dimension))

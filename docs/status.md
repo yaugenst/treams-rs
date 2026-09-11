@@ -9,7 +9,7 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 | Spherical functions | Complex regular/outgoing radial values and first two derivatives; Legendre functions; Wigner 3j; Cartesian harmonics | Wider extreme-argument/order qualification; full special namespace |
 | Sphere coefficients | Multilayer, lossy, magnetic, chiral Mie; all continuous input VJPs | Extreme-layer-conditioning analysis |
 | Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks; regular cylindrical-to-spherical and periodic spherical-to-cylindrical conversion with native pullbacks; explicit expandlattice dispatch | Remaining wave-family conversions; plane-wave basis rotations |
-| Multipole fields | Spherical/cylindrical Cartesian waves and analytic axis limits; weighted fields and full field operators with native position/wavenumber VJPs and linear residuals; electric, magnetic, displacement and flux operators; Advect magnetic samples including impedance gradients; native weighted/full plane fields and complex-wavevector VJPs | Riemann-Silberstein fields, cylindrical axial-label derivatives and upstream operator-attribute machinery |
+| Multipole fields | Spherical/cylindrical Cartesian waves and analytic axis limits; weighted fields and full field operators with native position/wavenumber VJPs and linear residuals; electric, magnetic, displacement, flux and Riemann-Silberstein operators; Advect magnetic and G/F samples; native weighted/full plane fields and complex-wavevector VJPs | Cylindrical axial-label derivatives and upstream operator-attribute machinery |
 | Finite scattering | Dense solve and factorization-reusing adjoint; optimized sphere clusters; heterogeneous local matrices via public API | Native end-to-end heterogeneous-cluster parameter context |
 | Python interface | Material, spherical/cylindrical bases, TMatrix.sphere, TMatrixC.cylinder, clusters, interaction.solve, changepoltype, expand, xs/xw and averaged cross sections | Full upstream ndarray annotation machinery is not reproduced; explicit .array is used |
 | Differentiation | Opaque one-use native contexts in coeffs and diff; arbitrary complex output cotangents; Advect adapters for spherical/cylindrical T-matrices, clusters, interactions, expansions, fields and sphere/cylinder coefficients | Higher derivatives and other framework adapters |
@@ -20,6 +20,7 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 | Planar layers | Native chiral Fresnel coefficients and propagation; one-LU S-matrix composition with reused-factor adjoint; interfaces, multilayer slabs, stacking/doubling, polarization conversion, power-flux transmittance/reflectance and internal fields between adjacent stacks | Full SMatrix annotation API |
 | Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D; periodic coupling and solves; spherical 2D and cylindrical 1D particle-to-plane channels and S matrices; complete native pullbacks and Advect reflectance gradients; direct-sum, reference, energy, Bloch/split/scale invariants | Broader combined particle/layer workflows |
 | Bloch bands | Native periodic transfer matrices, complex right eigensystems, Bloch wavenumbers/vectors; native S-matrix, period and eigenvector adjoints; complete Advect multilayer bands | Wider conditioning and branch-crossing qualification; individual degenerate modes have no derivative |
+| Global observables | Native TMatrix cd/db/chi with matrix and CD embedding-wavenumber pullbacks; thin SVD and singular-value VJP; complete Advect chiral-sphere gradients | SMatrix circular dichroism and chirality-density operators |
 | Remaining public API | Not implemented | Field-operator conveniences, EBCM, I/O and remaining observables |
 
 The optimized `diff.cluster` is restricted to non-overlapping homogeneous,
@@ -266,3 +267,30 @@ Hermitian spectral invariants, native scale/shift identities, and complete Advec
 multilayer band gradients cover this path. Eigensystem values, vectors and vector
 pullbacks are checked under common input scales from 1e-200 to 1e200. A uniform
 cell's complete frequency/period gradient is checked at polarization degeneracy.
+
+`gfield` and `ffield` support spherical, cylindrical, component-plane and
+unit-vector plane bases. They preserve upstream's family-dependent normalization:
+spherical G carries an additional sqrt(2), and helicity selection and parity
+combinations have different weights. For a convention-independent physical
+definition, use `(E +/- i Z H)/sqrt(2)` directly. F includes the chiral refractive
+index weights. `advect.gfield` and `advect.ffield` use weighted native multipole
+fields and their existing pullbacks; the latter also differentiates those index
+weights. Reference values, Hypothesis E/H reconstruction identities and complete
+amplitude/point/origin/complex-wavenumber gradients cover these paths.
+
+`TMatrix.cd`, `.db` and `.chi` now evaluate in Rust. The framework-neutral
+`diff.tmatrix_metric` and Advect adapter expose matrix and real embedding-wavenumber
+pullbacks; the wavenumbers affect only absorption circular dichroism. Normalized
+duality breaking and electromagnetic chirality use a scaled matrix to avoid norm
+overflow/underflow, checked from 1e-200 to 1e200. A scalar metric retains its matrix
+gradient, releasing singular vectors before returning to Python. No full
+output-by-parameter Jacobian is needed for the other native kernels.
+
+`diff.svdvals` and `advect.svdvals` expose the thin native singular-value boundary.
+Repeated positive singular values require equal weights; zero singular values
+require zero weights. Normalized metrics at zero scattering, and CD at zero total
+absorption, are undefined. Chi has a forward value at zero contrast, but a nonzero
+pullback there is rejected; a zero cotangent allows smooth compositions such as
+chi squared. Reference metrics, scale/phase/helicity-swap invariants, rectangular
+SVDs, Frobenius-gradient properties and complete chiral-sphere Advect derivatives
+cover these cases. Higher derivatives remain unsupported.

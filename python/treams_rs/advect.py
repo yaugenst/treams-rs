@@ -13,6 +13,7 @@ import advect as ad
 import numpy as np
 
 from . import coeffs, diff, lattice
+from ._operators import _rs_weights
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -46,7 +47,11 @@ def _transpose(
     forward: _Forward,
 ) -> _Values:
     # Advect and the native core both use dL = Re(vdot(gradient, dx)).
-    gradients = residual[0](np.ascontiguousarray(cotangent, dtype=np.complex128))
+    gradients = residual[0](
+        np.ascontiguousarray(cotangent, dtype=np.complex128).reshape(
+            np.shape(cotangent)
+        )
+    )
     return tuple(
         np.asarray(
             gradient if np.iscomplexobj(primal) else np.real(gradient),
@@ -317,6 +322,36 @@ def rotation(
     return _call((angles,), forward)
 
 
+def tmatrix_metric(
+    operator: ArrayLike,
+    ks: ArrayLike = (1.0, 1.0),
+    *,
+    polarizations: ArrayLike,
+    kind: str,
+) -> NDArray[np.float64]:
+    """Global helicity cd/db/chi, with all derivatives owned by Rust."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.tmatrix_metric(
+            values[0], values[1], polarizations=polarizations, kind=kind
+        )
+        return np.asarray(value, dtype=np.complex128), lambda g: context.pullback(
+            float(g.real)
+        )
+
+    return ad.numpy.real(_call((operator, ks), forward))
+
+
+def svdvals(operator: ArrayLike) -> NDArray[np.float64]:
+    """Descending singular values with a native first-order matrix pullback."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.svdvals(values[0])
+        return value.astype(np.complex128), lambda g: (context.pullback(g.real),)
+
+    return ad.numpy.real(_call((operator,), forward))
+
+
 def field_operator(
     points: ArrayLike,
     origins: ArrayLike,
@@ -389,6 +424,71 @@ def hfield(
         -1j * ad.numpy.asarray(coefficients) * weights / ad.numpy.asarray(impedance)
     )
     return field(
+        coefficients,
+        points,
+        origins,
+        ks,
+        basis=basis,
+        poltype=poltype,
+        singular=singular,
+    )
+
+
+def gfield(
+    pol: int,
+    coefficients: ArrayLike,
+    points: ArrayLike,
+    origins: ArrayLike,
+    ks: ArrayLike,
+    *,
+    basis: SphericalWaveBasis | CylindricalWaveBasis,
+    poltype: str = "helicity",
+    singular: bool = False,
+) -> NDArray[np.complex128]:
+    """Weighted G samples and native field pullbacks, with upstream scaling."""
+    electric, magnetic = _rs_weights(pol, basis, poltype)
+    value = field(
+        ad.numpy.asarray(coefficients) * electric,
+        points,
+        origins,
+        ks,
+        basis=basis,
+        poltype=poltype,
+        singular=singular,
+    )
+    if magnetic:
+        value = value + 1j * magnetic * hfield(
+            coefficients,
+            points,
+            origins,
+            ks,
+            1.0,
+            basis=basis,
+            poltype=poltype,
+            singular=singular,
+        )
+    return value
+
+
+def ffield(
+    pol: int,
+    coefficients: ArrayLike,
+    points: ArrayLike,
+    origins: ArrayLike,
+    ks: ArrayLike,
+    *,
+    basis: SphericalWaveBasis | CylindricalWaveBasis,
+    poltype: str = "helicity",
+    singular: bool = False,
+) -> NDArray[np.complex128]:
+    """Weighted F samples, differentiating the chiral index weights as well."""
+    if poltype == "helicity":
+        ks = ad.numpy.asarray(ks)
+        coefficients = (
+            ad.numpy.asarray(coefficients) * 2 * ks[basis.pol] / ad.numpy.sum(ks)
+        )
+    return gfield(
+        pol,
         coefficients,
         points,
         origins,

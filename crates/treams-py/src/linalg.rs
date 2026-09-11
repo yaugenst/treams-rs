@@ -127,5 +127,56 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<EigenContext>()?;
     m.add_function(wrap_pyfunction!(linear_solve, m)?)?;
     m.add_function(wrap_pyfunction!(eig, m)?)?;
+    m.add_class::<SingularContext>()?;
+    m.add_function(wrap_pyfunction!(svdvals, m)?)?;
     Ok(())
+}
+
+#[pyclass]
+#[derive(Debug)]
+struct SingularContext {
+    residual: Option<linalg::SingularResidual>,
+}
+
+#[pymethods]
+impl SingularContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray1<'py, f64>,
+    ) -> PyResult<Bound<'py, PyArray2<Complex>>> {
+        let g: Vec<_> = cotangent.as_array().iter().copied().collect();
+        let residual = self
+            .residual
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        if g.len() != residual.values.len() || g.iter().any(|x| !x.is_finite()) {
+            return Err(PyValueError::new_err(
+                "cotangent must match the finite singular-value output",
+            ));
+        }
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let gradient = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        Ok(matrix(py, &gradient))
+    }
+}
+
+#[pyfunction]
+fn svdvals<'py>(
+    py: Python<'py>,
+    operator: PyReadonlyArray2<'py, Complex>,
+) -> PyResult<(Bound<'py, PyArray1<f64>>, SingularContext)> {
+    let operator = from_array(operator)?;
+    let residual = py
+        .detach(move || linalg::svdvals(&operator))
+        .map_err(error)?;
+    Ok((
+        residual.values.clone().into_pyarray(py),
+        SingularContext {
+            residual: Some(residual),
+        },
+    ))
 }

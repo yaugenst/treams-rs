@@ -4,6 +4,18 @@ from numpy.typing import NDArray
 type ComplexArray = NDArray[np.complex128]
 type RealArray = NDArray[np.float64]
 
+class MetricContext:
+    def pullback(self, cotangent: float) -> tuple[ComplexArray, RealArray]: ...
+
+def tmatrix_metric(
+    operator: ComplexArray, polarizations: list[int], ks: tuple[float, float], kind: str
+) -> tuple[float, MetricContext]: ...
+
+class SingularContext:
+    def pullback(self, cotangent: RealArray) -> ComplexArray: ...
+
+def svdvals(operator: ComplexArray) -> tuple[RealArray, SingularContext]: ...
+
 class RotationContext:
     def pullback(self, cotangent: ComplexArray) -> list[float]: ...
 

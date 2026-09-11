@@ -1,7 +1,7 @@
 //! Dense linear solves and general complex eigensystems with native pullbacks.
 #![allow(clippy::indexing_slicing)] // Validated matrix dimensions and eigenvector pivots.
 
-use faer::linalg::solvers::{Eigen, PartialPivLu, Solve};
+use faer::linalg::solvers::{Eigen, PartialPivLu, Solve, Svd};
 use nalgebra::DMatrix;
 
 use crate::{
@@ -40,6 +40,80 @@ pub fn solve(operator: &DMatrix<Complex>, mut rhs: DMatrix<Complex>) -> Result<S
         return Err(Error::Singular);
     }
     Ok(SolveResidual { lu, value: rhs })
+}
+
+/// Thin singular vectors retained for a singular-value pullback.
+#[derive(Debug)]
+pub struct SingularResidual {
+    decomposition: Svd<Complex>,
+    /// Singular values, in descending order.
+    pub values: Vec<f64>,
+}
+
+/// Singular values of a finite nonempty rectangular complex matrix.
+pub fn svdvals(operator: &DMatrix<Complex>) -> Result<SingularResidual> {
+    if operator.is_empty() || operator.iter().any(|&z| !finite(z)) {
+        return Err(Error::InvalidInput(
+            "SVD requires a finite nonempty matrix".into(),
+        ));
+    }
+    let scale = operator.iter().map(|z| z.norm()).fold(0.0, f64::max);
+    let scale = if scale == 0.0 { 1.0 } else { scale };
+    let decomposition = Svd::new_thin(view(&operator.map(|z| z / scale)))
+        .map_err(|err| Error::SpecialFunction(format!("singular-value decomposition: {err:?}")))?;
+    let values: Vec<_> = (0..operator.nrows().min(operator.ncols()))
+        .map(|i| decomposition.S()[i].re * scale)
+        .collect();
+    if values.iter().any(|x| !x.is_finite()) {
+        return Err(Error::SpecialFunction("non-finite singular values".into()));
+    }
+    Ok(SingularResidual {
+        decomposition,
+        values,
+    })
+}
+
+impl SingularResidual {
+    /// Equal weights are supported at repeated positive values; zero values
+    /// require zero weights because the singular value itself is not smooth there.
+    pub fn pullback(self, g: &[f64]) -> Result<DMatrix<Complex>> {
+        if g.len() != self.values.len() || g.iter().any(|x| !x.is_finite()) {
+            return Err(Error::InvalidInput(
+                "invalid singular-value cotangent".into(),
+            ));
+        }
+        let tolerance = 64.0 * f64::EPSILON * self.values[0];
+        for i in 0..g.len() {
+            if self.values[i] == 0.0 && g[i] != 0.0 {
+                return Err(Error::InvalidInput(
+                    "nonzero singular-value weight at zero is not differentiable".into(),
+                ));
+            }
+            if i > 0
+                && (self.values[i - 1] - self.values[i]).abs() <= tolerance
+                && (g[i - 1] - g[i]).abs() > 64.0 * f64::EPSILON * g[i - 1].abs().max(g[i].abs())
+            {
+                return Err(Error::InvalidInput(
+                    "repeated singular values require equal cotangent weights".into(),
+                ));
+            }
+        }
+        let u = self.decomposition.U();
+        let v = self.decomposition.V();
+        let weighted = DMatrix::from_fn(u.nrows(), g.len(), |i, j| u[(i, j)] * g[j]);
+        let mut result = DMatrix::zeros(u.nrows(), v.nrows());
+        faer::linalg::matmul::matmul_with_conj(
+            view_mut(&mut result),
+            faer::Accum::Replace,
+            view(&weighted),
+            faer::Conj::No,
+            v.transpose(),
+            faer::Conj::Yes,
+            Complex::new(1.0, 0.0),
+            faer::get_global_parallelism(),
+        );
+        Ok(result)
+    }
 }
 
 impl SolveResidual {

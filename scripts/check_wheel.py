@@ -231,3 +231,41 @@ gk, gp = advect.grad(uniform_band_norm, argnums=(0, 1))(np.array(1.3), np.array(
 np.testing.assert_allclose(gk, 8 * 1.3, atol=2e-11)
 np.testing.assert_allclose(gp, 0, atol=2e-11)
 print("Clean wheel: internal fields and degenerate uniform-band adjoints passed")
+
+
+np.testing.assert_allclose(
+    tr.gfield(0, points, basis=cb, k0=1.3) + tr.gfield(1, points, basis=cb, k0=1.3),
+    tr.efield(points, basis=cb, k0=1.3),
+    atol=1e-12,
+)
+
+
+def singular_energy(matrix):
+    return anp.sum(ad.svdvals(matrix) ** 2)
+
+
+matrix = np.array([[1.2, 0.1j], [0.3, 2.1], [0.4j, 0.5]])
+np.testing.assert_allclose(advect.grad(singular_energy)(matrix), 2 * matrix, atol=1e-12)
+
+
+def chirality(radius):
+    particle = ad.sphere(
+        2,
+        1.3,
+        anp.reshape(radius, (1,)),
+        [3.0 + 0.2j, 1.0],
+        [1.4 + 0.1j, 1.0],
+        [0.12 + 0.02j, 0.0],
+    )
+    return ad.tmatrix_metric(particle, polarizations=modes.pol, kind="chi")
+
+
+np.testing.assert_allclose(
+    advect.grad(chirality)(np.array(0.3)),
+    (chirality(0.3 + h) - chirality(0.3 - h)) / (2 * h),
+    rtol=1e-7,
+    atol=1e-10,
+)
+print(
+    "Clean wheel: Riemann-Silberstein fields, native SVD and chirality gradient passed"
+)

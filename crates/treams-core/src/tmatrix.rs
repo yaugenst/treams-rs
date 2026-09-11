@@ -3,6 +3,7 @@
 #![allow(clippy::indexing_slicing)]
 
 use nalgebra::DMatrix;
+
 use rayon::prelude::*;
 
 use crate::coeffs::{Material, Matrix2, MieGradient, MieResidual, mie_forward};
@@ -11,6 +12,192 @@ use crate::translation_plan::TranslationPlan;
 use crate::waves::{self, Mode};
 use crate::{Complex, Error, Result, finite};
 
+/// Normalized global helicity T-matrix observables.
+#[derive(Clone, Copy, Debug)]
+pub enum Metric {
+    /// Absorption circular dichroism in a real embedding medium.
+    CircularDichroism,
+    /// Fraction of scattering that changes helicity.
+    DualityBreaking,
+    /// Electromagnetic chirality from the four helicity-block spectra.
+    Chirality,
+}
+
+/// Scalar metric and its first-order gradient; no singular vectors remain live.
+#[derive(Debug)]
+pub struct MetricResidual {
+    /// Metric value; chirality may be zero even when its derivative is undefined.
+    pub value: f64,
+    gradient: Result<DMatrix<Complex>>,
+    ks: [f64; 2],
+    dimension: usize,
+}
+
+impl MetricResidual {
+    /// Matrix and real embedding-wavenumber cotangents.
+    pub fn pullback(self, weight: f64) -> Result<(DMatrix<Complex>, [f64; 2])> {
+        if !weight.is_finite() {
+            return Err(Error::InvalidInput(
+                "metric cotangent must be finite".into(),
+            ));
+        }
+        if weight == 0.0 {
+            return Ok((DMatrix::zeros(self.dimension, self.dimension), [0.0; 2]));
+        }
+        Ok((
+            self.gradient?.map(|z| z * weight),
+            self.ks.map(|k| k * weight),
+        ))
+    }
+}
+
+/// Evaluate one metric of a global helicity T matrix. Wavenumbers affect CD only.
+pub fn metric(
+    matrix: &DMatrix<Complex>,
+    pol: &[u8],
+    ks: [f64; 2],
+    kind: Metric,
+) -> Result<MetricResidual> {
+    let dimension = matrix.nrows();
+    if dimension == 0
+        || !matrix.is_square()
+        || pol.len() != dimension
+        || pol.iter().any(|&p| p > 1)
+        || matrix.iter().any(|&z| !finite(z))
+        || ks.iter().any(|k| !k.is_finite() || *k <= 0.0)
+    {
+        return Err(Error::InvalidInput("require a finite square helicity matrix, matching polarizations and positive real wavenumbers".into()));
+    }
+    if matches!(kind, Metric::CircularDichroism) {
+        let weights: Vec<_> = pol.iter().map(|&p| ks[usize::from(p)].powi(-2)).collect();
+        let mut absorption = [0.0; 2];
+        for j in 0..dimension {
+            absorption[usize::from(pol[j])] -= matrix[(j, j)].re * weights[j]
+                + (0..dimension)
+                    .map(|i| matrix[(i, j)].norm_sqr() * weights[i])
+                    .sum::<f64>();
+        }
+        let total = absorption.iter().sum::<f64>();
+        if total == 0.0 || !total.is_finite() {
+            return Err(Error::InvalidInput(
+                "circular dichroism requires nonzero total absorption".into(),
+            ));
+        }
+        let value = (absorption[1] - absorption[0]) / total;
+        let g = [
+            -2.0 * absorption[1] / total / total,
+            2.0 * absorption[0] / total / total,
+        ];
+        let mut gradient = DMatrix::from_fn(dimension, dimension, |i, j| {
+            -2.0 * g[usize::from(pol[j])] * weights[i] * matrix[(i, j)]
+        });
+        let mut gks = [0.0; 2];
+        for i in 0..dimension {
+            let p = usize::from(pol[i]);
+            gradient[(i, i)] -= g[p] * weights[i];
+            gks[p] += 2.0 * weights[i] / ks[p]
+                * (g[p] * matrix[(i, i)].re
+                    + (0..dimension)
+                        .map(|j| g[usize::from(pol[j])] * matrix[(i, j)].norm_sqr())
+                        .sum::<f64>());
+        }
+        return Ok(MetricResidual {
+            value,
+            gradient: Ok(gradient),
+            ks: gks,
+            dimension,
+        });
+    }
+    // Normalized metrics are invariant to a common matrix scale. Work at unit
+    // scale so norm squares do not overflow or underflow for weak scattering.
+    let scale = matrix.iter().map(|z| z.norm()).fold(0.0, f64::max);
+    if scale == 0.0 {
+        return Err(Error::InvalidInput(
+            "normalized metric requires nonzero scattering".into(),
+        ));
+    }
+    let matrix = matrix.map(|z| z / scale);
+    let norm = matrix.norm_squared();
+    let (value, gradient) = if matches!(kind, Metric::DualityBreaking) {
+        let flipped = (0..dimension)
+            .flat_map(|j| (0..dimension).map(move |i| (i, j)))
+            .filter(|&(i, j)| pol[i] != pol[j])
+            .map(|(i, j)| matrix[(i, j)].norm_sqr())
+            .sum::<f64>();
+        let value = flipped / norm;
+        (
+            value,
+            Ok(DMatrix::from_fn(dimension, dimension, |i, j| {
+                matrix[(i, j)] * (2.0 * (f64::from(pol[i] != pol[j]) - value) / norm)
+            })),
+        )
+    } else {
+        let indices: [Vec<_>; 2] = std::array::from_fn(|p| {
+            pol.iter()
+                .enumerate()
+                .filter_map(|(i, &q)| (usize::from(q) == p).then_some(i))
+                .collect()
+        });
+        let count = indices[0].len();
+        if count == 0 || count != indices[1].len() {
+            return Err(Error::InvalidInput(
+                "chirality requires equally sized nonempty helicity groups".into(),
+            ));
+        }
+        let spectra = (0..4)
+            .map(|b| {
+                crate::linalg::svdvals(&DMatrix::from_fn(count, count, |i, j| {
+                    matrix[(indices[b / 2][i], indices[b % 2][j])]
+                }))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let differences: [Vec<_>; 2] = std::array::from_fn(|p| {
+            spectra[3 - p]
+                .values
+                .iter()
+                .zip(&spectra[p].values)
+                .map(|(a, b)| a - b)
+                .collect()
+        });
+        let contrast = differences
+            .iter()
+            .flatten()
+            .map(|x| x * x)
+            .sum::<f64>()
+            .sqrt();
+        let value = contrast / norm.sqrt();
+        let gradient = (|| {
+            if contrast == 0.0 {
+                return Err(Error::InvalidInput(
+                    "chirality is not differentiable at zero contrast".into(),
+                ));
+            }
+            let mut result = matrix.map(|z| -value * z / norm);
+            for (b, residual) in spectra.into_iter().enumerate() {
+                let p = usize::from(b == 1 || b == 2);
+                let sign = if b < 2 { -1.0 } else { 1.0 };
+                let weights: Vec<_> = differences[p]
+                    .iter()
+                    .map(|x| sign * x / contrast / norm.sqrt())
+                    .collect();
+                let block = residual.pullback(&weights)?;
+                for j in 0..count {
+                    for i in 0..count {
+                        result[(indices[b / 2][i], indices[b % 2][j])] += block[(i, j)];
+                    }
+                }
+            }
+            Ok(result)
+        })();
+        (value, gradient)
+    };
+    Ok(MetricResidual {
+        value,
+        gradient: gradient.map(|g| g.map(|z| z / scale)),
+        ks: [0.0; 2],
+        dimension,
+    })
+}
 /// Native retained spherical T-matrix computation in helicity basis.
 #[derive(Clone, Debug)]
 pub struct SphereResidual {

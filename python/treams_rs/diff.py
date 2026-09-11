@@ -13,6 +13,36 @@ if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
 
 
+def tmatrix_metric(
+    operator: ArrayLike,
+    ks: ArrayLike = (1.0, 1.0),
+    *,
+    polarizations: ArrayLike,
+    kind: str,
+) -> tuple[float, _native.MetricContext]:
+    """Global helicity cd/db/chi and native matrix/real-wavenumber pullback.
+
+    Wavenumbers only affect cd. A zero scattering norm, or zero total absorption
+    for cd, is undefined. Chi at zero contrast has a value but no nonzero VJP.
+    """
+    km, kp = np.asarray(ks, dtype=np.float64)
+    return _native.tmatrix_metric(
+        np.ascontiguousarray(operator, dtype=np.complex128),
+        np.asarray(polarizations).tolist(),
+        (float(km), float(kp)),
+        kind,
+    )
+
+
+def svdvals(operator: ArrayLike) -> tuple[NDArray[np.float64], _native.SingularContext]:
+    """Descending singular values and native matrix VJP using thin singular vectors.
+
+    Repeated positive values require equal weights. Zero singular values require
+    zero weights; individual values there are not differentiable.
+    """
+    return _native.svdvals(np.ascontiguousarray(operator, dtype=np.complex128))
+
+
 def solve(
     operator: ArrayLike, rhs: ArrayLike
 ) -> tuple[NDArray[np.complex128], _native.SolveContext]:

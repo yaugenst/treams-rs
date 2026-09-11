@@ -318,6 +318,8 @@ fn spherical_wave(
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<MetricContext>()?;
+    m.add_function(wrap_pyfunction!(tmatrix_metric, m)?)?;
     m.add_class::<SphereContext>()?;
     m.add_class::<ClusterContext>()?;
     m.add_class::<InteractionContext>()?;
@@ -327,4 +329,59 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(interact, m)?)?;
     m.add_function(wrap_pyfunction!(translation, m)?)?;
     Ok(())
+}
+
+#[pyclass]
+#[derive(Debug)]
+struct MetricContext {
+    residual: Option<tmatrix::MetricResidual>,
+}
+
+type MetricGradient<'py> = (Bound<'py, PyArray2<Complex>>, Bound<'py, PyArray1<f64>>);
+
+#[pymethods]
+impl MetricContext {
+    fn pullback<'py>(&mut self, py: Python<'py>, cotangent: f64) -> PyResult<MetricGradient<'py>> {
+        if !cotangent.is_finite() {
+            return Err(PyValueError::new_err("metric cotangent must be finite"));
+        }
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let (gradient, ks) = py
+            .detach(move || residual.pullback(cotangent))
+            .map_err(error)?;
+        Ok((matrix(py, &gradient), ks.to_vec().into_pyarray(py)))
+    }
+}
+
+#[pyfunction]
+fn tmatrix_metric(
+    py: Python<'_>,
+    operator: PyReadonlyArray2<'_, Complex>,
+    polarizations: Vec<u8>,
+    ks: [f64; 2],
+    kind: &str,
+) -> PyResult<(f64, MetricContext)> {
+    let kind = match kind {
+        "cd" => tmatrix::Metric::CircularDichroism,
+        "db" => tmatrix::Metric::DualityBreaking,
+        "chi" => tmatrix::Metric::Chirality,
+        _ => {
+            return Err(PyValueError::new_err(
+                "T-matrix metric must be cd, db or chi",
+            ));
+        }
+    };
+    let matrix = from_array(operator)?;
+    let residual = py
+        .detach(move || tmatrix::metric(&matrix, &polarizations, ks, kind))
+        .map_err(error)?;
+    Ok((
+        residual.value,
+        MetricContext {
+            residual: Some(residual),
+        },
+    ))
 }
