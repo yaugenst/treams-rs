@@ -10,14 +10,121 @@ use std::{
 };
 
 use numpy::npyffi::{NPY_TYPES, PY_UFUNC_API, PyUFuncGenericFunction, npy_intp};
-use pyo3::{prelude::*, types::PyCapsule};
+use pyo3::{
+    prelude::*,
+    types::{PyCapsule, PyComplex, PyDict, PyFloat, PyInt, PyTuple},
+};
 use rayon::prelude::*;
 
+static PW_TRANSLATE: OnceLock<Py<PyAny>> = OnceLock::new();
 static FP_CLEAR: OnceLock<(Py<PyCapsule>, unsafe extern "C" fn())> = OnceLock::new();
 use treams_core::{
     Complex, Error,
     special::{self, Angular, Bessel},
 };
+
+#[pyfunction]
+fn cylindrical_translation_scalar(
+    kz: f64,
+    mu: c_long,
+    qz: f64,
+    m: c_long,
+    kr: Complex,
+    phi: f64,
+    z: f64,
+    singular: bool,
+) -> PyResult<Complex> {
+    cylindrical_translation(
+        kz,
+        mu,
+        qz,
+        m,
+        [kr, phi.into(), z.into()],
+        if singular {
+            special::Radial::Outgoing
+        } else {
+            special::Radial::Regular
+        },
+    )
+    .map_err(crate::error)
+}
+#[pyfunction]
+fn plane_permutation_scalar(
+    kx: Complex,
+    ky: Complex,
+    kz: Complex,
+    p: c_long,
+    q: c_long,
+    helicity: bool,
+    inverse: bool,
+) -> PyResult<Complex> {
+    treams_core::plane::permutation_coefficient(
+        [kx, ky, kz],
+        polarization_label(p).map_err(crate::error)?,
+        polarization_label(q).map_err(crate::error)?,
+        if inverse { 2 } else { 1 },
+        helicity,
+    )
+    .map_err(crate::error)
+}
+
+// Scalar Python numbers need no NumPy shape/type dispatch. Arrays and ufunc
+// options still use the registered loop, including masks and overlapping output.
+fn scalar_number(value: &Bound<'_, PyAny>) -> Option<Complex> {
+    if let Ok(value) = value.cast::<PyFloat>() {
+        Some(value.value().into())
+    } else if let Ok(value) = value.cast::<PyComplex>() {
+        Some(Complex::new(value.real(), value.imag()))
+    } else if value.is_instance_of::<PyInt>() {
+        value.extract::<f64>().ok().map(Into::into)
+    } else {
+        None
+    }
+}
+#[pyfunction]
+#[pyo3(signature=(kx, ky, kz, x, y, z, *args, **kwargs))]
+fn pw_translate<'py>(
+    py: Python<'py>,
+    kx: &Bound<'py, PyAny>,
+    ky: &Bound<'py, PyAny>,
+    kz: &Bound<'py, PyAny>,
+    x: &Bound<'py, PyAny>,
+    y: &Bound<'py, PyAny>,
+    z: &Bound<'py, PyAny>,
+    args: &Bound<'py, PyTuple>,
+    kwargs: Option<&Bound<'py, PyDict>>,
+) -> PyResult<Bound<'py, PyAny>> {
+    if args.is_empty()
+        && kwargs.is_none_or(PyDictMethods::is_empty)
+        && let [Some(kx), Some(ky), Some(kz), Some(x), Some(y), Some(z)] =
+            [kx, ky, kz, x, y, z].map(scalar_number)
+        && x.im == 0.0
+        && y.im == 0.0
+        && z.im == 0.0
+    {
+        return Ok(
+            treams_core::plane::translation([kx, ky, kz], [x.re, y.re, z.re])
+                .map_err(crate::error)?
+                .into_pyobject(py)?
+                .into_any(),
+        );
+    }
+    let operands = PyTuple::new(
+        py,
+        [kx, ky, kz, x, y, z]
+            .into_iter()
+            .cloned()
+            .chain(args.iter())
+            .collect::<Vec<_>>(),
+    )?;
+    PW_TRANSLATE
+        .get()
+        .ok_or_else(|| {
+            pyo3::exceptions::PyRuntimeError::new_err("plane translation is not registered")
+        })?
+        .bind(py)
+        .call(operands, kwargs)
+}
 
 unsafe extern "C" fn bessel_loop<const KIND: u8, const SPHERICAL: bool, const DERIVATIVE: u8>(
     args: *mut *mut c_char,
@@ -245,6 +352,9 @@ impl LoopOutput for [Complex; 3] {
 // contract. Every input is copied before writing, including in-place operations.
 macro_rules! scalar_loop {
     ($name:ident $(<$t:ident>)?, $output:ty, $count:literal, $( $index:literal => $argument:ident : $ty:ty ),+ => $body:expr) => {
+        scalar_loop!(@1024, $name $(<$t>)?, $output, $count, $($index => $argument : $ty),+ => $body);
+    };
+    (@$parallel:expr, $name:ident $(<$t:ident>)?, $output:ty, $count:literal, $( $index:literal => $argument:ident : $ty:ty ),+ => $body:expr) => {
         unsafe extern "C" fn $name $(<$t: Into<Complex> + Copy + Send + Sync>)? (args: *mut *mut c_char, dimensions: *mut npy_intp, steps: *mut npy_intp, _data: *mut c_void) {
             // SAFETY: register supplies this exact operand signature, and NumPy
             // provides valid byte strides/counts and buffers overlapping arrays.
@@ -253,7 +363,7 @@ macro_rules! scalar_loop {
                 let n = usize::try_from(*dimensions).unwrap_or_default();
                 let component_stride=if <$output as LoopOutput>::VECTOR {*steps.add($count+1)}else{0};
                 let mut pointers: [*mut c_char; $count + 1] = std::array::from_fn(|i| *args.add(i));
-                if n >= 1024 {
+                if n >= $parallel {
                     let inputs: [Input; $count] = std::array::from_fn(|i|Input{pointer:*args.add(i),stride:*steps.add(i)});
                     let evaluate=|i| {
                         $(let $argument=inputs.get_unchecked($index).read::<$ty>(i);)+
@@ -478,6 +588,241 @@ unsafe extern "C" fn plane_wave_loop<T: Into<Complex> + Copy + Send + Sync, cons
     });
     report_loop(result);
 }
+
+#[allow(clippy::float_cmp)] // Axial wave labels use exact equality, as in basis expansions.
+fn cylindrical_translation(
+    kz: f64,
+    mu: c_long,
+    qz: f64,
+    m: c_long,
+    args: [Complex; 3],
+    radial: special::Radial,
+) -> treams_core::Result<Complex> {
+    if !kz.is_finite() || !qz.is_finite() || mu.unsigned_abs() > 128 || m.unsigned_abs() > 128 {
+        return Err(Error::InvalidInput(
+            "finite axial labels and |orders| <= 128 required".into(),
+        ));
+    }
+    if kz != qz {
+        return Ok(Complex::default());
+    }
+    let order = i32::try_from(m - mu)
+        .map_err(|_| Error::InvalidInput("invalid cylindrical order".into()))?;
+    treams_core::polar::cylindrical_value(order, [args[0], args[1], args[2], kz.into()], radial)
+}
+scalar_loop!(@64, tl_vcw_loop, Complex, 7, 0=>kz:f64, 1=>mu:c_long, 2=>qz:f64, 3=>m:c_long, 4=>kr:Complex, 5=>phi:f64, 6=>z:f64 => {
+    cylindrical_translation(kz,mu,qz,m,[kr,phi.into(),z.into()],special::Radial::Outgoing)
+});
+scalar_loop!(@64, tl_vcw_r_loop<T>, Complex, 7, 0=>kz:f64, 1=>mu:c_long, 2=>qz:f64, 3=>m:c_long, 4=>kr:T, 5=>phi:f64, 6=>z:f64 => {
+    cylindrical_translation(kz,mu,qz,m,[kr.into(),phi.into(),z.into()],special::Radial::Regular)
+});
+
+unsafe extern "C" fn polar_translation_loop<
+    T: Into<Complex> + Copy + Send + Sync,
+    const KIND: u8,
+    const REGULAR: bool,
+    const ARGS: usize,
+>(
+    args: *mut *mut c_char,
+    dimensions: *mut npy_intp,
+    steps: *mut npy_intp,
+    _data: *mut c_void,
+) {
+    // SAFETY: Seven operands for special coefficients, nine for polarized
+    // coefficients. Registrations use C-long labels and the documented real/
+    // complex argument positions, feeding one complex scalar output. NumPy supplies the matching strides and
+    // handles overlaps. Every row is read before writing; workers finish before
+    // buffered output is stored, preserving noncontiguous and unaligned arrays.
+    let result = std::panic::catch_unwind(|| unsafe {
+        let n = usize::try_from(*dimensions).unwrap_or_default();
+        if n == 0 {
+            return Ok(());
+        }
+        let inputs: [Input; ARGS] = std::array::from_fn(|i| Input {
+            pointer: *args.add(i),
+            stride: *steps.add(i),
+        });
+        let labels = ARGS - 3;
+        let prepare = |i| {
+            let (to, from) = if ARGS == 9 {
+                (
+                    integer_wave_mode(
+                        inputs[0].read::<c_long>(i),
+                        inputs[1].read::<c_long>(i),
+                        inputs[2].read::<c_long>(i),
+                    )?,
+                    integer_wave_mode(
+                        inputs[3].read::<c_long>(i),
+                        inputs[4].read::<c_long>(i),
+                        inputs[5].read::<c_long>(i),
+                    )?,
+                )
+            } else {
+                (
+                    integer_wave_mode(inputs[0].read::<c_long>(i), inputs[1].read::<c_long>(i), 0)?,
+                    integer_wave_mode(
+                        inputs[2].read::<c_long>(i),
+                        inputs[3].read::<c_long>(i),
+                        c_long::from(KIND),
+                    )?,
+                )
+            };
+            treams_core::polar::SphericalTranslation::new(
+                to,
+                from,
+                KIND == 3,
+                if REGULAR {
+                    special::Radial::Regular
+                } else {
+                    special::Radial::Outgoing
+                },
+            )
+        };
+        let plan = if n > 1 && (0..labels).all(|i| *steps.add(i) == 0) {
+            Some(prepare(0)?)
+        } else {
+            None
+        };
+        let evaluate = |i| {
+            let arguments = if ARGS == 9 {
+                [
+                    inputs[6].read::<T>(i).into(),
+                    inputs[7].read::<f64>(i).into(),
+                    inputs[8].read::<f64>(i).into(),
+                ]
+            } else {
+                [
+                    inputs[4].read::<Complex>(i),
+                    inputs[5].read::<T>(i).into(),
+                    inputs[6].read::<f64>(i).into(),
+                ]
+            };
+            if ARGS == 9 && !REGULAR && arguments[0].norm() < 1e-16 {
+                return Ok(Complex::default());
+            }
+            match &plan {
+                Some(p) => p.value(arguments),
+                None => prepare(i)?.value(arguments),
+            }
+        };
+        let mut output = *args.add(ARGS);
+        if n >= 1024 {
+            let values: Vec<_> = (0..n)
+                .into_par_iter()
+                .map(evaluate)
+                .collect::<treams_core::Result<_>>()?;
+            for v in values {
+                output.cast::<Complex>().write_unaligned(v);
+                output = output.wrapping_offset(*steps.add(ARGS));
+            }
+        } else {
+            for i in 0..n {
+                output.cast::<Complex>().write_unaligned(evaluate(i)?);
+                output = output.wrapping_offset(*steps.add(ARGS));
+            }
+        }
+        Ok(())
+    });
+    finish_loop(result);
+}
+
+fn polarization_label(p: c_long) -> treams_core::Result<u8> {
+    match p {
+        0 => Ok(0),
+        1 => Ok(1),
+        _ => Err(Error::InvalidInput("polarization must be 0 or 1".into())),
+    }
+}
+scalar_loop!(sw_rotate_loop, Complex, 9, 0=>lambda:c_long, 1=>mu:c_long, 2=>p:c_long, 3=>l:c_long, 4=>m:c_long, 5=>q:c_long, 6=>phi:f64, 7=>theta:f64, 8=>psi:f64 => {
+    let to=integer_wave_mode(lambda,mu,p)?;let from=integer_wave_mode(l,m,q)?;
+    to.validate()?;from.validate()?;
+    if to.l!=from.l || to.pol!=from.pol {Ok(Complex::default())}else{treams_core::rotation::wigner(to.l,to.m,from.m,[phi.into(),theta.into(),psi.into()])}
+});
+#[allow(clippy::float_cmp)] // Exact axial labels select cylindrical coefficients.
+fn cylinder_rotation(
+    kz: f64,
+    mu: c_long,
+    p: c_long,
+    qz: f64,
+    m: c_long,
+    q: c_long,
+    phi: f64,
+) -> treams_core::Result<Complex> {
+    let p = polarization_label(p)?;
+    let q = polarization_label(q)?;
+    if !kz.is_finite()
+        || !qz.is_finite()
+        || !phi.is_finite()
+        || mu.unsigned_abs() > 128
+        || m.unsigned_abs() > 128
+    {
+        return Err(Error::InvalidInput(
+            "finite axial/angle arguments and |orders| <= 128 required".into(),
+        ));
+    }
+    if kz != qz || mu != m || p != q {
+        Ok(Complex::default())
+    } else {
+        Ok((-Complex::i()
+            * f64::from(
+                i32::try_from(m).map_err(|_| Error::InvalidInput("invalid order".into()))?,
+            )
+            * phi)
+            .exp())
+    }
+}
+scalar_loop!(cw_rotate_loop, Complex, 7, 0=>kz:f64, 1=>mu:c_long, 2=>p:c_long, 3=>qz:f64, 4=>m:c_long, 5=>q:c_long, 6=>phi:f64 => cylinder_rotation(kz,mu,p,qz,m,q,phi));
+macro_rules! cylindrical_translate_loop {
+    ($name:ident,$regular:expr)=> {
+        scalar_loop!(@64, $name<T>, Complex, 9, 0=>kz:f64, 1=>mu:c_long, 2=>p:c_long, 3=>qz:f64, 4=>m:c_long, 5=>q:c_long, 6=>kr:T, 7=>phi:f64, 8=>z:f64 => {
+            let p=polarization_label(p)?;let q=polarization_label(q)?;let kr:Complex=kr.into();
+            if p!=q || (!$regular && kr.norm()<1e-16 && z.abs()<1e-16) {Ok(Complex::default())}else{cylindrical_translation(kz,mu,qz,m,[kr,phi.into(),z.into()],if $regular {special::Radial::Regular}else{special::Radial::Outgoing})}
+        });
+    };
+}
+cylindrical_translate_loop!(cw_translate_s_loop, false);
+cylindrical_translate_loop!(cw_translate_r_loop, true);
+scalar_loop!(@512, pw_translate_loop<T>, Complex, 6, 0=>kx:T, 1=>ky:T, 2=>kz:T, 3=>x:f64, 4=>y:f64, 5=>z:f64 => treams_core::plane::translation([kx.into(),ky.into(),kz.into()],[x,y,z]));
+macro_rules! plane_to_spherical_loop {
+    ($name:ident,$helicity:expr)=> {
+        scalar_loop!($name<T>, Complex, 7, 0=>l:c_long, 1=>m:c_long, 2=>p:c_long, 3=>kx:T, 4=>ky:T, 5=>kz:T, 6=>q:c_long => treams_core::plane::to_spherical(integer_wave_mode(l,m,p)?,[kx.into(),ky.into(),kz.into()],polarization_label(q)?,$helicity));
+    };
+}
+plane_to_spherical_loop!(pw_to_sw_h_loop, true);
+plane_to_spherical_loop!(pw_to_sw_p_loop, false);
+scalar_loop!(pw_to_cw_loop<T>, Complex, 7, 0=>kz:f64, 1=>m:c_long, 2=>p:c_long, 3=>kx:f64, 4=>ky:T, 5=>qz:f64, 6=>q:c_long => treams_core::plane::to_cylindrical(treams_core::cylwaves::Mode{kz,m:i32::try_from(m).map_err(|_|Error::InvalidInput("invalid order".into()))?,pol:polarization_label(p)?},[kx.into(),ky.into(),qz.into()],polarization_label(q)?));
+macro_rules! cylindrical_to_spherical_loop {
+    ($name:ident,$helicity:expr)=> {
+        scalar_loop!($name, Complex, 7, 0=>l:c_long, 1=>m:c_long, 2=>p:c_long, 3=>kz:f64, 4=>mu:c_long, 5=>q:c_long, 6=>k:Complex => treams_core::conversion::to_spherical(integer_wave_mode(l,m,p)?,treams_core::cylwaves::Mode{kz,m:i32::try_from(mu).map_err(|_|Error::InvalidInput("invalid order".into()))?,pol:polarization_label(q)?},k,$helicity));
+    };
+}
+cylindrical_to_spherical_loop!(cw_to_sw_h_loop, true);
+cylindrical_to_spherical_loop!(cw_to_sw_p_loop, false);
+macro_rules! plane_permutation_loop {
+    ($name:ident,$helicity:expr,$turns:expr)=> {
+        scalar_loop!($name<T>, Complex, 5, 0=>kx:T, 1=>ky:T, 2=>kz:T, 3=>p:c_long, 4=>q:c_long => treams_core::plane::permutation_coefficient([kx.into(),ky.into(),kz.into()],polarization_label(p)?,polarization_label(q)?,$turns,$helicity));
+    };
+}
+plane_permutation_loop!(pw_permute_h_loop, true, 1);
+plane_permutation_loop!(pw_permute_p_loop, false, 1);
+plane_permutation_loop!(pw_inverse_h_loop, true, 2);
+plane_permutation_loop!(pw_inverse_p_loop, false, 2);
+
+macro_rules! spherical_radiation_loop {
+    ($name:ident,$helicity:expr)=> {
+        scalar_loop!($name<T>, Complex, 8, 0=>kx:f64, 1=>ky:f64, 2=>kz:T, 3=>p:c_long, 4=>l:c_long, 5=>m:c_long, 6=>q:c_long, 7=>area:f64 => treams_core::channels::spherical_to_plane(integer_wave_mode(l,m,q)?,[kx.into(),ky.into(),kz.into()],polarization_label(p)?,area,$helicity));
+    };
+}
+spherical_radiation_loop!(sw_to_pw_h_loop, true);
+spherical_radiation_loop!(sw_to_pw_p_loop, false);
+scalar_loop!(cw_to_pw_loop<T>, Complex, 8, 0=>kx:f64, 1=>ky:T, 2=>kz:f64, 3=>p:c_long, 4=>qz:f64, 5=>m:c_long, 6=>q:c_long, 7=>period:f64 => treams_core::channels::cylindrical_to_plane(treams_core::cylwaves::Mode{kz:qz,m:i32::try_from(m).map_err(|_|Error::InvalidInput("invalid order".into()))?,pol:polarization_label(q)?},[kx.into(),ky.into(),kz.into()],polarization_label(p)?,period));
+macro_rules! spherical_to_cylindrical_loop {
+    ($name:ident,$helicity:expr)=> {
+        scalar_loop!($name, Complex, 8, 0=>kz:f64, 1=>mu:c_long, 2=>p:c_long, 3=>l:c_long, 4=>m:c_long, 5=>q:c_long, 6=>k:Complex, 7=>period:f64 => treams_core::conversion::periodic_to_cylindrical(treams_core::cylwaves::Mode{kz,m:i32::try_from(mu).map_err(|_|Error::InvalidInput("invalid order".into()))?,pol:polarization_label(p)?},integer_wave_mode(l,m,q)?,k,period,$helicity));
+    };
+}
+spherical_to_cylindrical_loop!(sw_to_cw_h_loop, true);
+spherical_to_cylindrical_loop!(sw_to_cw_p_loop, false);
 
 fn coordinate_transform(index: u8) -> treams_core::coordinates::Transform {
     use treams_core::coordinates::Transform;
@@ -729,6 +1074,55 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     add!(@loops "vpw_M",[Some(plane_wave_loop::<f64,0>),Some(plane_wave_loop::<Complex,0>)],[[D,D,D,D,D,D,Z],[Z,Z,Z,D,D,D,Z]],6,2,c"(),(),(),(),(),()->(3)".as_ptr());
     add!(@loops "vpw_N",[Some(plane_wave_loop::<f64,1>),Some(plane_wave_loop::<Complex,1>)],[[D,D,D,D,D,D,Z],[Z,Z,Z,D,D,D,Z]],6,2,c"(),(),(),(),(),()->(3)".as_ptr());
     add!(@loops "vpw_A",[Some(plane_wave_loop::<f64,2>),Some(plane_wave_loop::<Complex,2>)],[[D,D,D,D,D,D,I,Z],[Z,Z,Z,D,D,D,I,Z]],7,2,c"(),(),(),(),(),(),()->(3)".as_ptr());
+    add!("tl_vcw", tl_vcw_loop, [D, I, D, I, Z, D, D, Z], 7);
+    add!(@loops "tl_vcw_r",[Some(tl_vcw_r_loop::<f64>),Some(tl_vcw_r_loop::<Complex>)],[[D,I,D,I,D,D,D,Z],[D,I,D,I,Z,D,D,Z]],7,2,std::ptr::null());
+    add!(
+        "sw_rotate",
+        sw_rotate_loop,
+        [I, I, I, I, I, I, D, D, D, Z],
+        9
+    );
+    add!("cw_rotate", cw_rotate_loop, [D, I, I, D, I, I, D, Z], 7);
+    add!(@loops "sw_to_pw_h",[Some(sw_to_pw_h_loop::<f64>),Some(sw_to_pw_h_loop::<Complex>)],[[D,D,D,I,I,I,I,D,Z],[D,D,Z,I,I,I,I,D,Z]],8,2,std::ptr::null());
+    add!(@loops "sw_to_pw_p",[Some(sw_to_pw_p_loop::<f64>),Some(sw_to_pw_p_loop::<Complex>)],[[D,D,D,I,I,I,I,D,Z],[D,D,Z,I,I,I,I,D,Z]],8,2,std::ptr::null());
+    add!(@loops "cw_to_pw",[Some(cw_to_pw_loop::<f64>),Some(cw_to_pw_loop::<Complex>)],[[D,D,D,I,D,I,I,D,Z],[D,Z,D,I,D,I,I,D,Z]],8,2,std::ptr::null());
+    add!(
+        "sw_to_cw_h",
+        sw_to_cw_h_loop,
+        [D, I, I, I, I, I, Z, D, Z],
+        8
+    );
+    add!(
+        "sw_to_cw_p",
+        sw_to_cw_p_loop,
+        [D, I, I, I, I, I, Z, D, Z],
+        8
+    );
+    add!(@loops "sw_translate_sh",[Some(polar_translation_loop::<f64,3,false,9>),Some(polar_translation_loop::<Complex,3,false,9>)],[[I,I,I,I,I,I,D,D,D,Z],[I,I,I,I,I,I,Z,D,D,Z]],9,2,std::ptr::null());
+    add!(@loops "sw_translate_rh",[Some(polar_translation_loop::<f64,3,true,9>),Some(polar_translation_loop::<Complex,3,true,9>)],[[I,I,I,I,I,I,D,D,D,Z],[I,I,I,I,I,I,Z,D,D,Z]],9,2,std::ptr::null());
+    add!(@loops "sw_translate_sp",[Some(polar_translation_loop::<f64,2,false,9>),Some(polar_translation_loop::<Complex,2,false,9>)],[[I,I,I,I,I,I,D,D,D,Z],[I,I,I,I,I,I,Z,D,D,Z]],9,2,std::ptr::null());
+    add!(@loops "sw_translate_rp",[Some(polar_translation_loop::<f64,2,true,9>),Some(polar_translation_loop::<Complex,2,true,9>)],[[I,I,I,I,I,I,D,D,D,Z],[I,I,I,I,I,I,Z,D,D,Z]],9,2,std::ptr::null());
+    add!(@loops "cw_translate_s",[Some(cw_translate_s_loop::<f64>),Some(cw_translate_s_loop::<Complex>)],[[D,I,I,D,I,I,D,D,D,Z],[D,I,I,D,I,I,Z,D,D,Z]],9,2,std::ptr::null());
+    add!(@loops "cw_translate_r",[Some(cw_translate_r_loop::<f64>),Some(cw_translate_r_loop::<Complex>)],[[D,I,I,D,I,I,D,D,D,Z],[D,I,I,D,I,I,Z,D,D,Z]],9,2,std::ptr::null());
+    add!(@loops "pw_translate_ufunc",[Some(pw_translate_loop::<f64>),Some(pw_translate_loop::<Complex>)],[[D,D,D,D,D,D,Z],[Z,Z,Z,D,D,D,Z]],6,2,std::ptr::null());
+    let translation = module.getattr("pw_translate_ufunc")?.unbind();
+    let _ = PW_TRANSLATE.set(translation);
+    module.add_function(wrap_pyfunction!(pw_translate, module)?)?;
+    module.add_function(wrap_pyfunction!(cylindrical_translation_scalar, module)?)?;
+    module.add_function(wrap_pyfunction!(plane_permutation_scalar, module)?)?;
+    add!(@loops "pw_to_sw_h",[Some(pw_to_sw_h_loop::<f64>),Some(pw_to_sw_h_loop::<Complex>)],[[I,I,I,D,D,D,I,Z],[I,I,I,Z,Z,Z,I,Z]],7,2,std::ptr::null());
+    add!(@loops "pw_to_sw_p",[Some(pw_to_sw_p_loop::<f64>),Some(pw_to_sw_p_loop::<Complex>)],[[I,I,I,D,D,D,I,Z],[I,I,I,Z,Z,Z,I,Z]],7,2,std::ptr::null());
+    add!(@loops "pw_to_cw",[Some(pw_to_cw_loop::<f64>),Some(pw_to_cw_loop::<Complex>)],[[D,I,I,D,D,D,I,Z],[D,I,I,D,Z,D,I,Z]],7,2,std::ptr::null());
+    add!("cw_to_sw_h", cw_to_sw_h_loop, [I, I, I, D, I, I, Z, Z], 7);
+    add!("cw_to_sw_p", cw_to_sw_p_loop, [I, I, I, D, I, I, Z, Z], 7);
+    add!(@loops "pw_permute_h",[Some(pw_permute_h_loop::<f64>),Some(pw_permute_h_loop::<Complex>)],[[D,D,D,I,I,Z],[Z,Z,Z,I,I,Z]],5,2,std::ptr::null());
+    add!(@loops "pw_permute_p",[Some(pw_permute_p_loop::<f64>),Some(pw_permute_p_loop::<Complex>)],[[D,D,D,I,I,Z],[Z,Z,Z,I,I,Z]],5,2,std::ptr::null());
+    add!(@loops "pw_inverse_h",[Some(pw_inverse_h_loop::<f64>),Some(pw_inverse_h_loop::<Complex>)],[[D,D,D,I,I,Z],[Z,Z,Z,I,I,Z]],5,2,std::ptr::null());
+    add!(@loops "pw_inverse_p",[Some(pw_inverse_p_loop::<f64>),Some(pw_inverse_p_loop::<Complex>)],[[D,D,D,I,I,Z],[Z,Z,Z,I,I,Z]],5,2,std::ptr::null());
+    add!(@loops "tl_vsw_A",[Some(polar_translation_loop::<f64,0,false,7>),Some(polar_translation_loop::<Complex,0,false,7>)],[[I,I,I,I,Z,D,D,Z],[I,I,I,I,Z,Z,D,Z]],7,2,std::ptr::null());
+    add!(@loops "tl_vsw_B",[Some(polar_translation_loop::<f64,1,false,7>),Some(polar_translation_loop::<Complex,1,false,7>)],[[I,I,I,I,Z,D,D,Z],[I,I,I,I,Z,Z,D,Z]],7,2,std::ptr::null());
+    add!(@loops "tl_vsw_rA",[Some(polar_translation_loop::<f64,0,true,7>),Some(polar_translation_loop::<Complex,0,true,7>)],[[I,I,I,I,Z,D,D,Z],[I,I,I,I,Z,Z,D,Z]],7,2,std::ptr::null());
+    add!(@loops "tl_vsw_rB",[Some(polar_translation_loop::<f64,1,true,7>),Some(polar_translation_loop::<Complex,1,true,7>)],[[I,I,I,I,Z,D,D,Z],[I,I,I,I,Z,Z,D,Z]],7,2,std::ptr::null());
     macro_rules! coordinates {
         ($point:literal,$vector:literal,$kind:literal,$point_signature:literal,$vector_signature:literal)=>{{
             static mut POINT_LOOP:[PyUFuncGenericFunction;1]=[Some(coordinate_loop::<$kind,false,false>)];

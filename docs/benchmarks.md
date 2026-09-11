@@ -849,3 +849,39 @@ Final wave results are `wave-<function>-n<size>.json` and
 `wave-adjoint-final-<function>-n<size>.json`; each includes the native binary hash.
 These measurements qualify the listed workloads, not every possible problem size,
 conditioning regime or machine.
+
+
+## Coefficient namespaces and integral adjoints
+
+The coefficient release passes all 257 runtime gates and all 253 applicable
+forward-RSS gates on the same four-core Linux configuration. The four recorded
+internal-illumination cases retain the existing RSS exemption described above.
+The smallest measured speedup is 1.006x for scalar cw.rotate; this remains a
+noise-sensitive comparison. Accuracy, speed and RSS thresholds are unchanged.
+The result manifest and native SHA256 are in `benchmarks/coefficient-qualification.json`.
+
+| Forward function | 1 sample | 128 samples | 4,096 samples |
+| --- | ---: | ---: | ---: |
+| tl_vcw | 1.822x | 1.299x | 2.569x |
+| tl_vcw_r | 2.427x | 1.368x | 4.606x |
+| cw.translate | 2.195x | 1.510x | 4.272x |
+| pw.permute_xyz | 3.592x | 1.367x | 10.028x |
+| pw.translate | 2.223x | 1.226x | 1.236x |
+
+Cylindrical coefficient arrays now use the radial kernel's 64-element Rayon
+threshold; scalar Python numbers bypass NumPy dispatch. Plane-coordinate
+permutations share normalization factors and retain the scaled axis/extreme
+branches. Plane phases evaluate one exponential and one sine/cosine pair. Kambe
+recording avoids redundant broadcasts and recurrence setup. Raw initial failures
+and targeted rechecks remain alongside the passing combined results.
+
+Paired timing now calibrates each backend's batch independently to at least
+20 milliseconds. This avoids oversampling the slower backend when the speedup
+is large. Both backends still receive 14 alternating paired samples, with
+per-call timings and independent-process RSS measurements. The first 91 cases
+were retained from the preceding calibration method at the identical native
+SHA256; the other 166 used independent batch sizes, recorded explicitly in JSON.
+The manifest records this completed case-boundary resume.
+
+The release passes 65 native tests, 1,611 Python tests, strict lint/type/rustdoc
+checks and isolated Linux wheel checks including Advect and optional HDF5.

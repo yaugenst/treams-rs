@@ -41,7 +41,8 @@ impl<const N: usize> Jet<N> {
         self.map(self.value.powi(n), f64::from(n) * self.value.powi(n - 1))
     }
     pub(crate) fn exp(self) -> Self {
-        self.map(self.value.exp(), self.value.exp())
+        let value = self.value.exp();
+        self.map(value, value)
     }
     pub(crate) fn sqrt(self) -> Self {
         {

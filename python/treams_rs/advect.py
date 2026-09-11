@@ -90,6 +90,26 @@ def bessel(
     return _call((z,), forward)
 
 
+def incgamma(z: ArrayLike, *, n: ArrayLike) -> NDArray[np.complex128]:
+    """Upper incomplete gamma with a native argument pullback; n stays fixed."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.incgamma(n, values[0])
+        return value, lambda g: (context.pullback(g),)
+
+    return _call((z,), forward)
+
+
+def intkambe(z: ArrayLike, eta: ArrayLike, *, n: ArrayLike) -> NDArray[np.complex128]:
+    """Kambe integral with native z and eta pullbacks; n stays fixed."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.intkambe(n, *values)
+        return value, context.pullback
+
+    return _call((z, eta), forward)
+
+
 def angular(
     z: ArrayLike, *, degree: ArrayLike, order: ArrayLike, kind: str = "legendre"
 ) -> NDArray[np.complex128]:
@@ -1099,3 +1119,48 @@ def sph_harm(
 ) -> NDArray[np.complex128]:
     """Normalized spherical harmonic with native theta and phi pullbacks."""
     return vector_wave(theta, phi, kind="sph_harm", degree=degree, order=order)
+
+
+def spherical_translation(
+    kr: ArrayLike,
+    theta: ArrayLike,
+    phi: ArrayLike,
+    *,
+    destination: Sequence[ArrayLike],
+    source: Sequence[ArrayLike],
+    poltype: str = "helicity",
+    singular: bool = True,
+) -> NDArray[np.complex128]:
+    """Polar spherical translation with native argument pullbacks."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.spherical_translation(
+            *values,
+            destination=destination,
+            source=source,
+            poltype=poltype,
+            singular=singular,
+        )
+        return value, context.pullback
+
+    return _call((kr, theta, phi), forward)
+
+
+def cylindrical_translation(
+    krr: ArrayLike,
+    phi: ArrayLike,
+    z: ArrayLike,
+    kz: ArrayLike,
+    *,
+    order: ArrayLike,
+    singular: bool = True,
+) -> NDArray[np.complex128]:
+    """Cylindrical polar translation with an analytic common-axial-label VJP."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.cylindrical_translation(
+            *values, order=order, singular=singular
+        )
+        return value, context.pullback
+
+    return _call((krr, phi, z, kz), forward)

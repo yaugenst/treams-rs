@@ -27,15 +27,13 @@ fn algebraic_norm(values: &[Complex]) -> Complex {
     }
     complex_sqrt(values.iter().map(|v| (v / scale).powu(2)).sum::<Complex>()) * scale
 }
-fn wavenumbers(vector: [Complex; 3]) -> Result<(Complex, Complex, [Complex; 2])> {
-    if vector.iter().any(|&v| !finite(v)) {
-        return Err(Error::InvalidInput("wavevector must be finite".into()));
-    }
-    let scale = vector[..2]
+#[inline]
+fn transverse_values(vector: [Complex; 2]) -> Result<(Complex, [Complex; 2])> {
+    let scale = vector
         .iter()
         .map(|v| v.re.abs().max(v.im.abs()))
         .fold(0.0, f64::max);
-    let (transverse, xy) = if scale == 0.0 {
+    Ok(if scale == 0.0 {
         (Complex::default(), [Complex::default(); 2])
     } else {
         let (scaled, factor) = if (1e-150..=1e150).contains(&scale) {
@@ -50,7 +48,13 @@ fn wavenumbers(vector: [Complex; 3]) -> Result<(Complex, Complex, [Complex; 2])>
             ));
         }
         (norm * factor, scaled.map(|v| ratio(v, norm)))
-    };
+    })
+}
+fn wavenumbers(vector: [Complex; 3]) -> Result<(Complex, Complex, [Complex; 2])> {
+    if vector.iter().any(|&v| !finite(v)) {
+        return Err(Error::InvalidInput("wavevector must be finite".into()));
+    }
+    let (transverse, xy) = transverse_values([vector[0], vector[1]])?;
     let k = algebraic_norm(&vector);
     if k == Complex::default() || !finite(k) {
         return Err(Error::InvalidInput(
@@ -68,6 +72,15 @@ struct Direction<const N: usize> {
 impl<const N: usize> Direction<N> {
     fn new(vector: [Complex; 3]) -> Result<Self> {
         let (k, transverse, xy) = wavenumbers(vector)?;
+        Self::from_parts(vector, k, transverse, xy)
+    }
+    #[inline]
+    fn from_parts(
+        vector: [Complex; 3],
+        k: Complex,
+        transverse: Complex,
+        xy: [Complex; 2],
+    ) -> Result<Self> {
         if N != 0 && transverse == Complex::default() {
             return Err(Error::InvalidInput("plane-wave direction derivative is undefined on the polarization axis; fix the wavevectors".into()));
         }
@@ -306,6 +319,25 @@ fn cylindrical_coefficient<const N: usize>(
     }
 }
 
+/// One plane-to-cylindrical coefficient with exact axial-label matching.
+#[allow(clippy::float_cmp)] // A direct coefficient preserves exact discrete labels.
+pub fn to_cylindrical(
+    mode: crate::cylwaves::Mode,
+    vector: [Complex; 3],
+    pol: u8,
+) -> Result<Complex> {
+    mode.validate()?;
+    if pol > 1 || vector.iter().any(|&v| !finite(v)) || vector[2].im != 0.0 {
+        return Err(Error::InvalidInput(
+            "finite wavevector, real axial component and polarization 0/1 required".into(),
+        ));
+    }
+    if mode.pol != pol || mode.kz != vector[2].re {
+        return Ok(Complex::default());
+    }
+    Ok(cylindrical_coefficient(mode, vector, &Direction::<0>::new(vector)?, pol).value)
+}
+
 /// Regular cylindrical multipole amplitudes of one plane wave.
 pub fn cylindrical(
     basis: &crate::cylwaves::Basis,
@@ -366,14 +398,13 @@ pub struct FieldGradient {
     /// Complex full-wavevector cotangents; zero when wavevectors are held fixed.
     pub vectors: Vec<[Complex; 3]>,
 }
+#[inline]
 fn phase(vector: [Complex; 3], point: [f64; 3]) -> Complex {
-    (Complex::i()
-        * vector
-            .iter()
-            .zip(point)
-            .map(|(k, r)| k * r)
-            .sum::<Complex>())
-    .exp()
+    let angle = vector[0].re * point[0] + vector[1].re * point[1] + vector[2].re * point[2];
+    let attenuation = vector[0].im * point[0] + vector[1].im * point[1] + vector[2].im * point[2];
+    let (sine, cosine) = angle.sin_cos();
+    let scale = (-attenuation).exp();
+    Complex::new(scale * cosine, scale * sine)
 }
 
 /// Inputs retained for exp(i k.r); no sample-by-mode values or Jacobian are kept.
@@ -405,9 +436,38 @@ fn permutation_pair<const N: usize>(vector: [Complex; 3], turns: usize) -> Resul
         wavenumbers(vector)?;
         return Ok([Jet::constant(1.0), Jet::default()]);
     }
+    // Both coefficients have one denominator. Avoid separately normalizing four
+    // transverse components; retain the scaled gauge path at axes/extreme scales.
+    let scale = vector
+        .iter()
+        .map(|v| v.re.abs().max(v.im.abs()))
+        .fold(0.0, f64::max);
+    if (1e-70..=1e70).contains(&scale) && vector.iter().all(|&v| finite(v)) {
+        let [x, y, z] = std::array::from_fn(|i| Jet::<N>::variable(vector[i], i));
+        let transverse = (x * x + y * y).sqrt();
+        let destination = if turns == 1 {
+            (z * z + x * x).sqrt()
+        } else {
+            (y * y + z * z).sqrt()
+        };
+        let denominator = transverse * destination;
+        let k = (x * x + y * y + z * z).sqrt();
+        if (1e-140..=1e140).contains(&denominator.value.norm_sqr()) && k.value != Complex::default()
+        {
+            let inverse = Jet::constant(1.0) / denominator;
+            return Ok(if turns == 1 {
+                [-y * z * inverse, -Complex::i() * x * k * inverse]
+            } else {
+                [-x * z * inverse, Complex::i() * y * k * inverse]
+            });
+        }
+    }
     let rotated = std::array::from_fn(|axis| vector[(axis + 3 - turns) % 3]);
     let source_direction = Direction::<N>::new(vector)?;
-    let destination = Direction::<N>::new(rotated)?;
+    let (transverse, xy) = transverse_values([rotated[0], rotated[1]])?;
+    // Cyclic rotation preserves the full norm; only the transverse frame changes.
+    let destination =
+        Direction::<N>::from_parts(rotated, source_direction.k.value, transverse, xy)?;
     if source_direction.transverse.value != Complex::default()
         && destination.transverse.value != Complex::default()
     {
@@ -572,6 +632,41 @@ impl PermutationResidual {
             (0..self.modes()).map(gradient).collect()
         }
     }
+}
+
+/// Direct scalar plane translation phase.
+#[inline]
+pub fn translation(vector: [Complex; 3], point: [f64; 3]) -> Result<Complex> {
+    if vector.iter().any(|&v| !finite(v)) || point.iter().any(|v| !v.is_finite()) {
+        return Err(Error::InvalidInput(
+            "plane translation requires finite arguments".into(),
+        ));
+    }
+    let value = phase(vector, point);
+    if !finite(value) {
+        return Err(Error::SpecialFunction("nonfinite plane translation".into()));
+    }
+    Ok(value)
+}
+/// One cyclic-coordinate polarization coefficient without allocating a matrix.
+pub fn permutation_coefficient(
+    vector: [Complex; 3],
+    destination: u8,
+    source: u8,
+    turns: usize,
+    helicity: bool,
+) -> Result<Complex> {
+    if destination > 1 || source > 1 {
+        return Err(Error::InvalidInput("polarization must be 0 or 1".into()));
+    }
+    let value =
+        permutation_polarization(permutation_pair::<0>(vector, turns % 3)?, source, helicity)
+            [usize::from(destination)]
+        .value;
+    if !finite(value) {
+        return Err(Error::SpecialFunction("nonfinite plane permutation".into()));
+    }
+    Ok(value)
 }
 
 /// Plane-wave translation phases with shape (displacements, wavevectors).
@@ -978,4 +1073,11 @@ impl ExpansionResidual {
                 Ok(a)
             })
     }
+}
+
+/// Normal wavenumber on the outgoing branch, including the zero cutoff value.
+#[must_use]
+pub fn wave_vector_z(kx: Complex, ky: Complex, k: Complex) -> Complex {
+    let root = complex_sqrt(k * k - kx * kx - ky * ky);
+    if root.im < 0.0 { -root } else { root }
 }

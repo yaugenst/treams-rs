@@ -1,5 +1,7 @@
+from collections.abc import Sequence
+
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 
 type ComplexArray = NDArray[np.complex128]
 type RealArray = NDArray[np.float64]
@@ -701,3 +703,122 @@ def vector_wave(
     shape: tuple[int, ...],
     argument_shapes: list[tuple[int, ...]],
 ) -> tuple[NDArray[np.complex128], WaveContext]: ...
+
+tl_vsw_A: np.ufunc  # noqa: N816 - upstream public function name
+tl_vsw_B: np.ufunc  # noqa: N816 - upstream public function name
+tl_vsw_rA: np.ufunc  # noqa: N816 - upstream public function name
+tl_vsw_rB: np.ufunc  # noqa: N816 - upstream public function name
+
+class PolarTranslationContext:
+    def pullback(
+        self, cotangent: NDArray[np.complex128]
+    ) -> tuple[
+        NDArray[np.complex128], NDArray[np.complex128], NDArray[np.complex128]
+    ]: ...
+
+def spherical_translation(
+    modes: list[tuple[tuple[int, int, int], tuple[int, int, int]]],
+    arguments: tuple[NDArray[np.complex128], ...],
+    helicity: bool,
+    singular: bool,
+    shape: tuple[int, ...],
+    argument_shapes: tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...]],
+) -> tuple[NDArray[np.complex128], PolarTranslationContext]: ...
+
+tl_vcw: np.ufunc
+tl_vcw_r: np.ufunc
+
+class CylindricalTranslationContext:
+    def pullback(
+        self, cotangent: NDArray[np.complex128]
+    ) -> tuple[
+        NDArray[np.complex128],
+        NDArray[np.complex128],
+        NDArray[np.complex128],
+        NDArray[np.complex128],
+    ]: ...
+
+def cylindrical_translation(
+    orders: list[int],
+    arguments: tuple[NDArray[np.complex128], ...],
+    singular: bool,
+    shape: tuple[int, ...],
+    argument_shapes: tuple[
+        tuple[int, ...], tuple[int, ...], tuple[int, ...], tuple[int, ...]
+    ],
+) -> tuple[NDArray[np.complex128], CylindricalTranslationContext]: ...
+
+sw_rotate: np.ufunc
+cw_rotate: np.ufunc
+sw_translate_sh: np.ufunc
+sw_translate_rh: np.ufunc
+sw_translate_sp: np.ufunc
+sw_translate_rp: np.ufunc
+cw_translate_s: np.ufunc
+cw_translate_r: np.ufunc
+
+def pw_translate(
+    kx: ArrayLike,
+    ky: ArrayLike,
+    kz: ArrayLike,
+    x: ArrayLike,
+    y: ArrayLike,
+    z: ArrayLike,
+    *args: object,
+    **kwargs: object,
+) -> complex | ComplexArray: ...
+
+pw_to_sw_h: np.ufunc
+pw_to_sw_p: np.ufunc
+pw_to_cw: np.ufunc
+cw_to_sw_h: np.ufunc
+cw_to_sw_p: np.ufunc
+pw_permute_h: np.ufunc
+pw_permute_p: np.ufunc
+pw_inverse_h: np.ufunc
+pw_inverse_p: np.ufunc
+
+sw_to_pw_h: np.ufunc
+sw_to_pw_p: np.ufunc
+cw_to_pw: np.ufunc
+sw_to_cw_h: np.ufunc
+sw_to_cw_p: np.ufunc
+
+class GammaContext:
+    def pullback(self, cotangent: ComplexArray) -> ComplexArray: ...
+
+class KambeContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[ComplexArray, ComplexArray]: ...
+
+def gamma_record(
+    degrees: NDArray[np.float64],
+    arguments: ComplexArray,
+    shape: Sequence[int],
+    argument_shape: Sequence[int],
+) -> tuple[ComplexArray, GammaContext]: ...
+def gamma_record_scalar(n: float, z: complex) -> tuple[ComplexArray, GammaContext]: ...
+def kambe_record(
+    orders: NDArray[np.int32],
+    z: ComplexArray,
+    eta: ComplexArray,
+    shape: Sequence[int],
+    argument_shapes: tuple[Sequence[int], Sequence[int]],
+) -> tuple[ComplexArray, KambeContext]: ...
+def kambe_record_scalar(
+    n: int, z: complex, eta: complex
+) -> tuple[ComplexArray, KambeContext]: ...
+def cylindrical_translation_scalar(
+    kz: float,
+    mu: int,
+    qz: float,
+    m: int,
+    kr: complex,
+    phi: float,
+    z: float,
+    singular: bool,
+) -> complex: ...
+def plane_permutation_scalar(
+    kx: complex, ky: complex, kz: complex, p: int, q: int, helicity: bool, inverse: bool
+) -> complex: ...

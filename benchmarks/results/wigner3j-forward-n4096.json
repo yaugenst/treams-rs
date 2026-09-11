@@ -19,17 +19,17 @@
       "lmax": 6,
       "dimension": 4096,
       "threads": 4,
-      "median_seconds": 0.0010645101699628867,
-      "peak_rss_mib": 65.515625,
-      "baseline_rss_mib": 65.515625,
+      "median_seconds": 0.0010519826698873658,
+      "peak_rss_mib": 65.390625,
+      "baseline_rss_mib": 65.390625,
       "samples_seconds": [
-        0.0010645101699628867,
-        0.0010640091699315236,
-        0.0010642153699882328,
-        0.0010640731599414722,
-        0.0010649909899802879,
-        0.0010970020499371457,
-        0.0011048209600267001
+        0.0010529783999663777,
+        0.0010520499698759523,
+        0.0010515117499744519,
+        0.0010519027699774598,
+        0.0010519849699630868,
+        0.001051387450133916,
+        0.0010519826698873658
       ],
       "calls_per_timing_sample": 100,
       "forward_includes_result_destruction": true,
@@ -66,7 +66,7 @@
       "platform": "Linux-7.2.4-200.fc44.x86_64-x86_64-with-glibc2.43",
       "numpy_version": "2.5.3",
       "treams_version": "0.4.5",
-      "native_sha256": "9be612755ce3932d1b40336033c88d42decd6b3cfc06f800c50c1dc34f42268d",
+      "native_sha256": "012d4298e6b7d7538adf74ccd618de65e3e88e684fa829f2998b7d4cfb7b3d25",
       "native_profile": "release",
       "workload": "wigner3j-forward",
       "oracle": "treams public operation",
@@ -79,17 +79,17 @@
       "lmax": 6,
       "dimension": 4096,
       "threads": 4,
-      "median_seconds": 0.00016133462006109767,
-      "peak_rss_mib": 42.609375,
-      "baseline_rss_mib": 41.859375,
+      "median_seconds": 0.00014211607005563566,
+      "peak_rss_mib": 42.5859375,
+      "baseline_rss_mib": 41.484375,
       "samples_seconds": [
-        0.0001541136200830806,
-        0.0001626131500233896,
-        0.00016133462006109767,
-        0.00016407219009124675,
-        0.00015544704991043545,
-        0.00015119345000130124,
-        0.0001813555500120856
+        0.00014104164001764729,
+        0.00014211607005563566,
+        0.00014596017994335852,
+        0.00014448374000494368,
+        0.00014199996992829257,
+        0.0001414689600642305,
+        0.0001431838099961169
       ],
       "calls_per_timing_sample": 100,
       "forward_includes_result_destruction": true,
@@ -113,7 +113,7 @@
   ],
   "timing_comparison": {
     "method": "isolated_process",
-    "speedup": 6.598150908712309
+    "speedup": 7.402278077880532
   },
-  "speedup": 6.598150908712309
+  "speedup": 7.402278077880532
 }

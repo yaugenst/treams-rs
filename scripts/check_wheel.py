@@ -516,3 +516,31 @@ np.testing.assert_allclose(
     advect.grad(local_wave_energy)(np.array(1.0)), 0.0, atol=1e-13
 )
 print("Clean wheel: normalized harmonics and complete local-wave scale adjoint passed")
+
+
+np.testing.assert_allclose(tr.special.tl_vsw_rA(2, 1, 2, 1, 0, 0.7, 0.3), 1, atol=1e-13)
+
+
+def polar_energy(scale):
+    value = ad.cylindrical_translation(
+        1.3, 0.4, 0.3 / scale, 0.2 * scale, order=2, singular=False
+    )
+    return anp.real(anp.conj(value) * value)
+
+
+np.testing.assert_allclose(advect.grad(polar_energy)(np.array(1.0)), 0, atol=1e-13)
+print(
+    "Clean wheel: polar translation identity and common-axial-label scale adjoint passed"
+)
+
+
+def gamma_identity(z):
+    return anp.real(
+        ad.incgamma(z, n=2.5) - 1.5 * ad.incgamma(z, n=1.5) - z**1.5 * anp.exp(-z)
+    )
+
+
+np.testing.assert_allclose(
+    advect.grad(gamma_identity)(np.asarray(1.2 + 0.1j)), 0, atol=2e-12
+)
+print("Clean wheel: incomplete-gamma recurrence and native argument adjoint passed")

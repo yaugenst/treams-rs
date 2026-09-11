@@ -761,3 +761,9 @@ class CylindricalWaveBasis(_WaveBasis[CylindricalMode]):
     @property
     def zms(self) -> tuple[NDArray[np.float64], NDArray[np.int64], NDArray[np.int64]]:
         return self.kz, self.m, self.pol
+
+
+def _poltype(value: str | None) -> bool:
+    if value not in (None, "helicity", "parity"):
+        raise ValueError("poltype must be helicity or parity")
+    return value != "parity"

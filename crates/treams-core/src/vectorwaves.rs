@@ -37,13 +37,9 @@ fn select<const N: usize>(m: [Jet<N>; 3], n: [Jet<N>; 3], pol: u8, helicity: boo
     }
 }
 
-fn angular<const N: usize>(
-    l: i32,
-    m: i32,
-    theta: Jet<N>,
-    phi: Jet<N>,
-    tangential: bool,
-) -> [Jet<N>; 3] {
+/// Principal angular sine, with exact pole labels and analytic local derivatives.
+#[allow(clippy::float_cmp)] // Exact coordinate pole labels.
+pub(crate) fn polar_trig<const N: usize>(theta: Jet<N>) -> [Jet<N>; 2] {
     let cosine = theta.map(theta.value.cos(), -theta.value.sin());
     let mut sine = theta.map(theta.value.sin(), theta.value.cos());
     // Associated Legendre functions use the principal sine factor. Computing
@@ -51,6 +47,22 @@ fn angular<const N: usize>(
     if sine.value.re < 0.0 {
         sine = -sine;
     }
+    // Multipole translations amplify sin(PI)'s rounding residue. An exact
+    // floating-point multiple of the PI constant denotes the coordinate pole.
+    if theta.value.im == 0.0 && theta.value.re % PI == 0.0 {
+        sine.value = Complex::default();
+    }
+    [cosine, sine]
+}
+
+fn angular<const N: usize>(
+    l: i32,
+    m: i32,
+    theta: Jet<N>,
+    phi: Jet<N>,
+    tangential: bool,
+) -> [Jet<N>; 3] {
+    let [cosine, sine] = polar_trig(theta);
     let order = m.abs();
     // Normalize the Legendre recurrence before evaluating it. This removes
     // factorial overflow for high orders and repeated adjacent-order recurrences.

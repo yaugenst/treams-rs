@@ -21,7 +21,7 @@ fn coefficient<const N: usize>(
 ) -> Result<Jet<N>> {
     let cosine = kz / wave;
     let sine = (1.0 - cosine * cosine).sqrt();
-    if sine.value == Complex::default() {
+    if N != 0 && sine.value == Complex::default() {
         return Err(Error::InvalidInput(
             "cylindrical conversion cutoff requires a limiting formulation".into(),
         ));
@@ -78,6 +78,28 @@ fn entry<const N: usize>(
         k: coefficient.derivative.first().copied().unwrap_or_default() * translation.value
             + coefficient.value * translation.k,
     })
+}
+
+/// Coincident-origin cylindrical-to-spherical coefficient, with fixed mode labels.
+pub fn to_spherical(to: Mode, from: cylwaves::Mode, k: Complex, helicity: bool) -> Result<Complex> {
+    to.validate()?;
+    from.validate()?;
+    if !finite(k) || k == Complex::default() {
+        return Err(Error::InvalidInput(
+            "finite nonzero wavenumber required".into(),
+        ));
+    }
+    if to.m != from.m || (helicity && to.pol != from.pol) {
+        return Ok(Complex::default());
+    }
+    Ok(coefficient(
+        to,
+        Jet::<0>::constant(from.kz),
+        Jet::constant(k),
+        from.pol,
+        helicity,
+    )?
+    .value)
 }
 
 /// Retained conversion inputs; derivatives are recomputed and contracted in reverse.
@@ -214,6 +236,16 @@ fn periodic_entry<const N: usize>(
         -1.0
     };
     let beta = coefficient(from, kz, wave, to.pol, helicity)? * (0.25 * sign / period) / wave;
+    // Forward at a coincident origin needs no cylindrical translation or its jets.
+    if N == 0 && r == [0.0; 3] {
+        return Ok(PeriodicEntry {
+            wave: Translation {
+                value: beta.value,
+                ..Translation::default()
+            },
+            kz: Complex::default(),
+        });
+    }
     let translated = cylwaves::translate(
         to,
         cylwaves::Mode { m: from.m, ..to },
@@ -231,6 +263,28 @@ fn periodic_entry<const N: usize>(
         kz: beta.derivative.get(1).copied().unwrap_or_default() * translated.value
             + beta.value * translated.kz,
     })
+}
+
+/// Direct outgoing spherical-to-cylindrical coefficient of a z-periodic array.
+pub fn periodic_to_cylindrical(
+    to: cylwaves::Mode,
+    from: Mode,
+    k: Complex,
+    period: f64,
+    helicity: bool,
+) -> Result<Complex> {
+    to.validate()?;
+    from.validate()?;
+    if !finite(k) || k == Complex::default() || !period.is_finite() || period == 0.0 {
+        return Err(Error::InvalidInput(
+            "finite nonzero wavenumber and period required".into(),
+        ));
+    }
+    Ok(
+        periodic_entry::<0>(to, from, k, [0.0; 3], period.abs(), helicity)?
+            .wave
+            .value,
+    )
 }
 
 /// Retained geometry for a spherical z-periodic array radiating into cylindrical modes.

@@ -69,22 +69,55 @@ def test_channels_reference(poltype, medium, q):
         basis, Material(medium).ks(1.3), qs, plane.pol, 3.0, poltype=poltype
     )
     for side, direction in enumerate(("up", "down")):
-        incident = treams.expand(
-            basis=(sw, pw),
-            modetype=("regular", direction),
-            k0=1.3,
-            material=treams.Material(medium),
-            poltype=poltype,
-        )
-        outgoing = treams.expandlattice(
-            np.diag([1.5, 2.0]),
-            [0, 0],
-            basis=(pw, sw),
-            modetype=direction,
-            k0=1.3,
-            material=treams.Material(medium),
-            poltype=poltype,
-        )
+        if not np.any(qs):
+            # As in test_plane_to_spherical_reference, avoid rounding complex
+            # kz/k away from +/-1 in the oracle. Angular coefficients are scale
+            # invariant; restore the physical phase and radiation normalization.
+            sign = 1 if direction == "up" else -1
+            ks = treams.Material(medium).ks(1.3)[plane.pol]
+            phase = np.exp(1j * sign * basis.positions[basis.pidx, 2, None] * ks)
+            incident = (
+                treams.pw.to_sw(
+                    basis.l[:, None],
+                    basis.m[:, None],
+                    basis.pol[:, None],
+                    0,
+                    0,
+                    sign,
+                    plane.pol,
+                    poltype=poltype,
+                )
+                * phase
+            )
+            outgoing = treams.sw.periodic_to_pw(
+                0,
+                0,
+                sign,
+                plane.pol[:, None],
+                basis.l,
+                basis.m,
+                basis.pol,
+                3.0,
+                poltype=poltype,
+            ) / (ks[:, None] ** 2 * phase.T)
+            np.testing.assert_array_equal(value[:, side, abs(basis.m) != 1], 0)
+        else:
+            incident = treams.expand(
+                basis=(sw, pw),
+                modetype=("regular", direction),
+                k0=1.3,
+                material=treams.Material(medium),
+                poltype=poltype,
+            )
+            outgoing = treams.expandlattice(
+                np.diag([1.5, 2.0]),
+                [0, 0],
+                basis=(pw, sw),
+                modetype=direction,
+                k0=1.3,
+                material=treams.Material(medium),
+                poltype=poltype,
+            )
         assert_allclose(value[0, side], incident, rtol=2e-12, atol=2e-12)
         assert_allclose(value[1, side].T, outgoing, rtol=2e-12, atol=2e-12)
 
@@ -210,7 +243,10 @@ def test_periodic_particle_reflection_transmission(q, poltype, epsilon):
         [treams.TMatrix.sphere(2, 2.1, r, [epsilon, 1], poltype) for r in (0.18, 0.22)],
         tm.basis.positions,
     )
-    expected = treams.SMatrices.from_array(ot.latticeinteraction.solve(a, q), ob)
+    # On macOS the oracle leaves a divide-by-zero status flag while evaluating
+    # zero reciprocal vectors. Its returned sum is finite and remains checked.
+    with np.errstate(divide="ignore"):
+        expected = treams.SMatrices.from_array(ot.latticeinteraction.solve(a, q), ob)
     value = SMatrices.from_array(tm, basis, lattice=a, kpar=q)
     assert_allclose(
         value.array,

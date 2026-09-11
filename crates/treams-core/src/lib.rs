@@ -17,6 +17,7 @@ pub mod lattice;
 pub mod layers;
 pub mod linalg;
 pub mod plane;
+pub mod polar;
 pub mod rotation;
 pub mod smatrix;
 pub mod special;

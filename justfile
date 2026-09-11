@@ -135,3 +135,23 @@ bench-performance: build-ext-release
             uv run --no-sync python scripts/benchmark_cluster.py --workload "wave-${name}" --samples "$samples" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/wave-adjoint-final-${name}-n${samples}.json"
         done
     done
+    for name in tl_vsw_A tl_vsw_B tl_vsw_rA tl_vsw_rB tl_vcw tl_vcw_r; do
+        for samples in 1 128 4096; do
+            uv run --no-sync python scripts/benchmark_cluster.py --workload "polar-${name}-forward" --samples "$samples" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/polar-${name}-n${samples}.json"
+        done
+    done
+    for name in tl_vsw_A tl_vsw_rB tl_vcw tl_vcw_r; do
+        for samples in 128 4096; do
+            uv run --no-sync python scripts/benchmark_cluster.py --workload "polar-${name}" --samples "$samples" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/polar-adjoint-${name}-n${samples}.json"
+        done
+    done
+    for name in sw.rotate sw.translate sw.periodic_to_pw sw.periodic_to_cw cw.rotate cw.translate cw.to_sw cw.periodic_to_pw pw.translate pw.to_sw pw.to_cw pw.permute_xyz; do
+        for samples in 1 128 4096; do
+            uv run --no-sync python scripts/benchmark_cluster.py --workload "namespace-${name}-forward" --samples "$samples" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/namespace-${name}-n${samples}.json"
+        done
+    done
+    for name in incgamma intkambe; do
+        for samples in 128 4096; do
+            uv run --no-sync python scripts/benchmark_cluster.py --workload "$name" --samples "$samples" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/${name}-adjoint-n${samples}.json"
+        done
+    done

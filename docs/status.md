@@ -21,9 +21,9 @@ gauge singularity; both values and derivatives use that limit.
 | Subsystem | Implemented and checked | Remaining |
 | --- | --- | --- |
 | Project | Cargo/PyO3/maturin/uv, lockfiles, just, Ruff, strict Pyrefly, Clippy, pre-commit; hosted Linux CI passing on Python 3.12 and 3.13 | Broader packaged-platform qualification |
-| Spherical functions | Public broadcast Bessel J/Y and incoming/outgoing Hankel values and first derivatives, cylindrical and spherical, with native argument VJPs; public integer-degree Legendre/pi/tau ufuncs and argument VJPs; public Wigner 3j and small/full D matrices, native Euler-angle VJPs, and broadcast upper-gamma/Kambe integrals; Cartesian harmonics in the core | Wider extreme-argument/order qualification; noninteger-degree real Legendre functions and low-level translation coefficients |
+| Spherical functions | Public broadcast Bessel J/Y and incoming/outgoing Hankel values and first derivatives, cylindrical and spherical, with native argument VJPs; public integer-degree Legendre/pi/tau ufuncs and argument VJPs; public Wigner 3j and small/full D matrices, native Euler-angle VJPs, and broadcast upper-gamma/Kambe integrals; Cartesian harmonics in the core | Wider extreme-argument/order qualification; noninteger-degree real Legendre functions |
 | Sphere coefficients | Multilayer, lossy, magnetic, chiral Mie; all continuous input VJPs | Extreme-layer-conditioning analysis |
-| Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs and shared cylindrical axial-group VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks; regular cylindrical-to-spherical and periodic spherical-to-cylindrical conversion with native pullbacks; explicit expandlattice dispatch | Remaining low-level wave-family API coverage |
+| Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs and shared cylindrical axial-group VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks; regular cylindrical-to-spherical and periodic spherical-to-cylindrical conversion with native pullbacks; explicit expandlattice dispatch | Custom spherical lattice-sum callbacks and wider cutoff qualification |
 | Multipole fields | Spherical/cylindrical Cartesian waves and analytic axis limits; weighted fields and full field operators with native position/wavenumber VJPs and linear residuals; electric, magnetic, displacement, flux and Riemann-Silberstein operators; Advect magnetic and G/F samples; native weighted/full plane fields and complex-wavevector VJPs | Upstream operator-attribute machinery |
 | Finite scattering | Dense solve and factorization-reusing adjoint; optimized sphere clusters; heterogeneous spherical/cylindrical local matrices with native local-block, position and medium-wavenumber pullbacks | Broader conditioning qualification |
 | Python interface | Material, spherical/cylindrical bases, TMatrix.sphere, TMatrixC.cylinder, clusters, interaction.solve, changepoltype, expand, xs/xw and averaged cross sections; explicit spherical/cylindrical sources with weighted E/H/D/B/G/F fields and direct T-matrix illumination | Full upstream ndarray annotation machinery is not reproduced; explicit .array is used |
@@ -38,7 +38,7 @@ gauge singularity; both values and derivatives use that limit.
 | Global observables | Native TMatrix cd/db/chi with matrix and CD embedding-wavenumber pullbacks; thin SVD and singular-value VJP; complete Advect chiral-sphere gradients; all-orientation plane chirality-density forms with native geometry and interval adjoints; SMatrices.cd with direction-aware polarization swapping | Direct high-level S-matrix observable adapters |
 | Axisymmetric EBCM | Native sampled-surface regular/outgoing Q integrals and radius, slope, complex-wavenumber and impedance pullbacks; callable-surface convenience; complete Advect deformed-particle solve | Wider shape/order conditioning and quadrature qualification |
 | HDF5 interchange | Optional h5py adapter; scalar matrices and rectangular parameter sweeps; streamed matrix writes; chirality, mode origins/indices and length-unit round trips; legacy treams names and rectangular incident/scattered mode sets | Gmsh mesh helper and extended tmat.h5 v1 submission metadata |
-| Remaining public API | Plane-wave z rotations and native cyclic-axis polarization transforms | Remaining field-operator conveniences and public low-level namespace coverage |
+| Remaining public API | Native sw/cw/pw direct coefficient namespaces, periodic translation conveniences, plane-wave z rotations and cyclic-axis transforms | Field-operator objects, Lattice/WaveVector metadata, misc and lattice decomposition helpers |
 
 `translate` covers spherical, cylindrical and both plane basis families, including
 batched displacements, rectangular mode subsets and masks. Multipoles translate
@@ -496,8 +496,8 @@ in-place, strided and unaligned input/output semantics.
 `special.incgamma` and `special.intkambe` now expose the existing Rust Ewald
 integrals as broadcast ufuncs with direct scalar paths. Their domains remain
 integer/half-integer gamma degree and integer Kambe order. Their derivatives
-already enter the periodic solver pullbacks; direct public integral contexts
-remain to be exposed. No SciPy fallback is used.
+also enter the periodic solver pullbacks; direct public contexts are available
+through diff and Advect. No SciPy fallback is used.
 
 
 Cylindrical weighted fields and full field operators expose real per-mode axial
@@ -568,9 +568,71 @@ angles, axes/origins, strided outputs, ownership and full Advect objectives are
 covered, with a separate SciPy-free clean-wheel check.
 
 
+All six direct spherical/cylindrical translation coefficients (`tl_vsw_A/B`,
+`tl_vsw_rA/rB`, `tl_vcw`, `tl_vcw_r`) expose native NumPy ufuncs with broadcasting,
+masked, strided and unaligned outputs. Fixed spherical mode pairs reuse one
+coupling plan across displacements; independent large batches use Rayon.
+`diff.spherical_translation` / `advect.spherical_translation` differentiate
+complex `(kr, theta, phi)` with fixed degree/order/polarization labels.
+`diff.cylindrical_translation` / `advect.cylindrical_translation` differentiate
+`(krr, phi, z, kz)` at fixed order difference, moving both matching axial labels
+together. One-use native contexts own inputs and reduce every broadcast gradient.
+
+Native properties compare both polar kernels with independent Cartesian
+translation kernels and check all argument derivatives. Hypothesis checks
+spherical origin identity, azimuthal phase and cylindrical translation-group
+composition. Python checks cover regular-origin derivatives, empty and parallel
+batches, ownership, cotangent retry and complete Advect objectives. Closed dipole
+expressions qualify nonzero tiny-angle spherical couplings lost by the reference.
+The polar translation increment is included in the combined Linux qualification below.
+
+The macOS reference checks for lossy normal-incidence channels use exact axial
+unit directions and restore the physical propagation phase. This avoids the
+already documented upstream angular cancellation while retaining all coefficient
+comparisons and their original tolerances. A narrowly scoped NumPy errstate
+suppresses an incidental divide flag from upstream Ewald construction; finite
+matrix, power and conservation comparisons remain unchanged.
+
+
+The `sw`, `cw` and `pw` namespaces now expose direct translations, rotations,
+regular multipole conversions, periodic radiation and cyclic plane-coordinate
+permutations through native ufuncs. Periodic translation conveniences accept
+independent source/destination labels and origins and reuse the native Ewald
+matrix kernels. Direct cylindrical-to-spherical forward coefficients include
+cutoff limits; derivatives at branch points still require a limiting formulation.
+Spherical periodic custom lattice-sum callbacks remain explicitly unsupported.
+
+The macOS ARM64 suite passes 1,592 Python tests, including all new namespace
+reference tests, selection rules, unitarity/group properties, output strides,
+complex vectors and periodic rectangular bases. Their Linux performance
+qualification is included in the combined result below. Direct periodic conversion avoids computing an
+identity translation at coincident origins, and cyclic-coordinate coefficients
+reuse the full wavevector norm when only the transverse frame changes.
+
+
+`diff.incgamma` and `diff.intkambe`, with matching Advect adapters, now expose
+owned argument pullbacks. Gamma differentiates its complex argument at fixed
+half-integer degree; Kambe differentiates both z and eta at fixed integer order.
+Reverse recomputes local derivatives from the endpoint integrand and adjacent
+order, preserves broadcast reductions and skips zero cotangents at singularities.
+The n=-2 Kambe cusp at z=0 is explicitly nondifferentiable; n<=-3 has zero first
+z derivative there. Native proptest checks complex directional derivatives;
+Hypothesis checks gamma recurrence and Kambe integration-by-parts identities
+through complete Advect traces. The macOS suite passes 1,610 Python tests.
+Linux performance qualification of this increment is included below.
+
+
 The local-wave milestone passes 61 Rust tests, 1,512 Python tests, strict
 lint/type/rustdoc checks, and the isolated Linux wheel including optional HDF5.
 All 191 combined runtime gates and 187 applicable forward-RSS gates pass on the
 matched four-core host configuration documented in benchmarks.md. Recorded
 illumination still retains more memory than upstream's forward-only operation;
 its owned tape is required for mutation-safe reverse mode.
+
+
+The coefficient and integral-adjoint milestone passes 65 Rust tests and 1,611
+Python tests, strict lint/type/rustdoc checks and an isolated Linux release wheel
+with Advect and optional HDF5. All 257 combined runtime gates and 253 applicable
+forward-RSS gates pass. The smallest scalar margin is 1.006x; this qualifies the
+measured grid, not every possible problem or machine. See benchmarks.md and the
+committed qualification manifest for the binary hash and complete results.

@@ -48,6 +48,7 @@ def _bessel_inputs(
     degrees, values = (
         (orders, arguments)
         if orders.shape == arguments.shape
+        or (orders.size == 1 and orders.ndim <= arguments.ndim)
         else np.broadcast_arrays(orders, arguments)
     )
     return (
@@ -55,6 +56,72 @@ def _bessel_inputs(
         (arguments if arguments.size == 1 else values).ravel(),
         values.shape,
         arguments.shape,
+    )
+
+
+def incgamma(
+    n: ArrayLike, z: ArrayLike
+) -> tuple[NDArray[np.complex128], _native.GammaContext]:
+    """Upper incomplete gamma and a native z pullback, with fixed half-integer degree."""
+    if isinstance(n, (int, float)) and isinstance(z, (int, float, complex)):
+        return _native.gamma_record_scalar(n, z)
+    degrees, arguments, shape, argument_shape = _bessel_inputs(n, z)
+    return _native.gamma_record(degrees, arguments, shape, argument_shape)
+
+
+def intkambe(
+    n: ArrayLike, z: ArrayLike, eta: ArrayLike
+) -> tuple[NDArray[np.complex128], _native.KambeContext]:
+    """Kambe integral and native z/eta pullbacks; integer order stays fixed.
+
+    Derivatives follow the selected complex branch. The n=-2 cusp at z=0
+    is singular; n<=-3 has a zero first z derivative there.
+    """
+    if (
+        isinstance(n, int)
+        and isinstance(z, (int, float, complex))
+        and isinstance(eta, (int, float, complex))
+    ):
+        return _native.kambe_record_scalar(n, z, eta)
+    arguments = (
+        np.asarray(z, dtype=np.complex128),
+        np.asarray(eta, dtype=np.complex128),
+    )
+    if isinstance(n, (int, np.integer)):
+        if not -260 <= n <= 260:
+            raise ValueError("Kambe orders must be integers in [-260, 260]")
+        orders = np.asarray(n, dtype=np.int32)
+    else:
+        orders = np.asarray(n, dtype=np.float64)
+        if np.any(
+            ~np.isfinite(orders) | (orders != np.floor(orders)) | (np.abs(orders) > 260)
+        ):
+            raise ValueError("Kambe orders must be integers in [-260, 260]")
+        orders = orders.astype(np.int32)
+    arrays = (orders, *arguments)
+    shape = max((a.shape for a in arrays), key=len)
+    if not all(
+        a.shape == shape or (a.size == 1 and a.ndim <= len(shape)) for a in arrays
+    ):
+        shape = np.broadcast_shapes(*(a.shape for a in arrays))
+    return _native.kambe_record(
+        (
+            orders
+            if orders.size == 1 or orders.shape == shape
+            else np.broadcast_to(orders, shape)
+        ).ravel(),
+        (
+            arguments[0]
+            if arguments[0].size == 1 or arguments[0].shape == shape
+            else np.broadcast_to(arguments[0], shape)
+        ).ravel(),
+        (
+            arguments[1]
+            if arguments[1].size == 1 or arguments[1].shape == shape
+            else np.broadcast_to(arguments[1], shape)
+        ).ravel(),
+        shape,
+        (arguments[0].shape, arguments[1].shape),
     )
 
 
@@ -993,3 +1060,127 @@ def sph_harm(
 ) -> tuple[NDArray[np.complex128], _native.WaveContext]:
     """Normalized spherical harmonic with native theta and phi pullbacks."""
     return vector_wave(theta, phi, kind="sph_harm", degree=degree, order=order)
+
+
+def spherical_translation(
+    kr: ArrayLike,
+    theta: ArrayLike,
+    phi: ArrayLike,
+    *,
+    destination: Sequence[ArrayLike],
+    source: Sequence[ArrayLike],
+    poltype: str = "helicity",
+    singular: bool = True,
+) -> tuple[NDArray[np.complex128], _native.PolarTranslationContext]:
+    """Polar translation and (kr, theta, phi) VJPs for fixed (degree, order, pol) labels."""
+    if len(destination) != 3 or len(source) != 3:
+        raise ValueError("each mode requires degree, order and polarization")
+    if poltype not in ("helicity", "parity"):
+        raise ValueError("poltype must be helicity or parity")
+    arguments = tuple(np.asarray(v, dtype=np.complex128) for v in (kr, theta, phi))
+    if all(isinstance(v, (int, np.integer)) for v in (*destination, *source)):
+        shape = max((v.shape for v in arguments), key=len)
+        if all(
+            v.shape == shape or (v.size == 1 and v.ndim <= len(shape))
+            for v in arguments
+        ):
+            return _native.spherical_translation(
+                [
+                    (
+                        cast(
+                            "tuple[int, int, int]",
+                            tuple(int(v) for v in cast("Sequence[int]", destination)),
+                        ),
+                        cast(
+                            "tuple[int, int, int]",
+                            tuple(int(v) for v in cast("Sequence[int]", source)),
+                        ),
+                    )
+                ],
+                tuple(v.ravel() for v in arguments),
+                poltype == "helicity",
+                singular,
+                shape,
+                (arguments[0].shape, arguments[1].shape, arguments[2].shape),
+            )
+    labels = tuple(np.asarray(v, dtype=np.float64) for v in (*destination, *source))
+    if any(
+        np.any(~np.isfinite(v) | (v != np.floor(v)) | (np.abs(v) > 128)) for v in labels
+    ):
+        raise ValueError("mode labels must be integers in [-128,128]")
+    arrays = np.broadcast_arrays(*labels, *arguments)
+    rows = (
+        [tuple(int(v.item()) for v in labels)]
+        if all(v.size == 1 for v in labels)
+        else [
+            tuple(int(v) for v in row)
+            for row in zip(*(v.flat for v in arrays[:6]), strict=True)
+        ]
+    )
+    return _native.spherical_translation(
+        [((r[0], r[1], r[2]), (r[3], r[4], r[5])) for r in rows],
+        tuple(
+            (a if a.size == 1 else cast("NDArray[np.complex128]", b)).ravel()
+            for a, b in zip(arguments, arrays[6:], strict=True)
+        ),
+        poltype == "helicity",
+        singular,
+        arrays[0].shape,
+        (arguments[0].shape, arguments[1].shape, arguments[2].shape),
+    )
+
+
+def cylindrical_translation(
+    krr: ArrayLike,
+    phi: ArrayLike,
+    z: ArrayLike,
+    kz: ArrayLike,
+    *,
+    order: ArrayLike,
+    singular: bool = True,
+) -> tuple[NDArray[np.complex128], _native.CylindricalTranslationContext]:
+    """Cylindrical polar translation; order is source minus destination order.
+
+    Pullback returns (krr, phi, z, kz). The two matching axial wave labels move
+    together with kz; changing their equality partition is a discrete operation.
+    """
+    arguments = tuple(np.asarray(v, dtype=np.complex128) for v in (krr, phi, z, kz))
+    if isinstance(order, (int, np.integer)):
+        shape = max((v.shape for v in arguments), key=len)
+        if all(
+            v.shape == shape or (v.size == 1 and v.ndim <= len(shape))
+            for v in arguments
+        ):
+            return _native.cylindrical_translation(
+                [int(order)],
+                tuple(v.ravel() for v in arguments),
+                singular,
+                shape,
+                (
+                    arguments[0].shape,
+                    arguments[1].shape,
+                    arguments[2].shape,
+                    arguments[3].shape,
+                ),
+            )
+    orders = np.asarray(order, dtype=np.float64)
+    if np.any(
+        ~np.isfinite(orders) | (orders != np.floor(orders)) | (np.abs(orders) > 256)
+    ):
+        raise ValueError("order differences must be integers in [-256,256]")
+    arrays = np.broadcast_arrays(orders, *arguments)
+    return _native.cylindrical_translation(
+        (orders if orders.size == 1 else arrays[0]).astype(np.int32).ravel().tolist(),
+        tuple(
+            (a if a.size == 1 else cast("NDArray[np.complex128]", b)).ravel()
+            for a, b in zip(arguments, arrays[1:], strict=True)
+        ),
+        singular,
+        arrays[0].shape,
+        (
+            arguments[0].shape,
+            arguments[1].shape,
+            arguments[2].shape,
+            arguments[3].shape,
+        ),
+    )

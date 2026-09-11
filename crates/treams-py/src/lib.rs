@@ -10,6 +10,7 @@ mod ebcm;
 mod fields;
 mod lattice;
 mod linalg;
+mod polar;
 mod smatrix;
 mod special;
 mod tmatrix;
@@ -148,6 +149,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     special::register(m)?;
     coordinates::register(m)?;
     vectorwaves::register(m)?;
+    polar::register(m)?;
     ufunc::register(m)?;
     m.add_class::<MieContext>()?;
     m.add_function(wrap_pyfunction!(build_profile, m)?)?;

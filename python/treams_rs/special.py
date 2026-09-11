@@ -255,3 +255,62 @@ vcw_rA = _native.vcw_rA  # noqa: N816 - upstream public function name
 vpw_M = _native.vpw_M  # noqa: N816 - upstream public function name
 vpw_N = _native.vpw_N  # noqa: N816 - upstream public function name
 vpw_A = _native.vpw_A  # noqa: N816 - upstream public function name
+
+tl_vsw_A = _native.tl_vsw_A  # noqa: N816 - upstream public function name
+tl_vsw_B = _native.tl_vsw_B  # noqa: N816 - upstream public function name
+tl_vsw_rA = _native.tl_vsw_rA  # noqa: N816 - upstream public function name
+tl_vsw_rB = _native.tl_vsw_rB  # noqa: N816 - upstream public function name
+
+
+def tl_vcw(
+    kz: ArrayLike,
+    mu: ArrayLike,
+    qz: ArrayLike,
+    m: ArrayLike,
+    krr: ArrayLike,
+    phi: ArrayLike,
+    z: ArrayLike,
+    *args: object,
+    **kwargs: object,
+) -> complex | NDArray[np.complex128]:
+    """Outgoing cylindrical coefficient with exact axial-label selection."""
+    if (
+        not args
+        and not kwargs
+        and isinstance(mu, int)
+        and isinstance(m, int)
+        and isinstance(krr, (int, float, complex))
+        and isinstance(kz, (int, float))
+        and isinstance(qz, (int, float))
+        and isinstance(phi, (int, float))
+        and isinstance(z, (int, float))
+    ):
+        return _native.cylindrical_translation_scalar(kz, mu, qz, m, krr, phi, z, True)
+    return _native.tl_vcw(kz, mu, qz, m, krr, phi, z, *args, **kwargs)
+
+
+def tl_vcw_r(
+    kz: ArrayLike,
+    mu: ArrayLike,
+    qz: ArrayLike,
+    m: ArrayLike,
+    krr: ArrayLike,
+    phi: ArrayLike,
+    z: ArrayLike,
+    *args: object,
+    **kwargs: object,
+) -> complex | NDArray[np.complex128]:
+    """Regular cylindrical coefficient with an analytic coincident-origin limit."""
+    if (
+        not args
+        and not kwargs
+        and isinstance(mu, int)
+        and isinstance(m, int)
+        and isinstance(krr, (int, float, complex))
+        and isinstance(kz, (int, float))
+        and isinstance(qz, (int, float))
+        and isinstance(phi, (int, float))
+        and isinstance(z, (int, float))
+    ):
+        return _native.cylindrical_translation_scalar(kz, mu, qz, m, krr, phi, z, False)
+    return _native.tl_vcw_r(kz, mu, qz, m, krr, phi, z, *args, **kwargs)

@@ -37,9 +37,12 @@ def worker(
             SMatrices,
             SphericalWaveBasis,
             _native,
+            cw,
             diff,
             lattice,
+            pw,
             special,
+            sw,
         )
 
         if _native.build_profile() != "release":
@@ -57,6 +60,51 @@ def worker(
         positions = np.column_stack(
             [np.arange(particles) * 0.8, np.zeros((particles, 2))]
         )
+
+        if workload.startswith("namespace-"):
+            namespace_family, namespace_name = workload.split("-")[1].split(".")
+            sample = 0.7 if samples == 1 else np.linspace(0.3, 1.2, samples)
+            namespace_args = {
+                "sw.rotate": (3, -1, 0, 3, 1, 0, 0.3, sample, 0.2),
+                "sw.translate": (3, -1, 0, 4, 1, 0, 1.3 + 0.2j, sample, 0.4),
+                "sw.periodic_to_pw": (0.3, 0.4, sample + 0.1j, 0, 3, 1, 0, 1.7),
+                "sw.periodic_to_cw": (sample / 3, 1, 0, 3, 1, 0, 1.3 + 0.1j, 1.7),
+                "cw.rotate": (0.2, 1, 0, 0.2, 1, 0, sample),
+                "cw.translate": (0.2, -1, 0, 0.2, 1, 0, sample + 0.1j, 0.3, 0.4),
+                "cw.to_sw": (3, 1, 0, sample / 3, 1, 0, 1.3 + 0.1j),
+                "cw.periodic_to_pw": (0.3, sample + 0.1j, 0.2, 0, 0.2, 1, 0, 1.7),
+                "pw.translate": (0.3, 0.4, 1.2, sample, 0.4, 0.5),
+                "pw.to_sw": (3, 1, 0, 0.3, 0.4, sample + 0.1j, 0),
+                "pw.to_cw": (0.2, 1, 0, 0.3, sample + 0.1j, 0.2, 0),
+                "pw.permute_xyz": (0.3, 0.4, sample + 0.1j, 0, 0),
+            }[workload.split("-")[1]]
+            if backend in ("rust", "check", "compare"):
+                namespace_function = getattr(
+                    {"sw": sw, "cw": cw, "pw": pw}[namespace_family], namespace_name
+                )
+            if backend in ("treams", "check", "compare"):
+                oracle_namespace_function = getattr(
+                    getattr(treams, namespace_family), namespace_name
+                )
+
+        if workload.startswith("polar-"):
+            polar_name = workload.split("-")[1]
+            polar_arguments = (
+                1.4 + 0.2j,
+                0.7 if samples == 1 else np.linspace(0.3, 1.2, samples),
+                0.4,
+            )
+            polar_cross = polar_name.endswith("B")
+            polar_singular = "_r" not in polar_name
+            polar_args = (order, -1, order + 1, 1, *polar_arguments)
+            if polar_name.startswith("tl_vcw"):
+                polar_arguments = (
+                    1.4 + 0.2j if samples == 1 else np.linspace(0.5, 2, samples) + 0.2j,
+                    0.4,
+                    0.3,
+                    0.2,
+                )
+                polar_args = (0.2, -1, 0.2, 1, *polar_arguments[:3])
 
         if workload.startswith("wave-"):
             wave_name = workload.split("-")[1]
@@ -385,6 +433,22 @@ def worker(
         )
 
         def rust():
+            if workload.startswith("namespace-"):
+                return namespace_function(*namespace_args)
+            if workload.startswith("polar-"):
+                if forward_only:
+                    return getattr(special, polar_name)(*polar_args)
+                if polar_name.startswith("tl_vcw"):
+                    return diff.cylindrical_translation(
+                        *polar_arguments, order=2, singular=polar_singular
+                    )
+                return diff.spherical_translation(
+                    *polar_arguments,
+                    destination=(order, -1, 0),
+                    source=(order + 1, 1, int(polar_cross)),
+                    poltype="parity",
+                    singular=polar_singular,
+                )
             if workload.startswith("wave-"):
                 if forward_only:
                     return getattr(special, wave_name)(*wave_args)
@@ -410,6 +474,10 @@ def worker(
                 return special.wignersmalld(order, 1, -2, special_arguments)
             if workload == "wigner3j-forward":
                 return special.wigner3j(order, order, wigner_degrees, 1, -2, 1)
+            if workload == "incgamma":
+                return diff.incgamma(1.5, special_arguments)
+            if workload == "intkambe":
+                return diff.intkambe(-2, special_arguments, 0.7 + 0.1j)
             if workload == "incgamma-forward":
                 return special.incgamma(1.5, special_arguments)
             if workload == "intkambe-forward":
@@ -537,6 +605,10 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload.startswith("namespace-"):
+                return oracle_namespace_function(*namespace_args)
+            if workload.startswith("polar-"):
+                return getattr(treams.special, polar_name)(*polar_args)
             if workload.startswith("wave-"):
                 return getattr(treams.special, wave_name)(*wave_args)
             if workload.startswith("coordinate-"):
@@ -568,9 +640,9 @@ def worker(
                 return treams.special.wignersmalld(order, 1, -2, special_arguments)
             if workload == "wigner3j-forward":
                 return treams.special.wigner3j(order, order, wigner_degrees, 1, -2, 1)
-            if workload == "incgamma-forward":
+            if workload in ("incgamma", "incgamma-forward"):
                 return treams.special.incgamma(1.5, special_arguments)
-            if workload == "intkambe-forward":
+            if workload in ("intkambe", "intkambe-forward"):
                 return treams.special.intkambe(-2, special_arguments, 0.7 + 0.1j)
             if workload.startswith("angular-"):
                 return getattr(treams.special, angular_name)(
@@ -755,32 +827,32 @@ def worker(
                 return
             # Tiny kernels need both implementations in the same process, with
             # alternating order, to separate kernel cost from process/core drift.
-            batch = 1
-            while True:
-                durations = []
-                for function in (upstream, rust):
+            functions = (("treams", upstream), ("rust", rust))
+            batches = {}
+            for name, function in functions:
+                batch = 1
+                while True:
                     start = time.perf_counter()
                     for _ in range(batch):
                         function()
-                    durations.append(time.perf_counter() - start)
-                if min(durations) >= 0.02:
-                    break
-                batch *= 10
+                    if time.perf_counter() - start >= 0.02:
+                        break
+                    batch *= 10
+                batches[name] = batch
             pairs = []
             for index in range(2 * repeats):
                 pair = {}
-                functions = (("treams", upstream), ("rust", rust))
                 for name, function in functions if index % 2 == 0 else functions[::-1]:
                     start = time.perf_counter()
-                    for _ in range(batch):
+                    for _ in range(batches[name]):
                         function()
-                    pair[name] = (time.perf_counter() - start) / batch
+                    pair[name] = (time.perf_counter() - start) / batches[name]
                 pairs.append(pair)
             print(
                 json.dumps(
                     {
                         "method": "paired_alternating_process",
-                        "calls_per_sample": batch,
+                        "calls_per_sample": batches,
                         "pairs_seconds": pairs,
                         "speedup": statistics.median(
                             p["treams"] / p["rust"] for p in pairs
@@ -792,7 +864,8 @@ def worker(
                 )
             )
             return
-        baseline = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+        rss_unit = 1024**2 if sys.platform == "darwin" else 1024
+        baseline = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / rss_unit
         function = rust if backend == "rust" else upstream
         function()
         # Microsecond kernels need sustained samples, not seven individual calls
@@ -811,7 +884,7 @@ def worker(
             for _ in range(batch):
                 function()
             times.append((time.perf_counter() - start) / batch)
-        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / rss_unit
         backward_times = []
         if backend == "rust" and not workload.endswith(("-forward", "-public")):
             sample_total = 0.0
@@ -857,7 +930,7 @@ def worker(
                         backward_times.append(sample_total / batch)
                     sample_total = 0.0
                 del value, context, cotangent
-        backward_peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+        backward_peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / rss_unit
         print(
             json.dumps(
                 {
@@ -922,6 +995,8 @@ def worker(
                             "intkambe",
                             "coordinate-",
                             "wave-",
+                            "polar-",
+                            "namespace-",
                         )
                     )
                     else particle_dimension
@@ -976,6 +1051,28 @@ def main() -> None:
     parser.add_argument(
         "--workload",
         choices=[
+            "namespace-sw.rotate-forward",
+            "namespace-sw.translate-forward",
+            "namespace-sw.periodic_to_pw-forward",
+            "namespace-sw.periodic_to_cw-forward",
+            "namespace-cw.rotate-forward",
+            "namespace-cw.translate-forward",
+            "namespace-cw.to_sw-forward",
+            "namespace-cw.periodic_to_pw-forward",
+            "namespace-pw.translate-forward",
+            "namespace-pw.to_sw-forward",
+            "namespace-pw.to_cw-forward",
+            "namespace-pw.permute_xyz-forward",
+            "polar-tl_vcw-forward",
+            "polar-tl_vcw_r-forward",
+            "polar-tl_vcw",
+            "polar-tl_vcw_r",
+            "polar-tl_vsw_A-forward",
+            "polar-tl_vsw_B-forward",
+            "polar-tl_vsw_rA-forward",
+            "polar-tl_vsw_rB-forward",
+            "polar-tl_vsw_A",
+            "polar-tl_vsw_rB",
             "wave-sph_harm-forward",
             "wave-vsh_X-forward",
             "wave-vsh_Y-forward",
@@ -1004,6 +1101,8 @@ def main() -> None:
             "wigner3j-forward",
             "incgamma-forward",
             "intkambe-forward",
+            "incgamma",
+            "intkambe",
             "angular-legendre",
             "angular-pi",
             "angular-tau",

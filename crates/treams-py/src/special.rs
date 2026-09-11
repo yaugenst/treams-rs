@@ -81,6 +81,7 @@ macro_rules! argument_context {
 }
 argument_context!(BesselContext, BesselResidual);
 argument_context!(AngularContext, AngularResidual);
+argument_context!(GammaContext, treams_core::integrals::GammaResidual);
 
 #[pyfunction]
 #[allow(clippy::too_many_arguments)] // Function selection plus broadcast metadata are static.
@@ -368,7 +369,165 @@ fn wigner3j_scalar(j1: i32, j2: i32, j3: i32, m1: i32, m2: i32, m3: i32) -> PyRe
     Ok(treams_core::angular::wigner3j(j1, j2, j3, m1, m2, m3))
 }
 
+fn gamma_result(
+    py: Python<'_>,
+    degrees: Vec<f64>,
+    arguments: Vec<Complex>,
+    shape: Vec<usize>,
+    argument_shape: Vec<usize>,
+) -> PyResult<(Bound<'_, PyArrayDyn<Complex>>, GammaContext)> {
+    validate_argument_shapes(&shape, &[&argument_shape])?;
+    let (value, residual) = py
+        .detach(move || treams_core::integrals::GammaResidual::new(degrees, arguments))
+        .map_err(error)?;
+    let value = ArrayD::from_shape_vec(IxDyn(&shape), value)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?
+        .into_pyarray(py);
+    Ok((
+        value,
+        GammaContext {
+            residual: Some(residual),
+            shape,
+            argument_shape,
+        },
+    ))
+}
+#[pyfunction]
+fn gamma_record<'py>(
+    py: Python<'py>,
+    degrees: PyReadonlyArray1<'py, f64>,
+    arguments: PyReadonlyArray1<'py, Complex>,
+    shape: Vec<usize>,
+    argument_shape: Vec<usize>,
+) -> PyResult<(Bound<'py, PyArrayDyn<Complex>>, GammaContext)> {
+    gamma_result(
+        py,
+        degrees.as_array().to_vec(),
+        arguments.as_array().to_vec(),
+        shape,
+        argument_shape,
+    )
+}
+#[pyfunction]
+fn gamma_record_scalar(
+    py: Python<'_>,
+    n: f64,
+    z: Complex,
+) -> PyResult<(Bound<'_, PyArrayDyn<Complex>>, GammaContext)> {
+    gamma_result(py, vec![n], vec![z], Vec::new(), Vec::new())
+}
+fn validate_argument_shapes(shape: &[usize], arguments: &[&[usize]]) -> PyResult<()> {
+    if arguments.iter().any(|a| {
+        a.len() > shape.len()
+            || a.iter()
+                .rev()
+                .zip(shape.iter().rev())
+                .any(|(&a, &b)| a != 1 && a != b)
+    }) {
+        return Err(PyValueError::new_err(
+            "argument shapes must broadcast to output",
+        ));
+    }
+    Ok(())
+}
+#[pyclass]
+#[derive(Debug)]
+struct KambeContext {
+    residual: Option<treams_core::integrals::KambeResidual>,
+    shape: Vec<usize>,
+    argument_shapes: [Vec<usize>; 2],
+}
+type IntegralGradient<'py> = (
+    Bound<'py, PyArrayDyn<Complex>>,
+    Bound<'py, PyArrayDyn<Complex>>,
+);
+#[pymethods]
+impl KambeContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArrayDyn<'py, Complex>,
+    ) -> PyResult<IntegralGradient<'py>> {
+        let g = cotangent.as_array();
+        if g.shape() != self.shape || g.iter().any(|z| !z.re.is_finite() || !z.im.is_finite()) {
+            return Err(PyValueError::new_err(
+                "integral cotangent must be finite and match output shape",
+            ));
+        }
+        let g = g.iter().copied().collect::<Vec<_>>();
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let [a, b] = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        Ok((
+            reduce_broadcast(a, &self.shape, &self.argument_shapes[0])?.into_pyarray(py),
+            reduce_broadcast(b, &self.shape, &self.argument_shapes[1])?.into_pyarray(py),
+        ))
+    }
+}
+fn kambe_result(
+    py: Python<'_>,
+    orders: Vec<i32>,
+    arguments: [Vec<Complex>; 2],
+    shape: Vec<usize>,
+    argument_shapes: [Vec<usize>; 2],
+) -> PyResult<(Bound<'_, PyArrayDyn<Complex>>, KambeContext)> {
+    validate_argument_shapes(&shape, &argument_shapes.each_ref().map(Vec::as_slice))?;
+    let (value, residual) = py
+        .detach(move || treams_core::integrals::KambeResidual::new(orders, arguments))
+        .map_err(error)?;
+    let value = ArrayD::from_shape_vec(IxDyn(&shape), value)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?
+        .into_pyarray(py);
+    Ok((
+        value,
+        KambeContext {
+            residual: Some(residual),
+            shape,
+            argument_shapes,
+        },
+    ))
+}
+#[pyfunction]
+fn kambe_record<'py>(
+    py: Python<'py>,
+    orders: PyReadonlyArray1<'py, i32>,
+    z: PyReadonlyArray1<'py, Complex>,
+    eta: PyReadonlyArray1<'py, Complex>,
+    shape: Vec<usize>,
+    argument_shapes: [Vec<usize>; 2],
+) -> PyResult<(Bound<'py, PyArrayDyn<Complex>>, KambeContext)> {
+    kambe_result(
+        py,
+        orders.as_array().to_vec(),
+        [z.as_array().to_vec(), eta.as_array().to_vec()],
+        shape,
+        argument_shapes,
+    )
+}
+#[pyfunction]
+fn kambe_record_scalar(
+    py: Python<'_>,
+    n: i32,
+    z: Complex,
+    eta: Complex,
+) -> PyResult<(Bound<'_, PyArrayDyn<Complex>>, KambeContext)> {
+    kambe_result(
+        py,
+        vec![n],
+        [vec![z], vec![eta]],
+        Vec::new(),
+        std::array::from_fn(|_| Vec::new()),
+    )
+}
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<GammaContext>()?;
+    module.add_class::<KambeContext>()?;
+    module.add_function(wrap_pyfunction!(gamma_record, module)?)?;
+    module.add_function(wrap_pyfunction!(gamma_record_scalar, module)?)?;
+    module.add_function(wrap_pyfunction!(kambe_record, module)?)?;
+    module.add_function(wrap_pyfunction!(kambe_record_scalar, module)?)?;
     module.add_function(wrap_pyfunction!(wigner3j_scalar, module)?)?;
     module.add_class::<WignerContext>()?;
     module.add_function(wrap_pyfunction!(wigner, module)?)?;

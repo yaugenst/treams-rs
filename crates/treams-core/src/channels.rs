@@ -97,6 +97,36 @@ impl<const N: usize> Geometry<N> {
     }
 }
 
+/// Direct spherical-to-plane radiation coefficient for a plane wavevector.
+pub fn spherical_to_plane(
+    mode: Mode,
+    vector: [Complex; 3],
+    pol: u8,
+    area: f64,
+    helicity: bool,
+) -> Result<Complex> {
+    mode.validate()?;
+    if pol > 1
+        || vector.iter().any(|&v| !finite(v))
+        || vector[0].im != 0.0
+        || vector[1].im != 0.0
+        || !area.is_finite()
+        || area == 0.0
+    {
+        return Err(Error::InvalidInput("real transverse wavevector, finite axial component, polarization 0/1 and nonzero area required".into()));
+    }
+    let side = usize::from(vector[2].im < 0.0 || (vector[2].im == 0.0 && vector[2].re < 0.0));
+    let k = crate::complex_sqrt(vector.iter().map(|v| v * v).sum());
+    let geometry = Geometry::<0>::new(k, [vector[0].re, vector[1].re], side, area.abs(), true)?;
+    let value = geometry.entry(mode, pol, [0.0; 3], helicity)[1].value;
+    if !finite(value) {
+        return Err(Error::SpecialFunction(
+            "nonfinite plane radiation coefficient".into(),
+        ));
+    }
+    Ok(value)
+}
+
 /// Retained physical channel inputs; local seven-parameter derivatives are recomputed.
 #[derive(Clone, Debug)]
 pub struct ChannelsResidual {
@@ -313,14 +343,70 @@ impl<const N: usize> CylGeometry<N> {
                 .map(|(a, &k)| k * Jet::variable(position[a], a))
                 .sum::<Jet<N>>())
         .exp();
-        let incident = ((Complex::i() * self.vector[0] + self.vector[1]) / self.transverse)
-            .powi(mode.m)
-            * phase;
-        let outgoing = 2.0
-            * ((-Complex::i() * self.vector[0] + self.vector[1]) / self.transverse).powi(mode.m)
-            / (self.period * self.normal * phase);
+        let (incoming_angle, outgoing_angle) = if self.transverse.value == Complex::default() {
+            (
+                Jet::constant(Complex::i().powi(mode.m)),
+                Jet::constant((-Complex::i()).powi(mode.m)),
+            )
+        } else {
+            (
+                ((Complex::i() * self.vector[0] + self.vector[1]) / self.transverse).powi(mode.m),
+                ((-Complex::i() * self.vector[0] + self.vector[1]) / self.transverse).powi(mode.m),
+            )
+        };
+        let incident = incoming_angle * phase;
+        let outgoing = 2.0 * outgoing_angle / (self.period * self.normal * phase);
         [incident, outgoing]
     }
+}
+
+/// Direct cylindrical-to-plane radiation, using the supplied normal wavevector.
+#[allow(clippy::float_cmp)] // Direct coefficients preserve exact axial labels.
+pub fn cylindrical_to_plane(
+    mode: crate::cylwaves::Mode,
+    vector: [Complex; 3],
+    pol: u8,
+    period: f64,
+) -> Result<Complex> {
+    mode.validate()?;
+    if pol > 1
+        || vector.iter().any(|&v| !finite(v))
+        || vector[0].im != 0.0
+        || vector[2].im != 0.0
+        || !period.is_finite()
+        || period == 0.0
+    {
+        return Err(Error::InvalidInput(
+            "finite vector with real kx/kz, polarization 0/1 and nonzero period required".into(),
+        ));
+    }
+    if mode.kz != vector[2].re || mode.pol != pol {
+        return Ok(Complex::default());
+    }
+    let mut normal = vector[1];
+    if normal == Complex::default() {
+        return Err(Error::InvalidInput(
+            "plane channel is at a diffraction threshold".into(),
+        ));
+    }
+    if normal.im < 0.0 || (normal.im == 0.0 && normal.re < 0.0) {
+        normal = -normal;
+    }
+    let geometry = CylGeometry::<0> {
+        vector: vector.map(Jet::constant),
+        transverse: Jet::constant(crate::complex_sqrt(
+            vector[0] * vector[0] + vector[1] * vector[1],
+        )),
+        normal: Jet::constant(normal),
+        period: Jet::constant(period.abs()),
+    };
+    let value = geometry.entry(mode, pol, [0.0; 3])[1].value;
+    if !finite(value) {
+        return Err(Error::SpecialFunction(
+            "nonfinite plane radiation coefficient".into(),
+        ));
+    }
+    Ok(value)
 }
 
 /// Cylindrical channels for a lattice along x, radiating toward positive/negative y.
