@@ -29,3 +29,7 @@ families and between helicity and parity. This is documented as a preserved
 convention, not classified here as a confirmed physical defect. Likewise, normal-
 incidence polarization gauges, diffraction thresholds and eigenvalue degeneracies
 are mathematical restrictions, not automatically upstream bugs.
+
+`SMatrices.cd` is also a terminology caveat: upstream's second return value is
+the normalized contrast of total outgoing power T+R, although its docstring calls
+it absorption CD. The rewrite preserves this formula and names it explicitly.

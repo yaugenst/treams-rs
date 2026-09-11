@@ -25,6 +25,49 @@ def oracle_array(value):
 
 
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
+@pytest.mark.parametrize("direction", ["up", "down"])
+def test_cd_reference_and_reordered_basis(poltype, direction):
+    basis = PlaneWaveBasisByComp.default([[0.2, 0.1], [-0.3, 0.5]])
+    ob = treams.PlaneWaveBasisByComp(basis.modes)
+    materials = [1, (3 + 0.2j, 1.2 + 0.05j, 0.08j), 1]
+    # A parity port basis remains valid with a chiral interior and achiral ports.
+    value = SMatrices.slab(0.4, basis, 1.7, materials)
+    oracle = treams.SMatrices.slab(0.4, ob, 1.7, materials)
+    if poltype == "parity":
+        value = value.changepoltype(poltype)
+        oracle = oracle.changepoltype(poltype)
+    incident = np.array([0.2 + 0.1j, 0.7, 0.3j, -0.2])
+    expected = oracle.cd(treams.PhysicsArray(incident, modetype=direction))
+    assert_allclose(value.cd(incident, modetype=direction), expected, atol=1e-12)
+    order = [3, 0, 2, 1]
+    reordered = SMatrices(
+        value.array[:, :, order][:, :, :, order],
+        k0=1.7,
+        basis=PlaneWaveBasisByComp([basis.modes[i] for i in order]),
+        poltype=poltype,
+    )
+    assert_allclose(
+        reordered.cd(incident[order], modetype=direction), expected, atol=1e-12
+    )
+
+
+@settings(max_examples=30)
+@given(
+    kappa=st.floats(-0.15, 0.15),
+    thickness=st.floats(0.1, 1.0),
+    scale=st.floats(0.2, 2.0),
+)
+def test_cd_helicity_swap_scaling_and_lossless_power(kappa, thickness, scale):
+    basis = PlaneWaveBasisByComp.default([[0.2, 0.1]])
+    layer = SMatrices.slab(thickness, basis, 1.7, [1, (3, 1.2, kappa), 1])
+    positive, negative = np.array([1, 0]), np.array([0, 1])
+    value = layer.cd(positive)
+    assert_allclose(layer.cd(negative), -np.array(value), atol=1e-13)
+    assert_allclose(layer.cd(positive * scale * (1 + 0.3j)), value, atol=1e-13)
+    assert_allclose(value[1], 0, atol=1e-13)
+
+
+@pytest.mark.parametrize("poltype", ["helicity", "parity"])
 @pytest.mark.parametrize("q", [[[0, 0]], [[0.2, 0.1], [2.8, 0.3], [-0.3, 0.5]]])
 @pytest.mark.parametrize(
     "materials",

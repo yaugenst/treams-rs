@@ -130,3 +130,17 @@ field-operator arrays for spherical or cylindrical bases. Their shape is
 `(..., 3, modes)`, so `tr.efield(points, basis=basis, k0=k0) @ coefficients`
 gives electric samples. Use `ad.field_operator` for operator derivatives or the
 lower-memory `ad.field`/`ad.hfield` when only weighted field samples are needed.
+
+Single multipole sources and superpositions carry explicit metadata:
+
+```python
+source = tr.spherical_wave(1, 0, 1, k0=1.3)
+particle = tr.TMatrix.sphere(3, 1.3, 0.2, [3, 1])
+scattered = tr.MultipoleWave(
+    particle @ source, basis=particle.basis, k0=1.3, modetype="singular"
+)
+print(scattered.efield([[0.5, 0.3, 0.1]]))
+```
+
+`tr.cylindrical_wave(kz, m, pol, ...)` follows the same pattern. Source E/H/D/B/G/F
+methods use weighted native evaluation; `.array` exposes ordinary coefficients.

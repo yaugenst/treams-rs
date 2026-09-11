@@ -10,6 +10,7 @@ from . import diff, lattice
 from ._core import CylindricalWaveBasis, Material, MaterialLike, SphericalWaveBasis
 from ._operators import expandlattice
 from ._plane import PlaneWave
+from ._source import MultipoleWave
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -83,11 +84,15 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
     ) -> NDArray[np.generic]:
         return np.asarray(self.array, dtype=dtype, copy=copy)
 
-    def __matmul__(self, other: ArrayLike | PlaneWave) -> NDArray[np.complex128]:
+    def __matmul__(
+        self, other: ArrayLike | PlaneWave | MultipoleWave
+    ) -> NDArray[np.complex128]:
         return self.array @ self._incident(other)
 
-    def _incident(self, value: ArrayLike | PlaneWave) -> NDArray[np.complex128]:
-        if isinstance(value, PlaneWave):
+    def _incident(
+        self, value: ArrayLike | PlaneWave | MultipoleWave
+    ) -> NDArray[np.complex128]:
+        if isinstance(value, (PlaneWave, MultipoleWave)):
             if (
                 value.k0 != self.k0
                 or value.material != self.material

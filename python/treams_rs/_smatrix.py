@@ -400,6 +400,42 @@ class SMatrices:
             -sign * np.vdot(refl, source[reflection, reflection] @ refl).real / flux
         )
 
+    def cd(
+        self, illu: ArrayLike | PlaneWave, *, modetype: str | None = None
+    ) -> tuple[float, float]:
+        """Transmission and total-outgoing-power contrast against opposite polarization.
+
+        These are upstream's two CD formulas: (T_opposite-T)/(T_opposite+T)
+        and ((T+R)_opposite-(T+R))/((T+R)_opposite+(T+R)). The second quantity
+        is normalized by outgoing power, although upstream calls it absorption CD.
+        Helicity bases must contain both polarizations of each direction.
+        """
+        direction = _direction(illu, modetype, self.basis.normal_axis)
+        transmission, reflection = self.tr(illu, modetype=direction)
+        incident = self._incident(illu, direction)
+        if self.poltype == "helicity":
+            indices = {mode: i for i, mode in enumerate(self.basis.modes)}
+            try:
+                opposite = incident[
+                    [indices[(x, y, 1 - p)] for x, y, p in self.basis.modes]
+                ]
+            except KeyError as error:
+                raise ValueError(
+                    "CD requires both helicities of each direction"
+                ) from error
+        else:
+            opposite = incident * (2 * self.basis.pol - 1)
+        opposite_t, opposite_r = self.tr(opposite, modetype=direction)
+        total = transmission + reflection
+        opposite_total = opposite_t + opposite_r
+        if transmission + opposite_t == 0 or total + opposite_total == 0:
+            raise ValueError(
+                "CD is undefined for zero summed transmission or outgoing power"
+            )
+        return (opposite_t - transmission) / (opposite_t + transmission), (
+            opposite_total - total
+        ) / (opposite_total + total)
+
 
 def _direction(illu: ArrayLike | PlaneWave, modetype: str | None, axis: int = 2) -> str:
     if modetype is None:

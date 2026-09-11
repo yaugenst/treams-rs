@@ -21,11 +21,13 @@ from ._operators import (
 )
 from ._plane import PlaneWave, plane_wave, plane_wave_angle
 from ._smatrix import SMatrices, chirality_density, poynting_avg_z
+from ._source import MultipoleWave, cylindrical_wave, spherical_wave
 from ._tmatrix import TMatrix, TMatrixC
 
 __all__ = [
     "CylindricalWaveBasis",
     "Material",
+    "MultipoleWave",
     "PlaneWave",
     "PlaneWaveBasisByComp",
     "PlaneWaveBasisByUnitVector",
@@ -36,6 +38,7 @@ __all__ = [
     "bfield",
     "chirality_density",
     "coeffs",
+    "cylindrical_wave",
     "dfield",
     "diff",
     "ebcm",
@@ -50,4 +53,5 @@ __all__ = [
     "plane_wave_angle",
     "poynting_avg_z",
     "rotate",
+    "spherical_wave",
 ]

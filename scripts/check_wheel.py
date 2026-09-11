@@ -324,3 +324,19 @@ def density_scale(scale):
 
 np.testing.assert_allclose(advect.grad(density_scale)(np.array(1.0)), 0, atol=1e-12)
 print("Clean wheel: interval chirality density and native scaling adjoint passed")
+
+source = tr.spherical_wave(1, 0, 1, k0=1.3)
+particle = tr.TMatrix.sphere(3, 1.3, 0.2, [3, 1])
+scattered = tr.MultipoleWave(
+    particle @ source, basis=particle.basis, k0=1.3, modetype="singular"
+)
+np.testing.assert_allclose(
+    scattered.hfield(points),
+    tr.hfield(points, basis=particle.basis, k0=1.3, modetype="singular")
+    @ scattered.array,
+    atol=1e-12,
+)
+print("Clean wheel: multipole-source scattering and weighted magnetic samples passed")
+
+np.testing.assert_allclose(carray.cd([1, 0])[1], 0, atol=1e-10)
+print("Clean wheel: lossless S-matrix outgoing-power contrast passed")

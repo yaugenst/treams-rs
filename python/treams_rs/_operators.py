@@ -110,6 +110,7 @@ def _field(
     material: MaterialLike,
     modetype: str | None,
     poltype: str,
+    coefficients: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
     medium = Material(material)
     points = np.asarray(r, dtype=np.float64)
@@ -154,16 +155,22 @@ def _field(
             if poltype == "helicity"
             else medium.mu
         )
+    weighted = None
+    if coefficients is not None:
+        amplitudes = np.asarray(coefficients, dtype=np.complex128)
+        if amplitudes.shape != (len(basis),):
+            raise ValueError("field requires one amplitude per basis mode")
+        weighted = amplitudes * weights
     if isinstance(basis, (PlaneWaveBasisByComp, PlaneWaveBasisByUnitVector)):
         value, _ = diff.plane_field(
-            None,
+            weighted,
             points.reshape(-1, 3),
             np.column_stack(basis.kvecs(k0, medium, modetype)),
             basis.pol,
             poltype=poltype,
             fixed_vectors=True,
         )
-    else:
+    elif weighted is None:
         value, _ = diff.field_operator(
             points.reshape(-1, 3),
             basis,
@@ -171,6 +178,17 @@ def _field(
             poltype=poltype,
             singular=modetype == "singular",
         )
+    else:
+        value, _ = diff.field(
+            weighted,
+            points.reshape(-1, 3),
+            basis,
+            medium.ks(k0),
+            poltype=poltype,
+            singular=modetype == "singular",
+        )
+    if weighted is not None:
+        return value.reshape(points.shape)
     return value.reshape((*points.shape[:-1], 3, len(basis))) * weights
 
 
