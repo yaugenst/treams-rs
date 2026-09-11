@@ -5,6 +5,7 @@ pub mod basis;
 pub mod channels;
 pub mod coeffs;
 pub mod conversion;
+pub mod coordinates;
 pub mod cylinder;
 pub mod cylwaves;
 pub mod ebcm;

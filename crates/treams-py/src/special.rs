@@ -22,13 +22,13 @@ fn bessel_kind(kind: &str) -> PyResult<Bessel> {
     })
 }
 
-fn reduce_broadcast(
-    gradient: Vec<Complex>,
+pub(crate) fn reduce_broadcast<T: numpy::ndarray::LinalgScalar>(
+    gradient: Vec<T>,
     shape: &[usize],
     argument_shape: &[usize],
-) -> PyResult<ArrayD<Complex>> {
+) -> PyResult<ArrayD<T>> {
     let shape_error = |e: numpy::ndarray::ShapeError| PyValueError::new_err(e.to_string());
-    if gradient.len() == 1 {
+    if gradient.len() == argument_shape.iter().product::<usize>() {
         return ArrayD::from_shape_vec(IxDyn(argument_shape), gradient).map_err(shape_error);
     }
     let mut result = ArrayD::from_shape_vec(IxDyn(shape), gradient).map_err(shape_error)?;

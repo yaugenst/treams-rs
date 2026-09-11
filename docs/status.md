@@ -533,3 +533,18 @@ Native proptest and Hypothesis check geometric scaling. Complete Advect tests
 compose cylinder coefficients, multiple-scattering interaction and sampled fields
 with a shared axial-incidence parameter. The ordinary forward and fixed-label
 pullback signatures remain unchanged.
+
+
+All sixteen public point and vector coordinate transforms expose native NumPy
+generalized ufuncs, preserving real/complex vector dtypes, batch broadcasting,
+component-axis selection and in-place/strided/unaligned output. Vector positions
+are expressed in the source coordinate system. Point charts use `(rho, phi)` or
+`(r, theta, phi)` conventions; vector components use orthonormal local frames.
+`diff.coordinates` and `advect.coordinates` differentiate real input coordinates;
+`diff.vector_coordinates` and its Advect adapter differentiate complex components
+and real source positions. Contexts own their inputs, retain constant broadcast
+vectors once and reduce gradients to the original shapes. No Jacobian table is
+stored. Angular coordinate derivatives at axes/origins are undefined unless the
+corresponding cotangent is zero. Native property tests and Hypothesis cover
+Jacobians, chart round trips, vector-frame composition and norm preservation;
+Python checks include complete Advect objectives and context ownership.

@@ -761,3 +761,35 @@ The existing complete four-cylinder array path also passes its runtime/RSS gate:
 with measured peak RSS 42.5/43.9 MiB. This is a short same-host check rather than
 a claim that the optional derivative improves the unchanged forward algorithm.
 Raw baselines and new runs are saved as `cylindrical-array-{before,after}-axial.json`.
+
+## Coordinate transformations
+
+All eight point and eight vector-frame conversions now use native NumPy gufuncs
+with analytic pullbacks. Component strides, NumPy broadcasting and output buffers
+are supported. Direct factored rotations avoid temporary matrices; a constant
+broadcast vector is retained once in an adjoint context.
+
+All 128 combined performance gates passed with the release build, including 48
+coordinate comparisons at 1, 128 and 65,536 points. Every case first checks values
+against upstream; the gates require forward speedup >= 1 and peak forward RSS no
+higher than upstream. Representative forward speedups:
+
+| Transform | 1 point | 128 points | 65,536 points |
+| --- | ---: | ---: | ---: |
+| car2sph | 1.08x | 1.21x | 2.31x |
+| sph2car | 1.04x | 1.33x | 2.87x |
+| car2pol | 1.08x | 1.51x | 4.23x |
+| vsph2car | 1.01x | 1.31x | 2.96x |
+| vpol2car | 1.07x | 1.43x | 5.04x |
+
+Raw samples, RSS and binary identities are in `coordinate-*-n*.json`. These
+submicrosecond scalar differences remain sensitive to machine noise; the larger
+arrays expose the numerical throughput advantage more clearly.
+
+The benchmark's forward-only helpers now return the actual result directly.
+Previously only the Rust helper added and destroyed a dummy `(value, None)`
+residual tuple, which biased small operations. Recorded operations still return
+and retain their real contexts, and metadata explicitly records
+`forward_records_adjoint`. Both backends include result destruction. The complete
+128-case run was repeated after this correction; no accuracy or performance
+threshold was relaxed.

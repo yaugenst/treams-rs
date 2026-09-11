@@ -634,3 +634,37 @@ def wigner_scalar(
     labels: tuple[int, int, int], angles: tuple[complex, complex, complex]
 ) -> tuple[ComplexArray, WignerContext]: ...
 def wigner3j_scalar(j1: int, j2: int, j3: int, m1: int, m2: int, m3: int) -> float: ...
+
+car2cyl: np.ufunc
+car2sph: np.ufunc
+cyl2car: np.ufunc
+cyl2sph: np.ufunc
+sph2car: np.ufunc
+sph2cyl: np.ufunc
+car2pol: np.ufunc
+pol2car: np.ufunc
+vcar2cyl: np.ufunc
+vcar2sph: np.ufunc
+vcyl2car: np.ufunc
+vcyl2sph: np.ufunc
+vsph2car: np.ufunc
+vsph2cyl: np.ufunc
+vcar2pol: np.ufunc
+vpol2car: np.ufunc
+
+class CoordinateContext:
+    def pullback(self, cotangent: RealArray) -> RealArray: ...
+
+class VectorCoordinateContext:
+    def pullback(self, cotangent: ComplexArray) -> tuple[ComplexArray, RealArray]: ...
+
+def coordinates(
+    points: RealArray, kind: str
+) -> tuple[RealArray, CoordinateContext]: ...
+def vector_coordinates(
+    vectors: ComplexArray,
+    points: RealArray,
+    kind: str,
+    shape: tuple[int, ...],
+    input_shapes: tuple[tuple[int, ...], tuple[int, ...]],
+) -> tuple[ComplexArray, VectorCoordinateContext]: ...

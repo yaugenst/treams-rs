@@ -463,3 +463,27 @@ np.testing.assert_allclose(
     atol=1e-11,
 )
 print("Clean wheel: finite and periodic shared axial-group pullbacks passed")
+
+
+xyz = np.array([[0.3, 0.4, 0.5]])
+rvec = np.array([0.2 + 0.1j, -0.3, 0.4j])
+sph = tr.special.car2sph(xyz)
+np.testing.assert_allclose(tr.special.sph2car(sph), xyz, atol=1e-15)
+v = tr.special.vcar2sph(rvec, xyz)
+np.testing.assert_allclose(
+    tr.special.vsph2car(v, sph), np.broadcast_to(rvec, v.shape), atol=1e-15
+)
+_, cx = tr.diff.coordinates(xyz, kind="car2sph")
+np.testing.assert_allclose(
+    cx.pullback(np.array([[1.0, 0.0, 0.0]])), xyz / np.linalg.norm(xyz), atol=1e-15
+)
+np.testing.assert_allclose(
+    advect.grad(
+        lambda x: anp.sum(anp.abs(ad.vector_coordinates(rvec, x, kind="car2sph")) ** 2)
+    )(xyz),
+    0,
+    atol=1e-14,
+)
+print(
+    "Clean wheel: coordinate gufuncs, owned pullbacks and vector norm gradient passed"
+)

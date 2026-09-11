@@ -88,13 +88,6 @@ unsafe extern "C" fn bessel_loop<const KIND: u8, const SPHERICAL: bool, const DE
 
 #[inline]
 fn finish_loop(result: std::thread::Result<Result<(), Error>>) {
-    // A raw C callback must not unwind across the interpreter. As in PyO3's
-    // function wrappers, report failures with a Python exception on this thread.
-    let result = result.unwrap_or_else(|_| {
-        Err(Error::SpecialFunction(
-            "native special-function loop panicked".into(),
-        ))
-    });
     // The Bessel algorithm sets incidental flags for finite real-axis results.
     // Result and finite-value checks are authoritative. Clearing through the
     // cached C function avoids attaching Python on successful numerical calls.
@@ -103,6 +96,18 @@ fn finish_loop(result: std::thread::Result<Result<(), Error>>) {
     unsafe {
         (FP_CLEAR.get().unwrap_unchecked().1)();
     }
+    report_loop(result);
+}
+
+#[inline]
+fn report_loop(result: std::thread::Result<Result<(), Error>>) {
+    // A raw C callback must not unwind across the interpreter. As in PyO3's
+    // function wrappers, report failures with a Python exception on this thread.
+    let result = result.unwrap_or_else(|_| {
+        Err(Error::SpecialFunction(
+            "native special-function loop panicked".into(),
+        ))
+    });
     if let Err(error) = result {
         Python::attach(|py| crate::error(error).restore(py));
     }
@@ -253,6 +258,92 @@ scalar_loop!(wigner3j_loop, f64, 6, 0=>l1:f64, 1=>l2:f64, 2=>l3:f64, 3=>m1:f64, 
 scalar_loop!(gamma_loop, Complex, 2, 0=>n:f64, 1=>z:Complex => treams_core::integrals::incgamma(n,z));
 scalar_loop!(kambe_loop, Complex, 3, 0=>n:f64, 1=>z:Complex, 2=>eta:Complex => treams_core::integrals::intkambe(label(n)?,z,eta));
 
+fn coordinate_transform(index: u8) -> treams_core::coordinates::Transform {
+    use treams_core::coordinates::Transform;
+    match index {
+        0 => Transform::CarToCyl,
+        1 => Transform::CarToSph,
+        2 => Transform::CylToCar,
+        3 => Transform::CylToSph,
+        4 => Transform::SphToCar,
+        5 => Transform::SphToCyl,
+        6 => Transform::CarToPol,
+        _ => Transform::PolToCar,
+    }
+}
+#[allow(clippy::cast_possible_wrap)] // Component indices are bounded by three.
+unsafe extern "C" fn coordinate_loop<
+    const TRANSFORM: u8,
+    const VECTOR: bool,
+    const COMPLEX: bool,
+>(
+    args: *mut *mut c_char,
+    dimensions: *mut npy_intp,
+    steps: *mut npy_intp,
+    _data: *mut c_void,
+) {
+    // SAFETY: The generalized-ufunc registration fixes the core dimension (2/3)
+    // and scalar dtypes. NumPy supplies outer strides followed by one component
+    // stride per operand. Copy every input component before writing, permitting
+    // in-place vectors, arbitrary component axes and unaligned arrays.
+    let result = std::panic::catch_unwind(|| unsafe {
+        let n = usize::try_from(*dimensions).unwrap_or_default();
+        let transform = coordinate_transform(TRANSFORM);
+        let dim = transform.dimension();
+        let operands = if VECTOR { 3 } else { 2 };
+        let output_index = operands - 1;
+        let position_index = usize::from(VECTOR);
+        let mut input = *args;
+        let mut position = *args.add(position_index);
+        let mut output = *args.add(output_index);
+        let input_step = *steps.add(operands);
+        let position_step = *steps.add(operands + position_index);
+        let output_step = *steps.add(operands + output_index);
+        for _ in 0..n {
+            let p = std::array::from_fn(|axis| {
+                if axis < dim {
+                    position
+                        .wrapping_offset(position_step * axis as isize)
+                        .cast::<f64>()
+                        .read_unaligned()
+                } else {
+                    0.0
+                }
+            });
+            let value = if VECTOR {
+                let v = std::array::from_fn(|axis| {
+                    if axis >= dim {
+                        Complex::default()
+                    } else {
+                        let ptr = input.wrapping_offset(input_step * axis as isize);
+                        if COMPLEX {
+                            ptr.cast::<Complex>().read_unaligned()
+                        } else {
+                            Complex::new(ptr.cast::<f64>().read_unaligned(), 0.0)
+                        }
+                    }
+                });
+                treams_core::coordinates::vector(v, p, transform)?
+            } else {
+                treams_core::coordinates::point(p, transform)?.map(Complex::from)
+            };
+            for (axis, value) in value.into_iter().take(dim).enumerate() {
+                let ptr = output.wrapping_offset(output_step * axis as isize);
+                if COMPLEX {
+                    ptr.cast::<Complex>().write_unaligned(value);
+                } else {
+                    ptr.cast::<f64>().write_unaligned(value.re);
+                }
+            }
+            input = input.wrapping_offset(*steps);
+            position = position.wrapping_offset(*steps.add(position_index));
+            output = output.wrapping_offset(*steps.add(output_index));
+        }
+        Ok::<_, Error>(())
+    });
+    report_loop(result);
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     let capsule = module
         .py()
@@ -354,5 +445,32 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     add!("wigner3j", wigner3j_loop, [D, D, D, D, D, D, D], 6);
     add!("incgamma_ufunc", gamma_loop, [D, Z, Z], 2);
     add!("intkambe_ufunc", kambe_loop, [D, Z, Z, Z], 3);
+    macro_rules! coordinates {
+        ($point:literal,$vector:literal,$kind:literal,$point_signature:literal,$vector_signature:literal)=>{{
+            static mut POINT_LOOP:[PyUFuncGenericFunction;1]=[Some(coordinate_loop::<$kind,false,false>)];
+            static mut VECTOR_LOOPS:[PyUFuncGenericFunction;2]=[Some(coordinate_loop::<$kind,true,false>),Some(coordinate_loop::<$kind,true,true>)];
+            static mut POINT_TYPES:[c_char;2]=[D,D];
+            static mut VECTOR_TYPES:[c_char;6]=[D,D,D,Z,D,Z];
+            // SAFETY: Static tables and signatures match the callback's input
+            // count, fixed component dimension and dtype. NumPy owns the new ref.
+            unsafe {
+                for (name,signature,loops,types,count,inputs) in [
+                    (concat!($point,"\0"),concat!($point_signature,"\0"),std::ptr::addr_of_mut!(POINT_LOOP).cast(),std::ptr::addr_of_mut!(POINT_TYPES).cast(),1,1),
+                    (concat!($vector,"\0"),concat!($vector_signature,"\0"),std::ptr::addr_of_mut!(VECTOR_LOOPS).cast(),std::ptr::addr_of_mut!(VECTOR_TYPES).cast(),2,2),
+                ] {
+                    let ptr=PY_UFUNC_API.PyUFunc_FromFuncAndDataAndSignature(module.py(),loops,std::ptr::null_mut(),types,count,inputs,1,-1,name.as_ptr().cast(),c"Rust coordinate transform; vector positions use the input coordinate system.".as_ptr(),0,signature.as_ptr().cast());
+                    module.add(name.trim_end_matches('\0'),Bound::from_owned_ptr_or_err(module.py(),ptr)?)?;
+                }
+            }
+        }};
+    }
+    coordinates!("car2cyl", "vcar2cyl", 0, "(3)->(3)", "(3),(3)->(3)");
+    coordinates!("car2sph", "vcar2sph", 1, "(3)->(3)", "(3),(3)->(3)");
+    coordinates!("cyl2car", "vcyl2car", 2, "(3)->(3)", "(3),(3)->(3)");
+    coordinates!("cyl2sph", "vcyl2sph", 3, "(3)->(3)", "(3),(3)->(3)");
+    coordinates!("sph2car", "vsph2car", 4, "(3)->(3)", "(3),(3)->(3)");
+    coordinates!("sph2cyl", "vsph2cyl", 5, "(3)->(3)", "(3),(3)->(3)");
+    coordinates!("car2pol", "vcar2pol", 6, "(2)->(2)", "(2),(2)->(2)");
+    coordinates!("pol2car", "vpol2car", 7, "(2)->(2)", "(2),(2)->(2)");
     Ok(())
 }

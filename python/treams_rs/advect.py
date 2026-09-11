@@ -1048,3 +1048,25 @@ def plane_permutation(
         return value, lambda g: (context.pullback(g),)
 
     return _call((vectors,), forward)
+
+
+def coordinates(points: ArrayLike, *, kind: str) -> NDArray[np.float64]:
+    """Coordinate conversion with native real point pullback."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.coordinates(values[0], kind=kind)
+        return value.astype(np.complex128), lambda g: (context.pullback(g.real),)
+
+    return ad.numpy.real(_call((points,), forward))
+
+
+def vector_coordinates(
+    vectors: ArrayLike, points: ArrayLike, *, kind: str
+) -> NDArray[np.complex128]:
+    """Vector-frame conversion with native vector and source-position pullbacks."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.vector_coordinates(*values, kind=kind)
+        return value, context.pullback
+
+    return _call((vectors, points), forward)

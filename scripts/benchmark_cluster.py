@@ -47,6 +47,9 @@ def worker(
     if backend in ("treams", "check"):
         import treams
 
+    # Forward-only APIs return their actual result, without a benchmark-created
+    # dummy residual tuple that would burden only one side of tiny-kernel timings.
+    forward_only = workload.endswith(("-forward", "-public")) or workload == "slab"
     threads = int(os.environ["BENCH_THREADS"])
     with threadpool_limits(limits=threads):
         radii = np.linspace(0.15, 0.25, particles)
@@ -54,6 +57,24 @@ def worker(
         positions = np.column_stack(
             [np.arange(particles) * 0.8, np.zeros((particles, 2))]
         )
+
+        if workload.startswith("coordinate-"):
+            coordinate_name = workload.split("-")[1]
+            dimension = 2 if "pol" in coordinate_name else 3
+            coordinate_points = (
+                np.array([0.4, 0.7, 0.3])[:dimension]
+                if samples == 1
+                else np.column_stack(
+                    (
+                        np.linspace(0.2, 1.5, samples),
+                        np.full(samples, 0.7),
+                        np.full(samples, 0.3),
+                    )
+                )[:, :dimension].copy()
+            )
+            coordinate_vector = np.array([0.2 + 0.3j, -0.1 + 0.2j, 0.4 - 0.1j])[
+                :dimension
+            ]
 
         if workload.startswith(("cylindrical-expansion", "cylindrical-periodic")):
             vectors = np.array([[particles * 0.8]])
@@ -341,6 +362,13 @@ def worker(
         )
 
         def rust():
+            if workload.startswith("coordinate-"):
+                args = (
+                    (coordinate_vector, coordinate_points)
+                    if coordinate_name.startswith("v")
+                    else (coordinate_points,)
+                )
+                return getattr(special, coordinate_name)(*args)
             if workload.startswith("cylindrical-expansion"):
                 return diff.expansion(basis, basis, [1.3, 1.3], singular=True)
             if workload.startswith("cylindrical-periodic"):
@@ -350,25 +378,25 @@ def worker(
             if workload == "wigner":
                 return diff.wigner(order, 1, -2, 0.2, special_arguments, -0.1)
             if workload == "wigner-forward":
-                return special.wignerd(order, 1, -2, 0.2, special_arguments, -0.1), None
+                return special.wignerd(order, 1, -2, 0.2, special_arguments, -0.1)
             if workload == "wigner-small-forward":
-                return special.wignersmalld(order, 1, -2, special_arguments), None
+                return special.wignersmalld(order, 1, -2, special_arguments)
             if workload == "wigner3j-forward":
-                return special.wigner3j(order, order, wigner_degrees, 1, -2, 1), None
+                return special.wigner3j(order, order, wigner_degrees, 1, -2, 1)
             if workload == "incgamma-forward":
-                return special.incgamma(1.5, special_arguments), None
+                return special.incgamma(1.5, special_arguments)
             if workload == "intkambe-forward":
-                return special.intkambe(-2, special_arguments, 0.7 + 0.1j), None
+                return special.intkambe(-2, special_arguments, 0.7 + 0.1j)
             if workload.startswith("angular-"):
                 if workload.endswith("-forward"):
                     return getattr(special, angular_name)(
                         *angular_labels, angular_arguments
-                    ), None
+                    )
                 return diff.angular(order, 2, angular_arguments, kind=angular_kind)
             if workload == "bessel-forward":
-                return special.hankel1(order, bessel_arguments), None
+                return special.hankel1(order, bessel_arguments)
             if workload == "bessel-derivative-forward":
-                return special.hankel1_d(order, bessel_arguments), None
+                return special.hankel1_d(order, bessel_arguments)
             if workload.startswith("bessel"):
                 return diff.bessel(
                     order,
@@ -377,9 +405,12 @@ def worker(
                     derivative=workload == "bessel-derivative",
                 )
             if "particle-cluster" in workload and workload.endswith("public"):
-                return type(local_tmats[0]).cluster(
-                    local_tmats, positions
-                ).interaction.solve().array, None
+                return (
+                    type(local_tmats[0])
+                    .cluster(local_tmats, positions)
+                    .interaction.solve()
+                    .array
+                )
             if "particle-cluster" in workload:
                 return diff.particle_cluster(
                     local_arrays, positions, [1.3, 1.3], bases=local_bases
@@ -409,14 +440,12 @@ def worker(
                 )
             if workload in ("internal-field", "internal-field-forward"):
                 if workload == "internal-field-forward":
-                    return _native.smatrix_illuminate_forward(
-                        lower, upper, up, down
-                    ), None
+                    return _native.smatrix_illuminate_forward(lower, upper, up, down)
                 return diff.smatrix_illuminate(lower, upper, up, down)
             if workload == "slab":
                 return SMatrices.slab(
                     layer_thickness, basis, 1.3, list(layer_eps)
-                ).array, None
+                ).array
             if workload in ("plane-expansion", "cylindrical-plane-expansion"):
                 return diff.plane_expansion(basis, vectors, source_basis.pol)
             if workload in ("plane-field", "plane-operator"):
@@ -481,6 +510,13 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload.startswith("coordinate-"):
+                args = (
+                    (coordinate_vector, coordinate_points)
+                    if coordinate_name.startswith("v")
+                    else (coordinate_points,)
+                )
+                return getattr(treams.special, coordinate_name)(*args)
             if workload.startswith("cylindrical-expansion"):
                 return treams.expand(
                     (oracle_basis, oracle_basis),
@@ -681,7 +717,9 @@ def worker(
 
         if backend == "check":
             expected = upstream()
-            actual, _ = rust()
+            actual = rust()
+            if not forward_only:
+                actual = actual[0]
             np.testing.assert_allclose(actual, expected, rtol=2e-9, atol=1e-12)
             print(json.dumps({"accuracy_check": "passed"}))
             return
@@ -807,7 +845,14 @@ def worker(
                     )
                     else samples
                     if workload.startswith(
-                        ("bessel", "angular-", "wigner", "incgamma", "intkambe")
+                        (
+                            "bessel",
+                            "angular-",
+                            "wigner",
+                            "incgamma",
+                            "intkambe",
+                            "coordinate-",
+                        )
                     )
                     else particle_dimension
                     if "particle-cluster" in workload
@@ -842,6 +887,7 @@ def worker(
                     "samples_seconds": times,
                     "calls_per_timing_sample": batch,
                     "forward_includes_result_destruction": True,
+                    "forward_records_adjoint": not forward_only,
                     "backward_median_seconds": statistics.median(backward_times)
                     if backward_times
                     else None,
@@ -886,6 +932,22 @@ def main() -> None:
             "internal-field",
             "internal-field-forward",
             "ebcm",
+            "coordinate-car2cyl-forward",
+            "coordinate-car2sph-forward",
+            "coordinate-cyl2car-forward",
+            "coordinate-cyl2sph-forward",
+            "coordinate-sph2car-forward",
+            "coordinate-sph2cyl-forward",
+            "coordinate-car2pol-forward",
+            "coordinate-pol2car-forward",
+            "coordinate-vcar2cyl-forward",
+            "coordinate-vcar2sph-forward",
+            "coordinate-vcyl2car-forward",
+            "coordinate-vcyl2sph-forward",
+            "coordinate-vsph2car-forward",
+            "coordinate-vsph2cyl-forward",
+            "coordinate-vcar2pol-forward",
+            "coordinate-vpol2car-forward",
             "cylindrical-expansion",
             "cylindrical-expansion-axial",
             "cylindrical-periodic",

@@ -217,3 +217,21 @@ def wigner3j(
     ):
         return _native.wigner3j_scalar(j1, j2, j3, m1, m2, m3)
     return _native.wigner3j(j1, j2, j3, m1, m2, m3, out=out, where=where)
+
+
+car2cyl = _native.car2cyl
+car2sph = _native.car2sph
+cyl2car = _native.cyl2car
+cyl2sph = _native.cyl2sph
+sph2car = _native.sph2car
+sph2cyl = _native.sph2cyl
+car2pol = _native.car2pol
+pol2car = _native.pol2car
+vcar2cyl = _native.vcar2cyl
+vcar2sph = _native.vcar2sph
+vcyl2car = _native.vcyl2car
+vcyl2sph = _native.vcyl2sph
+vsph2car = _native.vsph2car
+vsph2cyl = _native.vsph2cyl
+vcar2pol = _native.vcar2pol
+vpol2car = _native.vpol2car

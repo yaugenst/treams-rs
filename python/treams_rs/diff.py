@@ -882,3 +882,42 @@ def plane_permutation(
         int(n) % 3,
         poltype == "helicity",
     )
+
+
+def coordinates(
+    points: ArrayLike, *, kind: str
+) -> tuple[NDArray[np.float64], _native.CoordinateContext]:
+    """Coordinate conversion with real input VJP; kind is e.g. car2sph.
+
+    The final axis has two polar or three spatial components. Undefined angular
+    derivatives at an axis/origin raise unless their output cotangent is zero.
+    """
+    return _native.coordinates(np.asarray(points, dtype=np.float64), kind)
+
+
+def vector_coordinates(
+    vectors: ArrayLike, points: ArrayLike, *, kind: str
+) -> tuple[NDArray[np.complex128], _native.VectorCoordinateContext]:
+    """Transform vector components; VJP returns (vectors, source coordinates).
+
+    kind is e.g. car2sph, without the public vector-function's v prefix. Vector
+    and point batch dimensions broadcast; gradients return their original shapes.
+    """
+    vector = np.asarray(vectors, dtype=np.complex128)
+    position = np.asarray(points, dtype=np.float64)
+    dim = 2 if kind in ("car2pol", "pol2car") else 3
+    if (
+        not vector.shape
+        or not position.shape
+        or vector.shape[-1] != dim
+        or position.shape[-1] != dim
+    ):
+        raise ValueError("last axes must match coordinate dimension")
+    v, p = np.broadcast_arrays(vector, position)
+    return _native.vector_coordinates(
+        vector if vector.size == dim else v,
+        position if position.size == dim else cast("NDArray[np.float64]", p),
+        kind,
+        v.shape,
+        (vector.shape, position.shape),
+    )

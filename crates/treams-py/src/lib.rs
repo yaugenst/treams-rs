@@ -4,6 +4,7 @@
 
 mod basis;
 mod channels;
+mod coordinates;
 mod cylinder;
 mod ebcm;
 mod fields;
@@ -144,6 +145,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     linalg::register(m)?;
     ebcm::register(m)?;
     special::register(m)?;
+    coordinates::register(m)?;
     ufunc::register(m)?;
     m.add_class::<MieContext>()?;
     m.add_function(wrap_pyfunction!(build_profile, m)?)?;

@@ -120,3 +120,8 @@ bench-performance: build-ext-release
             uv run --no-sync python scripts/benchmark_cluster.py --workload "$workload" --particles "$particles" --lmax 3 --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/${workload}-n${particles}-l3.json"
         done
     done
+    for name in car2cyl car2sph cyl2car cyl2sph sph2car sph2cyl car2pol pol2car vcar2cyl vcar2sph vcyl2car vcyl2sph vsph2car vsph2cyl vcar2pol vpol2car; do
+        for samples in 1 128 65536; do
+            uv run --no-sync python scripts/benchmark_cluster.py --workload "coordinate-${name}-forward" --samples "$samples" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/coordinate-${name}-n${samples}.json"
+        done
+    done
