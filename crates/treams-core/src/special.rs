@@ -561,14 +561,29 @@ fn angular_jet<const N: usize>(
     if !finite(z)
         || !l.is_finite()
         || !m.is_finite()
-        || l.fract() != 0.0
         || m.fract() != 0.0
         || !(0.0..=128.0).contains(&l)
     {
-        return Err(Error::InvalidInput("angular functions require integer 0 <= degree <= 128, integer order and finite argument".into()));
+        return Err(Error::InvalidInput(
+            "angular functions require 0 <= degree <= 128, integer order and finite argument"
+                .into(),
+        ));
+    }
+    if l.fract() != 0.0 && (!matches!(kind, Angular::Legendre) || z.im != 0.0) {
+        return Err(Error::InvalidInput(
+            "noninteger degrees require real Legendre arguments".into(),
+        ));
     }
     if m.abs() > l {
         return Ok(Jet::default());
+    }
+    if l.fract() != 0.0 {
+        let (value, derivative) = if N == 0 {
+            crate::legendre::factor::<false>(l, m as i32, z.re)?
+        } else {
+            crate::legendre::factor::<true>(l, m as i32, z.re)?
+        };
+        return Ok(Jet::<N>::variable(z, 0).map(value.into(), derivative.into()));
     }
     let (l, m) = (l as i32, m as i32);
     let z = Jet::<N>::variable(z, 0);
@@ -602,7 +617,7 @@ fn angular_jet<const N: usize>(
     Ok(value)
 }
 
-/// Integer-degree angular function at a complex cosine argument.
+/// Angular function at a cosine argument; real Legendre values also accept real degrees.
 pub fn angular_value(l: f64, m: f64, z: Complex, kind: Angular) -> Result<Complex> {
     Ok(angular_jet::<0>(l, m, z, kind)?.value)
 }

@@ -24,3 +24,9 @@ Chiral Fresnel coefficients and plane-wave power-flux conventions are ported fro
 the MIT-licensed treams implementation. Native S-matrix composition uses the
 Redheffer product, eliminating both internal fields with one LU factorization and
 reusing it in the analytic adjoint.
+
+Real-degree Ferrers/associated Legendre functions adapt SciPy XSF's `specfun::lpmv`
+and `lpmv0` endpoint series and recurrence, with scaled high-order arithmetic and
+analytic argument derivatives. The BSD-3-Clause SciPy developer notice and the
+original Zhang/Jin attribution are retained in `LICENSE.xsf`. XSF and SciPy are
+not runtime dependencies.

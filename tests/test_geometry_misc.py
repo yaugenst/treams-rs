@@ -34,6 +34,26 @@ def test_cell_gufuncs_and_strides(dim, dtype):
     assert lattice.area is lattice.volume
 
 
+@pytest.mark.parametrize("dim", [1, 2, 3])
+def test_single_cell_fast_path_and_numpy_dispatch(dim):
+    cell = np.eye(dim) * 1.3
+    if dim > 1:
+        cell[0, 1] = 0.2
+    for function in (lattice.volume, lattice.reciprocal):
+        expected = function(cell[None])[0]
+        assert_allclose(function(cell), expected, rtol=2e-15)
+        assert_allclose(function(cell.T), function(cell.T[None])[0], rtol=2e-15)
+        out = np.empty_like(expected)
+        assert function(cell, out) is out
+        assert_allclose(out, expected, rtol=2e-15)
+
+        class Intercept(np.ndarray):
+            def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+                return "intercepted"
+
+        assert function(cell.view(Intercept)) == "intercepted"
+
+
 @given(dim=st.integers(1, 3), pitch=st.floats(0.3, 5), shear=st.floats(-0.8, 0.8))
 @settings(max_examples=30, deadline=None)
 def test_reciprocal_duality_and_scale(dim, pitch, shear):

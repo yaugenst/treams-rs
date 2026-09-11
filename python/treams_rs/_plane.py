@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import numpy as np
 
@@ -16,12 +16,14 @@ from ._core import (
     SphericalWaveBasis,
     _unit_vectors,
 )
+from ._operators import _WaveFields
+from .config import _resolve_poltype
 
 if TYPE_CHECKING:
-    from numpy.typing import ArrayLike, NDArray
+    from numpy.typing import ArrayLike, DTypeLike, NDArray
 
 
-class PlaneWave:
+class PlaneWave(_WaveFields):
     """A plane wave with amplitudes ordered by polarization index (0, 1)."""
 
     def __init__(
@@ -31,8 +33,9 @@ class PlaneWave:
         *,
         k0: float = 1.0,
         material: MaterialLike = 1,
-        poltype: str = "helicity",
+        poltype: str | None = None,
     ):
+        poltype = _resolve_poltype(poltype)
         vector = np.asarray(kvec, dtype=np.complex128)
         if vector.shape != (3,) or not np.isfinite(vector).all():
             raise ValueError("kvec must contain three finite components")
@@ -93,10 +96,28 @@ class PlaneWave:
             raise ValueError("polarization amplitudes must be finite")
         self.amplitudes.flags.writeable = False
 
+    modetype = "up"
+
+    @property
+    @override
+    def basis(self) -> PlaneWaveBasisByUnitVector:
+        return PlaneWaveBasisByUnitVector([(*self.direction, pol) for pol in (0, 1)])
+
+    @property
+    @override
+    def array(self) -> NDArray[np.complex128]:
+        return self.amplitudes
+
+    def __array__(
+        self, dtype: DTypeLike | None = None, copy: bool | None = None
+    ) -> NDArray[np.generic]:
+        return np.asarray(self.array, dtype=dtype, copy=copy)
+
     @property
     def kvecs(self) -> NDArray[np.complex128]:
         return self.material.ks(self.k0)[:, None] * self.direction
 
+    @override
     def efield(self, r: ArrayLike) -> NDArray[np.complex128]:
         """Cartesian samples using the native weighted plane-field kernel."""
         points = np.asarray(r, dtype=np.float64)
@@ -183,9 +204,10 @@ def plane_wave(
     *,
     k0: float = 1.0,
     material: MaterialLike = 1,
-    poltype: str = "helicity",
+    poltype: str | None = None,
 ) -> PlaneWave:
     """Define an incident plane wave from a real or complex propagation direction."""
+    poltype = _resolve_poltype(poltype)
     return PlaneWave(kvec, pol, k0=k0, material=material, poltype=poltype)
 
 
@@ -196,9 +218,10 @@ def plane_wave_angle(
     *,
     k0: float = 1.0,
     material: MaterialLike = 1,
-    poltype: str = "helicity",
+    poltype: str | None = None,
 ) -> PlaneWave:
     """Define an incident plane wave by polar and azimuthal angles in radians."""
+    poltype = _resolve_poltype(poltype)
     return plane_wave(
         [np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)],
         pol,

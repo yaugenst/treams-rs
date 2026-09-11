@@ -83,41 +83,59 @@ pub fn cube(dim: usize, n: i64, edge: bool) -> Result<Vec<i64>> {
     values
         .try_reserve_exact(count)
         .map_err(|e| Error::InvalidInput(e.to_string()))?;
+    visit_cube(dim, n, edge, |point| {
+        values.extend_from_slice(&point[..dim]);
+        Ok(())
+    })?;
+    Ok(values)
+}
+
+/// Visit cube points without allocating an integer point table.
+pub(crate) fn visit_cube(
+    dim: usize,
+    n: i64,
+    edge: bool,
+    mut visitor: impl FnMut([i64; 3]) -> Result<()>,
+) -> Result<()> {
+    if !(1..=3).contains(&dim) || n < 0 {
+        return Err(Error::InvalidInput(
+            "cube requires dimension 1, 2 or 3 and nonnegative size".into(),
+        ));
+    }
     fn append(
-        values: &mut Vec<i64>,
         point: &mut [i64; 3],
         dim: usize,
         axis: usize,
         n: i64,
         edge: bool,
         boundary: bool,
-    ) {
+        visitor: &mut impl FnMut([i64; 3]) -> Result<()>,
+    ) -> Result<()> {
         if axis == dim {
-            values.extend_from_slice(&point[..dim]);
-            return;
+            return visitor(*point);
         }
         if edge && !boundary && axis + 1 == dim && n > 0 {
             for value in [-n, n] {
                 point[axis] = value;
-                append(values, point, dim, axis + 1, n, edge, true);
+                append(point, dim, axis + 1, n, edge, true, visitor)?;
             }
         } else {
             for value in -n..=n {
                 point[axis] = value;
                 append(
-                    values,
                     point,
                     dim,
                     axis + 1,
                     n,
                     edge,
                     boundary || value.abs() == n,
-                );
+                    visitor,
+                )?;
             }
         }
+        Ok(())
     }
-    append(&mut values, &mut [0; 3], dim, 0, n, edge, false);
-    Ok(values)
+    append(&mut [0; 3], dim, 0, n, edge, false, &mut visitor)
 }
 
 /// Diffraction orders inside a reciprocal-space circle, with adjacent opposite pairs.

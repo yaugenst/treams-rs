@@ -144,3 +144,106 @@ def test_hdf5_rejects_mixed_bases_before_writing():
         with pytest.raises(ValueError, match="share mode"):
             io.save_hdf5(handle, [first, second])
         assert list(handle) == []
+
+
+@given(radius=st.floats(0.1, 1.2), shift=st.floats(-3, 3))
+def test_extended_scatterer_metadata_and_numerical_roundtrip(radius, shift):
+    tm = tr.TMatrix.sphere(1, 1.3, radius, [2.3, 1])
+    metadata = {
+        "name": "sphere",
+        "keywords": "passive, reciprocal",
+        "material": {
+            "name": "dielectric",
+            "relative_permittivity": 2.3,
+            "relative_permeability": 1,
+            "chirality": 0,
+        },
+        "geometry": {"shape": "sphere", "radius": radius},
+        "position": [shift, 0, 0],
+    }
+    with h5py.File("metadata.h5", "w", driver="core", backing_store=False) as file:
+        io.save_hdf5(
+            file,
+            tm,
+            scatterers=metadata,
+            computation={"method": "Mie", "keywords": "semi-analytical"},
+        )
+        assert file.attrs["storage_format_version"] == "v1"
+        assert file["scatterer/geometry"].attrs["shape"] == "sphere"
+        assert file["scatterer/geometry/radius"].attrs["unit"] == "nm"
+        assert_allclose(file["scatterer/geometry/radius"][()], radius)
+        assert_allclose(file["scatterer/geometry/position"][()], [shift, 0, 0])
+        assert file["scatterer/material"].attrs["name"] == "dielectric"
+        assert_allclose(io.load_hdf5(file).array, tm.array, atol=0)
+        assert "treams-rs=" in file["computation"].attrs["software"]
+
+
+def test_mesh_and_reproducibility_files(tmp_path):
+    tm = tr.TMatrix.sphere(1, 1.3, 0.2, [2.3, 1])
+    mesh = tmp_path / "scene.msh"
+    mesh.write_text("mesh text\nµm\n", encoding="utf-8")
+    script = tmp_path / "simulation.py"
+    script.write_text("print('reproduce')\n", encoding="utf-8")
+    for mesh_input in (mesh, {"mesh.msh": mesh.read_text(encoding="utf-8")}):
+        with h5py.File("metadata.h5", "w", driver="core", backing_store=False) as file:
+            io.save_hdf5(
+                file,
+                tm,
+                lunit="um",
+                scatterers=[
+                    {"geometry": {"shape": "sphere", "radius": 0.2}},
+                    {"position": [1, 2, 3]},
+                ],
+                computation={
+                    "method": "test",
+                    "mesh": mesh_input,
+                    "files": [script, {"path": script, "name": "copy.py"}],
+                },
+            )
+            assert file["scatterer_0/geometry/radius"].attrs["unit"] == "um"
+            assert_allclose(file["scatterer_1/geometry/position"][()], [1, 2, 3])
+            assert isinstance(file.get("mesh", getlink=True), h5py.SoftLink)
+            target = (
+                file["mesh/mesh.msh"] if isinstance(mesh_input, dict) else file["mesh"]
+            )
+            assert target.asstr()[()] == mesh.read_text(encoding="utf-8")
+            assert file["computation/files/copy.py"].asstr()[()] == script.read_text(
+                encoding="utf-8"
+            )
+    with h5py.File("metadata.h5", "w", driver="core", backing_store=False) as file:
+        io.save_hdf5(
+            file,
+            tm,
+            scatterers={"geometry": {"shape": "sphere"}},
+            computation={"method": "test"},
+        )
+        assert "storage_format_version" not in file.attrs
+
+
+@given(tag=st.integers(10, 1000), radius=st.floats(0.1, 2))
+def test_gmsh_helper_actual_surface_tags_and_complete_geometry(tag, radius):
+    from unittest.mock import MagicMock
+
+    model = MagicMock()
+    model.occ.addSphere.side_effect = [tag, tag + 1]
+    model.getBoundary.side_effect = [
+        [(2, tag + 1000)],
+        [(2, tag + 2000)],
+        [(0, 11), (0, 12)],
+    ]
+    model.getEntities.return_value = [(0, 11), (0, 12)]
+    assert (
+        io.mesh_spheres([radius, radius * 2], [[0, 0, 0], [10, 0, 0]], model) is model
+    )
+    assert [call.args for call in model.addPhysicalGroup.call_args_list] == [
+        (3, [tag]),
+        (2, [tag + 1000]),
+        (3, [tag + 1]),
+        (2, [tag + 2000]),
+    ]
+    assert model.occ.addSphere.call_args_list[0].args == (0, 0, 0, radius)
+    assert_allclose(model.mesh.setSize.call_args_list[0].args[1], radius * 0.4)
+    model = MagicMock()
+    with pytest.raises(ValueError, match="one radius"):
+        io.mesh_spheres([1, 2], [[0, 0, 0]], model)
+    model.occ.addSphere.assert_not_called()

@@ -16,7 +16,32 @@ if TYPE_CHECKING:
 
     from numpy.typing import ArrayLike, NDArray
 
-rotate = _native.cw_rotate
+
+def rotate(
+    kz: ArrayLike,
+    mu: ArrayLike,
+    pol: ArrayLike,
+    qz: ArrayLike,
+    m: ArrayLike,
+    qol: ArrayLike,
+    phi: ArrayLike,
+    *args: object,
+    **kwargs: object,
+) -> complex | NDArray[np.complex128]:
+    """Cylindrical rotation with exact axial, angular and polarization selection."""
+    if (
+        not args
+        and not kwargs
+        and isinstance(phi, (int, float))
+        and isinstance(kz, (int, float))
+        and isinstance(mu, int)
+        and isinstance(pol, int)
+        and isinstance(qz, (int, float))
+        and isinstance(m, int)
+        and isinstance(qol, int)
+    ):
+        return _native.cylindrical_rotation_scalar(kz, mu, pol, qz, m, qol, phi)
+    return _native.cw_rotate(kz, mu, pol, qz, m, qol, phi, *args, **kwargs)
 
 
 def translate(

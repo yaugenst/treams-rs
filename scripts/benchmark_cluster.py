@@ -24,6 +24,19 @@ import time
 from pathlib import Path
 
 
+def _digest(path: Path) -> str:
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def _package_digest(directory: Path) -> str:
+    digest = hashlib.sha256()
+    for path in sorted(directory.glob("*.py")):
+        digest.update(path.name.encode())
+        digest.update(bytes.fromhex(_digest(path)))
+    return digest.hexdigest()
+
+
 def worker(
     backend: str, particles: int, order: int, repeats: int, workload: str, samples: int
 ) -> None:
@@ -33,7 +46,9 @@ def worker(
     if backend in ("rust", "check", "compare"):
         from treams_rs import (
             CylindricalWaveBasis,
+            PhysicsArray,
             PlaneWaveBasisByComp,
+            PlaneWaveBasisByUnitVector,
             SMatrices,
             SphericalWaveBasis,
             _native,
@@ -61,6 +76,127 @@ def worker(
         positions = np.column_stack(
             [np.arange(particles) * 0.8, np.zeros((particles, 2))]
         )
+
+        if workload.startswith("power-"):
+            power_q = np.column_stack(
+                (np.linspace(0.1, 0.7, samples), np.full(samples, 0.13))
+            )
+            power_modes = [(group, pol) for group in range(samples) for pol in (1, 0)]
+            power_rng = np.random.default_rng(116)
+            power_matrix = (
+                power_rng.normal(size=(2, 2, 2 * samples, 2 * samples))
+                + 1j * power_rng.normal(size=(2, 2, 2 * samples, 2 * samples))
+            ) * (0.03 / np.sqrt(samples))
+            power_matrix[0, 0] += np.eye(2 * samples) * 0.8
+            power_matrix[1, 1] += np.eye(2 * samples) * 0.9
+            power_incident = power_rng.normal(size=2 * samples) + 1j * power_rng.normal(
+                size=2 * samples
+            )
+            power_ks = np.full((2, 2), 1.3 + 0j)
+            power_zs = np.ones(2, complex)
+            if backend in ("rust", "check", "compare"):
+                power_basis = PlaneWaveBasisByComp.default(power_q)
+                power_stack = SMatrices(power_matrix, basis=power_basis, k0=1.3)
+            if backend in ("treams", "check", "compare"):
+                oracle_power_basis = treams.PlaneWaveBasisByComp.default(power_q)
+                oracle_power_stack = treams.SMatrices(
+                    power_matrix, basis=oracle_power_basis, k0=1.3
+                )
+                oracle_power_incident = treams.PhysicsArray(
+                    power_incident, modetype="up"
+                )
+
+        if workload.startswith("callback-"):
+            callback_poltype = workload.split("-")[1]
+            callback_channels = 2 if callback_poltype == "helicity" else 1
+            callback_rng = np.random.default_rng(113)
+            callback_shape = (
+                particles,
+                particles,
+                callback_channels,
+                (2 * order + 1) ** 2,
+            )
+            callback_table = callback_rng.normal(
+                size=callback_shape
+            ) + 1j * callback_rng.normal(size=callback_shape)
+            if backend in ("rust", "check", "compare"):
+                callback_basis = SphericalWaveBasis.default(
+                    order, particles, positions=positions
+                )
+            if backend in ("treams", "check", "compare"):
+                oracle_callback_basis = treams.SphericalWaveBasis.default(
+                    order, particles, positions=positions
+                )
+
+        if workload.startswith("operator-"):
+            _, operator_family, operator_name, _ = workload.split("-")
+            operator_points = np.linspace([0.1, 0.2, 0.3], [0.6, 0.5, 0.7], samples)
+            operator_pol = (1,) if operator_name in ("gfield", "ffield") else ()
+            if backend in ("rust", "check", "compare"):
+                operator_basis = (
+                    SphericalWaveBasis.default(order)
+                    if operator_family == "sphere"
+                    else CylindricalWaveBasis.default([0.2], order)
+                    if operator_family == "cylinder"
+                    else PlaneWaveBasisByUnitVector.default(
+                        [[0.2, 0.3, 0.9], [-0.3, 0.2, 0.9]]
+                    )
+                )
+                operator_wave = PhysicsArray(
+                    np.full(len(operator_basis), 0.2 + 0.3j),
+                    basis=operator_basis,
+                    k0=1.3,
+                    material=1.2,
+                )
+                operator_function = getattr(operator_wave, operator_name)
+            if backend in ("treams", "check", "compare"):
+                oracle_operator_basis = (
+                    treams.SphericalWaveBasis.default(order)
+                    if operator_family == "sphere"
+                    else treams.CylindricalWaveBasis.default([0.2], order)
+                    if operator_family == "cylinder"
+                    else treams.PlaneWaveBasisByUnitVector.default(
+                        [[0.2, 0.3, 0.9], [-0.3, 0.2, 0.9]]
+                    )
+                )
+                oracle_operator_wave = treams.PhysicsArray(
+                    np.full(len(oracle_operator_basis), 0.2 + 0.3j),
+                    basis=oracle_operator_basis,
+                    k0=1.3,
+                    material=1.2,
+                )
+                oracle_operator_function = getattr(oracle_operator_wave, operator_name)
+
+        if workload.startswith("lattice-"):
+            lattice_name = workload.split("-")[1]
+            spherical = "sw" in lattice_name
+            dim = 1 if "1d" in lattice_name else 2 if "2d" in lattice_name else 3
+            shifted = lattice_name.endswith("shift")
+            lattice_labels = (2, -2) if spherical and (dim > 1 or shifted) else (2,)
+            lattice_k = (
+                2.1 + 0.2j if samples == 1 else np.linspace(2.0, 2.5, samples) + 0.2j
+            )
+            lattice_q = 0.13 if dim == 1 else np.linspace(0.1, 0.2, dim)
+            lattice_a = 1.7 if dim == 1 else np.diag(np.linspace(1.5, 1.7, dim))
+            lattice_r = (
+                0.2
+                if dim == 1 and not shifted
+                else np.array([0.19, 0.11, 0.07])[
+                    : 3 if spherical and (dim == 3 or shifted) else 2
+                ]
+            )
+            lattice_args = (
+                *lattice_labels,
+                lattice_k,
+                lattice_q,
+                lattice_a,
+                lattice_r,
+                2 if lattice_name.startswith("dsum") else 0.9,
+            )
+            if backend in ("rust", "check", "compare"):
+                lattice_function = getattr(lattice, lattice_name)
+            if backend in ("treams", "check", "compare"):
+                oracle_lattice_function = getattr(treams.lattice, lattice_name)
 
         if workload.startswith("geometry-"):
             name = workload.split("-")[1]
@@ -248,14 +384,22 @@ def worker(
             wigner_degrees = order if samples == 1 else np.full(samples, order)
 
         if workload.startswith("angular-"):
-            angular_kind = workload.split("-")[1]
+            fractional = workload.split("-")[1] == "fractional"
+            angular_kind = "legendre" if fractional else workload.split("-")[1]
+            angular_degree = order + 0.3 if fractional else order
             angular_arguments = (
                 0.3 + 0.1j if samples == 1 else np.linspace(-0.8, 0.8, samples) + 0.1j
             )
+            if fractional:
+                angular_arguments = np.real(angular_arguments)
             angular_name = {"legendre": "lpmv", "pi": "pi_fun", "tau": "tau_fun"}[
                 angular_kind
             ]
-            angular_labels = (2, order) if angular_kind == "legendre" else (order, 2)
+            angular_labels = (
+                (2, angular_degree)
+                if angular_kind == "legendre"
+                else (angular_degree, 2)
+            )
 
         if workload.startswith("bessel"):
             bessel_arguments = (
@@ -490,6 +634,62 @@ def worker(
         )
 
         def rust():
+            if workload.startswith("power-"):
+                if workload == "power-translate-forward":
+                    return power_stack.translate([0.1, 0.2, 0.3]).array
+                if workload == "power-permute-forward":
+                    return power_stack.permute().array
+                if not forward_only:
+                    return diff.smatrix_tr(
+                        power_matrix,
+                        power_incident[:, None],
+                        power_ks,
+                        power_zs,
+                        power_q,
+                        modes=power_modes,
+                    )
+                function = (
+                    power_stack.cd if workload == "power-cd-forward" else power_stack.tr
+                )
+                return np.asarray(function(power_incident))[:, None]
+            if workload.startswith("callback-"):
+                value, residual = diff.periodic_from_table(
+                    callback_table, callback_basis, poltype=callback_poltype
+                )
+                return value if forward_only else (value, residual)
+            if workload.startswith("operator-"):
+                return (
+                    operator_function(*operator_pol, r=operator_points)
+                    if operator_pol
+                    else operator_function(operator_points)
+                )
+            if workload.startswith("lattice-"):
+                if forward_only:
+                    return lattice_function(*lattice_args)
+                shift = lattice_r
+                if dim == 1 and not shifted:
+                    shift = [0, 0, lattice_r] if spherical else [lattice_r, 0]
+                elif spherical and dim == 2 and not shifted:
+                    shift = np.append(lattice_r, 0)
+                return diff.lattice_sum(
+                    dim,
+                    2,
+                    -2 if len(lattice_labels) == 2 else 0 if spherical else 2,
+                    lattice_k,
+                    lattice_q,
+                    lattice_a,
+                    shift,
+                    0.9,
+                    spherical=spherical,
+                    part="direct"
+                    if lattice_name.startswith("dsum")
+                    else "real"
+                    if lattice_name.startswith("realsum")
+                    else "reciprocal"
+                    if lattice_name.startswith("recsum")
+                    else "full",
+                    shell=2,
+                )
             if workload.startswith("geometry-"):
                 return geometry_function(*geometry_args)
             if workload.startswith("namespace-"):
@@ -546,7 +746,9 @@ def worker(
                     return getattr(special, angular_name)(
                         *angular_labels, angular_arguments
                     )
-                return diff.angular(order, 2, angular_arguments, kind=angular_kind)
+                return diff.angular(
+                    angular_degree, 2, angular_arguments, kind=angular_kind
+                )
             if workload == "bessel-forward":
                 return special.hankel1(order, bessel_arguments)
             if workload == "bessel-derivative-forward":
@@ -664,6 +866,35 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload.startswith("power-"):
+                if workload == "power-translate-forward":
+                    return np.asarray(oracle_power_stack.translate([0.1, 0.2, 0.3]))
+                if workload == "power-permute-forward":
+                    return np.asarray(oracle_power_stack.permute())
+                function = (
+                    oracle_power_stack.cd
+                    if workload == "power-cd-forward"
+                    else oracle_power_stack.tr
+                )
+                return np.asarray(function(oracle_power_incident))[:, None]
+            if workload.startswith("callback-"):
+                return treams.sw.translate_periodic(
+                    [1.3, 1.5] if callback_channels == 2 else 1.3,
+                    0.13,
+                    1.7,
+                    positions,
+                    tuple(oracle_callback_basis[()]),
+                    poltype=callback_poltype,
+                    func=lambda *args: callback_table,
+                )
+            if workload.startswith("operator-"):
+                return (
+                    oracle_operator_function(*operator_pol, r=operator_points)
+                    if operator_pol
+                    else oracle_operator_function(operator_points)
+                )
+            if workload.startswith("lattice-"):
+                return oracle_lattice_function(*lattice_args)
             if workload.startswith("geometry-"):
                 return oracle_geometry_function(*geometry_args)
             if workload.startswith("namespace-"):
@@ -955,7 +1186,9 @@ def worker(
                     if workload == "slab"
                     else rust()
                 )
-                cotangent = np.full_like(value, (1 + 0.3j) / value.size)
+                cotangent = np.full(
+                    value.shape, (1 + 0.3j) / value.size, dtype=np.complex128
+                )
                 start = time.perf_counter()
                 if workload in ("periodic", "array", "cylindrical-array"):
                     particle_contexts, coupling_context, solve_context = context[:3]
@@ -1000,11 +1233,15 @@ def worker(
                     "platform": platform.platform(),
                     "numpy_version": np.__version__,
                     "treams_version": importlib.metadata.version("treams"),
-                    "native_sha256": hashlib.sha256(
-                        Path(_native.__file__).read_bytes()
-                    ).hexdigest()
+                    "native_sha256": _digest(Path(_native.__file__))
                     if backend == "rust"
                     else None,
+                    "python_source_sha256": _package_digest(
+                        Path(_native.__file__).parent
+                    )
+                    if backend == "rust"
+                    else None,
+                    "benchmark_sha256": _digest(Path(__file__)),
                     "native_profile": _native.build_profile()
                     if backend == "rust"
                     else None,
@@ -1040,7 +1277,9 @@ def worker(
                     else None,
                     "particles": particles if workload != "slab" else None,
                     "layers": particles if workload == "slab" else None,
-                    "channels": samples if workload == "slab" else None,
+                    "channels": samples
+                    if workload == "slab" or workload.startswith("power-")
+                    else None,
                     "lmax": order,
                     "dimension": particles * 4 * (2 * order + 1)
                     if workload.startswith(
@@ -1059,12 +1298,14 @@ def worker(
                             "polar-",
                             "namespace-",
                             "geometry-",
+                            "lattice-",
+                            "operator-",
                         )
                     )
                     else particle_dimension
                     if "particle-cluster" in workload
                     else 2 * samples
-                    if workload == "slab"
+                    if workload == "slab" or workload.startswith("power-")
                     else 2 * particles * order
                     if workload in ("internal-field", "internal-field-forward")
                     else 2 * samples * (2 * order + 1)
@@ -1113,6 +1354,39 @@ def main() -> None:
     parser.add_argument(
         "--workload",
         choices=[
+            "power-tr",
+            "power-tr-forward",
+            "power-cd-forward",
+            "power-translate-forward",
+            "power-permute-forward",
+            "callback-helicity",
+            "callback-parity",
+            "callback-helicity-forward",
+            "callback-parity-forward",
+            *(
+                f"operator-{family}-{name}-forward"
+                for family in ("sphere", "cylinder", "plane")
+                for name in ("efield", "hfield", "dfield", "bfield", "gfield", "ffield")
+            ),
+            *(
+                f"lattice-{prefix}{family}"
+                for prefix in ("lsum", "realsum", "recsum", "dsum")
+                for family in ("sw1d_shift", "sw2d_shift", "sw3d", "cw1d_shift", "cw2d")
+            ),
+            *(
+                f"lattice-{prefix}{family}-forward"
+                for prefix in ("lsum", "realsum", "recsum", "dsum")
+                for family in (
+                    "sw1d",
+                    "sw1d_shift",
+                    "sw2d",
+                    "sw2d_shift",
+                    "sw3d",
+                    "cw1d",
+                    "cw1d_shift",
+                    "cw2d",
+                )
+            ),
             "namespace-sw.rotate-forward",
             "namespace-sw.translate-forward",
             "namespace-sw.periodic_to_pw-forward",
@@ -1179,6 +1453,8 @@ def main() -> None:
             "intkambe-forward",
             "incgamma",
             "intkambe",
+            "angular-fractional",
+            "angular-fractional-forward",
             "angular-legendre",
             "angular-pi",
             "angular-tau",

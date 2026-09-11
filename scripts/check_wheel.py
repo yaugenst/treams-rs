@@ -557,3 +557,73 @@ np.testing.assert_allclose(
     tr.misc.refractive_index(3 + 0.2j, 1.1, 0.1), tr.Material(3 + 0.2j, 1.1, 0.1).nmp
 )
 print("Clean wheel: reciprocal geometry, basis metadata and material branches passed")
+
+
+# Ewald components and geometry pullbacks require no external numerical package.
+k = np.asarray(2.1 + 0.2j)
+q = np.array([0.1, 0.2])
+a = np.diag([1.5, 1.7])
+r = np.array([0.19, 0.11, 0.07])
+value, context = tr.diff.lattice_sum(2, 2, -1, k, q, a, r, 0.9)
+parts = sum(
+    tr.diff.lattice_sum(2, 2, -1, k, q, a, r, 0.9, part=part)[0]
+    for part in ("real", "reciprocal")
+)
+np.testing.assert_allclose(value, parts, rtol=3e-12, atol=3e-12)
+gk, gq, ga, gr, ge = context.pullback(np.asarray(1, complex))
+np.testing.assert_allclose(
+    (np.vdot(gk, k) + np.vdot(gq, q) - np.vdot(ga, a) - np.vdot(gr, r)).real,
+    0,
+    atol=3e-10,
+)
+np.testing.assert_allclose(ge, 0)
+print("Clean wheel: Ewald decomposition and native geometry/scale adjoint passed")
+
+
+fractional, context = tr.diff.angular(32.3, 12, -0.7)
+np.testing.assert_allclose(fractional, 1.931539353538286e16, rtol=3e-12)
+np.testing.assert_allclose(
+    context.pullback(np.asarray(1, complex)), -8.220038417299478e18, rtol=3e-12
+)
+table = np.arange(25, dtype=complex).reshape(1, 1, 1, 25) * (0.01 + 0.02j)
+value, context = tr.diff.periodic_from_table(table, modes, poltype="parity")
+cotangent = np.full_like(value, 0.2 + 0.3j)
+np.testing.assert_allclose(
+    np.vdot(cotangent, value).real,
+    np.vdot(context.pullback(cotangent), table).real,
+    rtol=2e-13,
+)
+print("Clean wheel: fractional Legendre and custom periodic-table adjoints passed")
+
+
+def interface_power(impedance):
+    ks = anp.array([[1.3, 1.3], [2.0, 2.0]])
+    zs = anp.stack([1.0, impedance])
+    directions = anp.array([[0.2, 0.3]])
+    blocks = ad.interface(ks, zs, directions[0])
+    power = ad.smatrix_tr(
+        blocks,
+        anp.array([[1.0], [0.2j]]),
+        ks[::-1],
+        zs[::-1],
+        directions,
+        modes=[(0, 0), (0, 1)],
+    )
+    return anp.real(anp.sum(power))
+
+
+np.testing.assert_allclose(interface_power(0.7), 1, atol=2e-13)
+np.testing.assert_allclose(advect.grad(interface_power)(np.array(0.7)), 0, atol=2e-12)
+np.testing.assert_allclose(
+    oriented_slab.permute().permute(-1).array, oriented_slab.array, atol=2e-13
+)
+np.testing.assert_allclose(
+    ports.rotate(0.3).rotate(-0.3).components, ports.components, atol=2e-14
+)
+print("Clean wheel: native power adjoint and matrix coordinate workflows passed")
+
+foreign_basis = tr.SphericalWaveBasis(list(sphere.basis), positions=[[1, 2, 3]])
+np.testing.assert_array_equal(
+    sphere[foreign_basis].basis.positions, sphere.basis.positions
+)
+print("Clean wheel: channel selection preserves physical expansion origins")

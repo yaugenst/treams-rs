@@ -15,6 +15,7 @@ import numpy as np
 from . import coeffs, diff, lattice
 from ._core import CylindricalWaveBasis
 from ._operators import _rs_weights
+from .config import _resolve_poltype
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -108,6 +109,31 @@ def intkambe(z: ArrayLike, eta: ArrayLike, *, n: ArrayLike) -> NDArray[np.comple
         return value, context.pullback
 
     return _call((z, eta), forward)
+
+
+def lattice_sum(
+    k: ArrayLike,
+    kpar: ArrayLike,
+    a: ArrayLike,
+    r: ArrayLike,
+    eta: ArrayLike = 0,
+    *,
+    dim: int,
+    degree: ArrayLike = 0,
+    order: ArrayLike = 0,
+    spherical: bool = True,
+    part: str = "full",
+    shell: ArrayLike = 0,
+) -> NDArray[np.complex128]:
+    """Native lattice-sum pullbacks with fixed wave labels and direct-shell index."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.lattice_sum(
+            dim, degree, order, *values, spherical=spherical, part=part, shell=shell
+        )
+        return value, context.pullback
+
+    return _call((k, kpar, a, r, eta), forward)
 
 
 def angular(
@@ -219,9 +245,10 @@ def particle_cluster(
     ks: ArrayLike,
     *,
     bases: Sequence[SphericalWaveBasis | CylindricalWaveBasis],
-    poltype: str = "helicity",
+    poltype: str | None = None,
 ) -> NDArray[np.complex128]:
     """Heterogeneous local matrices with native geometry and embedding adjoints."""
+    poltype = _resolve_poltype(poltype)
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
         value, context = diff.particle_cluster(
@@ -327,6 +354,102 @@ def bands(
     return packed[0], packed[1:]
 
 
+def smatrix_tr(
+    matrices: ArrayLike,
+    incident: ArrayLike,
+    ks: ArrayLike,
+    zs: ArrayLike,
+    q: ArrayLike,
+    *,
+    modes: Sequence[tuple[int, int]],
+    axis: int = 2,
+    poltype: str | None = None,
+    modetype: str = "up",
+    fixed_q: bool = False,
+) -> NDArray[np.complex128]:
+    """Differentiable T/R rows for illumination columns and complete port geometry."""
+    poltype = _resolve_poltype(poltype)
+    static_q = np.asarray(q, dtype=np.float64) if fixed_q else None
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.smatrix_tr(
+            values[0],
+            values[1],
+            values[2],
+            values[3],
+            static_q if static_q is not None else values[4],
+            modes=modes,
+            axis=axis,
+            poltype=poltype,
+            modetype=modetype,
+            fixed_q=fixed_q,
+        )
+
+        def pullback(g: NDArray[np.complex128]) -> _Values:
+            result = context.pullback(g)
+            return result[:4] if fixed_q else result
+
+        return value.astype(np.complex128), pullback
+
+    return _call(
+        (matrices, incident, ks, zs) if fixed_q else (matrices, incident, ks, zs, q),
+        forward,
+    )
+
+
+def smatrix_cd(
+    matrices: ArrayLike,
+    incident: ArrayLike,
+    ks: ArrayLike,
+    zs: ArrayLike,
+    q: ArrayLike,
+    *,
+    modes: Sequence[tuple[int, int]],
+    axis: int = 2,
+    poltype: str | None = None,
+    modetype: str = "up",
+    fixed_q: bool = False,
+) -> NDArray[np.complex128]:
+    """Transmission and total-outgoing-power contrast with complete native port AD.
+
+    A single native power evaluation batches both opposite-polarization
+    illuminations. Advect composes only their selection and scalar contrasts.
+    """
+    poltype = _resolve_poltype(poltype)
+    incoming = ad.numpy.asarray(incident)
+    if incoming.ndim != 1:
+        raise ValueError("CD requires one incident mode vector")
+    if poltype == "helicity":
+        indices = {mode: i for i, mode in enumerate(modes)}
+        try:
+            opposite = incoming[[indices[(group, 1 - pol)] for group, pol in modes]]
+        except KeyError as error:
+            raise ValueError("CD requires both helicities of each direction") from error
+    else:
+        opposite = incoming * np.array([2 * pol - 1 for _, pol in modes])
+    power = smatrix_tr(
+        matrices,
+        ad.numpy.stack((incoming, opposite), axis=1),
+        ks,
+        zs,
+        q,
+        modes=modes,
+        axis=axis,
+        poltype=poltype,
+        modetype=modetype,
+        fixed_q=fixed_q,
+    )
+    total = ad.numpy.sum(power, axis=0)
+    denominator = ad.numpy.stack((ad.numpy.sum(power[0]), ad.numpy.sum(total)))
+    if ad.numpy.any(denominator == 0):
+        raise ValueError(
+            "CD is undefined for zero summed transmission or outgoing power"
+        )
+    return (
+        ad.numpy.stack((power[0, 1] - power[0, 0], total[1] - total[0])) / denominator
+    )
+
+
 def smatrix_from_array(
     response: ArrayLike, channels: ArrayLike
 ) -> NDArray[np.complex128]:
@@ -347,7 +470,7 @@ def spherical_channels(
     *,
     basis: SphericalWaveBasis,
     polarizations: ArrayLike,
-    poltype: str = "helicity",
+    poltype: str | None = None,
     fixed_q: bool = False,
 ) -> NDArray[np.complex128]:
     """Differentiable spherical incidence/radiation channels.
@@ -355,6 +478,7 @@ def spherical_channels(
     fixed_q treats q as a static constant; this supports exactly normal incidence.
     Direction gradients otherwise require nonzero transverse wavevectors.
     """
+    poltype = _resolve_poltype(poltype)
     from ._core import SphericalWaveBasis
 
     static_q = np.asarray(q, dtype=np.float64) if fixed_q else None
@@ -551,11 +675,12 @@ def field_operator(
     ks: ArrayLike,
     *,
     basis: SphericalWaveBasis | CylindricalWaveBasis,
-    poltype: str = "helicity",
+    poltype: str | None = None,
     singular: bool = False,
     kzs: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
     """Full field matrix; optional per-mode kzs are differentiable for cylinders."""
+    poltype = _resolve_poltype(poltype)
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
         dynamic_basis = _dynamic_basis(
@@ -577,11 +702,12 @@ def field(
     ks: ArrayLike,
     *,
     basis: SphericalWaveBasis | CylindricalWaveBasis,
-    poltype: str = "helicity",
+    poltype: str | None = None,
     singular: bool = False,
     kzs: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
     """Electric samples with native geometry/medium and optional cylindrical kz VJPs."""
+    poltype = _resolve_poltype(poltype)
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
         dynamic_basis = _dynamic_basis(
@@ -613,11 +739,12 @@ def hfield(
     impedance: ArrayLike,
     *,
     basis: SphericalWaveBasis | CylindricalWaveBasis,
-    poltype: str = "helicity",
+    poltype: str | None = None,
     singular: bool = False,
     kzs: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
     """Magnetic samples, including impedance derivatives through the linear weights."""
+    poltype = _resolve_poltype(poltype)
     weights = 2 * basis.pol - 1 if poltype == "helicity" else 1
     if poltype == "parity":
         basis = type(basis)(
@@ -646,11 +773,12 @@ def gfield(
     ks: ArrayLike,
     *,
     basis: SphericalWaveBasis | CylindricalWaveBasis,
-    poltype: str = "helicity",
+    poltype: str | None = None,
     singular: bool = False,
     kzs: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
     """Weighted G samples and native field pullbacks, with upstream scaling."""
+    poltype = _resolve_poltype(poltype)
     electric, magnetic = _rs_weights(pol, basis, poltype)
     value = field(
         ad.numpy.asarray(coefficients) * electric,
@@ -685,11 +813,12 @@ def ffield(
     ks: ArrayLike,
     *,
     basis: SphericalWaveBasis | CylindricalWaveBasis,
-    poltype: str = "helicity",
+    poltype: str | None = None,
     singular: bool = False,
     kzs: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
     """Weighted F samples, differentiating the chiral index weights as well."""
+    poltype = _resolve_poltype(poltype)
     if poltype == "helicity":
         ks = ad.numpy.asarray(ks)
         coefficients = (
@@ -741,7 +870,7 @@ def expansion(
     *,
     destination: SphericalWaveBasis | CylindricalWaveBasis,
     source: SphericalWaveBasis | CylindricalWaveBasis,
-    poltype: str = "helicity",
+    poltype: str | None = None,
     singular: bool = False,
     kzs: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
@@ -751,6 +880,7 @@ def expansion(
     One value moves the entire matching group in both bases. Values must remain
     distinct; changing which modes couple is a discrete operation.
     """
+    poltype = _resolve_poltype(poltype)
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
         to_axial, from_axial, order = _group_axial(
@@ -816,7 +946,7 @@ def lattice_expansion(
     *,
     destination: SphericalWaveBasis | CylindricalWaveBasis,
     source: SphericalWaveBasis | CylindricalWaveBasis,
-    poltype: str = "helicity",
+    poltype: str | None = None,
     eta: complex = 0,
     kzs: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
@@ -826,6 +956,7 @@ def lattice_expansion(
     Optional ``kzs`` moves shared cylindrical axial groups, ordered as in
     ``expansion``. Groups must remain distinct.
     """
+    poltype = _resolve_poltype(poltype)
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
         to_axial, from_axial, order = _group_axial(
@@ -869,13 +1000,14 @@ def plane_field(
     vectors: ArrayLike,
     *,
     polarizations: ArrayLike,
-    poltype: str = "helicity",
+    poltype: str | None = None,
     fixed_vectors: bool = False,
 ) -> NDArray[np.complex128]:
     """Native plane field/operator, differentiable in amplitudes, points and wavevectors.
 
     fixed_vectors removes the wavevectors from the differentiable inputs.
     """
+    poltype = _resolve_poltype(poltype)
     dynamic: _Values = (points,) if coefficients is None else (coefficients, points)
     if not fixed_vectors:
         dynamic += (vectors,)
@@ -906,10 +1038,11 @@ def plane_expansion(
     *,
     destination: SphericalWaveBasis | CylindricalWaveBasis,
     polarizations: ArrayLike,
-    poltype: str = "helicity",
+    poltype: str | None = None,
     fixed_vectors: bool = False,
 ) -> NDArray[np.complex128]:
     """Plane-to-multipole illumination with native origin and wavevector pullbacks."""
+    poltype = _resolve_poltype(poltype)
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
         value, context = diff.plane_expansion(
@@ -938,9 +1071,10 @@ def cylindrical_channels(
     basis: CylindricalWaveBasis,
     kz_labels: ArrayLike,
     polarizations: ArrayLike,
-    poltype: str = "helicity",
+    poltype: str | None = None,
 ) -> NDArray[np.complex128]:
     """Differentiable cylindrical radiation, holding axial mode labels fixed."""
+    poltype = _resolve_poltype(poltype)
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
         q = np.column_stack([kz_labels, values[2]])
@@ -1029,9 +1163,10 @@ def periodic_conversion(
     *,
     destination: CylindricalWaveBasis,
     source: SphericalWaveBasis,
-    poltype: str = "helicity",
+    poltype: str | None = None,
 ) -> NDArray[np.complex128]:
     """Periodic spherical-to-cylindrical radiation, including moving Fourier labels."""
+    poltype = _resolve_poltype(poltype)
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
         modes = [
@@ -1057,9 +1192,10 @@ def plane_permutation(
     *,
     polarizations: ArrayLike,
     n: int = 1,
-    poltype: str = "helicity",
+    poltype: str | None = None,
 ) -> NDArray[np.complex128]:
     """Cyclic-axis polarization coefficients with native complex-vector pullbacks."""
+    poltype = _resolve_poltype(poltype)
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
         value, context = diff.plane_permutation(
@@ -1128,10 +1264,11 @@ def spherical_translation(
     *,
     destination: Sequence[ArrayLike],
     source: Sequence[ArrayLike],
-    poltype: str = "helicity",
+    poltype: str | None = None,
     singular: bool = True,
 ) -> NDArray[np.complex128]:
     """Polar spherical translation with native argument pullbacks."""
+    poltype = _resolve_poltype(poltype)
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
         value, context = diff.spherical_translation(
@@ -1164,3 +1301,22 @@ def cylindrical_translation(
         return value, context.pullback
 
     return _call((krr, phi, z, kz), forward)
+
+
+def periodic_from_table(
+    values: ArrayLike,
+    *,
+    destination: SphericalWaveBasis,
+    source: SphericalWaveBasis | None = None,
+    poltype: str | None = None,
+) -> NDArray[np.complex128]:
+    """Compose a custom differentiable lattice table with native angular coupling."""
+    poltype = _resolve_poltype(poltype)
+
+    def forward(inputs: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.periodic_from_table(
+            inputs[0], destination, source, poltype=poltype
+        )
+        return value, lambda g: (context.pullback(g),)
+
+    return _call((values,), forward)

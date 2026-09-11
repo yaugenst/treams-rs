@@ -290,44 +290,64 @@ def test_plane_wave_slab_illumination(direction, poltype):
 @pytest.mark.parametrize("material", [1, (2 + 0.2j, 1.1)])
 def test_oriented_power_is_cartesian_poynting(alignment, poltype, material):
     from treams_rs import efield, hfield
-    from treams_rs._smatrix import _power_forms
 
-    # Equal transverse wavevectors let a direct field evaluation check all
-    # polarization and counterpropagating interference terms independently.
     basis = PlaneWaveBasisByComp.default([[0.2, 0.3]], alignment)
-    amplitudes = np.array([[0.3 + 0.2j, -0.4j], [0.1j, 0.7]])
-    forms = _power_forms(basis, 1.3, material, poltype)
-    electric = sum(
-        efield(
-            [0, 0, 0],
-            basis=basis,
-            k0=1.3,
-            material=material,
-            poltype=poltype,
-            modetype=side,
+    incident = np.array([0.3 + 0.2j, -0.4j])
+    reflected = np.array([0.1j, 0.7])
+    electric = np.stack(
+        [
+            efield(
+                [0, 0, 0],
+                basis=basis,
+                k0=1.3,
+                material=material,
+                poltype=poltype,
+                modetype=side,
+            )
+            for side in ("up", "down")
+        ]
+    )
+    magnetic = np.stack(
+        [
+            hfield(
+                [0, 0, 0],
+                basis=basis,
+                k0=1.3,
+                material=material,
+                poltype=poltype,
+                modetype=side,
+            )
+            for side in ("up", "down")
+        ]
+    )
+
+    def flux(amplitudes):
+        e = sum(electric[i] @ amplitudes[i] for i in range(2))
+        h = sum(magnetic[i] @ amplitudes[i] for i in range(2))
+        return 0.5 * np.cross(e, h.conj()).real[basis.normal_axis]
+
+    array = np.zeros((2, 2, 2, 2), complex)
+    array[0, 0] = array[1, 1] = np.eye(2)
+    array[0, 1] = array[1, 0] = np.outer(reflected, incident.conj()) / np.vdot(
+        incident, incident
+    )
+    stack = SMatrices(
+        array, basis=basis, k0=1.3, material=(material, material), poltype=poltype
+    )
+    for t, side in enumerate(("up", "down")):
+        source = np.zeros((2, 2), complex)
+        reflection = source.copy()
+        source[t] = incident
+        reflection[1 - t] = reflected
+        sign = 1 if t == 0 else -1
+        incoming_flux = sign * (flux(source + reflection) - flux(reflection))
+        expected = [
+            sign * flux(source) / incoming_flux,
+            -sign * flux(reflection) / incoming_flux,
+        ]
+        assert_allclose(
+            stack.tr(incident, modetype=side), expected, rtol=2e-13, atol=2e-13
         )
-        @ amplitudes[i]
-        for i, side in enumerate(("up", "down"))
-    )
-    magnetic = sum(
-        hfield(
-            [0, 0, 0],
-            basis=basis,
-            k0=1.3,
-            material=material,
-            poltype=poltype,
-            modetype=side,
-        )
-        @ amplitudes[i]
-        for i, side in enumerate(("up", "down"))
-    )
-    expected = 0.5 * np.cross(electric, magnetic.conj()).real[basis.normal_axis]
-    actual = sum(
-        np.vdot(amplitudes[i], forms[i, j] @ amplitudes[j])
-        for i in range(2)
-        for j in range(2)
-    )
-    assert_allclose(actual, expected, atol=2e-14)
 
 
 @pytest.mark.parametrize("alignment", ["xy", "yz", "zx"])

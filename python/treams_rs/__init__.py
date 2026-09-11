@@ -1,6 +1,7 @@
 """T-matrix scattering with a Rust numerical core and native pullbacks."""
 
-from . import coeffs, cw, diff, ebcm, lattice, misc, pw, special, sw
+from . import coeffs, config, cw, diff, ebcm, lattice, misc, pw, special, sw
+from ._array import PhysicsArray
 from ._core import (
     CylindricalWaveBasis,
     Material,
@@ -10,6 +11,21 @@ from ._core import (
 )
 from ._lattice import Lattice, WaveVector
 from ._operators import (
+    BField,
+    ChangePoltype,
+    DField,
+    EField,
+    Expand,
+    ExpandLattice,
+    FField,
+    FieldOperator,
+    GField,
+    HField,
+    Operator,
+    OperatorAttribute,
+    Permute,
+    Rotate,
+    Translate,
     bfield,
     changepoltype,
     dfield,
@@ -24,27 +40,45 @@ from ._operators import (
     translate,
 )
 from ._plane import PlaneWave, plane_wave, plane_wave_angle
-from ._smatrix import SMatrices, chirality_density, poynting_avg_z
+from ._smatrix import SMatrices, SMatrix, chirality_density, poynting_avg_z
 from ._source import MultipoleWave, cylindrical_wave, spherical_wave
 from ._tmatrix import TMatrix, TMatrixC
 
 __all__ = [
+    "BField",
+    "ChangePoltype",
     "CylindricalWaveBasis",
+    "DField",
+    "EField",
+    "Expand",
+    "ExpandLattice",
+    "FField",
+    "FieldOperator",
+    "GField",
+    "HField",
     "Lattice",
     "Material",
     "MultipoleWave",
+    "Operator",
+    "OperatorAttribute",
+    "Permute",
+    "PhysicsArray",
     "PlaneWave",
     "PlaneWaveBasisByComp",
     "PlaneWaveBasisByUnitVector",
+    "Rotate",
     "SMatrices",
+    "SMatrix",
     "SphericalWaveBasis",
     "TMatrix",
     "TMatrixC",
+    "Translate",
     "WaveVector",
     "bfield",
     "changepoltype",
     "chirality_density",
     "coeffs",
+    "config",
     "cw",
     "cylindrical_wave",
     "dfield",

@@ -1,656 +1,139 @@
 # Implementation status
 
-Active rewrite, not complete treams parity. There is no runtime dependency or
-fallback to treams, SciPy, Cython, or a Python autodiff framework.
-
-Known reference defects and accuracy limits are indexed in [upstream findings](upstream-findings.md).
-
-`chirality_density` returns up/down/coherent-cross forms for 2 Re(E* . i Z H)
-averaged over an interval along the plane basis normal (xy, yz or zx). It fixes
-upstream's attenuation average, shifted observation plane and missing coherent
-cross phase. The cross form can be complex and contracts as Re(down* X up).
-`diff.chirality_density` and `advect.chirality_density` retain the compact xy
-full/normal-wavenumber boundary. `diff.oriented_chirality` and its Advect adapter
-use actual Cartesian polarizations for any normal and differentiate real transverse
-components, complex normal wavenumbers and interval endpoints. Both retain only
-input geometry. Tests use independent Cartesian E/H quadrature, interval
-partition/reversal, scale identities, native proptest and complete Advect gradients.
-At normal incidence the observable has a smooth limit despite the polarization
-gauge singularity; both values and derivatives use that limit.
-
-| Subsystem | Implemented and checked | Remaining |
-| --- | --- | --- |
-| Project | Cargo/PyO3/maturin/uv, lockfiles, just, Ruff, strict Pyrefly, Clippy, pre-commit; hosted Linux CI passing on Python 3.12 and 3.13 | Broader packaged-platform qualification |
-| Spherical functions | Public broadcast Bessel J/Y and incoming/outgoing Hankel values and first derivatives, cylindrical and spherical, with native argument VJPs; public integer-degree Legendre/pi/tau ufuncs and argument VJPs; public Wigner 3j and small/full D matrices, native Euler-angle VJPs, and broadcast upper-gamma/Kambe integrals; Cartesian harmonics in the core | Wider extreme-argument/order qualification; noninteger-degree real Legendre functions |
-| Sphere coefficients | Multilayer, lossy, magnetic, chiral Mie; all continuous input VJPs | Extreme-layer-conditioning analysis |
-| Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs and shared cylindrical axial-group VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks; regular cylindrical-to-spherical and periodic spherical-to-cylindrical conversion with native pullbacks; explicit expandlattice dispatch | Custom spherical lattice-sum callbacks and wider cutoff qualification |
-| Multipole fields | Spherical/cylindrical Cartesian waves and analytic axis limits; weighted fields and full field operators with native position/wavenumber VJPs and linear residuals; electric, magnetic, displacement, flux and Riemann-Silberstein operators; Advect magnetic and G/F samples; native weighted/full plane fields and complex-wavevector VJPs | Upstream operator-attribute machinery |
-| Finite scattering | Dense solve and factorization-reusing adjoint; optimized sphere clusters; heterogeneous spherical/cylindrical local matrices with native local-block, position and medium-wavenumber pullbacks | Broader conditioning qualification |
-| Python interface | Material, spherical/cylindrical bases, TMatrix.sphere, TMatrixC.cylinder, clusters, interaction.solve, changepoltype, expand, xs/xw and averaged cross sections; explicit spherical/cylindrical sources with weighted E/H/D/B/G/F fields and direct T-matrix illumination | Full upstream ndarray annotation machinery is not reproduced; explicit .array is used |
-| Differentiation | Opaque one-use native contexts in coeffs and diff; arbitrary complex output cotangents; Advect adapters for spherical/cylindrical T-matrices, clusters, interactions, expansions, fields and sphere/cylinder coefficients | Higher derivatives and other framework adapters |
-| Testing | Native proptest invariants and adjoint identities; Hypothesis physical invariants; treams/SciPy reference comparisons; complete Python workflows | Expand qualification with every ported subsystem |
-| Performance | Cached angular plans and radial tables, faer LU and matmul, block-diagonal local storage, Rayon coupling assembly | See measured scope and limitations in benchmarks.md |
-| Cylindrical scattering | Complex J/H and derivatives; multilayer chiral coefficients and complete T-matrix with all parameter VJPs; cylindrical bases, translations, clusters, electric fields and cross widths; regular spherical conversion; periodic plane-wave radiation and adjoints | Broader cutoff qualification |
-| Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections; full unit-vector and xy/yz/zx component plane bases, diffraction orders, native Cartesian fields and slab illumination; spherical/cylindrical illumination VJPs | Broader constrained-incidence workflows |
-| Planar layers | Native chiral Fresnel coefficients and propagation; one-LU S-matrix composition with reused-factor adjoint; interfaces, multilayer slabs, stacking/doubling, polarization conversion, power-flux transmittance/reflectance and internal fields between adjacent stacks | Full SMatrix annotation API |
-| Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D; periodic coupling and solves; spherical 2D and cylindrical 1D particle-to-plane channels and S matrices; complete native pullbacks including shared cylindrical axial groups and Advect reflectance gradients; direct-sum, reference, energy, Bloch/split/scale invariants | Broader combined particle/layer workflows |
-| Bloch bands | Native periodic transfer matrices, complex right eigensystems, Bloch wavenumbers/vectors; native S-matrix, period and eigenvector adjoints; complete Advect multilayer bands | Wider conditioning and branch-crossing qualification; individual degenerate modes have no derivative |
-| Global observables | Native TMatrix cd/db/chi with matrix and CD embedding-wavenumber pullbacks; thin SVD and singular-value VJP; complete Advect chiral-sphere gradients; all-orientation plane chirality-density forms with native geometry and interval adjoints; SMatrices.cd with direction-aware polarization swapping | Direct high-level S-matrix observable adapters |
-| Axisymmetric EBCM | Native sampled-surface regular/outgoing Q integrals and radius, slope, complex-wavenumber and impedance pullbacks; callable-surface convenience; complete Advect deformed-particle solve | Wider shape/order conditioning and quadrature qualification |
-| HDF5 interchange | Optional h5py adapter; scalar matrices and rectangular parameter sweeps; streamed matrix writes; chirality, mode origins/indices and length-unit round trips; legacy treams names and rectangular incident/scattered mode sets | Gmsh mesh helper and extended tmat.h5 v1 submission metadata |
-| Remaining public API | Native sw/cw/pw direct coefficient namespaces, periodic translation conveniences, plane-wave z rotations and cyclic-axis transforms | Field-operator objects, Lattice/WaveVector metadata, misc and lattice decomposition helpers |
-
-`translate` covers spherical, cylindrical and both plane basis families, including
-batched displacements, rectangular mode subsets and masks. Multipoles translate
-equal particle indices at fixed local origins; `expand` handles all physical origin
-pairs. Both reuse the existing native addition theorems. Plane translations use
-`diff.plane_phases` / `advect.plane_phases`: a compact exp(i k.r) kernel with real
-displacement and complex wavevector pullbacks, including axial vectors. The native
-residual retains only inputs, output storage transfers directly to NumPy, and
-large phase tables use Rayon. Reverse recomputes phases in two reductions to avoid
-sample-by-mode residuals or per-thread gradient arrays. The binding borrows
-contiguous C/F cotangents during reverse and packs noncontiguous inputs. Tests
-cover both layouts, strided/reversed cotangents and empty sample sets.
-
-`expand` also maps plane bases by full wavevector and polarization, supports unit/
-component conversion and reordered subsets, and preserves fields for real and
-evanescent directions. Matching tolerates normalization roundoff relative to the
-wavevector scale. This is a discrete basis map; moving unmatched labels through a
-match is not differentiable. The implementation fixes upstream's missing
-polarization mask rather than reproducing its all-ones identity expansion.
-
-The optimized `diff.cluster` is restricted to non-overlapping homogeneous,
-nonmagnetic spheres in vacuum with a common multipole cutoff. Its pullback covers
-radii, positions, complex sphere permittivities and vacuum wavenumber. The public
-`TMatrix.cluster` accepts general local spherical T-matrices with distinct cutoffs
-and a common, possibly chiral, embedding material. Its interaction solve now uses
-native block storage, avoiding multiplication of zero off-diagonal local blocks.
-`diff.particle_cluster` and `advect.particle_cluster` also accept arbitrary local
-spherical or cylindrical matrices with distinct cutoffs or mode subsets. They differentiate each
-local block, every position and both complex embedding wavenumbers. Complete
-Advect tests compose different sphere cutoffs with radius, epsilon, mu, kappa,
-frequency and position gradients. Cylindrical axial labels remain fixed, and cylinders require distinct transverse
-origins. The caller ensures particle enclosing surfaces do not overlap. Native reverse contracts only the required local diagonal blocks,
-reuses the LU, and retains one coupling matrix rather than a second expansion copy.
-
-`spherical_wave` and `cylindrical_wave` return an explicit `MultipoleWave` with
-owned amplitudes, physical metadata, expansion and weighted E/H/D/B/G/F samples.
-`TMatrix @ wave` checks the medium/frequency/polarization and expands the source
-into regular incident channels, including displaced outgoing sources.
-The same object can hold a superposition through `MultipoleWave(coefficients, ...)`.
-It does not track framework values: use the existing `diff`/`advect` field and
-expansion boundaries to differentiate its continuous parameters and amplitudes.
-
-`SMatrices.cd` preserves upstream's transmission and total-outgoing-power contrast
-formulas. Its second value is normalized by T+R despite upstream's absorption-CD
-label. Helicity swapping matches actual transverse directions, including reordered
-bases; parity flips the magnetic polarization amplitude. It accepts PlaneWave
-illumination and explicit up/down direction through the existing flux calculation.
-
-The public `changepoltype` operator handles all four basis families, rectangular
-subsets and masks. T matrices, S matrices and multipole-source objects share this
-mode-matching rule. Complete object conversions require both polarization partners;
-the explicit operator can project onto partial bases. These are discrete linear
-maps, so amplitude derivatives compose through ordinary matrix multiplication.
-
-Tests exercise degrees through 30 for radial functions, through 10 for Mie, and
-smaller orders for full derivative/cluster checks. An input bound of 128 does not
-constitute a claim of accuracy throughout that range. Dense solve storage still
-scales quadratically and factorization cubically with the multipole dimension.
-
-The Python package is `treams_rs` during development so the upstream oracle can
-coexist in the same environment. It is not yet a drop-in `import treams` replacement.
-Python 3.12 and 3.13 are the qualification targets. Numerical observables and linear
-basis composition currently use NumPy in the thin Python layer; native kernels own
-the special functions, particle scattering and multiple-scattering solve.
-
-`ebcm.qmat` samples positive radial surfaces on fixed Gauss-Legendre nodes;
-`diff.ebcm_qmat` and `advect.ebcm_qmat` accept sampled radii and angular slopes,
-holding quadrature nodes, weights and mode labels fixed. The native reverse
-recomputes local wave derivatives without a dense output-by-parameter Jacobian.
-The default restores a missing radial area factor in upstream's integral;
-`legacy=True` explicitly reproduces that integral, including its derivative.
-Tests cover homogeneous spheres against Mie, zero scattering for identical media,
-lossless deformed-particle convergence through degree 6 and complete geometry,
-material and frequency gradients through `-solve(Q_singular, Q_regular)`.
-The degree-6 legacy-oracle discrepancy is independently diagnosed as cancellation
-in exactly zero, symmetry-forbidden m=0 entries in both double-precision solvers;
-80-digit results and an executable reproducer are recorded in benchmarks.md.
-The generic benchmark tolerance is unchanged. Callers must check quadrature and
-multipole convergence for their shapes. Sharp
-surfaces, shapes that are not positive radial graphs, and extreme conditioning
-are not qualified by these tests.
-
-Cylindrical T-matrix pullbacks differentiate the common input axial wavenumbers.
-Cylindrical basis expansion treats axial wavenumbers as fixed mode labels because
-unequal labels decouple exactly; its public VJP covers origins and medium
-wavenumbers. Exact cylindrical cutoffs require a limiting formulation and are
-explicitly unsupported.
-
-`diff.field` and `advect.field` accept either spherical or cylindrical bases.
-Cylindrical field pullbacks cover amplitudes, sample points, expansion origins and
-both medium wavenumbers, holding axial labels fixed. Adjacent cylindrical orders
-reuse one Bessel evaluation and its first two radial derivatives; regular near-axis
-fields and translations use Cartesian series. Reference, Maxwell, native adjoint
-and complete cylinder-to-field Advect checks cover this path. Near-axis gradient
-limits are checked through coordinate offsets of 1e-300.
-
-Periodic sums currently broadcast multipole indices for one lattice geometry. They
-reject exact diffraction thresholds rather than replacing singularities with an
-arbitrary finite constant. `latticeinteraction.solve` returns an array of periodic
-response coefficients; isolated-particle cross-section formulae do not apply.
-
-Periodic pullbacks cover both sets of expansion origins, complex medium
-wavenumbers, the real Bloch wavevector and every lattice-vector component.
-The split parameter eta is held fixed because the exact sum is independent of it.
-At coincident origins, derivatives use the regular image sum with that lattice
-point excluded under perturbation. Cylindrical axial labels remain fixed.
-The core propagates analytic local chain rules through six, ten or sixteen
-continuous Ewald parameters for 1D, 2D or 3D, with derivative arithmetic compiled
-out of forward-only calls. Equal medium wavenumbers share derivative evaluation
-between polarization cotangents.
-No full output-by-parameter Jacobian is stored in the residual.
-
-Planar interfaces, propagation and S-matrix composition have native pullbacks and
-Advect adapters (`fresnel`, `propagation`, `smatrix_add`). Fresnel pullbacks cover all
-complex full/axial wavenumbers and impedances for one interface; propagation covers
-complex wavevectors and real Cartesian displacement; composition covers both full
-four-block arrays. Material-to-wavevector arithmetic can be composed in Advect,
-as checked by complete slab gradients. The metadata-bearing SMatrices convenience
-class itself accepts ordinary arrays rather than tracked parameters.
-
-Component plane bases support xy, yz and zx alignments for fields and illumination.
-Fresnel interfaces, propagation, composition,
-illumination and Cartesian power-flux calculations support all three alignments,
-with one incident amplitude vector or PlaneWave object per direction. Arrays are
-explicit rather than inheriting upstream's ndarray metadata. Fresnel's low-level
-API currently evaluates one (two-media, two-helicity) interface at a time.
-
-`SMatrices.from_array(tm, basis, lattice=..., kpar=...)` accepts an uncoupled
-spherical 2D xy or cylindrical 1D x unit cell and solves its periodic interaction
-before radiating. Cylindrical ports use zx alignment, with up/down along y. This
-explicit constructor differs from upstream's annotated, already-interacting
-T-matrix input. The native `spherical_channels` and `smatrix_from_array` boundaries
-support arbitrary complex cotangents. Advect tests differentiate reflected power
-through particle radii, positions, complex permittivities, frequency, Bloch vector
-and every 2D cell component, including the moving diffraction orders.
-
-At exactly normal incidence, the upstream plane-wave polarization convention has
-no defined azimuth. Forward values preserve its convention; `fixed_q=True` enables
-all other channel derivatives while treating transverse directions as constants.
-A requested direction derivative there raises an explicit error. Near-normal,
-evanescent, chiral and lossy channels are reference checked. Diffraction-order
-generation includes all reciprocal vectors inside the cutoff, including skew
-cells where upstream's simple iterator can omit orders.
-
-`rotate`, `TMatrix.rotate`, `TMatrixC.rotate`, `diff.rotation` and
-`advect.rotation` support local multipole rotations. Spherical rotations use the
-full z-y-z Euler convention and differentiate all three angles; cylindrical theta
-is constrained to zero. Expansion origins remain fixed. Complete angular blocks
-come from a symmetric angular-momentum eigensystem, avoiding factorial-sum
-cancellation. The reverse pass uses angular generators without retaining three
-full output Jacobians. Tests check reference values, arbitrary rectangular basis
-subsets, inverse/composition identities, angle pullbacks, unitarity through degree
-60 and first-order terms at angles down to 1e-100.
-
-The public `efield`, `hfield`, `dfield` and `bfield` functions return explicit
-Cartesian operator arrays with shape (..., 3, modes) for either multipole family.
-Their conventions match treams in lossy, magnetic and chiral media. The native
-`diff.field_operator` pullback covers points, origins and complex wavenumbers,
-retaining geometry only; `advect.field_operator` composes the same boundary.
-`advect.hfield` uses the weighted native field path, composing the elementary
-polarization/impedance scaling in Advect. The metadata-bearing convenience
-functions themselves accept ordinary arrays. Prefer weighted `diff.field` or
-`advect.field`/`hfield` when the full sample-by-mode operator is not needed.
-
-`expand((destination, source), ...)` now exposes multipole addition theorems and
-regular cylindrical-to-spherical conversion. The latter includes all explicit
-origin pairs by translating the cylindrical wave before its spherical expansion;
-upstream's same-origin angular coefficients and reconstructed displaced fields
-are independently checked. It does not reproduce upstream's particle-index mask
-for this cross-family operator. `diff.expansion` and `advect.expansion` share its
-native origin and complex-wavenumber pullback, holding axial labels fixed.
-On-axis evaluation skips azimuthal orders that vanish analytically, retaining
-adjacent orders in reverse because their first position derivatives can be nonzero.
-
-`diff.plane_field` and `advect.plane_field` evaluate weighted plane-wave samples or
-full operators (`coefficients=None`). Pullbacks cover amplitudes, real Cartesian
-points and each full complex wavevector, including its polarization dependence.
-The full operator and weighted path share their native forward/pullback; the
-residual retains inputs only. Polarization adjoints are accumulated over samples
-and differentiated once per mode. At exactly axial propagation the upstream
-polarization gauge has no direction derivative: `fixed_vectors=True` treats the
-vectors as constants while enabling amplitude and point derivatives.
-
-The root E/H/D/B field operators accept all component and unit-vector plane bases and up/down
-propagation. `PlaneWave.efield` uses the weighted native kernel. All field
-operators now transfer owned Rust buffers to NumPy without copying; their strides
-need not be C-contiguous. Cotangent checks cover contiguous, permuted and reversed
-views, and malformed cotangents leave the one-use residual available for retry.
-
-`expand` also maps component and unit-vector plane bases into regular spherical bases.
-`diff.plane_expansion` and `advect.plane_expansion` expose arbitrary complex plane
-wavevectors and native origin/vector pullbacks. A complete Advect test includes
-incidence angles, frequency, sphere radius and position through illumination,
-scattering and total-field intensity. The angular coefficient uses the same
-transverse branch as Cartesian polarization; this fixes a physical reconstruction
-failure for complex directions where upstream's additional principal square root
-flips that branch. For example, k=(0.2+i, 0.1+0.3i, 1.3-0.8i) reconstructs to
-about 1e-13 absolute error, whereas upstream coefficients err by about 1.25 on the
-same samples. Tests cover both polarizations, helicity/parity and native adjoint
-scale identities. Fixed-vector mode enables origin gradients at axial incidence.
-
-`PlaneWaveBasisByUnitVector` provides complete complex directions with stable
-algebraic normalization. `PlaneWaveBasisByComp` supports xy, yz and zx alignments;
-`kvecs` is the shared source of truth for the missing component, including evanescent
-waves and up/down propagation. `byunitvector`, `bycomp` and cyclic `permute` are
-reference- and round-trip checked. The E/H/D/B operators, spherical illumination
-and `PlaneWave.expand` accept these bases. Plane-wave directions remain unchanged
-under input scales from 1e-300 to 1e300. These Python metadata conveniences compose
-the previously checked native operations; tracked parameters use the explicit
-Advect boundaries. Coordinate-aligned xy, yz and zx interfaces and slabs are supported.
-
-Cylindrical radiation channels have native origin, complex-wavenumber, transverse
-wavevector and period pullbacks. Axial wavenumbers remain fixed mode labels; exact
-label matching selects each channel. Advect tests differentiate complete periodic
-cylinder reflectance through radius, frequency, period, Bloch vector and origins.
-Independent image-field reconstruction and lossless power conservation cover both
-sides and polarization conventions. Equal medium wavenumbers share cylindrical
-Ewald evaluation without merging their separate wavenumber gradients. A large-cell
-regression checks split independence against a converged reference; upstream's
-automatic split loses accuracy for that case.
-
-`diff.plane_expansion` and `advect.plane_expansion` now share the same native
-forward/pullback for spherical and cylindrical destinations. Cylindrical vector
-axial components are exact, fixed labels with zero cotangents; transverse complex
-components and every origin component are differentiated. Tests cover up/down,
-helicity/parity, lossy/chiral media, field reconstruction, scale invariants and
-complete Advect cylinder illumination, scattering and total-field intensity.
-Origin phases are computed once per plane/origin pair in both directions rather
-than repeated for every multipole. The matrix buffer transfers directly to NumPy;
-the residual holds only inputs.
-
-`diff.interface` and `advect.interface` match Cartesian tangential E/H fields
-for xy, yz and zx interfaces in lossy, magnetic and chiral media. Their eight
-parameter groups are the four medium wavenumbers, two impedances and two real
-transverse components. The 4-by-4 solve uses pivoted LU; reverse reuses its small
-inverse and recomputes local field derivatives without retaining an output
-Jacobian. Normal-incidence xy direction derivatives use the analytic zero limit
-of the S blocks, avoiding the intermediate polarization azimuth singularity.
-`SMatrices.interface` retains the closed-form Fresnel path for xy bases. Oriented
-slabs compose with cylindrical array S matrices. Cartesian boundary continuity,
-lossless power, slab splitting, native identity adjoints and complete Advect slab
-gradients cover the new path. Exact diffraction thresholds remain unsupported.
-
-`diff.layer_stack` and `advect.layer_stack` solve each transverse channel as an
-independent two-polarization system. Their compact output has shape
-(channels, 2, 2, 2, 2); material and thickness cotangents accumulate across channels.
-Storage for the native reverse grows linearly with channels and layers. The public
-`SMatrices.slab` uses this path for complete polarization pairs, materializing its
-familiar dense matrix only at the boundary. Partial bases retain projected-step
-semantics; interfaces convert local polarization pairs before selecting requested
-modes, which also supports partial parity bases. Tests cover both orderings,
-partial bases, all coordinate normals, all parameter pullbacks, lossless power,
-scale identities and complete Advect multilayer gradients.
-
-Near-axis spherical translation tests separate the upstream angular routine's
-valid range from its rounded-axis regime. An extrapolated, resolved-angle
-reference independently checks values and Cartesian gradients through transverse
-offsets of 1e-300; the Rust result preserves terms that upstream rounds to zero.
-
-`diff.periodic_conversion` and `advect.periodic_conversion` map a spherical
-z-periodic array into outgoing cylindrical modes. Their native pullback covers
-both expansion origins, complex medium wavenumbers, every real output axial
-wavenumber and the period. Axial wavenumbers are independent parameters at this
-boundary; Advect composes the moving diffraction orders from Bloch vector and
-period. The regular and periodic conversions share their angular coefficient.
-The residual retains inputs only and transfers the output buffer without copying.
-Tests compare common-origin coefficients with upstream, reconstruct independent
-spherical image sums at displaced origins, and check all parameter VJPs, native
-scaling identities and complete Advect sphere-to-cylindrical radiation gradients.
-
-`expandlattice` exposes same-family periodic coupling, spherical-to-cylindrical
-radiation, and spherical/cylindrical-to-plane radiation with explicit geometry.
-Radiation ports must match the cell's diffraction orders. `TMatrixC.from_array`
-accepts an uncoupled spherical unit cell and explicitly solves its periodic
-interaction before converting both incident and outgoing channels. This differs
-from upstream's annotated, already-interacting input. Common-origin constructor
-references and Hypothesis lossless power and coordinate scaling invariants pass.
-Cross-family conversions include displaced origin pairs, rather than reproducing
-upstream's matching-particle-index mask.
-
-`TMatrixC.xw` excludes evanescent outgoing modes from radiated power. Its incident
-coefficients must be propagating; this normalization does not define an evanescent
-incident flux. Averaged widths uniformly average over azimuth and the represented
-propagating (kz, polarization) channels, with helicity-dependent cutoffs in chiral
-media. Adding closed channels leaves these averages unchanged. Diffraction cutoffs
-are explicitly unsupported. Hypothesis tests compare the averages with explicit
-plane-wave illumination and enforce lossless conservation and lossy passivity.
-Global cross sections avoid constructing an identity overlap matrix. Native plane
-illumination tolerates normalization roundoff when matching a static axial label,
-with a relative tolerance independent of length units; discrete basis labels stay
-fixed for differentiation.
-
-`SMatrices.illuminate(..., smat=upper)` returns outgoing up/down and internal
-up/down coefficients between adjacent stacks. It checks the shared medium and
-uses the correct outer medium for each PlaneWave input. The native
-`diff.smatrix_illuminate` and Advect adapter also accept multiple independent
-illuminations as matrix columns. Forward solves only those right-hand sides;
-reverse reuses the packed LU and contracts the coupled field equations with rank-P
-products, overwriting the no-longer-needed primal blocks with their cotangents. It avoids constructing the complete combined S matrix, dense operator
-cotangents and explicit conjugate-transpose copies. Tests cover all four input
-pullbacks, treams coefficients, Cartesian E/H boundary continuity for every normal,
-amplitude identities and complete lossy/chiral multilayer Advect gradients.
-Ordinary illumination borrows contiguous blocks without recording an adjoint;
-strided blocks are packed. Hypothesis tests cover C/F/block-F/reversed/strided
-layouts and owned pullbacks after all original inputs are overwritten. Large
-recorded blocks are copied in parallel while retaining contiguous row-major
-storage; a native property compares values and every input gradient across layouts.
-`just bench-performance` checks runtime and forward memory against upstream
-at 256/1024 modes and one/eight illuminations. The recorded adjoint still owns
-input snapshots and has a larger memory footprint than forward alone.
-
-`SMatrices.periodic()` and `bands_kz(period)` require matching outer media and
-use the basis normal (z/x/y for xy/yz/zx). The transfer construction solves both
-right-hand blocks with one native LU. `diff.bands` and `advect.bands` expose
-wavenumbers and right eigenvectors with native S-matrix and period pullbacks.
-`diff.solve` and `diff.eig` expose the same underlying numerical boundaries.
-Eigenvectors have unit norm with their largest component real positive. Their
-pullback includes both normalization and phase; phase-dependent cotangents at a
-tied largest component are explicitly rejected. Equal eigenvalue weights and zero
-vector cotangents support spectral sums within repeated groups; individual modes
-at degeneracy have no supported derivative. Band derivatives hold the principal
-logarithm branch fixed. Strongly evanescent transfer matrices can be ill-conditioned;
-finite-stack composition continues to use stable S matrices.
-
-Reference eigensystems, uniform propagating/evanescent bands, all input VJPs,
-Hermitian spectral invariants, native scale/shift identities, and complete Advect
-multilayer band gradients cover this path. Eigensystem values, vectors and vector
-pullbacks are checked under common input scales from 1e-200 to 1e200. A uniform
-cell's complete frequency/period gradient is checked at polarization degeneracy.
-
-`gfield` and `ffield` support spherical, cylindrical, component-plane and
-unit-vector plane bases. They preserve upstream's family-dependent normalization:
-spherical G carries an additional sqrt(2), and helicity selection and parity
-combinations have different weights. For a convention-independent physical
-definition, use `(E +/- i Z H)/sqrt(2)` directly. F includes the chiral refractive
-index weights. `advect.gfield` and `advect.ffield` use weighted native multipole
-fields and their existing pullbacks; the latter also differentiates those index
-weights. Reference values, Hypothesis E/H reconstruction identities and complete
-amplitude/point/origin/complex-wavenumber gradients cover these paths.
-
-`TMatrix.cd`, `.db` and `.chi` now evaluate in Rust. The framework-neutral
-`diff.tmatrix_metric` and Advect adapter expose matrix and real embedding-wavenumber
-pullbacks; the wavenumbers affect only absorption circular dichroism. Normalized
-duality breaking and electromagnetic chirality use a scaled matrix to avoid norm
-overflow/underflow, checked from 1e-200 to 1e200. A scalar metric retains its matrix
-gradient, releasing singular vectors before returning to Python. No full
-output-by-parameter Jacobian is needed for the other native kernels.
-
-`diff.svdvals` and `advect.svdvals` expose the thin native singular-value boundary.
-Repeated positive singular values require equal weights; zero singular values
-require zero weights. Normalized metrics at zero scattering, and CD at zero total
-absorption, are undefined. Chi has a forward value at zero contrast, but a nonzero
-pullback there is rejected; a zero cotangent allows smooth compositions such as
-chi squared. Reference metrics, scale/phase/helicity-swap invariants, rectangular
-SVDs, Frobenius-gradient properties and complete chiral-sphere Advect derivatives
-cover these cases. Higher derivatives remain unsupported.
-
-
-`permute` provides cyclic Cartesian-axis polarization matrices for component and
-unit-vector plane bases; the output geometry is `basis.permute(n)`. Compact
-`diff.plane_permutation` and `advect.plane_permutation` return both output
-polarizations for every incident mode and expose native complex-vector pullbacks.
-The forward shares geometry for adjacent equal directions, while their cotangents
-remain independent. Tests cover all coordinate alignments, both polarization
-conventions, loss, evanescent waves, Cartesian field reconstruction, inverse maps,
-Advect compositions and scales from 1e-300 to 1e300. Axial direction derivatives
-remain undefined in the polarization gauge; forward axis values are supported.
-
-Plane `rotate` matches upstream's coefficient-preserving direction-label rotation;
-its explicit output basis is `basis.rotate(phi + psi)`. Theta must be zero and
-component bases must have xy alignment. It is not an arbitrary-axis physical
-rotation of the polarization vectors. All rotation matrices accept `where` masks.
-Polarization arrays are cached, read-only views of the fixed basis labels.
-The shared local quotient rule now uses scaled complex division for forward values
-and derivatives, checked by a native common-scale invariant.
-
-`special` now exposes cylindrical and spherical Bessel J/Y and both Hankel kinds,
-plus their first argument derivatives. Array inputs broadcast; results explicitly
-use complex128 even for real input. Singular or nonfinite evaluations raise
-ValueError. `diff.bessel` and `advect.bessel` differentiate complex arguments while
-holding orders fixed, including reduction to the original broadcast input shape.
-Forward-only public array calls use native NumPy ufunc loops; recorded calls own their
-arguments, retain scalar parameters once, and recompute local derivatives in
-reverse. Rust proptest checks the Wronskian and its derivative. Python tests cover
-all 16 function names, complex branch sides, real fractional cylindrical orders,
-origin limits, empty arrays, strided inputs, owned contexts and Advect composition.
-Python scalar Hankel calls and scalar recorded calls enter Rust directly, avoiding
-broadcast setup and temporary input arrays. Cylindrical Hankel derivatives share
-one native adjacent-order evaluation. Array operations support NumPy out/where,
-including overlapping, unaligned and strided buffers; singular/nonfinite values
-raise ValueError, while masked elements are not evaluated. Most public names are
-ufuncs; Hankel values and spherical J/Y retain thin scalar/derivative dispatch
-functions. Results are complex128 arrays or complex scalars as appropriate.
-Tests include concurrent calls and clean-wheel operation without SciPy or treams.
-The measured scalar/128/4096-value cases gate both forward-only and recorded
-performance; every recorded scalar still owns its inputs and one-use residual.
-
-
-Heterogeneous cylindrical clusters share the spherical block-solve residual and
-reuse the native cylindrical translation adjoint, with parallel contractions over
-source modes. `TMatrixC.cluster(...).interaction.solve()` now takes this path.
-Tests cover mixed cutoffs, reordered partial bases, helicity/parity, chiral lossy
-media, every local-block/position/medium cotangent, owned strided inputs, native
-rigid-translation invariance and complete Advect radius/epsilon/mu/kappa/frequency/
-position gradients. Coordinate scaling also scales cylindrical axial labels.
-Derivatives hold the selected outgoing radial branch fixed; symmetric perturbations
-from a lossless medium into gain can cross that branch and are not a valid local
-gradient oracle. Complete material tests use a strictly passive embedding medium.
-
-
-Basis objects now support integer access, slices, one-dimensional integer/mask
-selections, ellipsis, column tuples, membership/index/count and ordered equality.
-Selections keep expansion origins and plane alignment. Unit-vector selections
-preserve their already-normalized bits. Empty selections are representable metadata;
-numerical kernels still require their documented nonempty bases. Repeated labels
-are deduplicated in input order, matching the upstream ordered-set construction.
-Component arrays are cached read-only views of immutable labels.
-Spherical default-dimension helpers accept multiple particles and degree zero;
-`SphericalWaveBasis.ebcm` supplies azimuthal-block ordering and optional m cutoff.
-Hypothesis checks field-column reconstruction for all four families and dimension
-inversion; direct checks cover EBCM integral permutations and upstream's plane-
-alignment slicing defect. Set algebra is covered below.
-
-
-`special.lpmv`, `pi_fun` and `tau_fun` use native NumPy loops with broadcasting,
-masked output and overlapping/strided buffers. `diff.angular` and `advect.angular`
-hold integer degree/order labels fixed and differentiate the complex argument.
-They factor the sine powers explicitly, preserving finite derivatives at poles;
-undefined branch-point derivatives raise an error unless their cotangent is zero.
-The current public Legendre domain is integer degree 0..128, integer order and
-finite complex argument. Upstream's real noninteger-degree Legendre extension
-remains unimplemented. Tests cover reference values, recurrence identities,
-polar limits, owned broadcast reductions and complete Advect compositions.
-
-Basis set operations preserve stable ordering, origin tables and plane alignment,
-and reject incompatible geometry. Union appends new right-hand modes; intersection
-follows right-hand order, as in upstream. Unit directions preserve their exact
-normalized values. `CylindricalWaveBasis.diffr_orders` accepts a scalar signed axial
-period and a nonnegative reciprocal cutoff. Lattice/WaveVector annotation objects
-are not yet reproduced; geometry remains explicit in numerical calls.
-
-
-`special.wignersmalld`, `wignerd` and `wigner3j` expose NumPy broadcasting,
-masked output and native loops. Individual D elements use the
-[Jacobi recurrence](https://dlmf.nist.gov/18.9.E2), with O(l) arithmetic and O(1)
-local storage. Half-angle powers preserve tiny-angle off-diagonal entries.
-Independent full-matrix comparisons and unitarity are checked through degree 128.
-`diff.wigner` and `advect.wigner` differentiate all three complex Euler angles,
-keep integer labels fixed, own their inputs and reduce broadcast gradients.
-Native generator identities, Hypothesis group composition and complete Advect
-objectives check the derivatives. Large evaluations use Rayon without copying
-broadcast inputs; the ufunc writes only after all parallel reads finish, preserving
-in-place, strided and unaligned input/output semantics.
-
-`special.incgamma` and `special.intkambe` now expose the existing Rust Ewald
-integrals as broadcast ufuncs with direct scalar paths. Their domains remain
-integer/half-integer gamma degree and integer Kambe order. Their derivatives
-also enter the periodic solver pullbacks; direct public contexts are available
-through diff and Advect. No SciPy fallback is used.
-
-
-Cylindrical weighted fields and full field operators expose real per-mode axial
-wavenumber pullbacks through `context.pullback_axial`. The existing `pullback`
-retains its return signature and fixed-label computation. Advect field/operator,
-H and G/F adapters accept optional differentiable `kzs`, including grouped axial
-values propagated from `advect.cylinder`. Reverse uses five-component native jets
-only when requested, retaining the existing forward and residual storage.
-Checks cover regular axis limits, outgoing fields, both polarization conventions,
-weighted/operator contractions, ownership, empty samples and geometric scaling.
-A complete cylinder-scattering-to-field intensity objective checks both axial
-incidence and radius derivatives. Finite and periodic expansion contexts now also
-provide grouped axial derivatives as described below; the optimized particle-cluster
-boundary still holds its axial labels fixed.
-
-
-Finite and periodic cylindrical expansions expose `context.pullback_axial`,
-appending a real gradient array ordered by sorted distinct axial labels across
-both bases. A derivative moves the entire matching group in both bases; unmatched
-groups have zero coupling and zero gradient. Advect `expansion` and
-`lattice_expansion` accept optional `kzs` in the original sorted group order,
-preserve the original equality partition and return gradients in input order
-even when numeric ordering changes. Coalescing groups is a discrete change and
-is rejected by this boundary.
-
-Finite reverse contracts the existing analytic translation derivative. Periodic
-reverse contracts the existing Ewald wavenumber derivative through the transverse
-wavenumber and axial phase, sharing the Ewald work with existing gradients.
-Tests cover rectangular/partial bases, negative zero, propagating and evanescent
-channels, parallel/serial contractions, invalid-cotangent retry, owned inputs,
-self images, 1D/2D periodicity, chiral/achiral media and Ewald split independence.
-Native proptest and Hypothesis check geometric scaling. Complete Advect tests
-compose cylinder coefficients, multiple-scattering interaction and sampled fields
-with a shared axial-incidence parameter. The ordinary forward and fixed-label
-pullback signatures remain unchanged.
-
-
-All sixteen public point and vector coordinate transforms expose native NumPy
-generalized ufuncs, preserving real/complex vector dtypes, batch broadcasting,
-component-axis selection and in-place/strided/unaligned output. Vector positions
-are expressed in the source coordinate system. Point charts use `(rho, phi)` or
-`(r, theta, phi)` conventions; vector components use orthonormal local frames.
-`diff.coordinates` and `advect.coordinates` differentiate real input coordinates;
-`diff.vector_coordinates` and its Advect adapter differentiate complex components
-and real source positions. Contexts own their inputs, retain constant broadcast
-vectors once and reduce gradients to the original shapes. No Jacobian table is
-stored. Angular coordinate derivatives at axes/origins are undefined unless the
-corresponding cotangent is zero. Native property tests and Hypothesis cover
-Jacobians, chart round trips, vector-frame composition and norm preservation;
-Python checks include complete Advect objectives and context ownership.
-
-
-All eighteen local vector spherical/cylindrical/plane wave and vector harmonic
-functions are native NumPy gufuncs. Scalar spherical harmonics are also native.
-Public wave signatures retain fixed integer mode labels, real/complex angle
-loops, component-axis relocation, arbitrary output strides and empty batches.
-`diff.vector_wave` and its Advect adapter differentiate every continuous argument;
-`diff.sph_harm` / `advect.sph_harm` take theta and phi with fixed degree/order.
-Owned one-use residuals preserve input values and reduce broadcast gradients.
-
-The normalized Legendre recurrence avoids factorial overflow through degree 128
-and computes the angular components together. Cylindrical radial jets now obtain
-adjacent Bessel values in one call. Plane gufuncs reuse constant-direction
-polarizations across points; large independent batches use Rayon. Native proptest
-and Hypothesis check Cartesian reconstruction, all-argument directional adjoints,
-helicity combinations and the high-degree harmonic addition theorem. Complex
-angles, axes/origins, strided outputs, ownership and full Advect objectives are
-covered, with a separate SciPy-free clean-wheel check.
-
-
-All six direct spherical/cylindrical translation coefficients (`tl_vsw_A/B`,
-`tl_vsw_rA/rB`, `tl_vcw`, `tl_vcw_r`) expose native NumPy ufuncs with broadcasting,
-masked, strided and unaligned outputs. Fixed spherical mode pairs reuse one
-coupling plan across displacements; independent large batches use Rayon.
-`diff.spherical_translation` / `advect.spherical_translation` differentiate
-complex `(kr, theta, phi)` with fixed degree/order/polarization labels.
-`diff.cylindrical_translation` / `advect.cylindrical_translation` differentiate
-`(krr, phi, z, kz)` at fixed order difference, moving both matching axial labels
-together. One-use native contexts own inputs and reduce every broadcast gradient.
-
-Native properties compare both polar kernels with independent Cartesian
-translation kernels and check all argument derivatives. Hypothesis checks
-spherical origin identity, azimuthal phase and cylindrical translation-group
-composition. Python checks cover regular-origin derivatives, empty and parallel
-batches, ownership, cotangent retry and complete Advect objectives. Closed dipole
-expressions qualify nonzero tiny-angle spherical couplings lost by the reference.
-The polar translation increment is included in the combined Linux qualification below.
-
-The macOS reference checks for lossy normal-incidence channels use exact axial
-unit directions and restore the physical propagation phase. This avoids the
-already documented upstream angular cancellation while retaining all coefficient
-comparisons and their original tolerances. A narrowly scoped NumPy errstate
-suppresses an incidental divide flag from upstream Ewald construction; finite
-matrix, power and conservation comparisons remain unchanged.
-
-
-The `sw`, `cw` and `pw` namespaces now expose direct translations, rotations,
-regular multipole conversions, periodic radiation and cyclic plane-coordinate
-permutations through native ufuncs. Periodic translation conveniences accept
-independent source/destination labels and origins and reuse the native Ewald
-matrix kernels. Direct cylindrical-to-spherical forward coefficients include
-cutoff limits; derivatives at branch points still require a limiting formulation.
-Spherical periodic custom lattice-sum callbacks remain explicitly unsupported.
-
-The macOS ARM64 suite passes 1,592 Python tests, including all new namespace
-reference tests, selection rules, unitarity/group properties, output strides,
-complex vectors and periodic rectangular bases. Their Linux performance
-qualification is included in the combined result below. Direct periodic conversion avoids computing an
-identity translation at coincident origins, and cyclic-coordinate coefficients
-reuse the full wavevector norm when only the transverse frame changes.
-
-
-`diff.incgamma` and `diff.intkambe`, with matching Advect adapters, now expose
-owned argument pullbacks. Gamma differentiates its complex argument at fixed
-half-integer degree; Kambe differentiates both z and eta at fixed integer order.
-Reverse recomputes local derivatives from the endpoint integrand and adjacent
-order, preserves broadcast reductions and skips zero cotangents at singularities.
-The n=-2 Kambe cusp at z=0 is explicitly nondifferentiable; n<=-3 has zero first
-z derivative there. Native proptest checks complex directional derivatives;
-Hypothesis checks gamma recurrence and Kambe integration-by-parts identities
-through complete Advect traces. The macOS suite passes 1,610 Python tests.
-Linux performance qualification of this increment is included below.
-
-
-The local-wave milestone passes 61 Rust tests, 1,512 Python tests, strict
-lint/type/rustdoc checks, and the isolated Linux wheel including optional HDF5.
-All 191 combined runtime gates and 187 applicable forward-RSS gates pass on the
-matched four-core host configuration documented in benchmarks.md. Recorded
-illumination still retains more memory than upstream's forward-only operation;
-its owned tape is required for mutation-safe reverse mode.
-
-
-The coefficient and integral-adjoint milestone passes 65 Rust tests and 1,611
-Python tests, strict lint/type/rustdoc checks and an isolated Linux release wheel
-with Advect and optional HDF5. All 257 combined runtime gates and 253 applicable
-forward-RSS gates pass. The smallest scalar margin is 1.006x; this qualifies the
-measured grid, not every possible problem or machine. See benchmarks.md and the
-committed qualification manifest for the binary hash and complete results.
-
-
-Native lattice geometry now supplies signed cell volumes, reciprocal vectors,
-cube/boundary enumeration, complete skew-cell diffraction orders and Brillouin
-reduction. Material indices and outgoing normal wavevectors share the Rust
-branches used by the solvers. Typed Lattice/WaveVector values preserve owned
-metadata through basis selection, coordinate permutations and periodic expansion.
-Plane and cylindrical diffraction bases attach their lattice and Bloch metadata;
-expandlattice can infer it from those bases. Hypothesis checks reciprocal duality,
-integer-shell boundaries, skew diffraction completeness and metadata algebra.
-The 45 pinned upstream Lattice tests also pass through the new classes.
-The macOS suite passes 1,647 Python tests and 68 Rust tests after these changes.
-Linux qualification passes the same 1,647 Python and 68 Rust tests, strict
-lint/type/rustdoc checks and all 299 combined runtime gates plus 295 applicable
-forward-RSS gates. The four recorded internal-illumination cases retain their
-existing RSS exemption. The isolated Linux wheel passes Advect and optional
-HDF5 checks. The native hash and passing grid are recorded in
-`benchmarks/geometry-qualification.json`.
+The documented CPU rewrite is complete: the Rust numerical implementation and
+Python workflow layer cover the pinned `treams` 0.4.5 API inventory within the
+contracts and numerical limits below. The complete Linux performance grid and
+isolated Linux/macOS wheels pass. There is no runtime fallback to treams, SciPy
+or Cython. This is not exact emulation of the legacy ndarray annotation engine.
+
+The source reference is `1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39`.
+The inventory contains 182 public functions/classes across the package and its
+numerical, configuration and I/O modules. Export presence is only a coverage
+check: the tests also compare complete workflows and independent physical laws.
+Known reference defects are documented in [upstream findings](upstream-findings.md).
+
+## Numerical and workflow coverage
+
+| Area | Implemented behavior and derivative boundary |
+| --- | --- |
+| Materials and geometry | Isotropic lossy, magnetic and chiral materials; outgoing wavenumber branches; Cartesian/polar/spherical transforms and vector-frame changes; native continuous geometry pullbacks. Immutable Lattice and partial WaveVector metadata, reciprocal cells, diffraction orders and coordinate transforms. |
+| Special functions | Cylindrical/spherical Bessel and incoming/outgoing Hankel values and derivatives; integer Legendre, pi/tau and harmonics; fractional-degree real Legendre; Wigner 3j and small/full D; incomplete gamma and Kambe integrals. NumPy broadcasting, output buffers and native argument/angle pullbacks. |
+| Local waves and coefficients | Spherical, cylindrical and plane waves; helicity/parity bases; regular/outgoing translation coefficients; sw/cw/pw namespaces; analytic axis limits and continuous coordinate/wavenumber pullbacks. |
+| Particle scattering | Multilayer chiral sphere and cylinder coefficients and T matrices; radius, permittivity, permeability, chirality, frequency and cylindrical axial-wavenumber pullbacks. |
+| Finite interactions | Homogeneous optimized sphere clusters and heterogeneous spherical/cylindrical local T matrices, differing cutoffs and mode subsets. Native block storage, interaction solves and LU-reusing pullbacks for local matrices, positions and embedding wavenumbers. |
+| Basis operations | Rotations, translations, polarization changes, finite and periodic expansion, plane coordinate permutations and spherical/cylindrical conversions. Fixed discrete mode labels with native continuous parameter pullbacks. |
+| Fields and illumination | Electric, magnetic, displacement, flux and G/F field operators; weighted samples; spherical/cylindrical sources and plane waves, including complex directions. Native amplitude, sample, origin and wavenumber pullbacks. Direct T-matrix illumination, cross sections/widths and source expansion. |
+| Periodic sums | Spherical 1D/2D/3D and cylindrical 1D/2D Ewald sums, full/real/reciprocal/direct-shell APIs, shifted geometries and batched inputs. Native k, Bloch vector, cell, shift and split-parameter pullbacks. |
+| Custom periodic tables | User-supplied spherical lattice-sum callbacks are evaluated once with broadcast geometry. Native table-to-matrix contraction and its conjugate-transpose pullback compose with differentiable lattice sums. |
+| Periodic scattering | Coupling, interactions, spherical 2D and cylindrical 1D particle-to-plane channels, particle-array S matrices and spherical-array-to-cylinder conversion. Complete native pullbacks, including shared cylindrical axial groups. |
+| Planar layers | Chiral Fresnel interfaces, propagation, compact multilayer stacks, S-matrix composition and doubling. Native factorization-reusing pullbacks and internal illumination between adjacent stacks. |
+| Power and dichroism | Native batched S-matrix transmittance/reflectance includes coherent incident/reflected interference in absorbing media. Pullbacks cover the illuminated S-matrix column, incident amplitudes, both port wavenumbers/impedances and transverse directions. Circular dichroism evaluates both incident polarizations in one batch and has an Advect adapter. |
+| Other observables | T-matrix CD, duality breaking and electromagnetic chirality, thin SVD and native pullbacks. Plane chirality-density forms in all coordinate orientations, with interval and geometry pullbacks. |
+| Bloch bands | Native transfer matrices, right eigensystems and Bloch wavenumbers/vectors, with S-matrix, period and nondegenerate eigenvector pullbacks. |
+| Axisymmetric EBCM | Callable radial surfaces sampled by Gauss-Legendre quadrature, native regular/outgoing Q integrals and radius, slope, complex-wavenumber and impedance pullbacks. Correct surface area by default; explicit legacy mode for upstream comparisons. |
+| Python objects | Material, all four basis types, TMatrix/TMatrixC, SMatrix/SMatrices, PhysicsArray, wave sources and reusable bound operators. T-matrix field methods, basis selections and exclusion masks; S-matrix coordinate transforms and read-only port block views. |
+| I/O | Optional HDF5 scalar matrices and rectangular sweeps, streamed writes, chirality, local origins, mode indices, units, mesh and reproducibility metadata. Gmsh convenience uses actual boundary surface tags. |
+
+## Python contract
+
+Import as `treams_rs`; the distinct name allows the development oracle to coexist.
+The common constructors and numerical conventions follow treams. This is an
+explicit-object API rather than a replica of the ndarray annotation engine:
+
+- `.array` exposes read-only numerical storage. Ordinary indexing/arithmetic on
+  PhysicsArray returns NumPy values without inferred physical metadata.
+- Selecting a T matrix with a wave basis returns a T matrix in those channels;
+  ordinary numerical indexing returns values.
+- `SMatrices.block(outgoing, incoming)` shares storage and carries port metadata.
+  Numeric S-matrix indexing remains a cheap ndarray view.
+- Bound operators expose explicit evaluation and left/right application. T-matrix
+  rotation/expansion and S-matrix transformations return physical objects.
+  The old `.ann`/`.relax` metadata machinery and every descriptor spelling are
+  intentionally not reproduced; use explicit operators for one-sided transforms.
+- Changing `config.POLTYPE` affects subsequent defaulted calls. Existing objects
+  and recorded pullbacks retain the convention with which they were created.
+- Plane-basis z rotations retain lattice and Bloch metadata. Rotations that would
+  turn a partial Cartesian constraint into an oblique constraint raise instead
+  of discarding it. Full xy planes, z axes and three-dimensional cells are closed
+  under these rotations; exact quarter turns also handle other Cartesian spans.
+
+## Adjoint contract
+
+`diff`/`coeffs` forward calls return an array and an opaque native residual.
+`residual.pullback(g)` consumes it once, using
+`dL = Re(sum(conj(g) * doutput))`. Invalid cotangent shapes are rejected before
+consumption. The residual owns retained data; mutating the caller's inputs does
+not alter a recorded derivative. Rust reuses factorizations or recomputes local
+analytic derivatives without storing dense parameter Jacobians.
+
+Advect composes these numerical boundaries with user objectives. Object
+constructors themselves do not trace framework arrays: use `treams_rs.advect` for
+continuous parameters. Static basis labels, discretization sizes, quadrature
+nodes, material topology and eigenvalue ordering are not differentiated.
+Forward mode, higher derivatives, staging, checkpointing and other framework
+adapters are outside this first-order contract.
+
+At normal incidence, observables with smooth limits have explicit limiting
+pullbacks. Polarization-frame derivatives at undefined directions require a
+fixed-direction boundary. Exact diffraction thresholds, changing direct-shell
+half-cell groupings and individual degenerate eigenmodes do not have a general
+smooth derivative.
+
+## Verification and performance
+
+`just ci` runs Rust proptest/unit tests, Python reference/Hypothesis/workflow and
+adjoint tests, rustfmt, warnings-as-errors Clippy/rustdoc, Ruff, strict Pyrefly,
+lockfile validation and file hygiene. `just check-wheel` creates an isolated
+environment, checks native execution and complete Advect objectives without
+SciPy/treams, then checks optional HDF5 separately.
+
+The complete implementation passes 73 Rust tests and 1,934 Python tests on Linux
+and macOS. Its [Linux performance manifest](../benchmarks/complete-qualification.json)
+records 527 passing runtime gates and 525 passing peak-RSS gates, all tied to the
+same native binary, Python-source and benchmark hashes. The separate macOS
+dispatch-regression grid passes 30 runtime/RSS cases. Finite test coverage is not
+a proof of correctness or performance for all possible inputs.
+
+The [independent fractional Legendre check](../scripts/qualify_legendre.py) covers
+530 finite value/argument-derivative cases and two expected-overflow cases against
+70-digit hypergeometric calculations. Its largest finite relative error was
+2.17e-13; [raw results](../benchmarks/results/fractional-legendre-physical.json)
+record the installed native binary hash. Physical checks elsewhere cover energy
+conservation, reciprocity,
+translation/rotation identities, scaling, limiting behavior and complete
+objective derivatives. Finite differences are test oracles, never pullbacks.
+
+Performance qualification uses an optimized extension, matched thread budgets,
+isolated correctness/timing/RSS workers and alternating calibrated timings for
+small calls. Every measured forward path must be at least as fast and have no
+higher peak RSS than upstream. Recorded internal illumination has two explicitly
+listed high-dimension RSS exceptions because its owned reverse data is compared
+with an upstream forward-only computation; its runtime and all corresponding forward RSS gates
+remain strict. Raw results, exact scope and older milestones are in
+[benchmarks](benchmarks.md). Finite measurements do not establish a universal
+speed or memory guarantee for every input.
+
+## Numerical and platform limits
+
+A supported label bound is not an accuracy certification throughout that range.
+Extreme orders, arguments, resonant conditioning and very many layers require
+case-specific convergence checks. Real fractional Legendre evaluation is qualified
+for 0 < degree <= 128 and |order| <= degree. The public lpmv function preserves the
+reference's zero extension at |order| > degree; it does not evaluate the general
+Ferrers function in that extended domain. Fractional complex arguments and
+fractional pi/tau are not implemented.
+
+Dense outputs and LU storage remain quadratic in channel dimension, with cubic
+factorization work. Optimized homogeneous sphere clusters require non-overlapping
+nonmagnetic spheres in vacuum; the general local-T-matrix path supports other
+materials and cutoffs. The caller must ensure enclosing particle surfaces do not
+overlap. HDF5 layout compatibility is not certification against every external
+T-matrix database.
+
+The EBCM degree-6 benchmark contains analytically zero entries with severe
+cancellation. Both implementations reach a double-precision roundoff floor; the
+strict comparison gate is retained and no degree-6 speed claim is made. See the
+independent high-precision reproducer in the benchmark documentation.
+
+CPU execution is the target. GPU, WASM/browser bindings, Python versions outside
+3.12/3.13 and broader wheel-platform distribution are separate qualification work.

@@ -132,13 +132,21 @@ def test_plane_translation_and_cylindrical_expansion():
 @settings(max_examples=25)
 def test_cylindrical_rotation_group(phi, psi):
     basis = tr.CylindricalWaveBasis.default([0.2], 3)
-    args = (basis.kz, basis.m, basis.pol, basis.kz, basis.m, basis.pol)
-    assert_allclose(
-        cw.rotate(*args, phi) * cw.rotate(*args, psi),
-        cw.rotate(*args, phi + psi),
-        rtol=4e-13,
-        atol=4e-13,
-    )
+    for args in (
+        (basis.kz, basis.m, basis.pol, basis.kz, basis.m, basis.pol),
+        (0.2, -3, 1, 0.2, -3, 1),
+    ):
+        assert_allclose(
+            cw.rotate(*args, phi) * cw.rotate(*args, psi),
+            cw.rotate(*args, phi + psi),
+            rtol=4e-13,
+            atol=4e-13,
+        )
+        expected = treams.cw.rotate(*args, phi)
+        assert_allclose(cw.rotate(*args, phi), expected, atol=3e-14)
+        out = np.empty_like(expected)
+        assert cw.rotate(*args, phi, out=out) is out
+        assert_allclose(out, expected, atol=3e-14)
 
 
 @pytest.mark.filterwarnings(

@@ -20,6 +20,78 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    fn transmittance_complete_adjoint_and_amplitude_scaling(scale in 0.8_f64..1.3, axis in 0_usize..3, helicity in any::<bool>(), down in any::<bool>()) {
+        use crate::{smatrix,interaction::view};
+        let t=usize::from(down);
+        let modes=vec![(0,0),(0,1),(1,0),(1,1)];
+        let q=vec![[0.2,0.13],[0.31,-0.17]];
+        let matrices=[DMatrix::from_fn(4,4,|i,j|Complex::new(if i==j {0.8}else{0.02},0.01)),DMatrix::from_fn(4,4,|i,j|Complex::new(if i==j {0.1}else{0.01},-0.02))];
+        let incident=DMatrix::from_fn(4,2,|i,j|Complex::new(0.2+0.03*f64::from(u32::try_from(i+j).unwrap()),-0.1*scale));
+        let ks=[[Complex::new(1.3,0.02),Complex::new(if helicity {1.5}else{1.3},0.02)],[Complex::new(1.2,0.01),Complex::new(if helicity {1.4}else{1.2},0.01)]];
+        let zs=[Complex::new(0.9,0.01),Complex::new(1.1,-0.01)];
+        let residual=smatrix::transmittance(matrices.each_ref().map(view),incident.clone(),ks,zs,q.clone(),modes.clone(),axis,helicity,t).unwrap();
+        let g=DMatrix::from_row_slice(2,2,&[0.3,-0.2,0.1,0.4]);
+        let expected=residual.value.clone();
+        let gradient=residual.pullback(&g,false).unwrap();
+        let ward=gradient.incident.iter().zip(incident.iter()).map(|(g,v)|(g.conj()*v).re).sum::<f64>();
+        prop_assert!(ward.abs()<1e-12);
+        let scaled=smatrix::transmittance_value(matrices.each_ref().map(view),&(&incident*Complex::new(scale,0.0)),ks,zs,&q,&modes,axis,helicity,t).unwrap();
+        prop_assert!((scaled-expected).norm()<1e-12);
+        let h=1e-5;
+        let d=Complex::new(0.07,-0.03);
+        for parameter in 0..5 {
+            let objective=|step:f64| {
+                let mut matrices=matrices.clone();let mut incident=incident.clone();let mut ks=ks;let mut zs=zs;let mut q=q.clone();
+                match parameter {
+                    0=>{for matrix in &mut matrices {for v in matrix.iter_mut() {*v+=step*d;}}},
+                    1=>{for v in incident.iter_mut() {*v+=step*d;}},
+                    2=>{for v in ks.iter_mut().flatten() {*v+=step*d;}},
+                    3=>{for v in &mut zs {*v+=step*d;}},
+                    _=>{for v in q.iter_mut().flatten() {*v+=step*0.1;}},
+                }
+                smatrix::transmittance_value(matrices.each_ref().map(view),&incident,ks,zs,&q,&modes,axis,helicity,t).unwrap().iter().zip(g.iter()).map(|(v,g)|v*g).sum::<f64>()
+            };
+            let fd=(objective(h)-objective(-h))/(2.0*h);
+            let pair=|v:&Complex|(v.conj()*d).re;
+            let actual=match parameter {
+                0=>gradient.matrices.iter().flatten().map(pair).sum::<f64>(),
+                1=>gradient.incident.iter().map(pair).sum(),
+                2=>gradient.ks.iter().flatten().map(pair).sum(),
+                3=>gradient.zs.iter().map(pair).sum(),
+                _=>gradient.q.iter().flatten().sum::<f64>()*0.1,
+            };
+            prop_assert!((actual-fd).abs()<2e-8*(1.0+actual.abs()),"parameter={parameter} analytic={actual} fd={fd}");
+        }
+    }
+
+    #[test]
+    fn real_degree_legendre_recurrence_and_derivative(integer in 2_i32..30, fraction in 0.05_f64..0.95, seed in 0_i32..30, x in -0.99_f64..0.99) {
+        let degree=f64::from(integer)+fraction;
+        let m=seed%(2*integer-1)-(integer-1);
+        let (value,derivative)=crate::legendre::factor::<true>(degree,m,x).unwrap();
+        let (lower,_)=crate::legendre::factor::<false>(degree-1.0,m,x).unwrap();
+        let (upper,_)=crate::legendre::factor::<false>(degree+1.0,m,x).unwrap();
+        let recurrence=(degree-f64::from(m)+1.0)*upper-(2.0*degree+1.0)*x*value+(degree+f64::from(m))*lower;
+        let expected=(degree+f64::from(m))*lower-degree*x*value;
+        prop_assert!(recurrence.abs()<1e-10*(1.0+upper.abs()+lower.abs()+degree*value.abs()));
+        prop_assert!(((1.0-x*x)*derivative-expected).abs()<1e-10*(1.0+expected.abs()+degree*value.abs()));
+    }
+
+    #[test]
+    fn lattice_table_linear_adjoint(a in -2.0_f64..2.0, b in -2.0_f64..2.0, channels in 1_usize..=2) {
+        use crate::basis::{Basis,periodic_from_table};
+        let destination=Basis{modes:vec![(0,Mode{l:1,m:-1,pol:0}),(1,Mode{l:2,m:1,pol:1})],positions:vec![[0.0;3],[0.1,0.2,0.3]]};
+        let source=Basis{modes:vec![(0,Mode{l:2,m:-2,pol:0}),(0,Mode{l:1,m:0,pol:1})],positions:vec![[0.2,0.0,0.0]]};
+        let input=vec![Complex::new(a,b);2*channels*25];
+        let (value,residual)=periodic_from_table(&destination,&source,true,channels,&input).unwrap();
+        let g=DMatrix::from_element(2,2,Complex::new(0.3,-0.2));
+        let left=value.iter().zip(g.iter()).map(|(v,g)|(g.conj()*v).re).sum::<f64>();
+        let gradient=residual.pullback(&g).unwrap();
+        let right=gradient.iter().zip(&input).map(|(g,v)|(g.conj()*v).re).sum::<f64>();
+        prop_assert!((left-right).abs()<1e-12*(1.0+left.abs()));
+    }
+
+    #[test]
     fn cylindrical_periodic_axial_scale_adjoint(kz in -0.3_f64..0.3, a in 1.5_f64..1.8) {
         use crate::{cylwaves::{self,Basis,Mode},lattice::Lattice};
         let basis=Basis{modes:vec![(0,Mode{kz,m:-1,pol:0}),(0,Mode{kz,m:1,pol:1})],positions:vec![[0.0;3]]};

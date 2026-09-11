@@ -1,9 +1,68 @@
 # Scattering and field benchmarks
 
+## Qualification of the complete implementation
+
+The complete grid passes all 527 runtime comparisons and 525 peak-RSS comparisons
+against treams 0.4.5. It covers scalar and batched functions, geometry, local
+waves, finite and periodic scattering, fields, planar stacks, power observables
+and recorded native pullbacks. The [qualification manifest](../benchmarks/complete-qualification.json)
+contains every command, result path and build fingerprint; [raw results](../benchmarks/results/final/)
+retain all timing samples and process measurements. The lowest measured speedup
+is 1.02x and the largest gated RSS ratio is 0.914x. The two recorded-adjoint RSS
+exceptions are described below; there is no universal all-input speed guarantee.
+
+Run `just bench-all` after installing the locked development dependencies. Each
+case first checks numerical agreement, then benchmarks both implementations in
+separate processes with four threads each. Sub-millisecond calls use fourteen
+alternating paired timings with batches calibrated to at least 20 ms. The strict
+threshold is speedup >= 1 and Rust peak RSS <= upstream peak RSS. The final run
+uses CPU affinity 8-11 on the Ryzen 9 9950X host; this differs from some historical
+runs below. Native binary, Python source and benchmark hashes identify each result.
+
+Two recorded internal-illumination cases at 1,024 channels retain owned inputs
+needed for arbitrary amplitude pullbacks and exceed upstream's forward-only RSS.
+Their runtime gates remain strict. With one/eight incident columns, recorded
+forward speedups are 1.38x/1.27x and peak RSS is 1.75x/1.51x upstream. The matching
+forward-only calls achieve 1.75x/1.77x speedups with 0.91x upstream RSS. Upstream has
+no equivalent reverse pass; reverse timings are reported separately, never treated
+as an upstream speed comparison.
+
+The dispatch regressions were fixed at shared native boundaries, preserving the
+NumPy broadcasting, output-buffer and subclass paths. Cylindrical rotation now
+uses a real sine/cosine pair for its unit phase instead of a general complex
+exponential. Current Linux examples:
+
+| Operation | Input size | Speedup | Rust / upstream peak RSS |
+| --- | ---: | ---: | ---: |
+| Cartesian to spherical coordinates | 1 | 1.83x | 0.65x |
+| Cartesian to spherical vector components | 1 | 1.62x | 0.66x |
+| Plane-wave M field | 1 | 4.12x | 0.65x |
+| Cylindrical rotation | 128 | 1.13x | 0.66x |
+| Two-dimensional cell volume | 1 | 2.47x | 0.65x |
+| Two-dimensional reciprocal cell | 1 | 2.20x | 0.65x |
+| EBCM, degree 3 / 96 quadrature nodes | 30 modes | 83.18x | 0.53x |
+| EBCM, degree 4 / 96 quadrature nodes | 48 modes | 128.22x | 0.53x |
+
+The EBCM rows use the explicit legacy integral for like-for-like timing; the
+corrected surface element and its physical checks are described below.
+
+A separate [macOS qualification](../benchmarks/mac-qualification.json) passes all
+30 scalar/batched regression cases for these boundaries. Its lowest measured
+speedup is 1.30x and largest RSS ratio is 0.70x. The complete Linux grid is the
+broader qualification; the macOS subset is not a full-platform parity claim.
+
+Peak RSS includes imports and allocator retention. These measurements qualify the
+listed inputs on this CPU, not every size, host or conditioning regime. Numerical
+accuracy gates remain independent of timing gates.
+
+## Historical measurements
+
+The sections below retain earlier measurements and the reasoning behind numerical
+and performance changes. Their binary hashes and workload limits matter; they are
+not interchangeable with qualification of the latest build.
+
 Measured on [redacted-host], AMD Ryzen 9 9950X (16 physical cores), Linux x86-64,
 Python 3.13.1, treams 0.4.5. Rust uses the optimized build, faer and Rayon.
-These are measured local results for the implemented sphere-cluster path,
-not a performance claim about all of treams.
 
 ## Axisymmetric EBCM
 

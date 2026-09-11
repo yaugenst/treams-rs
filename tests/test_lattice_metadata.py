@@ -117,6 +117,48 @@ def test_axial_diffraction_metadata_and_sublattice():
     assert basis[:3].kpar == WaveVector(0.2)
 
 
+@given(phi=st.floats(-3, 3), pitch=st.floats(1, 3))
+@settings(max_examples=25, deadline=None)
+def test_rotated_diffraction_basis_preserves_reciprocal_and_bloch_geometry(phi, pitch):
+    cell = Lattice.hexagonal(pitch)
+    basis = PlaneWaveBasisByComp.diffr_orders([0.1, 0.2], cell, 4)
+    c, s = np.cos(phi), np.sin(phi)
+    rotation = np.array([[c, -s], [s, c]])
+    for original in (basis, basis.byunitvector(10)):
+        rotated = original.rotate(phi)
+        assert_allclose(
+            np.asarray(rotated.lattice), np.asarray(cell) @ rotation.T, atol=2e-14
+        )
+        assert_allclose(
+            rotated.lattice.reciprocal, cell.reciprocal @ rotation.T, atol=2e-14
+        )
+        assert_allclose(np.asarray(rotated.kpar)[:2], rotation @ [0.1, 0.2])
+        assert_allclose(rotated.rotate(-phi).kvecs(10), original.kvecs(10), atol=2e-14)
+        assert_allclose(np.asarray(rotated.rotate(-phi).lattice), cell, atol=2e-14)
+    assert_allclose(
+        (basis.components - [0.1, 0.2]) @ np.asarray(cell).T,
+        (basis.rotate(phi).components - rotation @ [0.1, 0.2])
+        @ np.asarray(cell.rotate(phi)).T,
+        atol=2e-14,
+    )
+
+
+@pytest.mark.parametrize("alignment", ["x", "y", "z", "xy", "yz", "zx", "xyz"])
+def test_quarter_turn_metadata_and_unrepresentable_spans(alignment):
+    cell = Lattice(np.arange(1, len(alignment) + 1), alignment)
+    vector = WaveVector(np.arange(1, len(alignment) + 1), alignment)
+    assert cell.rotate(np.pi / 2).rotate(-np.pi / 2) == cell
+    assert vector.rotate(np.pi / 2).rotate(-np.pi / 2) == vector
+    if alignment in ("x", "y", "yz", "zx"):
+        with pytest.raises(ValueError, match="Cartesian alignment"):
+            cell.rotate(0.3)
+        with pytest.raises(ValueError, match="Cartesian alignment"):
+            vector.rotate(0.3)
+    else:
+        assert_allclose(np.asarray(cell.rotate(0.3).rotate(-0.3)), cell, atol=2e-15)
+        assert_allclose(vector.rotate(0.3).rotate(-0.3), vector, atol=2e-15)
+
+
 @pytest.mark.parametrize("spherical", [True, False])
 def test_periodic_geometry_metadata_reaches_native_solver(spherical):
     basis = (

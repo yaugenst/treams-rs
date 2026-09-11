@@ -82,7 +82,7 @@ pub fn translation(
             "finite wave numbers required; parity requires an achiral medium".into(),
         ));
     }
-    let blocks = blocks(&destination, &source, helicity)?;
+    let blocks = blocks(&destination, &source, helicity, false)?;
     let value = assemble(
         &destination,
         &source,
@@ -100,7 +100,12 @@ pub fn translation(
     })
 }
 
-fn blocks(destination: &Basis, source: &Basis, helicity: bool) -> Result<Vec<Block>> {
+fn blocks(
+    destination: &Basis,
+    source: &Basis,
+    helicity: bool,
+    normalized_lattice: bool,
+) -> Result<Vec<Block>> {
     let mut plans = HashMap::new();
     let mut blocks = Vec::new();
     let source_groups = source.groups();
@@ -110,7 +115,11 @@ fn blocks(destination: &Basis, source: &Basis, helicity: bool) -> Result<Vec<Blo
             let plan = if let Some(plan) = plans.get(&key) {
                 Arc::clone(plan)
             } else {
-                let plan = Arc::new(TranslationPlan::between(&to, from, helicity)?);
+                let mut plan = TranslationPlan::between(&to, from, helicity)?;
+                if normalized_lattice {
+                    plan.normalize_lattice();
+                }
+                let plan = Arc::new(plan);
                 plans.insert(key, Arc::clone(&plan));
                 plan
             };
@@ -175,7 +184,7 @@ pub fn periodic(
             "finite wave numbers required; parity requires an achiral medium".into(),
         ));
     }
-    let blocks = blocks(&destination, &source, helicity)?;
+    let blocks = blocks(&destination, &source, helicity, false)?;
     let value = assemble(
         &destination,
         &source,
@@ -336,5 +345,128 @@ impl TranslationResidual {
             }
         }
         Ok(result)
+    }
+}
+
+/// Geometry-independent contraction of caller-supplied normalized lattice harmonics.
+///
+/// Table axes are destination origin, source origin, wavenumber channel (one or
+/// two) and harmonic index l*l+l+m through max(destination l)+max(source l).
+/// The residual retains only sparse angular weights, never the supplied values.
+#[derive(Debug)]
+pub struct PeriodicTableResidual {
+    blocks: Vec<Block>,
+    shape: [usize; 4],
+    dimension: (usize, usize),
+}
+
+/// Contract a broadcast lattice table while retaining its exact linear pullback.
+pub fn periodic_from_table(
+    destination: &Basis,
+    source: &Basis,
+    helicity: bool,
+    channels: usize,
+    table: &[Complex],
+) -> Result<(DMatrix<Complex>, PeriodicTableResidual)> {
+    destination.validate()?;
+    source.validate()?;
+    if !(1..=2).contains(&channels) || (!helicity && channels != 1) {
+        return Err(Error::InvalidInput(
+            "lattice table needs one or two channels; parity needs one".into(),
+        ));
+    }
+    let order = destination
+        .modes
+        .iter()
+        .map(|(_, m)| m.l)
+        .max()
+        .unwrap_or(0)
+        + source.modes.iter().map(|(_, m)| m.l).max().unwrap_or(0);
+    let harmonics = usize::try_from((order + 1).pow(2))
+        .map_err(|_| Error::InvalidInput("invalid harmonic count".into()))?;
+    let shape = [
+        destination.positions.len(),
+        source.positions.len(),
+        channels,
+        harmonics,
+    ];
+    let size = shape
+        .iter()
+        .try_fold(1_usize, |size, &length| size.checked_mul(length));
+    if size != Some(table.len()) || table.iter().any(|&value| !finite(value)) {
+        return Err(Error::InvalidInput(
+            "lattice table requires matching finite harmonic values".into(),
+        ));
+    }
+    let blocks = blocks(destination, source, helicity, true)?;
+    let dimension = (destination.modes.len(), source.modes.len());
+    let mut value = DMatrix::zeros(dimension.0, dimension.1);
+    for block in &blocks {
+        let offset = (block.destination * shape[1] + block.source) * channels * harmonics;
+        for channel in 0..channels {
+            let data = &table[offset + channel * harmonics..offset + (channel + 1) * harmonics];
+            let evaluated = block.plan.evaluate_table(data);
+            for (j, &column) in block.cols.iter().enumerate() {
+                if channels == 2 && usize::from(block.polarizations[j]) != channel {
+                    continue;
+                }
+                for (i, &row) in block.rows.iter().enumerate() {
+                    value[(row, column)] = evaluated[j * block.rows.len() + i];
+                }
+            }
+        }
+    }
+    if value.iter().any(|&v| !finite(v)) {
+        return Err(Error::InvalidInput(
+            "lattice table contraction overflow".into(),
+        ));
+    }
+    Ok((
+        value,
+        PeriodicTableResidual {
+            blocks,
+            shape,
+            dimension,
+        },
+    ))
+}
+
+impl PeriodicTableResidual {
+    /// Original normalized harmonic table dimensions.
+    #[must_use]
+    pub fn shape(&self) -> [usize; 4] {
+        self.shape
+    }
+
+    /// Conjugate-transpose of the fixed angular contraction.
+    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<Vec<Complex>> {
+        if cotangent.shape() != self.dimension || cotangent.iter().any(|&v| !finite(v)) {
+            return Err(Error::InvalidInput(
+                "invalid lattice table cotangent".into(),
+            ));
+        }
+        let [_, sources, channels, harmonics] = self.shape;
+        let mut gradient = vec![Complex::default(); self.shape.iter().product()];
+        for block in self.blocks {
+            let offset = (block.destination * sources + block.source) * channels * harmonics;
+            let mut local = vec![Complex::default(); block.rows.len() * block.cols.len()];
+            for channel in 0..channels {
+                for (j, &column) in block.cols.iter().enumerate() {
+                    for (i, &row) in block.rows.iter().enumerate() {
+                        local[j * block.rows.len() + i] =
+                            if channels == 1 || usize::from(block.polarizations[j]) == channel {
+                                cotangent[(row, column)]
+                            } else {
+                                Complex::default()
+                            };
+                    }
+                }
+                block.plan.pullback_table(
+                    &local,
+                    &mut gradient[offset + channel * harmonics..offset + (channel + 1) * harmonics],
+                );
+            }
+        }
+        Ok(gradient)
     }
 }

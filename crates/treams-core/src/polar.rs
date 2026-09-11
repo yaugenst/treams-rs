@@ -361,12 +361,16 @@ mod tests {
             let expected=crate::cylwaves::translate(mode(mu),mode(m),k,[phi.cos(),phi.sin(),0.3],radial).unwrap();
             let value=cylindrical_value(m-mu,args,radial).unwrap();
             prop_assert!((value-expected.value).norm()<1e-10*(1.0+value.norm()));
-            let g=Complex::new(0.3,-0.2);let d=Complex::new(0.2,0.1);let h=1e-6;
+            let g=Complex::new(0.3,-0.2);let d=Complex::new(0.2,0.1);let h=1e-4;
             let gradient=cylindrical_pullback(m-mu,args,radial,g).unwrap();
             for i in 0..4 {
                 let mut plus=args;plus[i]+=h*d;let mut minus=args;minus[i]-=h*d;
-                let fd=(g.conj()*(cylindrical_value(m-mu,plus,radial).unwrap()-cylindrical_value(m-mu,minus,radial).unwrap())/(2.0*h)).re;
-                prop_assert!(((gradient[i].conj()*d).re-fd).abs()<3e-7*(1.0+fd.abs()));
+                let mut plus2=args;plus2[i]+=2.0*h*d;let mut minus2=args;minus2[i]-=2.0*h*d;
+                let fd=(-cylindrical_value(m-mu,plus2,radial).unwrap()+8.0*cylindrical_value(m-mu,plus,radial).unwrap()-8.0*cylindrical_value(m-mu,minus,radial).unwrap()+cylindrical_value(m-mu,minus2,radial).unwrap())/(12.0*h);
+                // Check the full complex derivative: a real projection may nearly
+                // cancel while the high-order outgoing value is very large.
+                let analytic=gradient[i].conj()/g.conj()*d;
+                prop_assert!((analytic-fd).norm()<1e-8*(1.0+analytic.norm()));
             }
         }
 

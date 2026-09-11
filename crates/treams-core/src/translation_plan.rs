@@ -53,6 +53,35 @@ impl TranslationPlan {
         Ok(Self { entries, order })
     }
 
+    pub(crate) fn normalize_lattice(&mut self) {
+        let normalization: Vec<_> = (0..=self.order)
+            .flat_map(|l| (-l..=l).map(move |m| crate::lattice::normalization(l, m)))
+            .collect();
+        for term in self.entries.iter_mut().flatten() {
+            term.weight /= normalization[term.index];
+        }
+    }
+
+    pub(crate) fn evaluate_table(&self, table: &[Complex]) -> Vec<Complex> {
+        self.entries
+            .iter()
+            .map(|terms| {
+                terms
+                    .iter()
+                    .map(|term| term.weight * table[term.index])
+                    .sum()
+            })
+            .collect()
+    }
+
+    pub(crate) fn pullback_table(&self, cotangent: &[Complex], table: &mut [Complex]) {
+        for (terms, &g) in self.entries.iter().zip(cotangent) {
+            for term in terms {
+                table[term.index] += term.weight.conj() * g;
+            }
+        }
+    }
+
     fn table(&self, k: Complex, position: [f64; 3], kind: Radial) -> Result<Vec<Translation>> {
         let r = position.iter().map(|x| x * x).sum::<f64>().sqrt();
         if r == 0.0 && kind == Radial::Outgoing {

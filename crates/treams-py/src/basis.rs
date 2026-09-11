@@ -4,8 +4,12 @@ use crate::{
     error,
     tmatrix::{from_array, matrix},
 };
-use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray2, ndarray::Array2};
+use numpy::{
+    IntoPyArray, PyArray1, PyArray2, PyArray4, PyReadonlyArray2, PyReadonlyArray4,
+    ndarray::{Array2, Array4},
+};
 use pyo3::{exceptions::PyValueError, prelude::*};
+use std::borrow::Cow;
 use treams_core::{
     Complex,
     basis::{self, Basis, TranslationResidual},
@@ -544,7 +548,88 @@ fn periodic_conversion(
     ))
 }
 
+#[pyclass]
+#[derive(Debug)]
+struct PeriodicTableContext {
+    residual: Option<basis::PeriodicTableResidual>,
+    dimension: (usize, usize),
+}
+
+#[pymethods]
+impl PeriodicTableContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'py, Complex>,
+    ) -> PyResult<Bound<'py, PyArray4<Complex>>> {
+        let g = from_array(cotangent)?;
+        if g.shape() != self.dimension {
+            return Err(PyValueError::new_err(
+                "cotangent shape does not match periodic output",
+            ));
+        }
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let shape = residual.shape();
+        let gradient = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        Ok(Array4::from_shape_vec(shape, gradient)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?
+            .into_pyarray(py))
+    }
+}
+
+#[pyfunction]
+#[allow(clippy::too_many_arguments)] // Explicit source and destination basis metadata.
+fn periodic_from_table<'py>(
+    py: Python<'py>,
+    to: Vec<(usize, i32, i32, u8)>,
+    source: Vec<(usize, i32, i32, u8)>,
+    to_positions: Vec<[f64; 3]>,
+    source_positions: Vec<[f64; 3]>,
+    helicity: bool,
+    table: PyReadonlyArray4<'py, Complex>,
+) -> PyResult<(Bound<'py, PyArray2<Complex>>, PeriodicTableContext)> {
+    let view = table.as_array();
+    let shape = view.shape();
+    let channels = shape[2];
+    if shape[0] != to_positions.len() || shape[1] != source_positions.len() {
+        return Err(PyValueError::new_err(
+            "table origin axes do not match the bases",
+        ));
+    }
+    let values = view.as_slice().map_or_else(
+        || Cow::Owned(view.iter().copied().collect::<Vec<_>>()),
+        Cow::Borrowed,
+    );
+    let to = make_basis(to, to_positions);
+    let source = make_basis(source, source_positions);
+    let (value, residual) = py
+        .detach(|| basis::periodic_from_table(&to, &source, helicity, channels, &values))
+        .map_err(error)?;
+    if residual.shape() != shape {
+        return Err(PyValueError::new_err(
+            "table axes must be destination origin, source origin, channel, harmonic",
+        ));
+    }
+    let dimension = value.shape();
+    let array = Array2::from_shape_vec((value.ncols(), value.nrows()), Vec::from(value.data))
+        .map_err(|e| PyValueError::new_err(e.to_string()))?
+        .reversed_axes()
+        .into_pyarray(py);
+    Ok((
+        array,
+        PeriodicTableContext {
+            residual: Some(residual),
+            dimension,
+        },
+    ))
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PeriodicTableContext>()?;
+    m.add_function(wrap_pyfunction!(periodic_from_table, m)?)?;
     m.add_class::<PlaneExpansionContext>()?;
     m.add_class::<PeriodicConversionContext>()?;
     m.add_function(wrap_pyfunction!(periodic_conversion, m)?)?;

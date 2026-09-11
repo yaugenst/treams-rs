@@ -2,7 +2,8 @@
 
 Results use complex128, including real inputs. Singular/nonfinite evaluations
 raise ValueError. diff/advect.bessel and .angular provide native argument pullbacks.
-Angular degrees and orders must be integers, with degree between zero and 128.
+Angular orders are integers. Degrees are bounded by 128; real-argument lpmv
+also supports noninteger degrees.
 """
 
 from __future__ import annotations
@@ -96,10 +97,10 @@ def lpmv(
     n: ArrayLike,
     z: ArrayLike,
     *,
-    out: NDArray[np.complex128] | None = None,
+    out: NDArray[np.complex128] | NDArray[np.float64] | None = None,
     where: ArrayLike = True,
-) -> complex | NDArray[np.complex128]:
-    """Integer-degree legendre function with native broadcasting and polar limits."""
+) -> complex | NDArray[np.complex128] | NDArray[np.float64]:
+    """Associated Legendre function; real arguments also support noninteger degrees."""
     if (
         out is None
         and where is True

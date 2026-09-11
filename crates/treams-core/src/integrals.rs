@@ -91,7 +91,7 @@ pub(crate) fn gamma(n: f64, z: Complex) -> Complex {
     let mut value = if base == 0.0 {
         exp1(z)
     } else {
-        PI.sqrt() * z.sqrt().erfc()
+        PI.sqrt() * crate::complex_sqrt(z).erfc()
     };
     let exponential = (-z).exp();
     let mut degree = base;
@@ -206,7 +206,7 @@ pub(crate) fn kambe(n: i32, z: Complex, eta: Complex) -> Complex {
     upper
 }
 
-fn broadcast_size(lengths: &[usize]) -> Result<usize> {
+pub(crate) fn broadcast_size(lengths: &[usize]) -> Result<usize> {
     let size = if lengths.contains(&0) {
         0
     } else {
@@ -214,13 +214,13 @@ fn broadcast_size(lengths: &[usize]) -> Result<usize> {
     };
     if lengths.iter().any(|&n| n != 1 && n != size) {
         return Err(Error::InvalidInput(
-            "integral arrays must have equal lengths or scalar inputs".into(),
+            "arrays must have equal lengths or scalar inputs".into(),
         ));
     }
     Ok(size)
 }
 #[allow(clippy::indexing_slicing)] // Scalar-or-element indexing after broadcast validation.
-fn element<T: Copy>(values: &[T], i: usize) -> T {
+pub(crate) fn element<T: Copy>(values: &[T], i: usize) -> T {
     values[if values.len() == 1 { 0 } else { i }]
 }
 fn gamma_derivative(n: f64, z: Complex) -> Complex {

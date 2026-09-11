@@ -82,12 +82,37 @@ impl Lattice {
                     .into(),
             ));
         }
-        let mut direct = Matrix3::identity();
-        for i in 0..dim {
-            for j in 0..dim {
-                direct[(i, j)] = vectors[i][j];
-            }
+        Self::from_array(
+            std::array::from_fn(|i| {
+                std::array::from_fn(|j| {
+                    if i < dim && j < dim {
+                        vectors[i][j]
+                    } else {
+                        0.0
+                    }
+                })
+            }),
+            std::array::from_fn(|i| if i < dim { bloch[i] } else { 0.0 }),
+            dim,
+        )
+    }
+
+    /// Construct from fixed storage without allocating intermediate row vectors.
+    pub fn from_array(vectors: [[f64; 3]; 3], bloch: [f64; 3], dim: usize) -> Result<Self> {
+        if !(1..=3).contains(&dim) || bloch[..dim].iter().any(|x| !x.is_finite()) {
+            return Err(Error::InvalidInput(
+                "invalid lattice dimension or Bloch vector".into(),
+            ));
         }
+        let direct = Matrix3::from_fn(|i, j| {
+            if i < dim && j < dim {
+                vectors[i][j]
+            } else if i == j {
+                1.0
+            } else {
+                0.0
+            }
+        });
         let reciprocal = crate::geometry::reciprocal(
             std::array::from_fn(|i| std::array::from_fn(|j| direct[(i, j)])),
             dim,
@@ -99,20 +124,28 @@ impl Lattice {
                 "lattice is numerically singular".into(),
             ));
         }
-        let mut parallel = [0.0; 3];
-        parallel[..dim].copy_from_slice(bloch);
         Ok(Self {
             dim,
             direct,
             reciprocal,
-            bloch: parallel,
+            bloch,
             measure,
         })
     }
 }
 
 fn factorial(n: i32) -> f64 {
-    libm::lgamma(f64::from(n + 1))
+    // Wave labels are fixed through the lattice shells. Cache the identical
+    // libm values instead of repeating gamma evaluations at every image.
+    static LOG_FACTORIAL: std::sync::OnceLock<[f64; 257]> = std::sync::OnceLock::new();
+    let values = LOG_FACTORIAL.get_or_init(|| {
+        std::array::from_fn(|i| libm::lgamma(f64::from(u32::try_from(i).unwrap_or_default()) + 1.0))
+    });
+    usize::try_from(n)
+        .ok()
+        .and_then(|i| values.get(i))
+        .copied()
+        .unwrap_or_else(|| libm::lgamma(f64::from(n) + 1.0))
 }
 pub(crate) fn normalization(l: i32, m: i32) -> f64 {
     (f64::from(2 * l + 1) / (4.0 * PI)).sqrt() * (0.5 * (factorial(l - m) - factorial(l + m))).exp()
@@ -123,13 +156,17 @@ fn below(mut z: Complex) -> Complex {
     }
     z
 }
-fn reduced_gamma(n: f64, z: Complex) -> Complex {
+fn reduced_gamma(twice_n: i32, z: Complex) -> Complex {
     let z = below(z);
-    integrals::gamma(n, z) / (-z).powf(n)
+    let mut power = (-z).powi(twice_n.div_euclid(2));
+    if twice_n % 2 != 0 {
+        power *= crate::complex_sqrt(-z);
+    }
+    integrals::gamma(0.5 * f64::from(twice_n), z) / power
 }
 fn reduced_kambe(twice_n: i32, value: Complex, w: Complex) -> Complex {
     if w == Complex::default() {
-        return reduced_gamma(0.5 * f64::from(twice_n), value);
+        return reduced_gamma(twice_n, value);
     }
     let w = if w.re < 0.0 { -w } else { w };
     let mut x = (-2.0 * below(value) * w * w).sqrt();
@@ -140,8 +177,22 @@ fn reduced_kambe(twice_n: i32, value: Complex, w: Complex) -> Complex {
     2.0 * integrals::kambe(twice_n - 1, x, -Complex::i() / w) * w.powi(twice_n)
 }
 
-fn kambe_jet<const N: usize>(n: i32, z: Jet<N>, eta: Complex) -> Jet<N> {
+fn kambe_jet<const N: usize, const ETA: bool>(n: i32, z: Jet<N>, eta: Complex) -> Jet<N> {
     let value = integrals::kambe(n, z.value, eta);
+    if ETA {
+        let derivative =
+            -eta.powi(n) * (0.5 * (1.0 / (eta * eta) - z.value * z.value * eta * eta)).exp();
+        return Jet {
+            value,
+            derivative: std::array::from_fn(|i| {
+                if i == 0 {
+                    derivative
+                } else {
+                    Complex::default()
+                }
+            }),
+        };
+    }
     let derivative = if N == 0 {
         Complex::default()
     } else {
@@ -181,7 +232,53 @@ fn solid_jet<const N: usize>(l: i32, m: i32, r: [Jet<N>; 3]) -> Jet<N> {
     }
 }
 
-fn real_term<const N: usize>(wave: Wave, k: Jet<N>, r: [Jet<N>; 3], eta: Complex) -> Jet<N> {
+fn direct_term<const N: usize>(wave: Wave, k: Jet<N>, r: [Jet<N>; 3]) -> Result<Jet<N>> {
+    use crate::special::{self, Bessel, Radial};
+    let radius = r.into_iter().map(|v| v * v).sum::<Jet<N>>().sqrt();
+    let argument = k * radius;
+    let (degree, spherical) = match wave {
+        Wave::Spherical { l, .. } => (l, true),
+        Wave::Cylindrical { m } => (m, false),
+    };
+    let radial = if N == 0 {
+        Jet::constant(special::bessel(
+            f64::from(degree),
+            argument.value,
+            Bessel::H1,
+            spherical,
+            0,
+        )?)
+    } else {
+        let radial = if spherical {
+            special::spherical(
+                u32::try_from(degree).map_err(|_| Error::InvalidInput("invalid degree".into()))?,
+                argument.value,
+                Radial::Outgoing,
+            )?
+        } else {
+            special::cylindrical(degree, argument.value, Radial::Outgoing)?
+        };
+        argument.map(radial.value, radial.first)
+    };
+    let angular = match wave {
+        Wave::Spherical { l, m } => normalization(l, m) * solid_jet(l, m, r.map(|v| v / radius)),
+        Wave::Cylindrical { m } => ((r[0] + Complex::i() * r[1]) / radius).powi(m),
+    };
+    let result = radial * angular;
+    if !result.finite() {
+        return Err(Error::SpecialFunction(
+            "nonfinite direct lattice term".into(),
+        ));
+    }
+    Ok(result)
+}
+
+fn real_term<const N: usize, const ETA: bool>(
+    wave: Wave,
+    k: Jet<N>,
+    r: [Jet<N>; 3],
+    eta: Complex,
+) -> Jet<N> {
     let radius = r.into_iter().map(|r| r * r).sum::<Jet<N>>().sqrt();
     match wave {
         Wave::Spherical { l, m } => {
@@ -190,7 +287,7 @@ fn real_term<const N: usize>(wave: Wave, k: Jet<N>, r: [Jet<N>; 3], eta: Complex
                 * (2.0 / PI).sqrt()
                 * k.powi(l)
                 * harmonic
-                * kambe_jet(2 * l, k * radius, eta)
+                * kambe_jet::<N, ETA>(2 * l, k * radius, eta)
         }
         Wave::Cylindrical { m } => {
             let xy = r[0] + Complex::i() * if m < 0 { -r[1] } else { r[1] };
@@ -198,7 +295,7 @@ fn real_term<const N: usize>(wave: Wave, k: Jet<N>, r: [Jet<N>; 3], eta: Complex
             -2.0 * Complex::i() / PI
                 * sign
                 * (k * xy).powi(m.abs())
-                * kambe_jet(2 * m.abs() - 1, k * radius, eta)
+                * kambe_jet::<N, ETA>(2 * m.abs() - 1, k * radius, eta)
         }
     }
 }
@@ -260,6 +357,42 @@ fn inner_cw1<const N: usize>(l: i32, n: i32, y: Jet<N>, beta: Jet<N>) -> Jet<N> 
                 - factorial(s - n)
                 - f64::from(s) * 2.0_f64.ln())
             .exp();
+    }
+    sum
+}
+
+// On-axis values need only half of the polynomial terms. Adjacent half-order
+// gamma functions share one evaluation: recurse downward near zero, upward at
+// large arguments to avoid subtracting the leading asymptotic term.
+fn axial_cylindrical_reciprocal(order: i32, beta: Complex, z: Complex, eta: Complex) -> Complex {
+    let maximum = order / 2;
+    let upward = z.norm() > 4.0;
+    let mut gamma = reduced_gamma(1 - 2 * if upward { maximum } else { 0 }, z);
+    let endpoint = if maximum > 0 {
+        (if z.im > 0.0 {
+            Complex::i()
+        } else {
+            -Complex::i()
+        }) * (-z).exp()
+    } else {
+        Complex::default()
+    };
+    let mut sum = Complex::default();
+    for step in 0..=maximum {
+        let n = if upward { maximum - step } else { step };
+        let weight = beta.powi(order - 2 * n)
+            * (0.5 * eta * eta).powi(n)
+            * (factorial(order) - factorial(n) - factorial(order - 2 * n)).exp()
+            / (2.0_f64.sqrt() * eta);
+        sum += weight * gamma;
+        if step < maximum {
+            let phase = if n % 2 == 0 { endpoint } else { -endpoint };
+            gamma = if upward {
+                ((0.5 - f64::from(n)) * gamma + phase) / (-z)
+            } else {
+                (-z * gamma + phase) / (-0.5 - f64::from(n))
+            };
+        }
     }
     sum
 }
@@ -340,6 +473,12 @@ fn reciprocal_term<const N: usize>(
             let y = k * if m < 0 { -r[1] } else { r[1] };
             let mut sum = Jet::default();
             let mut factor = 1.0 / (2.0_f64.sqrt() * eta);
+            if N == 0 && r[1].value == Complex::default() {
+                return Ok(Jet::constant(
+                    2.0 * (-i).powi(m) / (PI.sqrt() * measure.value * k.value)
+                        * axial_cylindrical_reciprocal(m.abs(), beta.value, value.value, eta),
+                ));
+            }
             for n in 0..=m.abs() {
                 let polynomial = inner_cw1(m.abs(), n, y, beta);
                 if polynomial.norm() != 0.0 {
@@ -355,7 +494,7 @@ fn reciprocal_term<const N: usize>(
 
 fn shell_sum<const N: usize>(
     dim: usize,
-    mut term: impl FnMut([i32; 3]) -> Result<Jet<N>>,
+    mut term: impl FnMut([i64; 3]) -> Result<Jet<N>>,
 ) -> Result<Jet<N>> {
     let maximum: i32 = match dim {
         1 => 200,
@@ -366,23 +505,18 @@ fn shell_sum<const N: usize>(
     let mut quiet = 0;
     for radius in 0..maximum {
         let mut magnitude = 0.0;
-        let yrange = if dim > 1 { -radius..=radius } else { 0..=0 };
-        let zrange = if dim > 2 { -radius..=radius } else { 0..=0 };
-        for x in -radius..=radius {
-            for y in yrange.clone() {
-                for z in zrange.clone() {
-                    if x.abs().max(y.abs()).max(z.abs()) != radius {
-                        continue;
-                    }
-                    let value = term([x, y, z])?;
-                    if !value.finite() {
-                        return Err(Error::SpecialFunction("non-finite Ewald summand; change the split parameter or reduce the order".into()));
-                    }
-                    sum += value;
-                    magnitude += value.norm();
-                }
+        crate::geometry::visit_cube(dim, i64::from(radius), true, |point| {
+            let value = term(point)?;
+            if !value.finite() {
+                return Err(Error::SpecialFunction(
+                    "non-finite Ewald summand; change the split parameter or reduce the order"
+                        .into(),
+                ));
             }
-        }
+            sum += value;
+            magnitude += value.norm();
+            Ok(())
+        })?;
         quiet = if magnitude <= 2e-13 * sum.norm().max(1.0) {
             quiet + 1
         } else {
@@ -406,7 +540,37 @@ pub fn sum(
     r: [f64; 3],
     eta: Complex,
 ) -> Result<Complex> {
-    Ok(sum_impl::<0>(wave, k, lattice, r, eta)?.value)
+    Ok(sum_impl::<0, 0>(wave, k, lattice, r, eta, 0)?.value)
+}
+
+/// Part of an Ewald sum, or one unaccelerated integer cube shell.
+#[derive(Clone, Copy, Debug)]
+pub enum SumPart {
+    /// Complete outgoing lattice sum.
+    Full,
+    /// Real-space Ewald contribution.
+    Real,
+    /// Reciprocal-space Ewald contribution, including the self correction.
+    Reciprocal,
+    /// One cube boundary; axial half-cell shifts pair equidistant images instead.
+    Direct(i64),
+}
+/// Evaluate an Ewald component or one direct-summation shell.
+pub fn sum_part(
+    wave: Wave,
+    k: Complex,
+    lattice: &Lattice,
+    r: [f64; 3],
+    eta: Complex,
+    part: SumPart,
+) -> Result<Complex> {
+    Ok(match part {
+        SumPart::Full => sum_impl::<0, 0>(wave, k, lattice, r, eta, 0)?,
+        SumPart::Real => sum_impl::<0, 1>(wave, k, lattice, r, eta, 0)?,
+        SumPart::Reciprocal => sum_impl::<0, 2>(wave, k, lattice, r, eta, 0)?,
+        SumPart::Direct(shell) => sum_impl::<0, 3>(wave, k, lattice, r, eta, shell)?,
+    }
+    .value)
 }
 
 /// Local derivatives of one scalar Ewald sum. At coincidence, derivatives refer to
@@ -417,6 +581,8 @@ pub struct Derivatives {
     pub value: Complex,
     /// Complex wavenumber derivative.
     pub k: Complex,
+    /// Ewald split derivative; zero for the full and direct sums.
+    pub eta: Complex,
     /// Cartesian shift derivatives.
     pub position: [Complex; 3],
     /// Bloch components in lattice coordinates (unused components are zero).
@@ -433,10 +599,51 @@ pub fn derivatives(
     r: [f64; 3],
     eta: Complex,
 ) -> Result<Derivatives> {
+    derivatives_part(wave, k, lattice, r, eta, SumPart::Full)
+}
+/// Differentiate the selected component, holding a direct shell's index fixed.
+pub fn derivatives_part(
+    wave: Wave,
+    k: Complex,
+    lattice: &Lattice,
+    r: [f64; 3],
+    eta: Complex,
+    part: SumPart,
+) -> Result<Derivatives> {
+    if matches!(part, SumPart::Real | SumPart::Reciprocal) && eta == Complex::default() {
+        return Err(Error::InvalidInput(
+            "component adjoints require an explicit nonzero Ewald split".into(),
+        ));
+    }
+    let mut result = match part {
+        SumPart::Full => derivatives_impl::<0>(wave, k, lattice, r, eta, 0),
+        SumPart::Real => derivatives_impl::<1>(wave, k, lattice, r, eta, 0),
+        SumPart::Reciprocal => derivatives_impl::<2>(wave, k, lattice, r, eta, 0),
+        SumPart::Direct(shell) => derivatives_impl::<3>(wave, k, lattice, r, eta, shell),
+    }?;
+    if matches!(part, SumPart::Real | SumPart::Reciprocal) {
+        result.eta = sum_impl::<1, 4>(wave, k, lattice, r, eta, 0)?.derivative[0]
+            * if matches!(part, SumPart::Real) {
+                1.0
+            } else {
+                -1.0
+            };
+    }
+    Ok(result)
+}
+fn derivatives_impl<const PART: usize>(
+    wave: Wave,
+    k: Complex,
+    lattice: &Lattice,
+    r: [f64; 3],
+    eta: Complex,
+    shell: i64,
+) -> Result<Derivatives> {
     fn unpack<const N: usize>(result: Jet<N>, dim: usize) -> Derivatives {
         Derivatives {
             value: result.value,
             k: result.derivative[0],
+            eta: Complex::default(),
             position: std::array::from_fn(|i| result.derivative[1 + i]),
             bloch: std::array::from_fn(|i| {
                 if i < dim {
@@ -457,20 +664,28 @@ pub fn derivatives(
         }
     }
     Ok(match lattice.dim {
-        1 => unpack(sum_impl::<6>(wave, k, lattice, r, eta)?, 1),
-        2 => unpack(sum_impl::<10>(wave, k, lattice, r, eta)?, 2),
-        _ => unpack(sum_impl::<16>(wave, k, lattice, r, eta)?, 3),
+        1 => unpack(sum_impl::<6, PART>(wave, k, lattice, r, eta, shell)?, 1),
+        2 => unpack(sum_impl::<10, PART>(wave, k, lattice, r, eta, shell)?, 2),
+        _ => unpack(sum_impl::<16, PART>(wave, k, lattice, r, eta, shell)?, 3),
     })
 }
 
-fn sum_impl<const N: usize>(
+#[allow(clippy::cast_precision_loss)] // Shell indices are bounded by i32::MAX, exactly representable as f64.
+fn sum_impl<const N: usize, const PART: usize>(
     wave: Wave,
     k: Complex,
     lattice: &Lattice,
     r: [f64; 3],
     eta: Complex,
+    shell: i64,
 ) -> Result<Jet<N>> {
     wave.validate(lattice.dim)?;
+    if PART == 3 && !(0..=i64::from(i32::MAX)).contains(&shell) {
+        return Err(Error::InvalidInput(
+            "direct shell index must be in [0, i32::MAX]".into(),
+        ));
+    }
+
     if !finite(k) || k == Complex::default() || !finite(eta) || r.iter().any(|v| !v.is_finite()) {
         return Err(Error::InvalidInput(
             "lattice wavenumber must be finite and nonzero; shift and eta must be finite".into(),
@@ -496,11 +711,18 @@ fn sum_impl<const N: usize>(
     };
     let dim = lattice.dim;
     let axes = wave.axes(dim);
-    let k = Jet::<N>::variable(k, 0);
-    let mut r: [Jet<N>; 3] = std::array::from_fn(|i| Jet::variable(r[i], 1 + i));
+    let variable = |value: Complex, index| {
+        if PART == 4 {
+            Jet::<N>::constant(value)
+        } else {
+            Jet::<N>::variable(value, index)
+        }
+    };
+    let k = variable(k, 0);
+    let mut r: [Jet<N>; 3] = std::array::from_fn(|i| variable(r[i].into(), 1 + i));
     let bloch: [Jet<N>; 3] = std::array::from_fn(|i| {
         if i < dim {
-            Jet::variable(lattice.bloch[i], 4 + i)
+            variable(lattice.bloch[i].into(), 4 + i)
         } else {
             Jet::default()
         }
@@ -508,7 +730,7 @@ fn sum_impl<const N: usize>(
     let direct: [[Jet<N>; 3]; 3] = std::array::from_fn(|i| {
         std::array::from_fn(|j| {
             if i < dim && j < dim {
-                Jet::variable(lattice.direct[(i, j)], 4 + dim + dim * i + j)
+                variable(lattice.direct[(i, j)].into(), 4 + dim + dim * i + j)
             } else {
                 Jet::constant(lattice.direct[(i, j)])
             }
@@ -550,9 +772,46 @@ fn sum_impl<const N: usize>(
             )
         }),
     };
-    let vector = |matrix: &[[Jet<N>; 3]; 3], point: [i32; 3]| -> [Jet<N>; 3] {
-        std::array::from_fn(|j| (0..dim).map(|i| f64::from(point[i]) * matrix[i][j]).sum())
+    let vector = |matrix: &[[Jet<N>; 3]; 3], point: [i64; 3]| -> [Jet<N>; 3] {
+        std::array::from_fn(|j| (0..dim).map(|i| point[i] as f64 * matrix[i][j]).sum())
     };
+    if PART == 3 {
+        let mut result = Jet::default();
+        let half_cell = dim == 1
+            && r.iter()
+                .enumerate()
+                .all(|(j, v)| j == axes[0] || v.value == Complex::default())
+            && (r[axes[0]].value.re / lattice.direct[(0, 0)]).abs() == 0.5;
+        if N > 0 && half_cell {
+            return Err(Error::InvalidInput("direct half-cell shell grouping changes discontinuously; use the Ewald sum for adjoints".into()));
+        }
+        let mut term = |point| {
+            let vector = vector(&direct, point);
+            let mut shift = r.map(|v| -v);
+            for j in 0..dim {
+                shift[axes[j]] -= vector[j];
+            }
+            if shift.iter().all(|v| v.value == Complex::default()) {
+                return Ok(());
+            }
+            let phase =
+                (Complex::i() * (0..dim).map(|j| bloch[j] * vector[j]).sum::<Jet<N>>()).exp();
+            result += phase * direct_term(wave, k, shift)?;
+            Ok(())
+        };
+        if half_cell {
+            let direction = if r[axes[0]].value.re / lattice.direct[(0, 0)] > 0.0 {
+                1
+            } else {
+                -1
+            };
+            term([direction * shell, 0, 0])?;
+            term([-direction * (shell + 1), 0, 0])?;
+        } else {
+            crate::geometry::visit_cube(dim, shell, true, term)?;
+        }
+        return Ok(result);
+    }
     let mut lattice_shift = [Jet::default(); 3];
     for (i, row) in direct.iter().enumerate().take(dim) {
         let cells = ((0..dim)
@@ -572,29 +831,41 @@ fn sum_impl<const N: usize>(
             .map(|j| bloch[j] * lattice_shift[j])
             .sum::<Jet<N>>())
     .exp();
-    let real = shell_sum(dim, |point| {
-        let vector = vector(&direct, point);
-        let mut shift = r.map(|x| -x);
-        for j in 0..dim {
-            shift[axes[j]] -= vector[j];
-        }
-        if shift.iter().all(|r| r.value == Complex::default()) {
-            return Ok(Jet::default());
-        }
-        let phase = (0..dim).map(|j| bloch[j] * vector[j]).sum::<Jet<N>>();
-        Ok(real_term(wave, k, shift, eta) * (Complex::i() * phase).exp())
-    })?;
-    let reciprocal = shell_sum(dim, |point| {
-        let vector = vector(&reciprocal, point);
-        let mut q = [Jet::default(); 3];
-        for j in 0..dim {
-            q[axes[j]] = vector[j] + bloch[j];
-        }
-        let phase =
-            (-Complex::i() * q.into_iter().zip(r).map(|(q, r)| q * r).sum::<Jet<N>>()).exp();
-        Ok(reciprocal_term(wave, dim, k, q, r, eta, measure)? * phase)
-    })?;
-    let self_term = if r.iter().all(|r| r.value == Complex::default()) {
+    let real = if PART == 2 {
+        Jet::default()
+    } else {
+        shell_sum(dim, |point| {
+            let vector = vector(&direct, point);
+            let mut shift = r.map(|x| -x);
+            for j in 0..dim {
+                shift[axes[j]] -= vector[j];
+            }
+            if shift.iter().all(|r| r.value == Complex::default()) {
+                return Ok(Jet::default());
+            }
+            let phase = (0..dim).map(|j| bloch[j] * vector[j]).sum::<Jet<N>>();
+            Ok((if PART == 4 {
+                real_term::<N, true>(wave, k, shift, eta)
+            } else {
+                real_term::<N, false>(wave, k, shift, eta)
+            }) * (Complex::i() * phase).exp())
+        })?
+    };
+    let reciprocal = if PART == 1 || PART == 4 {
+        Jet::default()
+    } else {
+        shell_sum(dim, |point| {
+            let vector = vector(&reciprocal, point);
+            let mut q = [Jet::default(); 3];
+            for j in 0..dim {
+                q[axes[j]] = vector[j] + bloch[j];
+            }
+            let phase =
+                (-Complex::i() * q.into_iter().zip(r).map(|(q, r)| q * r).sum::<Jet<N>>()).exp();
+            Ok(reciprocal_term(wave, dim, k, q, r, eta, measure)? * phase)
+        })?
+    };
+    let self_term = if PART != 1 && PART != 4 && r.iter().all(|r| r.value == Complex::default()) {
         let value = below(-0.5 / (eta * eta));
         // Cartesian Taylor term of real_Ewald(-r)-outgoing(-r). Keeping its
         // first-order polynomial gives the regular image-sum derivative at self.
@@ -626,6 +897,8 @@ fn sum_impl<const N: usize>(
 pub struct Gradient {
     /// Complex wavenumber cotangent.
     pub k: Complex,
+    /// Complex split cotangent; zero for the full and direct sums.
+    pub eta: Complex,
     /// Real shift cotangents.
     pub position: [f64; 3],
     /// Real Bloch cotangents.
@@ -636,6 +909,7 @@ pub struct Gradient {
 impl Gradient {
     pub(crate) fn add(&mut self, other: Self) {
         self.k += other.k;
+        self.eta += other.eta;
         for i in 0..3 {
             self.position[i] += other.position[i];
             self.bloch[i] += other.bloch[i];
@@ -650,6 +924,7 @@ impl Derivatives {
     pub(crate) fn pullback(self, g: Complex) -> Gradient {
         Gradient {
             k: self.k.conj() * g,
+            eta: self.eta.conj() * g,
             position: self.position.map(|x| (g.conj() * x).re),
             bloch: self.bloch.map(|x| (g.conj() * x).re),
             vectors: self.vectors.map(|row| row.map(|x| (g.conj() * x).re)),
@@ -684,4 +959,148 @@ pub fn pullback(
             a.add(b);
             Ok(a)
         })
+}
+
+/// Owned scalar-or-element inputs for batched lattice-sum pullbacks.
+#[derive(Debug)]
+pub struct Residual {
+    waves: Vec<Wave>,
+    wavenumbers: Vec<Complex>,
+    lattices: Vec<Lattice>,
+    shifts: Vec<[f64; 3]>,
+    etas: Vec<Complex>,
+    parts: Vec<SumPart>,
+    size: usize,
+}
+impl Residual {
+    /// Record native inputs only; local derivatives are recomputed during reverse.
+    pub fn new(
+        waves: Vec<Wave>,
+        wavenumbers: Vec<Complex>,
+        lattices: Vec<Lattice>,
+        shifts: Vec<[f64; 3]>,
+        etas: Vec<Complex>,
+        parts: Vec<SumPart>,
+    ) -> Result<(Vec<Complex>, Self)> {
+        use crate::integrals::{broadcast_size, element};
+        use rayon::prelude::*;
+        let size = broadcast_size(&[
+            waves.len(),
+            wavenumbers.len(),
+            lattices.len(),
+            shifts.len(),
+            etas.len(),
+            parts.len(),
+        ])?;
+        if parts
+            .iter()
+            .any(|p| matches!(p, SumPart::Real | SumPart::Reciprocal))
+            && etas.contains(&Complex::default())
+        {
+            return Err(Error::InvalidInput(
+                "component adjoints require an explicit nonzero Ewald split".into(),
+            ));
+        }
+        let residual = Self {
+            waves,
+            wavenumbers,
+            lattices,
+            shifts,
+            etas,
+            parts,
+            size,
+        };
+        let evaluate = |i| {
+            sum_part(
+                element(&residual.waves, i),
+                element(&residual.wavenumbers, i),
+                &residual.lattices[if residual.lattices.len() == 1 { 0 } else { i }],
+                element(&residual.shifts, i),
+                element(&residual.etas, i),
+                element(&residual.parts, i),
+            )
+        };
+        let values = if size >= 8 {
+            (0..size)
+                .into_par_iter()
+                .map(evaluate)
+                .collect::<Result<_>>()?
+        } else {
+            (0..size).map(evaluate).collect::<Result<_>>()?
+        };
+        Ok((values, residual))
+    }
+    /// One contracted gradient per output. No per-mode Jacobian or solve tape is retained.
+    pub fn pullback(self, cotangent: &[Complex]) -> Result<Vec<Gradient>> {
+        use crate::integrals::element;
+        use rayon::prelude::*;
+        if cotangent.len() != self.size || cotangent.iter().any(|&g| !finite(g)) {
+            return Err(Error::InvalidInput(
+                "cotangent must be finite and match lattice output".into(),
+            ));
+        }
+        let evaluate = |(i, &g): (usize, &Complex)| {
+            if g == Complex::default() {
+                return Ok(Gradient::default());
+            }
+            Ok(derivatives_part(
+                element(&self.waves, i),
+                element(&self.wavenumbers, i),
+                &self.lattices[if self.lattices.len() == 1 { 0 } else { i }],
+                element(&self.shifts, i),
+                element(&self.etas, i),
+                element(&self.parts, i),
+            )?
+            .pullback(g))
+        };
+        if self.size >= 8 {
+            cotangent.par_iter().enumerate().map(evaluate).collect()
+        } else {
+            cotangent.iter().enumerate().map(evaluate).collect()
+        }
+    }
+}
+
+#[cfg(test)]
+mod decomposition_tests {
+    #![allow(clippy::unwrap_used)] // Test failures should preserve proptest shrinking.
+    use super::*;
+    use proptest::prelude::*;
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(12))]
+        #[test]
+        fn decomposition_derivatives_and_scale(spherical in any::<bool>(), dim in 1_usize..3, order in 0_i32..4, pitch in 1.4_f64..1.8, eta in 0.8_f64..1.1) {
+            let vectors=std::array::from_fn(|i|std::array::from_fn(|j|if i==j {pitch}else{0.0}));
+            let bloch=[0.13;3];
+            let lattice=Lattice::from_array(vectors,bloch,dim).unwrap();
+            let wave=if spherical {Wave::Spherical{l:order,m:order}}else{Wave::Cylindrical{m:order}};
+            let k=Complex::new(2.0,0.4);
+            let r=[0.17,0.11,if spherical {0.09}else{0.0}];
+            let full=derivatives(wave,k,&lattice,r,eta.into()).unwrap();
+            let real=derivatives_part(wave,k,&lattice,r,eta.into(),SumPart::Real).unwrap();
+            let reciprocal=derivatives_part(wave,k,&lattice,r,eta.into(),SumPart::Reciprocal).unwrap();
+            for (a,(b,c)) in [full.value,full.k].into_iter().chain(full.position).chain(full.bloch).chain(full.vectors.into_iter().flatten()).zip(
+                [real.value,real.k].into_iter().chain(real.position).chain(real.bloch).chain(real.vectors.into_iter().flatten()).zip(
+                [reciprocal.value,reciprocal.k].into_iter().chain(reciprocal.position).chain(reciprocal.bloch).chain(reciprocal.vectors.into_iter().flatten()))) {
+                prop_assert!((a-b-c).norm()<1e-10*(1.0+a.norm()));
+            }
+            for part in [SumPart::Real,SumPart::Reciprocal,SumPart::Direct(2)] {
+                let jet=derivatives_part(wave,k,&lattice,r,eta.into(),part).unwrap();
+                let spatial:Complex=jet.position.into_iter().zip(r).map(|(g,r)|g*r).sum::<Complex>()+jet.vectors.into_iter().flatten().zip(vectors.into_iter().flatten()).map(|(g,a)|g*a).sum::<Complex>();
+                let spectral=jet.k*k+jet.bloch.into_iter().zip(bloch).map(|(g,q)|g*q).sum::<Complex>();
+                prop_assert!((spatial-spectral).norm()<2e-9*(1.0+jet.value.norm()));
+            }
+        }
+        #[test]
+        fn direct_shells_converge_to_ewald(spherical in any::<bool>(), dim in 1_usize..4, order in 0_i32..3) {
+            let dim=if spherical {dim}else{dim.min(2)};
+            let lattice=Lattice::from_array([[1.7,0.0,0.0],[0.0,1.7,0.0],[0.0,0.0,1.7]],[0.13;3],dim).unwrap();
+            let wave=if spherical {Wave::Spherical{l:order,m:-order}}else{Wave::Cylindrical{m:-order}};
+            let r=[0.17,0.11,if spherical {0.09}else{0.0}];
+            let k=Complex::new(2.0,1.2);
+            let total:Complex=(0..15).map(|shell|sum_part(wave,k,&lattice,r,0.0.into(),SumPart::Direct(shell)).unwrap()).sum();
+            let ewald=sum(wave,k,&lattice,r,0.0.into()).unwrap();
+            prop_assert!((total-ewald).norm()<2e-10*(1.0+ewald.norm()));
+        }
+    }
 }

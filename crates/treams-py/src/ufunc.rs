@@ -10,18 +10,212 @@ use std::{
 };
 
 use numpy::npyffi::{NPY_TYPES, PY_UFUNC_API, PyUFuncGenericFunction, npy_intp};
+use numpy::{
+    IntoPyArray, PyArray1, PyArray2, PyArrayMethods, PyUntypedArrayMethods, ndarray::Array2,
+};
 use pyo3::{
     prelude::*,
-    types::{PyCapsule, PyComplex, PyDict, PyFloat, PyInt, PyTuple},
+    types::{PyCapsule, PyComplex, PyDict, PyFloat, PyInt, PyList, PyTuple},
 };
 use rayon::prelude::*;
 
 static PW_TRANSLATE: OnceLock<Py<PyAny>> = OnceLock::new();
+static PLANE_WAVES: OnceLock<Vec<Py<PyAny>>> = OnceLock::new();
+static CELLS: OnceLock<Vec<Py<PyAny>>> = OnceLock::new();
+static COORDINATES: OnceLock<Vec<Py<PyAny>>> = OnceLock::new();
 static FP_CLEAR: OnceLock<(Py<PyCapsule>, unsafe extern "C" fn())> = OnceLock::new();
 use treams_core::{
     Complex, Error,
     special::{self, Angular, Bessel},
 };
+
+// A single coordinate needs no generalized-ufunc shape resolution. Preserve the
+// original loop for broadcasting, output options and ndarray subclass dispatch.
+fn coordinate_input<T>(value: &Bound<'_, PyAny>, dim: usize) -> Option<[T; 3]>
+where
+    T: numpy::Element + Copy + Default + for<'a, 'py> FromPyObject<'a, 'py>,
+{
+    if let Ok(array) = value.cast_exact::<PyArray1<T>>() {
+        let array = array.readonly();
+        let values = array.as_slice().ok()?;
+        if values.len() == dim {
+            let mut result = [T::default(); 3];
+            result.get_mut(..dim)?.copy_from_slice(values);
+            return Some(result);
+        }
+    } else if value.is_exact_instance_of::<PyList>() || value.is_exact_instance_of::<PyTuple>() {
+        return if dim == 2 {
+            value
+                .extract::<[T; 2]>()
+                .ok()
+                .map(|[a, b]| [a, b, T::default()])
+        } else {
+            value.extract::<[T; 3]>().ok()
+        };
+    }
+    None
+}
+
+#[allow(clippy::indexing_slicing)] // The transform fixes the component dimension at two or three.
+fn coordinate_call<'py, const KIND: u8>(
+    py: Python<'py>,
+    points: &Bound<'py, PyAny>,
+    vector: Option<&Bound<'py, PyAny>>,
+    args: &Bound<'py, PyTuple>,
+    kwargs: Option<&Bound<'py, PyDict>>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let transform = coordinate_transform(KIND);
+    let dim = transform.dimension();
+    if args.is_empty()
+        && kwargs.is_none_or(PyDictMethods::is_empty)
+        && let Some(position) = coordinate_input::<f64>(points, dim)
+    {
+        if let Some(vector) = vector {
+            if let Some(value) = coordinate_input::<f64>(vector, dim) {
+                let result =
+                    treams_core::coordinates::vector(value.map(Complex::from), position, transform)
+                        .map_err(crate::error)?
+                        .map(|x| x.re);
+                return Ok(PyArray1::from_slice(py, &result[..dim]).into_any());
+            }
+            if let Some(value) = coordinate_input::<Complex>(vector, dim) {
+                let result = treams_core::coordinates::vector(value, position, transform)
+                    .map_err(crate::error)?;
+                return Ok(PyArray1::from_slice(py, &result[..dim]).into_any());
+            }
+        } else {
+            let result =
+                treams_core::coordinates::point(position, transform).map_err(crate::error)?;
+            return Ok(PyArray1::from_slice(py, &result[..dim]).into_any());
+        }
+    }
+    let arguments = PyTuple::new(
+        py,
+        vector
+            .into_iter()
+            .chain(std::iter::once(points))
+            .cloned()
+            .chain(args.iter())
+            .collect::<Vec<_>>(),
+    )?;
+    COORDINATES
+        .get()
+        .and_then(|functions| functions.get(2 * usize::from(KIND) + usize::from(vector.is_some())))
+        .ok_or_else(|| {
+            pyo3::exceptions::PyRuntimeError::new_err("coordinate ufunc is not initialized")
+        })?
+        .bind(py)
+        .call(arguments, kwargs)
+}
+
+fn plane_wave_call<'py, const POL: u8>(
+    py: Python<'py>,
+    values: [&Bound<'py, PyAny>; 6],
+    label: Option<&Bound<'py, PyAny>>,
+    args: &Bound<'py, PyTuple>,
+    kwargs: Option<&Bound<'py, PyDict>>,
+) -> PyResult<Bound<'py, PyAny>> {
+    if args.is_empty()
+        && kwargs.is_none_or(PyDictMethods::is_empty)
+        && label.is_none_or(PyAnyMethods::is_instance_of::<PyInt>)
+        && let [Some(kx), Some(ky), Some(kz), Some(x), Some(y), Some(z)] = values.map(scalar_number)
+        && x.im == 0.0
+        && y.im == 0.0
+        && z.im == 0.0
+    {
+        let pol = label.map_or(Ok(POL), |p| {
+            polarization_label(p.extract::<c_long>()?).map_err(crate::error)
+        })?;
+        let polarization =
+            treams_core::plane::polarization([kx, ky, kz], pol, POL == 2).map_err(crate::error)?;
+        let result = treams_core::plane::field_value(polarization, [kx, ky, kz], [x, y, z])
+            .map_err(crate::error)?;
+        return Ok(PyArray1::from_slice(py, &result).into_any());
+    }
+    let arguments = PyTuple::new(
+        py,
+        values
+            .into_iter()
+            .chain(label)
+            .cloned()
+            .chain(args.iter())
+            .collect::<Vec<_>>(),
+    )?;
+    PLANE_WAVES
+        .get()
+        .and_then(|functions| functions.get(usize::from(POL)))
+        .ok_or_else(|| {
+            pyo3::exceptions::PyRuntimeError::new_err("plane wave ufunc is not initialized")
+        })?
+        .bind(py)
+        .call(arguments, kwargs)
+}
+
+#[allow(clippy::indexing_slicing)] // Shape is validated as a square matrix of dimension 1..=3.
+fn cell_call<'py, const RECIPROCAL: bool>(
+    py: Python<'py>,
+    cell: &Bound<'py, PyAny>,
+    args: &Bound<'py, PyTuple>,
+    kwargs: Option<&Bound<'py, PyDict>>,
+) -> PyResult<Bound<'py, PyAny>> {
+    if args.is_empty()
+        && kwargs.is_none_or(PyDictMethods::is_empty)
+        && let Ok(array) = cell.cast_exact::<PyArray2<f64>>()
+        && array.is_c_contiguous()
+        && let [dim, columns] = *array.shape()
+        && dim == columns
+        && (1..=3).contains(&dim)
+    {
+        let array = array.readonly();
+        if let Ok(values) = array.as_slice() {
+            let matrix = std::array::from_fn(|i| {
+                std::array::from_fn(|j| {
+                    if i < dim && j < dim {
+                        values[i * dim + j]
+                    } else {
+                        0.0
+                    }
+                })
+            });
+            if RECIPROCAL {
+                let result =
+                    treams_core::geometry::reciprocal(matrix, dim).map_err(crate::error)?;
+                return Ok(Array2::from_shape_fn((dim, dim), |(i, j)| result[i][j])
+                    .into_pyarray(py)
+                    .into_any());
+            }
+            return Ok(treams_core::geometry::volume(matrix, dim)
+                .map_err(crate::error)?
+                .into_pyobject(py)?
+                .into_any());
+        }
+    }
+    let arguments = PyTuple::new(
+        py,
+        std::iter::once(cell.clone())
+            .chain(args.iter())
+            .collect::<Vec<_>>(),
+    )?;
+    CELLS
+        .get()
+        .and_then(|functions| functions.get(usize::from(RECIPROCAL)))
+        .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("cell ufunc is not initialized"))?
+        .bind(py)
+        .call(arguments, kwargs)
+}
+
+#[pyfunction]
+fn cylindrical_rotation_scalar(
+    kz: f64,
+    mu: c_long,
+    p: c_long,
+    qz: f64,
+    m: c_long,
+    q: c_long,
+    phi: f64,
+) -> PyResult<Complex> {
+    cylinder_rotation(kz, mu, p, qz, m, q, phi).map_err(crate::error)
+}
 
 #[pyfunction]
 fn cylindrical_translation_scalar(
@@ -419,6 +613,9 @@ fn label(value: f64) -> treams_core::Result<i32> {
     Ok(value as i32)
 }
 
+scalar_loop!(legendre_real_loop, f64, 3, 0=>m:f64, 1=>l:f64, 2=>x:f64 => {
+    special::angular_value(l, m, x.into(), Angular::Legendre).map(|v| v.re)
+});
 scalar_loop!(wigner_small_loop, Complex, 4, 0=>l:f64, 1=>m:f64, 2=>k:f64, 3=>theta:Complex => {
     treams_core::rotation::wigner_small(label(l)?,label(m)?,label(k)?,theta)
 });
@@ -541,6 +738,181 @@ unsafe extern "C" fn reciprocal_loop(
         Ok(())
     });
     report_loop(result);
+}
+
+unsafe extern "C" fn lattice_loop<
+    const SPHERICAL: bool,
+    const DIM: usize,
+    const SHIFTED: bool,
+    const PART: u8,
+    const INTEGER: bool,
+>(
+    args: *mut *mut c_char,
+    dimensions: *mut npy_intp,
+    steps: *mut npy_intp,
+    _data: *mut c_void,
+) {
+    // SAFETY: Registration fixes all scalar dtypes and vector/matrix dimensions.
+    // NumPy supplies valid byte strides and buffers overlapping operands. Each
+    // evaluation copies inputs; parallel output is collected before any stores.
+    let result = std::panic::catch_unwind(|| unsafe {
+        use treams_core::lattice::{self, Lattice, SumPart, Wave};
+        let has_order = SPHERICAL && (DIM != 1 || SHIFTED);
+        let k_index = 1 + usize::from(has_order);
+        let count = k_index + 5;
+        let n = usize::try_from(*dimensions).unwrap_or_default();
+        // At most seven inputs; a six-input loop has an unused output
+        // descriptor in the last slot. No heap allocation on scalar calls.
+        let inputs: [Input; 7] = std::array::from_fn(|j| Input {
+            pointer: *args.add(j),
+            stride: *steps.add(j),
+        });
+        let strides: [npy_intp; 4] = std::array::from_fn(|j| {
+            if j < (if DIM == 1 { usize::from(SHIFTED) } else { 4 }) {
+                *steps.add(count + 1 + j)
+            } else {
+                0
+            }
+        });
+        let component = |operand: usize, index: usize, offset: npy_intp| {
+            let input = &inputs[operand];
+            input
+                .pointer
+                .wrapping_offset(
+                    input
+                        .stride
+                        .wrapping_mul(isize::try_from(index).unwrap_or_default())
+                        + offset,
+                )
+                .cast::<f64>()
+                .read_unaligned()
+        };
+        let geometry = |i| {
+            let q = std::array::from_fn(|j| {
+                if j < DIM {
+                    component(
+                        k_index + 1,
+                        i,
+                        isize::try_from(j).unwrap_or_default() * strides[0],
+                    )
+                } else {
+                    0.0
+                }
+            });
+            let a = std::array::from_fn(|j| {
+                std::array::from_fn(|h| {
+                    if j < DIM && h < DIM {
+                        component(
+                            k_index + 2,
+                            i,
+                            if DIM == 1 {
+                                0
+                            } else {
+                                isize::try_from(j).unwrap_or_default() * strides[1]
+                                    + isize::try_from(h).unwrap_or_default() * strides[2]
+                            },
+                        )
+                    } else {
+                        0.0
+                    }
+                })
+            });
+            Lattice::from_array(a, q, DIM)
+        };
+        let fixed = if n > 0 && inputs[k_index + 1].stride == 0 && inputs[k_index + 2].stride == 0 {
+            Some(geometry(0)?)
+        } else {
+            None
+        };
+        let mode_label = |operand: usize, i| {
+            if INTEGER {
+                i32::try_from(inputs[operand].read::<c_long>(i))
+                    .map_err(|_| Error::InvalidInput("lattice mode exceeds i32 range".into()))
+            } else {
+                label(inputs[operand].read::<f64>(i))
+            }
+        };
+        let evaluate = |i| {
+            let first = mode_label(0, i)?;
+            let wave = if SPHERICAL {
+                Wave::Spherical {
+                    l: first,
+                    m: if has_order { mode_label(1, i)? } else { 0 },
+                }
+            } else {
+                Wave::Cylindrical { m: first }
+            };
+            let varying;
+            let lattice = if let Some(ref lattice) = fixed {
+                lattice
+            } else {
+                varying = geometry(i)?;
+                &varying
+            };
+            let mut r = [0.0; 3];
+            if DIM == 1 && !SHIFTED {
+                r[if SPHERICAL { 2 } else { 0 }] = component(k_index + 3, i, 0);
+            } else {
+                let stride = strides[if DIM == 1 { 0 } else { 3 }];
+                for (j, r) in r
+                    .iter_mut()
+                    .enumerate()
+                    .take(if SPHERICAL && (DIM == 3 || SHIFTED) {
+                        3
+                    } else {
+                        2
+                    })
+                {
+                    *r = component(
+                        k_index + 3,
+                        i,
+                        isize::try_from(j).unwrap_or_default() * stride,
+                    );
+                }
+            }
+            let (eta, part) = match PART {
+                3 => (
+                    Complex::default(),
+                    SumPart::Direct(inputs[k_index + 4].read::<c_long>(i)),
+                ),
+                _ => (
+                    inputs[k_index + 4].read::<Complex>(i),
+                    match PART {
+                        0 => SumPart::Full,
+                        1 => SumPart::Real,
+                        _ => SumPart::Reciprocal,
+                    },
+                ),
+            };
+            lattice::sum_part(
+                wave,
+                inputs[k_index].read::<Complex>(i),
+                lattice,
+                r,
+                eta,
+                part,
+            )
+        };
+        let mut output = *args.add(count);
+        if n >= 8 {
+            let values: Vec<Complex> = (0..n)
+                .into_par_iter()
+                .map(evaluate)
+                .collect::<treams_core::Result<_>>()?;
+            for value in values {
+                output.cast::<Complex>().write_unaligned(value);
+                output = output.wrapping_offset(*steps.add(count));
+            }
+        } else {
+            for i in 0..n {
+                let value = evaluate(i)?;
+                output.cast::<Complex>().write_unaligned(value);
+                output = output.wrapping_offset(*steps.add(count));
+            }
+        }
+        Ok(())
+    });
+    finish_loop(result);
 }
 
 fn wave_mode(l: f64, m: f64, pol: f64) -> treams_core::Result<treams_core::waves::Mode> {
@@ -892,12 +1264,10 @@ fn cylinder_rotation(
     if kz != qz || mu != m || p != q {
         Ok(Complex::default())
     } else {
-        Ok((-Complex::i()
-            * f64::from(
-                i32::try_from(m).map_err(|_| Error::InvalidInput("invalid order".into()))?,
-            )
-            * phi)
-            .exp())
+        let order =
+            f64::from(i32::try_from(m).map_err(|_| Error::InvalidInput("invalid order".into()))?);
+        let (sin, cos) = (-order * phi).sin_cos();
+        Ok(Complex::new(cos, sin))
     }
 }
 scalar_loop!(cw_rotate_loop, Complex, 7, 0=>kz:f64, 1=>mu:c_long, 2=>p:c_long, 3=>qz:f64, 4=>m:c_long, 5=>q:c_long, 6=>phi:f64 => cylinder_rotation(kz,mu,p,qz,m,q,phi));
@@ -1137,7 +1507,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
         BESSEL_TYPES,
         2
     );
-    add!("lpmv", angular_loop::<0>, ANGULAR_TYPES, 3);
+    add!(@loops "lpmv", [Some(legendre_real_loop), Some(angular_loop::<0>)], [[NPY_TYPES::NPY_DOUBLE as c_char; 4], ANGULAR_TYPES], 3, 2, std::ptr::null());
     add!("pi_fun", angular_loop::<1>, ANGULAR_TYPES, 3);
     add!("tau_fun", angular_loop::<2>, ANGULAR_TYPES, 3);
     const D: c_char = NPY_TYPES::NPY_DOUBLE as c_char;
@@ -1150,6 +1520,182 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     const I: c_char = NPY_TYPES::NPY_LONG as c_char;
     add!(@loops "refractive_indices",[Some(refractive_indices_real_loop),Some(refractive_indices_loop)],[[D,D,D,D],[Z,Z,Z,Z]],3,2,c"(),(),()->(2)".as_ptr());
     add!(@loops "wave_vector_z",[Some(wave_vector_z_loop::<f64>),Some(wave_vector_z_loop::<Complex>)],[[D,D,D,Z],[Z,Z,Z,Z]],3,2,std::ptr::null());
+    add!(
+        "lsumsw1d",
+        lattice_loop::<true, 1, false, 0, false>,
+        [D, Z, D, D, D, Z, Z],
+        6,
+        std::ptr::null()
+    );
+    add!(
+        "lsumsw1d_shift",
+        lattice_loop::<true, 1, true, 0, false>,
+        [D, D, Z, D, D, D, Z, Z],
+        7,
+        c"(),(),(),(),(),(3),()->()".as_ptr()
+    );
+    add!(
+        "lsumsw2d",
+        lattice_loop::<true, 2, false, 0, false>,
+        [D, D, Z, D, D, D, Z, Z],
+        7,
+        c"(),(),(),(2),(2,2),(2),()->()".as_ptr()
+    );
+    add!(
+        "lsumsw2d_shift",
+        lattice_loop::<true, 2, true, 0, false>,
+        [D, D, Z, D, D, D, Z, Z],
+        7,
+        c"(),(),(),(2),(2,2),(3),()->()".as_ptr()
+    );
+    add!(
+        "lsumsw3d",
+        lattice_loop::<true, 3, false, 0, false>,
+        [D, D, Z, D, D, D, Z, Z],
+        7,
+        c"(),(),(),(3),(3,3),(3),()->()".as_ptr()
+    );
+    add!(
+        "lsumcw1d",
+        lattice_loop::<false, 1, false, 0, false>,
+        [D, Z, D, D, D, Z, Z],
+        6,
+        std::ptr::null()
+    );
+    add!(
+        "lsumcw1d_shift",
+        lattice_loop::<false, 1, true, 0, false>,
+        [D, Z, D, D, D, Z, Z],
+        6,
+        c"(),(),(),(),(2),()->()".as_ptr()
+    );
+    add!(
+        "lsumcw2d",
+        lattice_loop::<false, 2, false, 0, false>,
+        [D, Z, D, D, D, Z, Z],
+        6,
+        c"(),(),(2),(2,2),(2),()->()".as_ptr()
+    );
+    add!(
+        "realsumsw1d",
+        lattice_loop::<true, 1, false, 1, false>,
+        [D, Z, D, D, D, Z, Z],
+        6,
+        std::ptr::null()
+    );
+    add!(
+        "realsumsw1d_shift",
+        lattice_loop::<true, 1, true, 1, false>,
+        [D, D, Z, D, D, D, Z, Z],
+        7,
+        c"(),(),(),(),(),(3),()->()".as_ptr()
+    );
+    add!(
+        "realsumsw2d",
+        lattice_loop::<true, 2, false, 1, false>,
+        [D, D, Z, D, D, D, Z, Z],
+        7,
+        c"(),(),(),(2),(2,2),(2),()->()".as_ptr()
+    );
+    add!(
+        "realsumsw2d_shift",
+        lattice_loop::<true, 2, true, 1, false>,
+        [D, D, Z, D, D, D, Z, Z],
+        7,
+        c"(),(),(),(2),(2,2),(3),()->()".as_ptr()
+    );
+    add!(
+        "realsumsw3d",
+        lattice_loop::<true, 3, false, 1, false>,
+        [D, D, Z, D, D, D, Z, Z],
+        7,
+        c"(),(),(),(3),(3,3),(3),()->()".as_ptr()
+    );
+    add!(
+        "realsumcw1d",
+        lattice_loop::<false, 1, false, 1, false>,
+        [D, Z, D, D, D, Z, Z],
+        6,
+        std::ptr::null()
+    );
+    add!(
+        "realsumcw1d_shift",
+        lattice_loop::<false, 1, true, 1, false>,
+        [D, Z, D, D, D, Z, Z],
+        6,
+        c"(),(),(),(),(2),()->()".as_ptr()
+    );
+    add!(
+        "realsumcw2d",
+        lattice_loop::<false, 2, false, 1, false>,
+        [D, Z, D, D, D, Z, Z],
+        6,
+        c"(),(),(2),(2,2),(2),()->()".as_ptr()
+    );
+    add!(
+        "recsumsw1d",
+        lattice_loop::<true, 1, false, 2, false>,
+        [D, Z, D, D, D, Z, Z],
+        6,
+        std::ptr::null()
+    );
+    add!(
+        "recsumsw1d_shift",
+        lattice_loop::<true, 1, true, 2, false>,
+        [D, D, Z, D, D, D, Z, Z],
+        7,
+        c"(),(),(),(),(),(3),()->()".as_ptr()
+    );
+    add!(
+        "recsumsw2d",
+        lattice_loop::<true, 2, false, 2, false>,
+        [D, D, Z, D, D, D, Z, Z],
+        7,
+        c"(),(),(),(2),(2,2),(2),()->()".as_ptr()
+    );
+    add!(
+        "recsumsw2d_shift",
+        lattice_loop::<true, 2, true, 2, false>,
+        [D, D, Z, D, D, D, Z, Z],
+        7,
+        c"(),(),(),(2),(2,2),(3),()->()".as_ptr()
+    );
+    add!(
+        "recsumsw3d",
+        lattice_loop::<true, 3, false, 2, false>,
+        [D, D, Z, D, D, D, Z, Z],
+        7,
+        c"(),(),(),(3),(3,3),(3),()->()".as_ptr()
+    );
+    add!(
+        "recsumcw1d",
+        lattice_loop::<false, 1, false, 2, false>,
+        [D, Z, D, D, D, Z, Z],
+        6,
+        std::ptr::null()
+    );
+    add!(
+        "recsumcw1d_shift",
+        lattice_loop::<false, 1, true, 2, false>,
+        [D, Z, D, D, D, Z, Z],
+        6,
+        c"(),(),(),(),(2),()->()".as_ptr()
+    );
+    add!(
+        "recsumcw2d",
+        lattice_loop::<false, 2, false, 2, false>,
+        [D, Z, D, D, D, Z, Z],
+        6,
+        c"(),(),(2),(2,2),(2),()->()".as_ptr()
+    );
+    add!(@loops "dsumsw1d", [Some(lattice_loop::<true, 1, false, 3, true>), Some(lattice_loop::<true, 1, false, 3, false>)], [[I, Z, D, D, D, I, Z], [D, Z, D, D, D, I, Z]], 6, 2, std::ptr::null());
+    add!(@loops "dsumsw1d_shift", [Some(lattice_loop::<true, 1, true, 3, true>), Some(lattice_loop::<true, 1, true, 3, false>)], [[I, I, Z, D, D, D, I, Z], [D, D, Z, D, D, D, I, Z]], 7, 2, c"(),(),(),(),(),(3),()->()".as_ptr());
+    add!(@loops "dsumsw2d", [Some(lattice_loop::<true, 2, false, 3, true>), Some(lattice_loop::<true, 2, false, 3, false>)], [[I, I, Z, D, D, D, I, Z], [D, D, Z, D, D, D, I, Z]], 7, 2, c"(),(),(),(2),(2,2),(2),()->()".as_ptr());
+    add!(@loops "dsumsw2d_shift", [Some(lattice_loop::<true, 2, true, 3, true>), Some(lattice_loop::<true, 2, true, 3, false>)], [[I, I, Z, D, D, D, I, Z], [D, D, Z, D, D, D, I, Z]], 7, 2, c"(),(),(),(2),(2,2),(3),()->()".as_ptr());
+    add!(@loops "dsumsw3d", [Some(lattice_loop::<true, 3, false, 3, true>), Some(lattice_loop::<true, 3, false, 3, false>)], [[I, I, Z, D, D, D, I, Z], [D, D, Z, D, D, D, I, Z]], 7, 2, c"(),(),(),(3),(3,3),(3),()->()".as_ptr());
+    add!(@loops "dsumcw1d", [Some(lattice_loop::<false, 1, false, 3, true>), Some(lattice_loop::<false, 1, false, 3, false>)], [[I, Z, D, D, D, I, Z], [D, Z, D, D, D, I, Z]], 6, 2, std::ptr::null());
+    add!(@loops "dsumcw1d_shift", [Some(lattice_loop::<false, 1, true, 3, true>), Some(lattice_loop::<false, 1, true, 3, false>)], [[I, Z, D, D, D, I, Z], [D, Z, D, D, D, I, Z]], 6, 2, c"(),(),(),(),(2),()->()".as_ptr());
+    add!(@loops "dsumcw2d", [Some(lattice_loop::<false, 2, false, 3, true>), Some(lattice_loop::<false, 2, false, 3, false>)], [[I, Z, D, D, D, I, Z], [D, Z, D, D, D, I, Z]], 6, 2, c"(),(),(2),(2,2),(2),()->()".as_ptr());
     add!("first_brillouin_1d", first_brillouin_1d_loop, [D, D, D], 2);
     add!(@loops "cell_volume",[Some(volume_loop::<std::num::Wrapping<c_long>>),Some(volume_loop::<f64>)],[[I,I],[D,D]],1,2,c"(i,i)->()".as_ptr());
     add!(
@@ -1249,6 +1795,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     let translation = module.getattr("pw_translate_ufunc")?.unbind();
     let _ = PW_TRANSLATE.set(translation);
     module.add_function(wrap_pyfunction!(pw_translate, module)?)?;
+    module.add_function(wrap_pyfunction!(cylindrical_rotation_scalar, module)?)?;
     module.add_function(wrap_pyfunction!(cylindrical_translation_scalar, module)?)?;
     module.add_function(wrap_pyfunction!(plane_permutation_scalar, module)?)?;
     add!(@loops "pw_to_sw_h",[Some(pw_to_sw_h_loop::<f64>),Some(pw_to_sw_h_loop::<Complex>)],[[I,I,I,D,D,D,I,Z],[I,I,I,Z,Z,Z,I,Z]],7,2,std::ptr::null());
@@ -1264,8 +1811,47 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     add!(@loops "tl_vsw_B",[Some(polar_translation_loop::<f64,1,false,7>),Some(polar_translation_loop::<Complex,1,false,7>)],[[I,I,I,I,Z,D,D,Z],[I,I,I,I,Z,Z,D,Z]],7,2,std::ptr::null());
     add!(@loops "tl_vsw_rA",[Some(polar_translation_loop::<f64,0,true,7>),Some(polar_translation_loop::<Complex,0,true,7>)],[[I,I,I,I,Z,D,D,Z],[I,I,I,I,Z,Z,D,Z]],7,2,std::ptr::null());
     add!(@loops "tl_vsw_rB",[Some(polar_translation_loop::<f64,1,true,7>),Some(polar_translation_loop::<Complex,1,true,7>)],[[I,I,I,I,Z,D,D,Z],[I,I,I,I,Z,Z,D,Z]],7,2,std::ptr::null());
+    let mut plane_functions = Vec::with_capacity(3);
+    macro_rules! plane_function {
+        ($name:ident, $public:literal, $pol:literal $(, $label:ident)?) => {{
+            #[pyfunction(name = $public)]
+            #[pyo3(signature=(kx,ky,kz,x,y,z $(,$label)?, *args, **kwargs))]
+            fn $name<'py>(py: Python<'py>, kx: &Bound<'py, PyAny>, ky: &Bound<'py, PyAny>, kz: &Bound<'py, PyAny>, x: &Bound<'py, PyAny>, y: &Bound<'py, PyAny>, z: &Bound<'py, PyAny> $(,$label: &Bound<'py, PyAny>)?, args: &Bound<'py, PyTuple>, kwargs: Option<&Bound<'py, PyDict>>) -> PyResult<Bound<'py, PyAny>> {
+                let label = None;
+                $(let label = label.or(Some($label));)?
+                plane_wave_call::<$pol>(py, [kx,ky,kz,x,y,z], label, args, kwargs)
+            }
+            plane_functions.push(module.getattr($public)?.unbind());
+            module.add_function(wrap_pyfunction!($name, module)?)?;
+        }};
+    }
+    plane_function!(vpw_m, "vpw_M", 0);
+    plane_function!(vpw_n, "vpw_N", 1);
+    plane_function!(vpw_a, "vpw_A", 2, pol);
+    let _ = PLANE_WAVES.set(plane_functions);
+    let mut cell_functions = Vec::with_capacity(2);
+    macro_rules! cell_function {
+        ($name:ident, $reciprocal:literal) => {{
+            #[pyfunction]
+            #[pyo3(signature=(cell, *args, **kwargs))]
+            fn $name<'py>(
+                py: Python<'py>,
+                cell: &Bound<'py, PyAny>,
+                args: &Bound<'py, PyTuple>,
+                kwargs: Option<&Bound<'py, PyDict>>,
+            ) -> PyResult<Bound<'py, PyAny>> {
+                cell_call::<$reciprocal>(py, cell, args, kwargs)
+            }
+            cell_functions.push(module.getattr(stringify!($name))?.unbind());
+            module.add_function(wrap_pyfunction!($name, module)?)?;
+        }};
+    }
+    cell_function!(cell_volume, false);
+    cell_function!(cell_reciprocal, true);
+    let _ = CELLS.set(cell_functions);
+    let mut coordinate_functions = Vec::with_capacity(16);
     macro_rules! coordinates {
-        ($point:literal,$vector:literal,$kind:literal,$point_signature:literal,$vector_signature:literal)=>{{
+        ($point:ident,$vector:ident,$kind:literal,$point_signature:literal,$vector_signature:literal)=>{{
             static mut POINT_LOOP:[PyUFuncGenericFunction;1]=[Some(coordinate_loop::<$kind,false,false>)];
             static mut VECTOR_LOOPS:[PyUFuncGenericFunction;2]=[Some(coordinate_loop::<$kind,true,false>),Some(coordinate_loop::<$kind,true,true>)];
             static mut POINT_TYPES:[c_char;2]=[D,D];
@@ -1274,22 +1860,37 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
             // count, fixed component dimension and dtype. NumPy owns the new ref.
             unsafe {
                 for (name,signature,loops,types,count,inputs) in [
-                    (concat!($point,"\0"),concat!($point_signature,"\0"),std::ptr::addr_of_mut!(POINT_LOOP).cast(),std::ptr::addr_of_mut!(POINT_TYPES).cast(),1,1),
-                    (concat!($vector,"\0"),concat!($vector_signature,"\0"),std::ptr::addr_of_mut!(VECTOR_LOOPS).cast(),std::ptr::addr_of_mut!(VECTOR_TYPES).cast(),2,2),
+                    (concat!(stringify!($point),"\0"),concat!($point_signature,"\0"),std::ptr::addr_of_mut!(POINT_LOOP).cast(),std::ptr::addr_of_mut!(POINT_TYPES).cast(),1,1),
+                    (concat!(stringify!($vector),"\0"),concat!($vector_signature,"\0"),std::ptr::addr_of_mut!(VECTOR_LOOPS).cast(),std::ptr::addr_of_mut!(VECTOR_TYPES).cast(),2,2),
                 ] {
                     let ptr=PY_UFUNC_API.PyUFunc_FromFuncAndDataAndSignature(module.py(),loops,std::ptr::null_mut(),types,count,inputs,1,-1,name.as_ptr().cast(),c"Rust coordinate transform; vector positions use the input coordinate system.".as_ptr(),0,signature.as_ptr().cast());
-                    module.add(name.trim_end_matches('\0'),Bound::from_owned_ptr_or_err(module.py(),ptr)?)?;
+                    let function = Bound::from_owned_ptr_or_err(module.py(),ptr)?;
+                    module.add(name.trim_end_matches('\0'), &function)?;
+                    coordinate_functions.push(function.unbind());
                 }
             }
+            #[pyfunction]
+            #[pyo3(signature=(points, *args, **kwargs))]
+            fn $point<'py>(py: Python<'py>, points: &Bound<'py, PyAny>, args: &Bound<'py, PyTuple>, kwargs: Option<&Bound<'py, PyDict>>) -> PyResult<Bound<'py, PyAny>> {
+                coordinate_call::<$kind>(py, points, None, args, kwargs)
+            }
+            #[pyfunction]
+            #[pyo3(signature=(vector, points, *args, **kwargs))]
+            fn $vector<'py>(py: Python<'py>, vector: &Bound<'py, PyAny>, points: &Bound<'py, PyAny>, args: &Bound<'py, PyTuple>, kwargs: Option<&Bound<'py, PyDict>>) -> PyResult<Bound<'py, PyAny>> {
+                coordinate_call::<$kind>(py, points, Some(vector), args, kwargs)
+            }
+            module.add_function(wrap_pyfunction!($point, module)?)?;
+            module.add_function(wrap_pyfunction!($vector, module)?)?;
         }};
     }
-    coordinates!("car2cyl", "vcar2cyl", 0, "(3)->(3)", "(3),(3)->(3)");
-    coordinates!("car2sph", "vcar2sph", 1, "(3)->(3)", "(3),(3)->(3)");
-    coordinates!("cyl2car", "vcyl2car", 2, "(3)->(3)", "(3),(3)->(3)");
-    coordinates!("cyl2sph", "vcyl2sph", 3, "(3)->(3)", "(3),(3)->(3)");
-    coordinates!("sph2car", "vsph2car", 4, "(3)->(3)", "(3),(3)->(3)");
-    coordinates!("sph2cyl", "vsph2cyl", 5, "(3)->(3)", "(3),(3)->(3)");
-    coordinates!("car2pol", "vcar2pol", 6, "(2)->(2)", "(2),(2)->(2)");
-    coordinates!("pol2car", "vpol2car", 7, "(2)->(2)", "(2),(2)->(2)");
+    coordinates!(car2cyl, vcar2cyl, 0, "(3)->(3)", "(3),(3)->(3)");
+    coordinates!(car2sph, vcar2sph, 1, "(3)->(3)", "(3),(3)->(3)");
+    coordinates!(cyl2car, vcyl2car, 2, "(3)->(3)", "(3),(3)->(3)");
+    coordinates!(cyl2sph, vcyl2sph, 3, "(3)->(3)", "(3),(3)->(3)");
+    coordinates!(sph2car, vsph2car, 4, "(3)->(3)", "(3),(3)->(3)");
+    coordinates!(sph2cyl, vsph2cyl, 5, "(3)->(3)", "(3),(3)->(3)");
+    coordinates!(car2pol, vcar2pol, 6, "(2)->(2)", "(2),(2)->(2)");
+    coordinates!(pol2car, vpol2car, 7, "(2)->(2)", "(2),(2)->(2)");
+    let _ = COORDINATES.set(coordinate_functions);
     Ok(())
 }

@@ -636,23 +636,38 @@ def wigner_scalar(
     labels: tuple[int, int, int], angles: tuple[complex, complex, complex]
 ) -> tuple[ComplexArray, WignerContext]: ...
 def wigner3j_scalar(j1: int, j2: int, j3: int, m1: int, m2: int, m3: int) -> float: ...
-
-car2cyl: np.ufunc
-car2sph: np.ufunc
-cyl2car: np.ufunc
-cyl2sph: np.ufunc
-sph2car: np.ufunc
-sph2cyl: np.ufunc
-car2pol: np.ufunc
-pol2car: np.ufunc
-vcar2cyl: np.ufunc
-vcar2sph: np.ufunc
-vcyl2car: np.ufunc
-vcyl2sph: np.ufunc
-vsph2car: np.ufunc
-vsph2cyl: np.ufunc
-vcar2pol: np.ufunc
-vpol2car: np.ufunc
+def car2cyl(points: ArrayLike, *args: object, **kwargs: object) -> RealArray: ...
+def car2sph(points: ArrayLike, *args: object, **kwargs: object) -> RealArray: ...
+def cyl2car(points: ArrayLike, *args: object, **kwargs: object) -> RealArray: ...
+def cyl2sph(points: ArrayLike, *args: object, **kwargs: object) -> RealArray: ...
+def sph2car(points: ArrayLike, *args: object, **kwargs: object) -> RealArray: ...
+def sph2cyl(points: ArrayLike, *args: object, **kwargs: object) -> RealArray: ...
+def car2pol(points: ArrayLike, *args: object, **kwargs: object) -> RealArray: ...
+def pol2car(points: ArrayLike, *args: object, **kwargs: object) -> RealArray: ...
+def vcar2cyl(
+    vector: ArrayLike, points: ArrayLike, *args: object, **kwargs: object
+) -> RealArray | ComplexArray: ...
+def vcar2sph(
+    vector: ArrayLike, points: ArrayLike, *args: object, **kwargs: object
+) -> RealArray | ComplexArray: ...
+def vcyl2car(
+    vector: ArrayLike, points: ArrayLike, *args: object, **kwargs: object
+) -> RealArray | ComplexArray: ...
+def vcyl2sph(
+    vector: ArrayLike, points: ArrayLike, *args: object, **kwargs: object
+) -> RealArray | ComplexArray: ...
+def vsph2car(
+    vector: ArrayLike, points: ArrayLike, *args: object, **kwargs: object
+) -> RealArray | ComplexArray: ...
+def vsph2cyl(
+    vector: ArrayLike, points: ArrayLike, *args: object, **kwargs: object
+) -> RealArray | ComplexArray: ...
+def vcar2pol(
+    vector: ArrayLike, points: ArrayLike, *args: object, **kwargs: object
+) -> RealArray | ComplexArray: ...
+def vpol2car(
+    vector: ArrayLike, points: ArrayLike, *args: object, **kwargs: object
+) -> RealArray | ComplexArray: ...
 
 class CoordinateContext:
     def pullback(self, cotangent: RealArray) -> RealArray: ...
@@ -687,9 +702,38 @@ vcw_A: np.ufunc  # noqa: N816 - upstream public function name
 vcw_rM: np.ufunc  # noqa: N816 - upstream public function name
 vcw_rN: np.ufunc  # noqa: N816 - upstream public function name
 vcw_rA: np.ufunc  # noqa: N816 - upstream public function name
-vpw_M: np.ufunc  # noqa: N816 - upstream public function name
-vpw_N: np.ufunc  # noqa: N816 - upstream public function name
-vpw_A: np.ufunc  # noqa: N816 - upstream public function name
+
+def vpw_M(  # noqa: N802 - upstream public function name
+    kx: ArrayLike,
+    ky: ArrayLike,
+    kz: ArrayLike,
+    x: ArrayLike,
+    y: ArrayLike,
+    z: ArrayLike,
+    *args: object,
+    **kwargs: object,
+) -> ComplexArray: ...
+def vpw_N(  # noqa: N802 - upstream public function name
+    kx: ArrayLike,
+    ky: ArrayLike,
+    kz: ArrayLike,
+    x: ArrayLike,
+    y: ArrayLike,
+    z: ArrayLike,
+    *args: object,
+    **kwargs: object,
+) -> ComplexArray: ...
+def vpw_A(  # noqa: N802 - upstream public function name
+    kx: ArrayLike,
+    ky: ArrayLike,
+    kz: ArrayLike,
+    x: ArrayLike,
+    y: ArrayLike,
+    z: ArrayLike,
+    pol: ArrayLike,
+    *args: object,
+    **kwargs: object,
+) -> ComplexArray: ...
 
 class WaveContext:
     def pullback(
@@ -809,9 +853,11 @@ def kambe_record(
 def kambe_record_scalar(
     n: int, z: complex, eta: complex
 ) -> tuple[ComplexArray, KambeContext]: ...
+def cell_volume(
+    cell: ArrayLike, *args: object, **kwargs: object
+) -> float | np.float64 | np.int64 | NDArray[np.float64] | NDArray[np.int64]: ...
+def cell_reciprocal(cell: ArrayLike, *args: object, **kwargs: object) -> RealArray: ...
 
-cell_volume: np.ufunc
-cell_reciprocal: np.ufunc
 refractive_indices: np.ufunc
 wave_vector_z: np.ufunc
 first_brillouin_1d: np.ufunc
@@ -819,6 +865,9 @@ first_brillouin_1d: np.ufunc
 def lattice_cube(dim: int, n: int, edge: bool) -> NDArray[np.int64]: ...
 def diffraction_orders(b: RealArray, radius: float) -> NDArray[np.int64]: ...
 def first_brillouin(k: RealArray, b: RealArray, dim: int, n: int) -> RealArray: ...
+def cylindrical_rotation_scalar(
+    kz: float, mu: int, p: int, qz: float, m: int, q: int, phi: float
+) -> complex: ...
 def cylindrical_translation_scalar(
     kz: float,
     mu: int,
@@ -832,3 +881,96 @@ def cylindrical_translation_scalar(
 def plane_permutation_scalar(
     kx: complex, ky: complex, kz: complex, p: int, q: int, helicity: bool, inverse: bool
 ) -> complex: ...
+
+lsumsw1d: np.ufunc
+lsumsw1d_shift: np.ufunc
+lsumsw2d: np.ufunc
+lsumsw2d_shift: np.ufunc
+lsumsw3d: np.ufunc
+lsumcw1d: np.ufunc
+lsumcw1d_shift: np.ufunc
+lsumcw2d: np.ufunc
+realsumsw1d: np.ufunc
+realsumsw1d_shift: np.ufunc
+realsumsw2d: np.ufunc
+realsumsw2d_shift: np.ufunc
+realsumsw3d: np.ufunc
+realsumcw1d: np.ufunc
+realsumcw1d_shift: np.ufunc
+realsumcw2d: np.ufunc
+recsumsw1d: np.ufunc
+recsumsw1d_shift: np.ufunc
+recsumsw2d: np.ufunc
+recsumsw2d_shift: np.ufunc
+recsumsw3d: np.ufunc
+recsumcw1d: np.ufunc
+recsumcw1d_shift: np.ufunc
+recsumcw2d: np.ufunc
+dsumsw1d: np.ufunc
+dsumsw1d_shift: np.ufunc
+dsumsw2d: np.ufunc
+dsumsw2d_shift: np.ufunc
+dsumsw3d: np.ufunc
+dsumcw1d: np.ufunc
+dsumcw1d_shift: np.ufunc
+dsumcw2d: np.ufunc
+
+class LatticeSumContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[ComplexArray, RealArray, RealArray, RealArray, ComplexArray]: ...
+
+def lattice_record(
+    spherical: bool,
+    dim: int,
+    modes: list[tuple[int, int]],
+    k: ComplexArray,
+    bloch: RealArray,
+    vectors: RealArray,
+    shift: RealArray,
+    eta: ComplexArray,
+    part: int,
+    shells: list[int],
+    shape: tuple[int, ...],
+    argument_shapes: list[tuple[int, ...]],
+) -> tuple[ComplexArray, LatticeSumContext]: ...
+
+class PeriodicTableContext:
+    def pullback(self, cotangent: ComplexArray) -> ComplexArray: ...
+
+def periodic_from_table(
+    to: list[tuple[int, int, int, int]],
+    source: list[tuple[int, int, int, int]],
+    to_positions: list[list[float]],
+    source_positions: list[list[float]],
+    helicity: bool,
+    table: ComplexArray,
+) -> tuple[ComplexArray, PeriodicTableContext]: ...
+def direct_cylindrical_1d(
+    m: int, k: complex, q: float, a: float, r: float, shell: int
+) -> complex: ...
+def direct_cylindrical_1d_shift(
+    m: int, k: complex, q: float, a: float, r: RealArray, shell: int
+) -> complex: ...
+def direct_cylindrical_2d(
+    m: int, k: complex, q: RealArray, a: RealArray, r: RealArray, shell: int
+) -> complex: ...
+
+class TransmissionContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[ComplexArray, ComplexArray, ComplexArray, ComplexArray, RealArray]: ...
+
+def smatrix_transmittance(
+    matrices: ComplexArray,
+    incident: ComplexArray,
+    ks: Sequence[Sequence[complex]],
+    zs: Sequence[complex],
+    q: Sequence[Sequence[float]],
+    modes: Sequence[tuple[int, int]],
+    axis: int,
+    helicity: bool,
+    transmission: int,
+    fixed_q: bool,
+    record: bool,
+) -> tuple[RealArray, TransmissionContext | None]: ...

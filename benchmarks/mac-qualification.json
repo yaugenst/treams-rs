@@ -1,0 +1,163 @@
+{
+  "scope": "Thirty scalar and batched regression cases for the coordinate, plane-wave, cylindrical-rotation and cell-geometry dispatch repairs.",
+  "finished": "2026-09-11T21:57:37.905254+00:00",
+  "fingerprints": {
+    "native_sha256": "a9b550e4f201d9162e5f53feb56f38ca3c2ea0ad1fb95aeea7667129fe5ca92f",
+    "python_source_sha256": "e978c1b85d560fd8dab37a0cc754286c2f360bed48726e85d299841478c60833",
+    "benchmark_sha256": "fc97b9a86201129c7a5309d3f6c40c768446e69a9df39c155b382a27fed5b239"
+  },
+  "expected": 30,
+  "verified": [
+    {
+      "output": "benchmarks/results/mac-final/geometry-recheck-coordinate-car2sph-n1.json",
+      "speedup": 1.5025569877216007,
+      "rss_ratio": 0.6625812906453227
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-recheck-coordinate-car2sph-n128.json",
+      "speedup": 1.3488546698572632,
+      "rss_ratio": 0.6601046598554697
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-recheck-coordinate-car2sph-n65536.json",
+      "speedup": 3.250143865801878,
+      "rss_ratio": 0.6784943658595061
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-recheck-coordinate-vcar2sph-n1.json",
+      "speedup": 1.2981171427982374,
+      "rss_ratio": 0.6653356625904667
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-recheck-coordinate-vcar2sph-n128.json",
+      "speedup": 1.3241991051334545,
+      "rss_ratio": 0.6639180409795102
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-recheck-coordinate-vcar2sph-n65536.json",
+      "speedup": 2.5912204185346033,
+      "rss_ratio": 0.6997010807082088
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-recheck-namespace-cw.rotate-n1.json",
+      "speedup": 3.897119457926768,
+      "rss_ratio": 0.6589379207180255
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-recheck-namespace-cw.rotate-n128.json",
+      "speedup": 1.4048802774320226,
+      "rss_ratio": 0.6567460317460317
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-recheck-namespace-cw.rotate-n4096.json",
+      "speedup": 2.019819440258632,
+      "rss_ratio": 0.6762213359920239
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-recheck-wave-vpw_A-n1.json",
+      "speedup": 5.046511130901605,
+      "rss_ratio": 0.6603349162709322
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-recheck-wave-vpw_A-n128.json",
+      "speedup": 4.684997542921101,
+      "rss_ratio": 0.6584454409566517
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-recheck-wave-vpw_A-n4096.json",
+      "speedup": 11.720475621193263,
+      "rss_ratio": 0.6776447105788423
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-recheck-wave-vpw_M-n1.json",
+      "speedup": 4.338477249837451,
+      "rss_ratio": 0.6596858638743456
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-recheck-wave-vpw_M-n128.json",
+      "speedup": 2.3669320077539027,
+      "rss_ratio": 0.6593570894592574
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-recheck-wave-vpw_M-n4096.json",
+      "speedup": 5.495223513855388,
+      "rss_ratio": 0.6833541927409261
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-recheck-wave-vpw_N-n1.json",
+      "speedup": 4.333268840602019,
+      "rss_ratio": 0.6620139581256231
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-recheck-wave-vpw_N-n128.json",
+      "speedup": 2.6442600639143796,
+      "rss_ratio": 0.6594473487677371
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-recheck-wave-vpw_N-n4096.json",
+      "speedup": 5.954815996204985,
+      "rss_ratio": 0.6848287928017995
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-reciprocal2-n1.json",
+      "speedup": 1.6564848909789152,
+      "rss_ratio": 0.6587795765877957
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-reciprocal2-n128.json",
+      "speedup": 3.8223093769904173,
+      "rss_ratio": 0.6666666666666666
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-reciprocal2-n4096.json",
+      "speedup": 5.701398792525228,
+      "rss_ratio": 0.6624378109452737
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-reciprocal3-n1.json",
+      "speedup": 1.59270154911168,
+      "rss_ratio": 0.6610972568578554
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-reciprocal3-n128.json",
+      "speedup": 3.6909669671843375,
+      "rss_ratio": 0.6611735330836455
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-reciprocal3-n4096.json",
+      "speedup": 5.112425460422739,
+      "rss_ratio": 0.67075
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-volume2-n1.json",
+      "speedup": 2.013303996993784,
+      "rss_ratio": 0.6610042468148888
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-volume2-n128.json",
+      "speedup": 2.505258254996478,
+      "rss_ratio": 0.6600199401794616
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-volume2-n4096.json",
+      "speedup": 27.067204099954886,
+      "rss_ratio": 0.6612621601396858
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-volume3-n1.json",
+      "speedup": 2.0270657594573738,
+      "rss_ratio": 0.6603396603396603
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-volume3-n128.json",
+      "speedup": 2.6476937946813734,
+      "rss_ratio": 0.6608435238332917
+    },
+    {
+      "output": "benchmarks/results/mac-final/geometry-volume3-n4096.json",
+      "speedup": 17.877678333896416,
+      "rss_ratio": 0.66167290886392
+    }
+  ],
+  "complete": true
+}

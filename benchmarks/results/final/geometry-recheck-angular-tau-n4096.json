@@ -1,0 +1,199 @@
+{
+  "results": [
+    {
+      "backend": "treams",
+      "python": "3.13.1",
+      "platform": "Linux-7.2.4-200.fc44.x86_64-x86_64-with-glibc2.43",
+      "numpy_version": "2.5.3",
+      "treams_version": "0.4.5",
+      "native_sha256": null,
+      "python_source_sha256": null,
+      "benchmark_sha256": "fc97b9a86201129c7a5309d3f6c40c768446e69a9df39c155b382a27fed5b239",
+      "native_profile": null,
+      "workload": "angular-tau",
+      "oracle": "treams public operation",
+      "ebcm_legacy": null,
+      "ewald_eta": null,
+      "samples": null,
+      "particles": 1,
+      "layers": null,
+      "channels": null,
+      "lmax": 6,
+      "dimension": 4096,
+      "threads": 4,
+      "median_seconds": 0.0009018306998768821,
+      "peak_rss_mib": 66.66015625,
+      "baseline_rss_mib": 66.66015625,
+      "samples_seconds": [
+        0.000902461109799333,
+        0.0009018306998768821,
+        0.0009014138899510727,
+        0.0009016430901829153,
+        0.0009025763100362383,
+        0.0009025418199598789,
+        0.0009017487900564447
+      ],
+      "calls_per_timing_sample": 100,
+      "forward_includes_result_destruction": true,
+      "forward_records_adjoint": true,
+      "backward_median_seconds": null,
+      "backward_samples_seconds": [],
+      "forward_and_backward_peak_rss_mib": null,
+      "blas": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 4,
+          "prefix": "libscipy_openblas",
+          "filepath": "~/personal/treams-rs/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-f48b354e.so",
+          "version": "0.3.34.106.0",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 4,
+          "prefix": "libscipy_openblas",
+          "filepath": "~/personal/treams-rs/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-b75cc656.so",
+          "version": "0.3.29.dev",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ]
+    },
+    {
+      "backend": "rust",
+      "python": "3.13.1",
+      "platform": "Linux-7.2.4-200.fc44.x86_64-x86_64-with-glibc2.43",
+      "numpy_version": "2.5.3",
+      "treams_version": "0.4.5",
+      "native_sha256": "6cef4fecc137b953350ba13096fe836198187335860a3237aa33bfba54996f53",
+      "python_source_sha256": "e978c1b85d560fd8dab37a0cc754286c2f360bed48726e85d299841478c60833",
+      "benchmark_sha256": "fc97b9a86201129c7a5309d3f6c40c768446e69a9df39c155b382a27fed5b239",
+      "native_profile": "release",
+      "workload": "angular-tau",
+      "oracle": "treams public operation",
+      "ebcm_legacy": null,
+      "ewald_eta": null,
+      "samples": null,
+      "particles": 1,
+      "layers": null,
+      "channels": null,
+      "lmax": 6,
+      "dimension": 4096,
+      "threads": 4,
+      "median_seconds": 6.332671799464151e-05,
+      "peak_rss_mib": 44.27734375,
+      "baseline_rss_mib": 42.76171875,
+      "samples_seconds": [
+        6.304475100478157e-05,
+        6.361812600516714e-05,
+        6.327286598389036e-05,
+        6.332671799464151e-05,
+        6.312635299400427e-05,
+        6.416877001174726e-05,
+        6.367908700485713e-05
+      ],
+      "calls_per_timing_sample": 1000,
+      "forward_includes_result_destruction": true,
+      "forward_records_adjoint": true,
+      "backward_median_seconds": 0.00011307178653078153,
+      "backward_samples_seconds": [
+        0.00011324203066760674,
+        0.0001127996338182129,
+        0.0001129960075195413,
+        0.00011318168402067386,
+        0.00011285619460977613,
+        0.00011374314155546017,
+        0.00011307178653078153
+      ],
+      "forward_and_backward_peak_rss_mib": 44.52734375,
+      "blas": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 4,
+          "prefix": "libscipy_openblas",
+          "filepath": "~/personal/treams-rs/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-f48b354e.so",
+          "version": "0.3.34.106.0",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ]
+    }
+  ],
+  "timing_comparison": {
+    "method": "paired_alternating_process",
+    "calls_per_sample": {
+      "treams": 100,
+      "rust": 1000
+    },
+    "pairs_seconds": [
+      {
+        "treams": 0.0009058313997229561,
+        "rust": 6.359732500277459e-05
+      },
+      {
+        "rust": 6.30883119883947e-05,
+        "treams": 0.000905821000051219
+      },
+      {
+        "treams": 0.0009037885500583798,
+        "rust": 6.399692597915418e-05
+      },
+      {
+        "rust": 6.412912899395451e-05,
+        "treams": 0.0009067555301589892
+      },
+      {
+        "treams": 0.0009311862700269557,
+        "rust": 6.291260698344559e-05
+      },
+      {
+        "rust": 6.311891300720162e-05,
+        "treams": 0.0009057230001781136
+      },
+      {
+        "treams": 0.0009035249397857114,
+        "rust": 6.282998499227687e-05
+      },
+      {
+        "rust": 6.283694499870763e-05,
+        "treams": 0.0009064185101306066
+      },
+      {
+        "treams": 0.0009062944198376499,
+        "rust": 6.471852501272223e-05
+      },
+      {
+        "rust": 6.366653699660674e-05,
+        "treams": 0.0009079868599656038
+      },
+      {
+        "treams": 0.0009053600899642333,
+        "rust": 6.374642901937478e-05
+      },
+      {
+        "rust": 6.322724500205368e-05,
+        "treams": 0.000906643430062104
+      },
+      {
+        "treams": 0.000903773239988368,
+        "rust": 6.367570799193345e-05
+      },
+      {
+        "rust": 6.284237498766743e-05,
+        "treams": 0.000934649060072843
+      }
+    ],
+    "speedup": 14.300522520359081,
+    "cpu_affinity": [
+      8,
+      9,
+      10,
+      11
+    ]
+  },
+  "speedup": 14.300522520359081
+}

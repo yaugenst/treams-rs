@@ -49,28 +49,19 @@ build-wheel:
 check-wheel: build-wheel
     #!/usr/bin/env bash
     set -euo pipefail
-    env_dir=$(mktemp -d)
-    trap 'rm -rf "$env_dir"' EXIT
-    uv venv --python .venv/bin/python "$env_dir"
-    wheel=$(ls -t dist/*.whl | head -n 1)
-    uv pip install --python "$env_dir/bin/python" "$wheel" advect
-    "$env_dir/bin/python" scripts/check_wheel.py
-    uv pip install --python "$env_dir/bin/python" "${wheel}[io]"
-    "$env_dir/bin/python" - <<'PY'
-    import h5py
-    import numpy as np
-    import treams_rs as tr
-    from treams_rs import io
-    sphere = tr.TMatrix.sphere(1, 1.3, 0.2, [3, (1.3, 1.1, 0.08)])
-    cluster = tr.TMatrix.cluster([sphere, sphere], [[0, 0, 0], [0.7, 0.2, 0.1]])
-    with h5py.File("memory.h5", "w", driver="core", backing_store=False) as handle:
-        io.save_hdf5(handle, cluster)
-        loaded = io.load_hdf5(handle, lunit="um")
-        np.testing.assert_allclose(loaded.array, cluster.array)
-        np.testing.assert_allclose(loaded.basis.positions, cluster.basis.positions * 1e-3)
-        np.testing.assert_allclose(loaded.k0, cluster.k0 * 1e3)
-        assert loaded.material == cluster.material
-    print("Clean wheel: optional HDF5 chirality, origins and units round trip passed")
+    uv run --no-sync python - <<'PY'
+    from pathlib import Path
+    import subprocess
+    import tempfile
+
+    wheel = max(Path("dist").glob("*.whl"), key=lambda p: p.stat().st_mtime).resolve()
+    with tempfile.TemporaryDirectory(prefix="treams-wheel-") as env:
+        python = str(Path(env) / "bin/python")
+        subprocess.run(["uv", "venv", "--python", ".venv/bin/python", env], check=True)
+        subprocess.run(["uv", "pip", "install", "--python", python, str(wheel), "advect"], check=True)
+        subprocess.run([python, "scripts/check_wheel.py"], check=True)
+        subprocess.run(["uv", "pip", "install", "--python", python, f"{wheel}[io]"], check=True)
+        subprocess.run([python, "-c", 'import h5py\nimport numpy as np\nimport treams_rs as tr\nfrom treams_rs import io\nsphere = tr.TMatrix.sphere(1, 1.3, 0.2, [3, (1.3, 1.1, 0.08)])\ncluster = tr.TMatrix.cluster([sphere, sphere], [[0, 0, 0], [0.7, 0.2, 0.1]])\nwith h5py.File("memory.h5", "w", driver="core", backing_store=False) as handle:\n    io.save_hdf5(handle, cluster)\n    loaded = io.load_hdf5(handle, lunit="um")\n    np.testing.assert_allclose(loaded.array, cluster.array)\n    np.testing.assert_allclose(loaded.basis.positions, cluster.basis.positions * 1e-3)\n    np.testing.assert_allclose(loaded.k0, cluster.k0 * 1e3)\n    assert loaded.material == cluster.material\nprint("Clean wheel: optional HDF5 chirality, origins and units round trip passed")'], check=True)
     PY
 
 # Run on an idle performance host; hosted CI machines have uncontrolled CPU sharing.
@@ -78,10 +69,15 @@ bench-performance: build-ext-release
     #!/usr/bin/env bash
     set -euo pipefail
     mkdir -p benchmarks/results
+    for order in 3 4; do
+        uv run --no-sync python scripts/benchmark_cluster.py --workload ebcm --particles 1 --lmax "$order" --samples 96 --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/ebcm-l${order}-q96.json"
+    done
     for order in 128 512; do
+        record_gates=(--require-speedup 1)
+        if [[ "$order" == 128 ]]; then record_gates+=(--require-rss-ratio 1); fi
         for columns in 1 8; do
             uv run --no-sync python scripts/benchmark_cluster.py --workload internal-field-forward --particles 1 --lmax "$order" --samples "$columns" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/internal-forward-l${order}-p${columns}.json"
-            uv run --no-sync python scripts/benchmark_cluster.py --workload internal-field --particles 1 --lmax "$order" --samples "$columns" --threads 4 --require-speedup 1 > "benchmarks/results/internal-adjoint-l${order}-p${columns}.json"
+            uv run --no-sync python scripts/benchmark_cluster.py --workload internal-field --particles 1 --lmax "$order" --samples "$columns" --threads 4 "${record_gates[@]}" > "benchmarks/results/internal-adjoint-l${order}-p${columns}.json"
         done
     done
     for order in 64 512; do
@@ -170,3 +166,60 @@ bench-geometry:
             uv run --no-sync python scripts/benchmark_cluster.py --workload "geometry-${name}-forward" --samples "$samples" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/geometry-${name}-n${samples}.json"
         done
     done
+
+# All scalar Ewald components and direct shells, plus their recorded boundaries.
+bench-lattice:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for prefix in lsum realsum recsum dsum; do
+        for family in sw1d sw1d_shift sw2d sw2d_shift sw3d cw1d cw1d_shift cw2d; do
+            for samples in 1 128 4096; do
+                uv run --no-sync python scripts/benchmark_cluster.py --workload "lattice-${prefix}${family}-forward" --samples "$samples" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/lattice-${prefix}${family}-n${samples}.json"
+            done
+        done
+        for family in sw1d_shift sw2d_shift sw3d cw1d_shift cw2d; do
+            for samples in 128 4096; do
+                uv run --no-sync python scripts/benchmark_cluster.py --workload "lattice-${prefix}${family}" --samples "$samples" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/lattice-${prefix}${family}-adjoint-n${samples}.json"
+            done
+        done
+    done
+
+# Python operator workflows and native custom-table and real-degree boundaries.
+bench-api:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for family in sphere cylinder plane; do
+        for field in efield hfield dfield bfield gfield ffield; do
+            for samples in 1 4096; do
+                uv run --no-sync python scripts/benchmark_cluster.py --workload "operator-${family}-${field}-forward" --lmax 3 --samples "$samples" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/operator-${family}-${field}-n${samples}.json"
+            done
+        done
+    done
+    for pair in '3 1' '3 4' '3 16' '6 4'; do
+        read -r order particles <<< "$pair"
+        for family in helicity parity; do
+            for suffix in '-forward' ''; do
+                uv run --no-sync python scripts/benchmark_cluster.py --workload "callback-${family}${suffix}" --lmax "$order" --particles "$particles" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/callback-${family}${suffix}-l${order}-p${particles}.json"
+            done
+        done
+    done
+    for order in 3 16 64; do
+        for samples in 1 128 4096; do
+            for suffix in '-forward' ''; do
+                uv run --no-sync python scripts/benchmark_cluster.py --workload "angular-fractional${suffix}" --lmax "$order" --samples "$samples" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/fractional${suffix}-l${order}-n${samples}.json"
+            done
+        done
+    done
+
+# Public power workflows and the complete recorded native power boundary.
+bench-power:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for samples in 1 8 64 256; do
+        for workload in power-tr-forward power-cd-forward power-tr power-translate-forward power-permute-forward; do
+            uv run --no-sync python scripts/benchmark_cluster.py --workload "$workload" --samples "$samples" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/${workload}-n${samples}.json"
+        done
+    done
+
+# Run all performance suites sequentially on the same otherwise idle CPU set.
+bench-all: bench-performance bench-geometry bench-lattice bench-api bench-power

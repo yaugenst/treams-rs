@@ -38,6 +38,9 @@ impl<const N: usize> Jet<N> {
         if n == 0 {
             return Self::constant(1.0);
         }
+        if N == 0 {
+            return Self::constant(self.value.powi(n));
+        }
         self.map(self.value.powi(n), f64::from(n) * self.value.powi(n - 1))
     }
     pub(crate) fn exp(self) -> Self {

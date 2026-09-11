@@ -1020,29 +1020,40 @@ pub(crate) fn normal_component<const N: usize>(k: Jet<N>, q: [Jet<N>; 2]) -> Res
     Ok(normal)
 }
 
+fn port_boundary<const N: usize>(
+    ks: [Jet<N>; 2],
+    z: Jet<N>,
+    q: [Jet<N>; 2],
+    axis: usize,
+) -> Result<[[[Jet<N>; 4]; 2]; 2]> {
+    let mut waves = [[[Jet::default(); 4]; 2]; 2];
+    let a = (axis + 1) % 3;
+    let b = (axis + 2) % 3;
+    for (pol, &wave_number) in ks.iter().enumerate() {
+        let normal = normal_component(wave_number, q)?;
+        for (side, polarizations) in waves.iter_mut().enumerate() {
+            let mut vector = [Jet::default(); 3];
+            vector[a] = q[0];
+            vector[b] = q[1];
+            vector[axis] = if side == 0 { normal } else { -normal };
+            let e = crate::plane::polarization_from_inputs(vector, u8::from(pol != 0))?;
+            let impedance = -Complex::i() * (if pol == 0 { -1.0 } else { 1.0 }) / z;
+            polarizations[pol] = [e[a], e[b], impedance * e[a], impedance * e[b]];
+        }
+    }
+    Ok(waves)
+}
+
 fn interface_boundary<const N: usize>(
     ks: [[Jet<N>; 2]; 2],
     z: [Jet<N>; 2],
     q: [Jet<N>; 2],
     axis: usize,
 ) -> Result<(BoundaryJets<N>, BoundaryJets<N>)> {
-    let mut waves = [[[[Jet::default(); 4]; 2]; 2]; 2];
-    let a = (axis + 1) % 3;
-    let b = (axis + 2) % 3;
-    for (medium, sides) in waves.iter_mut().enumerate() {
-        for (side, polarizations) in sides.iter_mut().enumerate() {
-            for (pol, wave) in polarizations.iter_mut().enumerate() {
-                let normal = normal_component(ks[medium][pol], q)?;
-                let mut vector = [Jet::default(); 3];
-                vector[a] = q[0];
-                vector[b] = q[1];
-                vector[axis] = if side == 0 { normal } else { -normal };
-                let e = crate::plane::polarization_from_inputs(vector, u8::from(pol != 0))?;
-                let impedance = -Complex::i() * (if pol == 0 { -1.0 } else { 1.0 }) / z[medium];
-                *wave = [e[a], e[b], impedance * e[a], impedance * e[b]];
-            }
-        }
-    }
+    let waves = [
+        port_boundary(ks[0], z[0], q, axis)?,
+        port_boundary(ks[1], z[1], q, axis)?,
+    ];
     let lhs = std::array::from_fn(|row| {
         std::array::from_fn(|col| {
             if col < 2 {
@@ -1259,5 +1270,393 @@ impl StackResidual {
             incident.columns(n, n).into_owned(),
         ];
         Ok((lower, upper))
+    }
+}
+
+// Compact tangential fields, indexed by port, propagation direction, polarization.
+type PowerWaves<const N: usize> = [[[[Jet<N>; 4]; 2]; 2]; 2];
+fn power_waves<const N: usize>(
+    ks: [[Complex; 2]; 2],
+    zs: [Complex; 2],
+    q: [f64; 2],
+    axis: usize,
+    helicity: bool,
+    fixed_q: bool,
+) -> Result<PowerWaves<N>> {
+    let ks: [[Jet<N>; 2]; 2] = std::array::from_fn(|port| {
+        std::array::from_fn(|pol| Jet::variable(ks[port][pol], 2 * port + pol))
+    });
+    let zs: [Jet<N>; 2] = std::array::from_fn(|port| Jet::variable(zs[port], 4 + port));
+    let q = std::array::from_fn(|j| {
+        if fixed_q {
+            Jet::constant(q[j])
+        } else {
+            Jet::variable(q[j], 6 + j)
+        }
+    });
+    let mut waves = [
+        port_boundary(ks[0], zs[0], q, axis)?,
+        port_boundary(ks[1], zs[1], q, axis)?,
+    ];
+    if !helicity {
+        for port in &mut waves {
+            for side in port {
+                let [minus, plus] = *side;
+                *side = [
+                    std::array::from_fn(|j| (plus[j] - minus[j]) * std::f64::consts::FRAC_1_SQRT_2),
+                    std::array::from_fn(|j| (plus[j] + minus[j]) * std::f64::consts::FRAC_1_SQRT_2),
+                ];
+            }
+        }
+    }
+    Ok(waves)
+}
+
+fn power_cross(e: [Complex; 4], h: [Complex; 4]) -> f64 {
+    0.5 * (e[0] * h[3].conj() - e[1] * h[2].conj()).re
+}
+fn power_cross_pullback(
+    e: [Complex; 4],
+    h: [Complex; 4],
+    weight: f64,
+) -> ([Complex; 4], [Complex; 4]) {
+    (
+        [
+            0.5 * weight * h[3],
+            -0.5 * weight * h[2],
+            Complex::default(),
+            Complex::default(),
+        ],
+        [
+            Complex::default(),
+            Complex::default(),
+            -0.5 * weight * e[1],
+            0.5 * weight * e[0],
+        ],
+    )
+}
+fn power_aggregate(
+    waves: &[PowerWaves<0>],
+    modes: &[(usize, u8)],
+    incident: &DMatrix<Complex>,
+    outgoing: &[DMatrix<Complex>; 2],
+    beam: usize,
+    transmission: usize,
+) -> Vec<[[Complex; 4]; 3]> {
+    let reflection = 1 - transmission;
+    let mut fields = vec![[[Complex::default(); 4]; 3]; waves.len()];
+    for (mode, &(group, pol)) in modes.iter().enumerate() {
+        for (which, (port, side, amplitude)) in [
+            (reflection, transmission, incident[(mode, beam)]),
+            (transmission, transmission, outgoing[0][(mode, beam)]),
+            (reflection, reflection, outgoing[1][(mode, beam)]),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            for (j, field) in fields[group][which].iter_mut().enumerate() {
+                *field += waves[group][port][side][usize::from(pol)][j].value * amplitude;
+            }
+        }
+    }
+    fields
+}
+
+/// Owned transmittance/reflectance inputs; only the illuminated S-matrix column is retained.
+#[derive(Debug)]
+pub struct TransmissionResidual {
+    matrices: [StoredBlock; 2],
+    incident: DMatrix<Complex>,
+    outgoing: [DMatrix<Complex>; 2],
+    ks: [[Complex; 2]; 2],
+    zs: [Complex; 2],
+    q: Vec<[f64; 2]>,
+    modes: Vec<(usize, u8)>,
+    axis: usize,
+    helicity: bool,
+    transmission: usize,
+    flux: Vec<f64>,
+    /// Rows are transmittance/reflectance; columns are independent illuminations.
+    pub value: DMatrix<f64>,
+}
+
+/// S-matrix, illumination, port wavenumber/impedance and transverse-wavevector cotangents.
+#[derive(Debug)]
+pub struct TransmissionGradient {
+    /// Four scattering blocks.
+    pub matrices: Blocks,
+    /// One column per independent illumination.
+    pub incident: DMatrix<Complex>,
+    /// Port 0/1, helicity 0/1 wavenumbers.
+    pub ks: [[Complex; 2]; 2],
+    /// Port impedances.
+    pub zs: [Complex; 2],
+    /// One transverse vector per distinct diffraction direction.
+    pub q: Vec<[f64; 2]>,
+}
+
+#[allow(clippy::float_cmp, clippy::type_complexity)] // Exact diffraction groups and compact forward intermediates.
+fn transmission_evaluate(
+    matrices: [MatRef<'_, Complex>; 2],
+    incident: &DMatrix<Complex>,
+    ks: [[Complex; 2]; 2],
+    zs: [Complex; 2],
+    q: &[[f64; 2]],
+    modes: &[(usize, u8)],
+    axis: usize,
+    helicity: bool,
+    transmission: usize,
+) -> Result<(DMatrix<f64>, Vec<f64>, [DMatrix<Complex>; 2])> {
+    let n = modes.len();
+    if n == 0
+        || incident.nrows() != n
+        || incident.ncols() == 0
+        || matrices.iter().any(|m| m.nrows() != n || m.ncols() != n)
+        || incident.iter().any(|&z| !finite(z))
+        || matrices
+            .iter()
+            .any(|m| (0..n).any(|i| (0..n).any(|j| !finite(m[(i, j)]))))
+        || axis > 2
+        || transmission > 1
+        || modes
+            .iter()
+            .any(|&(group, pol)| group >= q.len() || pol > 1)
+        || q.iter().flatten().any(|v| !v.is_finite())
+        || ks
+            .iter()
+            .flatten()
+            .chain(&zs)
+            .any(|&v| !finite(v) || v == Complex::default())
+    {
+        return Err(Error::InvalidInput("require matching finite square S blocks, illumination columns, port media and valid plane modes".into()));
+    }
+    if !helicity && ks.iter().any(|k| k[0] != k[1]) {
+        return Err(Error::InvalidInput(
+            "parity power requires achiral port media".into(),
+        ));
+    }
+    let mut unique = std::collections::HashSet::new();
+    if q.iter()
+        .any(|q| !unique.insert(q.map(|v| if v == 0.0 { 0 } else { v.to_bits() })))
+    {
+        return Err(Error::InvalidInput(
+            "transverse groups must be distinct; place coherent modes in the same group".into(),
+        ));
+    }
+    let waves = q
+        .iter()
+        .map(|&q| power_waves::<0>(ks, zs, q, axis, helicity, true))
+        .collect::<Result<Vec<_>>>()?;
+    let outgoing = matrices.map(|m| product_views(m, view(incident)));
+    let sign = if transmission == 0 { 1.0 } else { -1.0 };
+    let mut flux = vec![0.0; incident.ncols()];
+    let mut value = DMatrix::zeros(2, incident.ncols());
+    for beam in 0..incident.ncols() {
+        let mut transmitted = 0.0;
+        let mut reflected = 0.0;
+        for [input, trans, reflect] in
+            power_aggregate(&waves, modes, incident, &outgoing, beam, transmission)
+        {
+            flux[beam] += sign
+                * (power_cross(input, input)
+                    + power_cross(input, reflect)
+                    + power_cross(reflect, input));
+            transmitted += sign * power_cross(trans, trans);
+            reflected -= sign * power_cross(reflect, reflect);
+        }
+        if !flux[beam].is_finite() || flux[beam] <= 0.0 {
+            return Err(Error::InvalidInput(
+                "transmittance requires positive finite incident power flux".into(),
+            ));
+        }
+        value[(0, beam)] = transmitted / flux[beam];
+        value[(1, beam)] = reflected / flux[beam];
+    }
+    if value.iter().any(|v| !v.is_finite()) {
+        return Err(Error::SpecialFunction(
+            "nonfinite transmission or reflection".into(),
+        ));
+    }
+    Ok((value, flux, outgoing))
+}
+
+/// Power transmission/reflection without retaining a reverse tape. Matrix views are
+/// the transmission and reflection blocks for the chosen illumination direction.
+pub fn transmittance_value(
+    matrices: [MatRef<'_, Complex>; 2],
+    incident: &DMatrix<Complex>,
+    ks: [[Complex; 2]; 2],
+    zs: [Complex; 2],
+    q: &[[f64; 2]],
+    modes: &[(usize, u8)],
+    axis: usize,
+    helicity: bool,
+    transmission: usize,
+) -> Result<DMatrix<f64>> {
+    Ok(transmission_evaluate(
+        matrices,
+        incident,
+        ks,
+        zs,
+        q,
+        modes,
+        axis,
+        helicity,
+        transmission,
+    )?
+    .0)
+}
+
+/// Record analytic power pullbacks, including lossy-medium incident/reflected interference.
+pub fn transmittance(
+    matrices: [MatRef<'_, Complex>; 2],
+    incident: DMatrix<Complex>,
+    ks: [[Complex; 2]; 2],
+    zs: [Complex; 2],
+    q: Vec<[f64; 2]>,
+    modes: Vec<(usize, u8)>,
+    axis: usize,
+    helicity: bool,
+    transmission: usize,
+) -> Result<TransmissionResidual> {
+    let (value, flux, outgoing) = transmission_evaluate(
+        matrices,
+        &incident,
+        ks,
+        zs,
+        &q,
+        &modes,
+        axis,
+        helicity,
+        transmission,
+    )?;
+    Ok(TransmissionResidual {
+        matrices: matrices.map(StoredBlock::copy_view),
+        incident,
+        outgoing,
+        ks,
+        zs,
+        q,
+        modes,
+        axis,
+        helicity,
+        transmission,
+        flux,
+        value,
+    })
+}
+
+impl TransmissionResidual {
+    /// Contract output power cotangents. Fixed q supports exactly normal incidence;
+    /// otherwise derivatives preserve the distinct diffraction-group topology.
+    pub fn pullback(self, g: &DMatrix<f64>, fixed_q: bool) -> Result<TransmissionGradient> {
+        if g.shape() != self.value.shape() || g.iter().any(|v| !v.is_finite()) {
+            return Err(Error::InvalidInput(
+                "power cotangent must be finite and match output".into(),
+            ));
+        }
+        let n = self.modes.len();
+        let t = self.transmission;
+        let r = 1 - t;
+        let sign = if t == 0 { 1.0 } else { -1.0 };
+        let waves = self
+            .q
+            .iter()
+            .map(|&q| power_waves::<0>(self.ks, self.zs, q, self.axis, self.helicity, true))
+            .collect::<Result<Vec<_>>>()?;
+        let mut gwaves = vec![[[[[Complex::default(); 4]; 2]; 2]; 2]; self.q.len()];
+        let mut incident = DMatrix::zeros(n, self.incident.ncols());
+        let mut outgoing = [incident.clone(), incident.clone()];
+        for beam in 0..self.incident.ncols() {
+            let wt = g[(0, beam)] / self.flux[beam];
+            let wr = g[(1, beam)] / self.flux[beam];
+            let wi = -(g[(0, beam)] * self.value[(0, beam)] + g[(1, beam)] * self.value[(1, beam)])
+                / self.flux[beam];
+            let fields =
+                power_aggregate(&waves, &self.modes, &self.incident, &self.outgoing, beam, t);
+            let mut gradient = vec![[[Complex::default(); 4]; 3]; self.q.len()];
+            for (group, f) in fields.iter().enumerate() {
+                for (e, h, weight) in [
+                    (0, 0, sign * wi),
+                    (0, 2, sign * wi),
+                    (2, 0, sign * wi),
+                    (1, 1, sign * wt),
+                    (2, 2, -sign * wr),
+                ] {
+                    let (ge, gh) = power_cross_pullback(f[e], f[h], weight);
+                    for j in 0..4 {
+                        gradient[group][e][j] += ge[j];
+                        gradient[group][h][j] += gh[j];
+                    }
+                }
+            }
+            for (mode, &(group, pol)) in self.modes.iter().enumerate() {
+                let amplitudes = [
+                    self.incident[(mode, beam)],
+                    self.outgoing[0][(mode, beam)],
+                    self.outgoing[1][(mode, beam)],
+                ];
+                for (which, (port, side)) in [(r, t), (t, t), (r, r)].into_iter().enumerate() {
+                    let mut amplitude_gradient = Complex::default();
+                    for j in 0..4 {
+                        let g = gradient[group][which][j];
+                        amplitude_gradient +=
+                            waves[group][port][side][usize::from(pol)][j].value.conj() * g;
+                        gwaves[group][port][side][usize::from(pol)][j] +=
+                            amplitudes[which].conj() * g;
+                    }
+                    if which == 0 {
+                        incident[(mode, beam)] += amplitude_gradient;
+                    } else {
+                        outgoing[which - 1][(mode, beam)] += amplitude_gradient;
+                    }
+                }
+            }
+        }
+        let mut matrices = std::array::from_fn(|_| DMatrix::zeros(n, n));
+        for (which, side) in [t, r].into_iter().enumerate() {
+            matrices[2 * side + t] = product_adjoint_right(&outgoing[which], &self.incident);
+            incident +=
+                product_adjoint_left_view(self.matrices[which].view(), view(&outgoing[which]));
+        }
+        let mut result = TransmissionGradient {
+            matrices,
+            incident,
+            ks: [[Complex::default(); 2]; 2],
+            zs: [Complex::default(); 2],
+            q: vec![[0.0; 2]; self.q.len()],
+        };
+        for (group, &q) in self.q.iter().enumerate() {
+            if gwaves[group]
+                .iter()
+                .flatten()
+                .flatten()
+                .flatten()
+                .all(|&v| v == Complex::default())
+            {
+                continue;
+            }
+            let jets = power_waves::<8>(self.ks, self.zs, q, self.axis, self.helicity, fixed_q)?;
+            let mut parameters = [Complex::default(); 8];
+            for (v, g) in jets
+                .iter()
+                .flatten()
+                .flatten()
+                .flatten()
+                .zip(gwaves[group].iter().flatten().flatten().flatten())
+            {
+                for (target, d) in parameters.iter_mut().zip(v.derivative) {
+                    *target += g * d.conj();
+                }
+            }
+            for port in 0..2 {
+                for pol in 0..2 {
+                    result.ks[port][pol] += parameters[2 * port + pol];
+                }
+                result.zs[port] += parameters[4 + port];
+            }
+            result.q[group] = [parameters[6].re, parameters[7].re];
+        }
+        Ok(result)
     }
 }

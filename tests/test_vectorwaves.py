@@ -55,6 +55,19 @@ def test_public_wave_reference(name, theta):
     assert_allclose(actual, expected, rtol=3e-12, atol=3e-13)
 
 
+@pytest.mark.parametrize("name", ["vpw_M", "vpw_N", "vpw_A"])
+def test_scalar_plane_wave_fast_path_and_output(name):
+    args = public_args(name, arguments(name))
+    value = getattr(sp, name)(*args)
+    out = np.empty(3, complex)
+    assert getattr(sp, name)(*args, out) is out
+    assert_allclose(out, value, rtol=2e-15)
+    if name == "vpw_A":
+        for pol in (-1, 2):
+            with pytest.raises(ValueError, match="polarization"):
+                sp.vpw_A(*args[:-1], pol)
+
+
 @pytest.mark.parametrize("name", NAMES)
 def test_vector_wave_gufunc_shapes_strides_and_parallel(name):
     args = public_args(name, arguments(name, n=2048))

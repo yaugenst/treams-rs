@@ -16,6 +16,7 @@ pub mod interaction;
 mod jet;
 pub mod lattice;
 pub mod layers;
+mod legendre;
 pub mod linalg;
 pub mod plane;
 pub mod polar;

@@ -519,6 +519,7 @@ impl PeriodicResidual {
                 let spectral = g.map(|g| (jet.k * k / krho).conj() * g * phase.conj());
                 let mut gradient = crate::lattice::Gradient {
                     k: Complex::default(),
+                    eta: Complex::default(),
                     position: jet.position.map(|d| (scalar_g.conj() * d).re),
                     bloch: jet.bloch.map(|d| (scalar_g.conj() * d).re),
                     vectors: jet.vectors.map(|row| row.map(|d| (scalar_g.conj() * d).re)),

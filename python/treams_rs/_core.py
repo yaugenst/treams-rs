@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Self, overload, override
 
 import numpy as np
 
-from . import _native
+from . import _native, config
 from ._lattice import Lattice, WaveVector, _geometry_inputs
 
 if TYPE_CHECKING:
@@ -31,7 +31,7 @@ class Material:
     def __init__(self, epsilon: MaterialLike = 1, mu: complex = 1, kappa: complex = 0):
         if isinstance(epsilon, Material):
             epsilon, mu, kappa = epsilon()
-        elif isinstance(epsilon, (tuple, list)):
+        elif isinstance(epsilon, (tuple, list, np.ndarray)):
             if len(epsilon) > 3:
                 raise ValueError("invalid material definition")
             epsilon, mu, kappa = tuple(epsilon) + (1, 1, 0)[len(epsilon) :]
@@ -90,8 +90,16 @@ class Material:
             kx, ky, self.ks(k0)[np.asarray(pol, dtype=np.int64)]
         )
 
+    def krhos(
+        self, k0: float, kz: ArrayLike, pol: ArrayLike = (0, 1)
+    ) -> NDArray[np.complex128]:
+        """Radial wavevectors on the same outgoing branch as kzs."""
+        return self.kzs(k0, kz, 0, pol)
 
-type MaterialLike = Material | complex | tuple[complex, ...] | list[complex]
+
+type MaterialLike = (
+    Material | complex | tuple[complex, ...] | list[complex] | NDArray[np.generic]
+)
 type Mode = tuple[int, int, int, int]
 
 
@@ -319,9 +327,12 @@ class PlaneWaveBasisByUnitVector(_Basis[tuple[complex, complex, complex, int]]):
         if not math.isfinite(phi):
             raise ValueError("rotation angle must be finite")
         c, s = math.cos(phi), math.sin(phi)
-        return type(self)(
+        result = type(self)(
             (c * x - s * y, s * x + c * y, z, p) for x, y, z, p in self.modes
         )
+        result.lattice = self.lattice.rotate(phi) if self.lattice is not None else None
+        result.kpar = self.kpar.rotate(phi) if self.kpar is not None else None
+        return result
 
     def permute(self, n: int = 1) -> PlaneWaveBasisByUnitVector:
         if n != int(n):
@@ -487,7 +498,10 @@ class PlaneWaveBasisByComp(_Basis[tuple[float, float, int]]):
         if not math.isfinite(phi):
             raise ValueError("rotation angle must be finite")
         c, s = math.cos(phi), math.sin(phi)
-        return type(self)((c * x - s * y, s * x + c * y, p) for x, y, p in self.modes)
+        result = type(self)((c * x - s * y, s * x + c * y, p) for x, y, p in self.modes)
+        result.lattice = self.lattice.rotate(phi) if self.lattice is not None else None
+        result.kpar = self.kpar.rotate(phi) if self.kpar is not None else None
+        return result
 
     def permute(self, n: int = 1) -> PlaneWaveBasisByComp:
         if n != int(n):
@@ -786,6 +800,7 @@ class CylindricalWaveBasis(_WaveBasis[CylindricalMode]):
 
 
 def _poltype(value: str | None) -> bool:
-    if value not in (None, "helicity", "parity"):
+    value = config.POLTYPE if value is None else value
+    if value not in ("helicity", "parity"):
         raise ValueError("poltype must be helicity or parity")
-    return value != "parity"
+    return value == "helicity"

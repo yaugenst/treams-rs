@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast, overload, override
@@ -29,6 +30,15 @@ def _turns(n: int) -> int:
     if value != n:
         raise ValueError("permutation count must be an integer")
     return value % 3
+
+
+def _z_rotation(phi: float) -> NDArray[np.float64]:
+    if not math.isfinite(phi):
+        raise ValueError("rotation angle must be finite")
+    c, s = math.cos(phi), math.sin(phi)
+    if math.remainder(phi, math.pi / 2) == 0:
+        c, s = round(c), round(s)
+    return np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]], dtype=np.float64)
 
 
 @dataclass(frozen=True, init=False, eq=False)
@@ -170,6 +180,20 @@ class Lattice:
             return Lattice(np.roll(self._array, turns, axis=1), self.alignment)
         alignment = "".join("xyz"[("xyz".index(c) + turns) % 3] for c in self.alignment)
         return Lattice(self._array, alignment)
+
+    def rotate(self, phi: float) -> Lattice:
+        """Rotate around z; the resulting span must remain Cartesian aligned."""
+        axes = ["xyz".index(axis) for axis in self.alignment]
+        rotation = _z_rotation(phi)[:, axes].T
+        columns = np.flatnonzero(np.any(rotation != 0, axis=0))
+        if len(columns) != self.dim:
+            raise ValueError(
+                "rotation produces a lattice span outside Cartesian alignment"
+            )
+        alignment = _alignment({"xyz"[i] for i in columns})
+        columns = ["xyz".index(axis) for axis in alignment]
+        values = np.atleast_2d(self._array) @ rotation[:, columns]
+        return Lattice(values, alignment)
 
     def __le__(self, other: Lattice) -> bool:
         try:
@@ -326,6 +350,16 @@ class WaveVector(Sequence[complex | float]):
         return WaveVector(
             self._values[-turns:] + self._values[:-turns] if turns else self._values
         )
+
+    def rotate(self, phi: float) -> WaveVector:
+        """Rotate around z without discarding partial wavevector constraints."""
+        values = np.asarray(self._values)
+        rotated = [np.sum(row[row != 0] * values[row != 0]) for row in _z_rotation(phi)]
+        if np.count_nonzero(np.isnan(rotated)) != np.count_nonzero(np.isnan(values)):
+            raise ValueError(
+                "rotation produces constraints outside Cartesian alignment"
+            )
+        return WaveVector(rotated)
 
 
 def _geometry_inputs(

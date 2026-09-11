@@ -190,6 +190,8 @@ fn smatrix_add<'py>(
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<TransmissionContext>()?;
+    module.add_function(wrap_pyfunction!(smatrix_transmittance, module)?)?;
     module.add_class::<ChiralityContext>()?;
     module.add_function(wrap_pyfunction!(chirality_density, module)?)?;
     module.add_class::<OrientedChiralityContext>()?;
@@ -840,5 +842,143 @@ fn layer_stack(
             residual: Some(residual),
             fixed_q,
         },
+    ))
+}
+
+#[pyclass]
+#[derive(Debug)]
+struct TransmissionContext {
+    residual: Option<smatrix::TransmissionResidual>,
+    fixed_q: bool,
+}
+type TransmissionGradient<'py> = (
+    Bound<'py, PyArray4<Complex>>,
+    Bound<'py, PyArray2<Complex>>,
+    Bound<'py, PyArray2<Complex>>,
+    Bound<'py, PyArray1<Complex>>,
+    Bound<'py, PyArray2<f64>>,
+);
+#[pymethods]
+impl TransmissionContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'_, Complex>,
+    ) -> PyResult<TransmissionGradient<'py>> {
+        let residual = self
+            .residual
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let a = cotangent.as_array();
+        if a.dim() != residual.value.shape()
+            || a.iter().any(|z| !z.re.is_finite() || !z.im.is_finite())
+        {
+            return Err(PyValueError::new_err(
+                "power cotangent must be finite and match output shape",
+            ));
+        }
+        let g = DMatrix::from_fn(a.nrows(), a.ncols(), |i, j| a[(i, j)].re);
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let fixed_q = self.fixed_q;
+        let gradient = py
+            .detach(move || residual.pullback(&g, fixed_q))
+            .map_err(error)?;
+        let shape = gradient.incident.shape();
+        let incident =
+            Array2::from_shape_vec((shape.1, shape.0), Vec::from(gradient.incident.data))
+                .map_err(|e| PyValueError::new_err(e.to_string()))?
+                .reversed_axes()
+                .into_pyarray(py);
+        Ok((
+            array_owned(py, gradient.matrices)?,
+            incident,
+            Array2::from_shape_fn((2, 2), |(i, j)| gradient.ks[i][j]).into_pyarray(py),
+            gradient.zs.to_vec().into_pyarray(py),
+            Array2::from_shape_fn((gradient.q.len(), 2), |(i, j)| gradient.q[i][j])
+                .into_pyarray(py),
+        ))
+    }
+}
+
+#[pyfunction]
+fn smatrix_transmittance<'py>(
+    py: Python<'py>,
+    matrices: PyReadonlyArray4<'_, Complex>,
+    incident: PyReadonlyArray2<'_, Complex>,
+    ks: [[Complex; 2]; 2],
+    zs: [Complex; 2],
+    q: Vec<[f64; 2]>,
+    modes: Vec<(usize, u8)>,
+    axis: usize,
+    helicity: bool,
+    transmission: usize,
+    fixed_q: bool,
+    record: bool,
+) -> PyResult<(Bound<'py, PyArray2<f64>>, Option<TransmissionContext>)> {
+    let a = matrices.as_array();
+    let shape = a.shape();
+    if shape[..2] != [2, 2] || shape[2] != shape[3] || transmission > 1 {
+        return Err(PyValueError::new_err(
+            "require square (2,2,n,n) scattering blocks and direction 0/1",
+        ));
+    }
+    let blocks = [
+        a.slice(s![transmission, transmission, .., ..]),
+        a.slice(s![1 - transmission, transmission, .., ..]),
+    ];
+    let packed = blocks.each_ref().map(|a| {
+        a.as_slice_memory_order()
+            .is_none()
+            .then(|| crate::tmatrix::matrix_from_view(*a))
+    });
+    let views = std::array::from_fn(|i| borrowed_matrix(&blocks[i], packed[i].as_ref()));
+    let incident = crate::tmatrix::from_array(incident)?;
+    let (value, residual) = py
+        .detach(move || {
+            if record {
+                let residual = smatrix::transmittance(
+                    views,
+                    incident,
+                    ks,
+                    zs,
+                    q,
+                    modes,
+                    axis,
+                    helicity,
+                    transmission,
+                )?;
+                Ok((residual.value.clone(), Some(residual)))
+            } else {
+                Ok((
+                    smatrix::transmittance_value(
+                        views,
+                        &incident,
+                        ks,
+                        zs,
+                        &q,
+                        &modes,
+                        axis,
+                        helicity,
+                        transmission,
+                    )?,
+                    None,
+                ))
+            }
+        })
+        .map_err(error)?;
+    let shape = value.shape();
+    let value = Array2::from_shape_vec((shape.1, shape.0), Vec::from(value.data))
+        .map_err(|e| PyValueError::new_err(e.to_string()))?
+        .reversed_axes()
+        .into_pyarray(py);
+    Ok((
+        value,
+        residual.map(|residual| TransmissionContext {
+            residual: Some(residual),
+            fixed_q,
+        }),
     ))
 }

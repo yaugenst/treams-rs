@@ -1,0 +1,154 @@
+{
+  "results": [
+    {
+      "backend": "treams",
+      "python": "3.13.12",
+      "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+      "numpy_version": "2.5.3",
+      "treams_version": "0.4.5",
+      "native_sha256": null,
+      "python_source_sha256": null,
+      "benchmark_sha256": "fc97b9a86201129c7a5309d3f6c40c768446e69a9df39c155b382a27fed5b239",
+      "native_profile": null,
+      "workload": "namespace-cw.rotate-forward",
+      "oracle": "treams public operation",
+      "ebcm_legacy": null,
+      "ewald_eta": null,
+      "samples": null,
+      "particles": 8,
+      "layers": null,
+      "channels": null,
+      "lmax": 3,
+      "dimension": 128,
+      "threads": 4,
+      "median_seconds": 3.2338874996639787e-06,
+      "peak_rss_mib": 63.0,
+      "baseline_rss_mib": 63.0,
+      "samples_seconds": [
+        3.2296250021317973e-06,
+        3.2577957987086847e-06,
+        3.2441458984976635e-06,
+        3.2338874996639787e-06,
+        3.226349997567013e-06,
+        3.2329042005585505e-06,
+        3.238129199598916e-06
+      ],
+      "calls_per_timing_sample": 10000,
+      "forward_includes_result_destruction": true,
+      "forward_records_adjoint": false,
+      "backward_median_seconds": null,
+      "backward_samples_seconds": [],
+      "forward_and_backward_peak_rss_mib": null,
+      "blas": []
+    },
+    {
+      "backend": "rust",
+      "python": "3.13.12",
+      "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+      "numpy_version": "2.5.3",
+      "treams_version": "0.4.5",
+      "native_sha256": "a9b550e4f201d9162e5f53feb56f38ca3c2ea0ad1fb95aeea7667129fe5ca92f",
+      "python_source_sha256": "e978c1b85d560fd8dab37a0cc754286c2f360bed48726e85d299841478c60833",
+      "benchmark_sha256": "fc97b9a86201129c7a5309d3f6c40c768446e69a9df39c155b382a27fed5b239",
+      "native_profile": "release",
+      "workload": "namespace-cw.rotate-forward",
+      "oracle": "treams public operation",
+      "ebcm_legacy": null,
+      "ewald_eta": null,
+      "samples": null,
+      "particles": 8,
+      "layers": null,
+      "channels": null,
+      "lmax": 3,
+      "dimension": 128,
+      "threads": 4,
+      "median_seconds": 2.333633301896043e-06,
+      "peak_rss_mib": 41.375,
+      "baseline_rss_mib": 41.328125,
+      "samples_seconds": [
+        2.3038916988298295e-06,
+        2.3373292002361266e-06,
+        2.2835167008452117e-06,
+        2.333633301896043e-06,
+        2.3355332989012822e-06,
+        2.3220041999593377e-06,
+        2.3622959008207544e-06
+      ],
+      "calls_per_timing_sample": 10000,
+      "forward_includes_result_destruction": true,
+      "forward_records_adjoint": false,
+      "backward_median_seconds": null,
+      "backward_samples_seconds": [],
+      "forward_and_backward_peak_rss_mib": null,
+      "blas": []
+    }
+  ],
+  "timing_comparison": {
+    "method": "paired_alternating_process",
+    "calls_per_sample": {
+      "treams": 10000,
+      "rust": 10000
+    },
+    "pairs_seconds": [
+      {
+        "treams": 3.3478915982414035e-06,
+        "rust": 2.329195899073966e-06
+      },
+      {
+        "rust": 2.3431957990396767e-06,
+        "treams": 3.296829099417664e-06
+      },
+      {
+        "treams": 3.342116600833833e-06,
+        "rust": 2.3562374990433454e-06
+      },
+      {
+        "rust": 2.3241457995027303e-06,
+        "treams": 3.293708400451578e-06
+      },
+      {
+        "treams": 3.285845898790285e-06,
+        "rust": 2.345979097299278e-06
+      },
+      {
+        "rust": 2.29793329781387e-06,
+        "treams": 3.273570799501613e-06
+      },
+      {
+        "treams": 3.2826917013153434e-06,
+        "rust": 2.3395958007313312e-06
+      },
+      {
+        "rust": 2.408754199859686e-06,
+        "treams": 3.2693916000425816e-06
+      },
+      {
+        "treams": 3.2559665996814146e-06,
+        "rust": 2.3193958011688663e-06
+      },
+      {
+        "rust": 2.358737500617281e-06,
+        "treams": 3.247933299280703e-06
+      },
+      {
+        "treams": 3.2329625013517216e-06,
+        "rust": 2.3055875004502014e-06
+      },
+      {
+        "rust": 2.3384916014038027e-06,
+        "treams": 3.2952040986856444e-06
+      },
+      {
+        "treams": 3.346729199984111e-06,
+        "rust": 2.4261291982838884e-06
+      },
+      {
+        "rust": 2.389545799815096e-06,
+        "treams": 3.3596084016608075e-06
+      }
+    ],
+    "speedup": 1.4048802774320226,
+    "cpu_affinity": null
+  },
+  "speedup": 1.4048802774320226
+}

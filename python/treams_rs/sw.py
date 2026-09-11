@@ -7,11 +7,13 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from . import _native, lattice
+from . import _native, diff, lattice
 from ._core import SphericalWaveBasis, _poltype
+from ._lattice import WaveVector
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
+    from typing import Any
 
     from numpy.typing import ArrayLike, NDArray
 
@@ -68,16 +70,71 @@ def translate_periodic(
     rsin: ArrayLike | None = None,
     poltype: str | None = None,
     eta: complex = 0,
-    func: object = lattice.lsumsw,
+    func: Callable[..., Any] = lattice.lsumsw,
 ) -> NDArray[np.complex128]:
-    """Periodic coupling with optional independent source modes and origins."""
-    if func is not lattice.lsumsw:
-        raise NotImplementedError("custom lattice-sum callbacks are not implemented")
+    """Periodic coupling with independent source modes/origins and optional callback.
+
+    A custom func receives one broadcast call using the same scalar-harmonic
+    signature as lattice.lsumsw. Rust contracts its output with the angular map.
+    For callback adjoints, compose advect.periodic_from_table with a differentiable
+    table producer; arbitrary Python callbacks do not imply a derivative.
+    """
     destination = SphericalWaveBasis(_mode_rows(out), np.atleast_2d(rs))
     source = SphericalWaveBasis(
         _mode_rows(out if in_ is None else in_),
         np.atleast_2d(rs if rsin is None else rsin),
     )
+    if func is not lattice.lsumsw:
+        helicity = _poltype(poltype)
+        wavenumbers = np.atleast_1d(np.asarray(ks, dtype=np.complex128))
+        if wavenumbers.shape not in ((1,), (2,)) or not np.isfinite(wavenumbers).all():
+            raise ValueError("require one or two finite medium wavenumbers")
+        if wavenumbers.size == 2 and wavenumbers[0] == wavenumbers[1]:
+            wavenumbers = wavenumbers[:1]
+        if not helicity and wavenumbers.size != 1:
+            raise ValueError("parity requires an achiral embedding medium")
+        maximum = int(np.max(destination.l) + np.max(source.l))
+        modes = np.array(
+            [
+                (degree, order)
+                for degree in range(maximum + 1)
+                for order in range(-degree, degree + 1)
+            ]
+        )
+        shifts = (
+            source.positions[None, :, None, None, :]
+            - destination.positions[:, None, None, None, :]
+        )
+        components = np.atleast_1d(kpar)
+        dim = (
+            int(np.count_nonzero(~np.isnan(components)))
+            if isinstance(kpar, WaveVector)
+            else components.size
+        )
+        dim = min(dim, np.atleast_2d(a).shape[0] if np.ndim(a) != 1 else np.size(a))
+        cell, bloch = lattice._geometry(dim, a, kpar, True)
+        values = func(
+            dim,
+            modes[:, 0],
+            modes[:, 1],
+            wavenumbers[:, None],
+            bloch[0] if dim == 1 else bloch,
+            cell[0][0] if dim == 1 else cell,
+            shifts,
+            eta,
+        )
+        shape = (
+            len(destination.positions),
+            len(source.positions),
+            wavenumbers.size,
+            len(modes),
+        )
+        return diff.periodic_from_table(
+            np.broadcast_to(values, shape),
+            destination,
+            source,
+            poltype="helicity" if helicity else "parity",
+        )[0]
     return lattice.expansion(
         destination,
         source,

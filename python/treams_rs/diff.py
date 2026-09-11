@@ -8,6 +8,7 @@ import numpy as np
 
 from . import _native
 from ._core import CylindricalWaveBasis, SphericalWaveBasis
+from .config import _resolve_poltype
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -56,6 +57,118 @@ def _bessel_inputs(
         (arguments if arguments.size == 1 else values).ravel(),
         values.shape,
         arguments.shape,
+    )
+
+
+def lattice_sum(
+    dim: int,
+    degree: ArrayLike,
+    order: ArrayLike,
+    k: ArrayLike,
+    kpar: ArrayLike,
+    a: ArrayLike,
+    r: ArrayLike,
+    eta: ArrayLike = 0,
+    *,
+    spherical: bool = True,
+    part: str = "full",
+    shell: ArrayLike = 0,
+) -> tuple[NDArray[np.complex128], _native.LatticeSumContext]:
+    """Broadcast lattice sums and k/kpar/a/r/eta pullbacks, in that order.
+
+    Row lattice vectors form a square matrix (or a scalar in 1D). Spherical
+    shifts have three Cartesian coordinates, cylindrical shifts have two.
+    Degree/order and direct-shell index remain fixed. Component adjoints require
+    an explicit nonzero eta; the full sum's arbitrary split has zero derivative.
+    """
+    if not 1 <= dim <= (3 if spherical else 2):
+        raise ValueError("invalid lattice dimension")
+    try:
+        component = ("full", "real", "reciprocal", "direct").index(part)
+    except ValueError:
+        raise ValueError("part must be full, real, reciprocal or direct") from None
+    arguments = (
+        np.asarray(k, dtype=np.complex128),
+        np.asarray(kpar, dtype=np.float64),
+        np.asarray(a, dtype=np.float64),
+        np.asarray(r, dtype=np.float64),
+        np.asarray(eta, dtype=np.complex128),
+    )
+    shapes = [argument.shape for argument in arguments]
+    wavenumbers, bloch, cells, shifts, etas = arguments
+    if dim == 1:
+        if bloch.shape[-1:] != (1,):
+            bloch = bloch[..., None]
+        if cells.shape[-2:] != (1, 1):
+            cells = cells[..., None, None]
+    coordinates = 3 if spherical else 2
+    if (
+        bloch.shape[-1:] != (dim,)
+        or cells.shape[-2:] != (dim, dim)
+        or shifts.shape[-1:] != (coordinates,)
+    ):
+        raise ValueError(
+            "lattice, Bloch vector and Cartesian shift dimensions must agree"
+        )
+    degrees, orders, shells = (
+        np.asarray(value, dtype=np.float64) for value in (degree, order, shell)
+    )
+    if any(
+        np.any(~np.isfinite(v) | (v != np.floor(v))) for v in (degrees, orders, shells)
+    ):
+        raise ValueError("degree, order and shell must be finite integers")
+    if (
+        np.any(np.abs(degrees) > 128)
+        or np.any(np.abs(orders) > 128)
+        or np.any((shells < 0) | (shells > np.iinfo(np.int32).max))
+    ):
+        raise ValueError("lattice labels or shell exceed supported bounds")
+    shape = np.broadcast_shapes(
+        degrees.shape,
+        orders.shape,
+        shells.shape,
+        wavenumbers.shape,
+        bloch.shape[:-1],
+        cells.shape[:-2],
+        shifts.shape[:-1],
+        etas.shape,
+    )
+
+    def pack[T: np.generic](
+        value: NDArray[T], core: tuple[int, ...] = ()
+    ) -> NDArray[T]:
+        outer = value.shape[: value.ndim - len(core)]
+        return (
+            value
+            if np.prod(outer, dtype=int) == 1
+            else np.broadcast_to(value, shape + core)
+        ).reshape((-1, *core))
+
+    mode_degree, mode_order = (
+        (degrees.ravel(), orders.ravel())
+        if degrees.size == orders.size == 1
+        else (
+            np.broadcast_to(degrees, shape).ravel(),
+            np.broadcast_to(orders, shape).ravel(),
+        )
+    )
+    modes = [
+        (int(degree), int(order))
+        for degree, order in zip(mode_degree, mode_order, strict=True)
+    ]
+    return _native.lattice_record(
+        spherical,
+        dim,
+        modes,
+        pack(wavenumbers),
+        pack(bloch, (dim,)),
+        pack(cells, (dim, dim)),
+        pack(shifts, (coordinates,)),
+        pack(etas),
+        component,
+        pack(shells).astype(np.int64).tolist(),
+        shape,
+        shapes,
     )
 
 
@@ -367,6 +480,47 @@ def smatrix_from_array(
     )
 
 
+def smatrix_tr(
+    matrices: ArrayLike,
+    incident: ArrayLike,
+    ks: ArrayLike,
+    zs: ArrayLike,
+    q: ArrayLike,
+    *,
+    modes: Sequence[tuple[int, int]],
+    axis: int = 2,
+    poltype: str | None = None,
+    modetype: str = "up",
+    fixed_q: bool = False,
+) -> tuple[NDArray[np.float64], _native.TransmissionContext]:
+    """Power transmission/reflection with all matrix, illumination and port gradients.
+
+    Incident columns are independent illuminations; output rows are T and R.
+    ks has shape (2,2), zs (2,), and q (groups,2). Each static mode is
+    (diffraction group index, polarization). Groups must have distinct q values.
+    Pullback returns matrices, incident, ks, zs, q. Normal incidence requires
+    fixed_q=True because the plane polarization gauge has no direction derivative.
+    """
+    poltype = _resolve_poltype(poltype)
+    if poltype not in ("helicity", "parity") or modetype not in ("up", "down"):
+        raise ValueError("invalid polarization or propagation direction")
+    value, context = _native.smatrix_transmittance(
+        np.asarray(matrices, dtype=np.complex128),
+        np.asarray(incident, dtype=np.complex128),
+        np.asarray(ks, dtype=np.complex128).tolist(),
+        np.asarray(zs, dtype=np.complex128).tolist(),
+        np.asarray(q, dtype=np.float64).tolist(),
+        modes,
+        axis,
+        poltype == "helicity",
+        0 if modetype == "up" else 1,
+        fixed_q,
+        True,
+    )
+    assert context is not None
+    return value, context
+
+
 def smatrix_illuminate(
     lower: ArrayLike, upper: ArrayLike, up: ArrayLike, down: ArrayLike
 ) -> tuple[NDArray[np.complex128], _native.IlluminationContext]:
@@ -412,7 +566,7 @@ def spherical_channels(
     polarizations: ArrayLike,
     area: float,
     *,
-    poltype: str = "helicity",
+    poltype: str | None = None,
     fixed_q: bool = False,
 ) -> tuple[NDArray[np.complex128], _native.ChannelsContext]:
     """Incident/emitted, up/down arrays, shaped (2, 2, multipoles, plane modes).
@@ -421,6 +575,7 @@ def spherical_channels(
     outgoing plane waves. VJP returns (positions, ks, q, area). At exactly normal
     incidence the azimuth is undefined; set fixed_q for derivatives at fixed incidence.
     """
+    poltype = _resolve_poltype(poltype)
     if poltype not in ("helicity", "parity"):
         raise ValueError("invalid polarization type")
     pols = np.asarray(polarizations)
@@ -505,13 +660,14 @@ def particle_cluster(
     ks: ArrayLike,
     *,
     bases: Sequence[SphericalWaveBasis | CylindricalWaveBasis],
-    poltype: str = "helicity",
+    poltype: str | None = None,
 ) -> tuple[NDArray[np.complex128], _native.ParticleClusterContext]:
     """Heterogeneous particles; VJP returns (local matrices, positions, ks).
 
     Local bases can have different cutoffs and mode subsets. They must each use
     one origin. Particles must have non-overlapping enclosing surfaces.
     """
+    poltype = _resolve_poltype(poltype)
     if len(local) != len(bases) or not bases:
         raise ValueError("one local matrix and basis required per particle")
     if poltype not in ("helicity", "parity"):
@@ -558,7 +714,7 @@ def expansion(
     source: SphericalWaveBasis | CylindricalWaveBasis,
     ks: ArrayLike,
     *,
-    poltype: str = "helicity",
+    poltype: str | None = None,
     singular: bool = False,
 ) -> tuple[NDArray[np.complex128], _native.ExpansionContext]:
     """Expansion VJP returns (destination positions, source positions, ks).
@@ -567,6 +723,7 @@ def expansion(
     by sorted distinct axial wavenumbers from both bases. Each derivative moves
     all modes with that shared label together; different groups remain distinct.
     """
+    poltype = _resolve_poltype(poltype)
     values = np.asarray(ks, dtype=np.complex128)
     if values.shape != (2,):
         raise ValueError("ks must contain negative and positive helicity wavenumbers")
@@ -650,7 +807,7 @@ def field_operator(
     basis: SphericalWaveBasis | CylindricalWaveBasis,
     ks: ArrayLike,
     *,
-    poltype: str = "helicity",
+    poltype: str | None = None,
     singular: bool = False,
 ) -> tuple[NDArray[np.complex128], _native.FieldOperatorContext]:
     """Field matrix (samples, 3, modes); VJP returns (points, origins, ks).
@@ -658,6 +815,7 @@ def field_operator(
     For cylindrical bases, ``context.pullback_axial`` additionally returns real
     per-mode axial-wavenumber gradients as the last array.
     """
+    poltype = _resolve_poltype(poltype)
     values = np.asarray(ks, dtype=np.complex128)
     if values.shape != (2,) or poltype not in ("helicity", "parity"):
         raise ValueError("require two medium wavenumbers and a valid polarization type")
@@ -679,7 +837,7 @@ def field(
     basis: SphericalWaveBasis | CylindricalWaveBasis,
     ks: ArrayLike,
     *,
-    poltype: str = "helicity",
+    poltype: str | None = None,
     singular: bool = False,
 ) -> tuple[NDArray[np.complex128], _native.FieldContext]:
     """Electric samples (N, 3); VJP returns (coefficients, points, origins, ks).
@@ -689,6 +847,7 @@ def field(
     For cylindrical bases, ``context.pullback_axial`` additionally returns real
     per-mode axial-wavenumber gradients as the last array.
     """
+    poltype = _resolve_poltype(poltype)
     values = np.asarray(ks, dtype=np.complex128)
     if values.shape != (2,):
         raise ValueError("ks must contain negative and positive helicity wavenumbers")
@@ -753,7 +912,7 @@ def plane_field(
     vectors: ArrayLike,
     polarizations: ArrayLike,
     *,
-    poltype: str = "helicity",
+    poltype: str | None = None,
     fixed_vectors: bool = False,
 ) -> tuple[NDArray[np.complex128], _native.PlaneFieldContext]:
     """Weighted Cartesian plane fields or their full operator when coefficients=None.
@@ -762,6 +921,7 @@ def plane_field(
     gradient is empty for an operator. Use fixed_vectors at the polarization axis,
     where a full direction derivative is undefined in the upstream convention.
     """
+    poltype = _resolve_poltype(poltype)
     if poltype not in ("helicity", "parity"):
         raise ValueError("invalid polarization type")
     pols = np.asarray(polarizations)
@@ -784,7 +944,7 @@ def plane_expansion(
     vectors: ArrayLike,
     polarizations: ArrayLike,
     *,
-    poltype: str = "helicity",
+    poltype: str | None = None,
     fixed_vectors: bool = False,
 ) -> tuple[NDArray[np.complex128], _native.PlaneExpansionContext]:
     """Regular plane-to-multipole expansion; VJP returns (origins, wavevectors).
@@ -792,6 +952,7 @@ def plane_expansion(
     Cylindrical axial components are fixed labels with zero cotangents.
     At axial propagation, fixed_vectors enables origin gradients at fixed incidence.
     """
+    poltype = _resolve_poltype(poltype)
     if poltype not in ("helicity", "parity"):
         raise ValueError("invalid polarization type")
     pols = np.asarray(polarizations)
@@ -823,7 +984,7 @@ def cylindrical_channels(
     polarizations: ArrayLike,
     period: float,
     *,
-    poltype: str = "helicity",
+    poltype: str | None = None,
     fixed_q: bool = False,
 ) -> tuple[NDArray[np.complex128], _native.ChannelsContext]:
     """Cylindrical incidence/emission channels for a periodic array along x.
@@ -832,6 +993,7 @@ def cylindrical_channels(
     Pullback returns (origins, ks, q, period). Axial kz labels are fixed, so
     q[:,0] cotangents are zero. fixed_q also holds kx constant.
     """
+    poltype = _resolve_poltype(poltype)
     if poltype not in ("helicity", "parity"):
         raise ValueError("invalid polarization type")
     pols = np.asarray(polarizations)
@@ -906,7 +1068,7 @@ def periodic_conversion(
     ks: ArrayLike,
     period: float,
     *,
-    poltype: str = "helicity",
+    poltype: str | None = None,
 ) -> tuple[NDArray[np.complex128], _native.PeriodicConversionContext]:
     """Spherical z-periodic radiation into outgoing cylindrical waves.
 
@@ -914,6 +1076,7 @@ def periodic_conversion(
     Each cylindrical mode's real kz is differentiable independently; physical
     diffraction orders satisfy kz=kpar+2*pi*n/period.
     """
+    poltype = _resolve_poltype(poltype)
     if poltype not in ("helicity", "parity"):
         raise ValueError("invalid polarization type")
     return _native.periodic_conversion(
@@ -932,13 +1095,14 @@ def plane_permutation(
     polarizations: ArrayLike,
     n: int = 1,
     *,
-    poltype: str = "helicity",
+    poltype: str | None = None,
 ) -> tuple[NDArray[np.complex128], _native.PlanePermutationContext]:
     """Cyclic Cartesian-axis change, with both output polarizations per input mode.
 
     Returns coefficients of shape (2, modes). The new wavevectors are
     np.roll(vectors, n, axis=1). The native pullback differentiates complex vectors.
     """
+    poltype = _resolve_poltype(poltype)
     if n != int(n):
         raise ValueError("number of permutations must be integer")
     if poltype not in ("helicity", "parity"):
@@ -1069,10 +1233,11 @@ def spherical_translation(
     *,
     destination: Sequence[ArrayLike],
     source: Sequence[ArrayLike],
-    poltype: str = "helicity",
+    poltype: str | None = None,
     singular: bool = True,
 ) -> tuple[NDArray[np.complex128], _native.PolarTranslationContext]:
     """Polar translation and (kr, theta, phi) VJPs for fixed (degree, order, pol) labels."""
+    poltype = _resolve_poltype(poltype)
     if len(destination) != 3 or len(source) != 3:
         raise ValueError("each mode requires degree, order and polarization")
     if poltype not in ("helicity", "parity"):
@@ -1183,4 +1348,31 @@ def cylindrical_translation(
             arguments[2].shape,
             arguments[3].shape,
         ),
+    )
+
+
+def periodic_from_table(
+    values: ArrayLike,
+    destination: SphericalWaveBasis,
+    source: SphericalWaveBasis | None = None,
+    *,
+    poltype: str | None = None,
+) -> tuple[NDArray[np.complex128], _native.PeriodicTableContext]:
+    """Native angular contraction and its pullback to supplied lattice harmonics.
+
+    The table shape is (destination origins, source origins, 1 or 2 wavenumber
+    channels, harmonics). The last index is l*l+l+m through the sum of the maximum
+    basis degrees. Parity requires one wavenumber channel. The residual stores
+    only the sparse angular map; the callback supplying values owns its derivatives.
+    """
+    poltype = _resolve_poltype(poltype)
+    source = destination if source is None else source
+    table = np.asarray(values, dtype=np.complex128)
+    return _native.periodic_from_table(
+        list(destination.modes),
+        list(source.modes),
+        destination.positions.tolist(),
+        source.positions.tolist(),
+        poltype == "helicity",
+        table,
     )

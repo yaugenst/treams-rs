@@ -25,7 +25,9 @@ limits, multipole cancellation and lattice convergence all require independent
 qualification. Rust can preserve the Python constructors and numerical results
 through PyO3 without reproducing the ndarray subclass implementation internally.
 The current API uses explicit arrays to avoid silently carrying physical metadata
-through arbitrary NumPy operations; complete drop-in compatibility is unfinished.
+through arbitrary NumPy operations. The legacy ndarray annotation engine is
+outside this explicit-object API; supported workflow differences are listed in
+[implementation status](status.md).
 
 Native pullbacks can own the entire solver calculation. Framework adapters then
 compose a user's objective and translate cotangent conventions. Having a native

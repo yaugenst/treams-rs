@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
+import copy
 from typing import TYPE_CHECKING
 
 import numpy as np
 
 from . import _native, coeffs, diff
+from ._array import PhysicsArray
 from ._core import (
     Material,
     MaterialLike,
     PlaneWaveBasisByComp,
 )
-from ._operators import _periodic_channels, changepoltype, efield, hfield
+from ._operators import _periodic_channels, changepoltype
 from ._plane import PlaneWave
+from .config import _resolve_poltype
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -21,6 +24,38 @@ if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
 
     from ._tmatrix import TMatrix, TMatrixC
+
+
+class SMatrix(PhysicsArray):
+    """One scattering block with explicit input and output port metadata."""
+
+    def __init__(
+        self,
+        arr: ArrayLike,
+        *,
+        k0: float,
+        basis: PlaneWaveBasisByComp,
+        material: MaterialLike | tuple[MaterialLike, MaterialLike] = 1,
+        poltype: str | None = None,
+        modetype: tuple[str, str] = ("up", "up"),
+    ) -> None:
+        poltype = _resolve_poltype(poltype)
+        if not isinstance(basis, PlaneWaveBasisByComp):
+            raise TypeError("S-matrix requires a component plane-wave basis")
+        if np.shape(arr) != (len(basis), len(basis)) or not np.isfinite(arr).all():
+            raise ValueError(
+                "S-matrix requires a finite square block matching its basis"
+            )
+        if len(modetype) != 2 or any(value not in ("up", "down") for value in modetype):
+            raise ValueError("S-matrix port directions must be up or down")
+        super().__init__(
+            arr,
+            basis=basis,
+            k0=k0,
+            material=material,
+            poltype=poltype,
+            modetype=modetype,
+        )
 
 
 class SMatrices:
@@ -38,8 +73,9 @@ class SMatrices:
         k0: float,
         basis: PlaneWaveBasisByComp,
         material: MaterialLike | tuple[MaterialLike, MaterialLike] = 1,
-        poltype: str = "helicity",
+        poltype: str | None = None,
     ):
+        poltype = _resolve_poltype(poltype)
         self.array: NDArray[np.complex128] = np.array(
             smats, dtype=np.complex128, copy=True, order="C"
         )
@@ -75,6 +111,22 @@ class SMatrices:
             return self.array[keys[key[0]], keys[key[1]]]
         return self.array[keys[key]]
 
+    def block(self, outgoing: int | str, incoming: int | str) -> SMatrix:
+        """Read-only block view with port metadata, sharing this stack's storage.
+
+        Numeric indexing remains an ndarray view for inexpensive numerical work.
+        Ports 0/1 alias up/down; materials follow the outgoing and incoming sides.
+        """
+        keys = {0: 0, 1: 1, "up": 0, "down": 1}
+        i, j = keys[outgoing], keys[incoming]
+        result = SMatrix.__new__(SMatrix)
+        result.array = self.array[i, j]
+        result.basis, result.k0, result.poltype = self.basis, self.k0, self.poltype
+        result.material = (self.material[i], self.material[1 - j])
+        result.modetype = (("up", "down")[i], ("up", "down")[j])
+        result.lattice, result.kpar = self.basis.lattice, self.basis.kpar
+        return result
+
     def __len__(self) -> int:
         return 2
 
@@ -87,8 +139,9 @@ class SMatrices:
         basis: PlaneWaveBasisByComp,
         k0: float,
         materials: Sequence[MaterialLike],
-        poltype: str = "helicity",
+        poltype: str | None = None,
     ) -> SMatrices:
+        poltype = _resolve_poltype(poltype)
         if len(materials) != 2:
             raise ValueError("an interface requires two materials, below then above")
         below, above = (Material(m) for m in materials)
@@ -148,8 +201,9 @@ class SMatrices:
         basis: PlaneWaveBasisByComp,
         k0: float,
         material: MaterialLike = 1,
-        poltype: str = "helicity",
+        poltype: str | None = None,
     ) -> SMatrices:
+        poltype = _resolve_poltype(poltype)
         axis = basis.normal_axis
         distance = np.asarray(r, dtype=np.float64)
         if distance.ndim == 0:
@@ -202,8 +256,9 @@ class SMatrices:
         basis: PlaneWaveBasisByComp,
         k0: float,
         materials: Sequence[MaterialLike],
-        poltype: str = "helicity",
+        poltype: str | None = None,
     ) -> SMatrices:
+        poltype = _resolve_poltype(poltype)
         values = np.atleast_1d(np.asarray(thickness, dtype=np.float64))
         if (
             len(materials) != len(values) + 2
@@ -281,6 +336,84 @@ class SMatrices:
             material=self.material,
             poltype=poltype,
         )
+
+    def rotate(self, phi: float, theta: float = 0, psi: float = 0) -> SMatrices:
+        """Rotate xy plane-wave labels and their periodic metadata around z."""
+        if theta != 0:
+            raise ValueError("plane rotations require zero theta")
+        return self._with_array(self.array, self.basis.rotate(phi + psi))
+
+    def _with_array(
+        self, value: NDArray[np.complex128], basis: PlaneWaveBasisByComp
+    ) -> SMatrices:
+        """Adopt an internally owned result without copying its dense storage."""
+        if not np.isfinite(value).all():
+            raise ValueError("S-matrix transformation produced nonfinite values")
+        result = copy.copy(self)
+        value.flags.writeable = False
+        result.array, result.basis = value, basis
+        return result
+
+    def translate(self, r: ArrayLike) -> SMatrices:
+        """Translate channel reference origins using native diagonal phase factors."""
+        r = np.asarray(r, dtype=float)
+        if r.shape != (3,):
+            raise ValueError("S-matrix translation requires one Cartesian displacement")
+        value = np.empty_like(self.array)
+        for i in range(2):
+            outgoing = np.column_stack(
+                self.basis.kvecs(self.k0, self.material[i], ("up", "down")[i])
+            )
+            left = diff.plane_phases(r[None, :], outgoing)[0][0]
+            for j in range(2):
+                incoming = np.column_stack(
+                    self.basis.kvecs(self.k0, self.material[1 - j], ("up", "down")[j])
+                )
+                right = diff.plane_phases(-r[None, :], incoming)[0][0]
+                value[i, j] = left[:, None] * self.array[i, j] * right[None, :]
+        return self._with_array(value, self.basis)
+
+    def permute(self, n: int = 1) -> SMatrices:
+        """Cyclic coordinate change of both ports and their polarization frames."""
+        basis = self.basis.permute(n)
+        lookup = {mode: index for index, mode in enumerate(self.basis.modes)}
+        partners = [
+            np.array([lookup.get((x, y, pol), -1) for x, y, _ in self.basis.modes])
+            for pol in (0, 1)
+        ]
+        selected = [np.flatnonzero(indices >= 0) for indices in partners]
+        inverse = [
+            diff.plane_permutation(
+                np.column_stack(basis.kvecs(self.k0, self.material[1 - j], direction)),
+                basis.pol,
+                -n,
+                poltype=self.poltype,
+            )[0]
+            for j, direction in enumerate(("up", "down"))
+        ]
+        value = np.zeros_like(self.array)
+        for i in range(2):
+            forward = diff.plane_permutation(
+                np.column_stack(
+                    self.basis.kvecs(self.k0, self.material[i], ("up", "down")[i])
+                ),
+                self.basis.pol,
+                n,
+                poltype=self.poltype,
+            )[0]
+            for j in range(2):
+                left = np.zeros_like(self.array[i, j])
+                for pol, columns in enumerate(selected):
+                    for source_pol in (0, 1):
+                        unique = columns[self.basis.pol[columns] == source_pol]
+                        rows = partners[pol][unique]
+                        left[rows] += (
+                            forward[pol, unique, None] * self.array[i, j, unique]
+                        )
+                for pol, columns in enumerate(selected):
+                    rows = partners[pol][columns]
+                    value[i, j][:, columns] += left[:, rows] * inverse[j][pol, columns]
+        return self._with_array(value, basis)
 
     def _incident(
         self, illu: ArrayLike | PlaneWave, modetype: str
@@ -363,39 +496,34 @@ class SMatrices:
             raise ValueError("periodic repetition requires matching outer media")
         return diff.bands(self.array, az)[0]
 
+    def _transmission(
+        self, incident: NDArray[np.complex128], direction: str
+    ) -> NDArray[np.float64]:
+        groups: dict[tuple[float, float], int] = {}
+        modes = [
+            (groups.setdefault((x, y), len(groups)), p) for x, y, p in self.basis.modes
+        ]
+        return _native.smatrix_transmittance(
+            self.array,
+            incident,
+            [medium.ks(self.k0).tolist() for medium in self.material],
+            [medium.impedance for medium in self.material],
+            list(groups),
+            modes,
+            self.basis.normal_axis,
+            self.poltype == "helicity",
+            0 if direction == "up" else 1,
+            True,
+            False,
+        )[0]
+
     def tr(
         self, illu: ArrayLike | PlaneWave, *, modetype: str | None = None
     ) -> tuple[float, float]:
-        modetype = _direction(illu, modetype, self.basis.normal_axis)
-        outgoing = self.illuminate(illu, modetype=modetype)
-        transmission = 0 if modetype == "up" else 1
-        reflection = 1 - transmission
-        sign = 1 if modetype == "up" else -1
-        trans, refl = outgoing[transmission], outgoing[reflection]
-        source = _power_forms(
-            self.basis, self.k0, self.material[reflection], self.poltype
-        )
-        target = (
-            source
-            if self.material[0] == self.material[1]
-            else _power_forms(
-                self.basis, self.k0, self.material[transmission], self.poltype
-            )
-        )
-        incident = self._incident(illu, modetype)
-        flux = sign * (
-            np.vdot(incident, source[transmission, transmission] @ incident).real
-            + 2 * np.vdot(incident, source[transmission, reflection] @ refl).real
-        )
-        if flux <= 0:
-            raise ValueError("transmittance requires positive incident power flux")
-        return float(
-            sign
-            * np.vdot(trans, target[transmission, transmission] @ trans).real
-            / flux
-        ), float(
-            -sign * np.vdot(refl, source[reflection, reflection] @ refl).real / flux
-        )
+        direction = _direction(illu, modetype, self.basis.normal_axis)
+        incident = self._incident(illu, direction)
+        power = self._transmission(incident[:, None], direction)
+        return float(power[0, 0]), float(power[1, 0])
 
     def cd(
         self, illu: ArrayLike | PlaneWave, *, modetype: str | None = None
@@ -408,7 +536,6 @@ class SMatrices:
         Helicity bases must contain both polarizations of each direction.
         """
         direction = _direction(illu, modetype, self.basis.normal_axis)
-        transmission, reflection = self.tr(illu, modetype=direction)
         incident = self._incident(illu, direction)
         if self.poltype == "helicity":
             indices = {mode: i for i, mode in enumerate(self.basis.modes)}
@@ -422,7 +549,9 @@ class SMatrices:
                 ) from error
         else:
             opposite = incident * (2 * self.basis.pol - 1)
-        opposite_t, opposite_r = self.tr(opposite, modetype=direction)
+        power = self._transmission(np.column_stack((incident, opposite)), direction)
+        transmission, reflection = power[:, 0]
+        opposite_t, opposite_r = power[:, 1]
         total = transmission + reflection
         opposite_total = opposite_t + opposite_r
         if transmission + opposite_t == 0 or total + opposite_total == 0:
@@ -443,60 +572,11 @@ def _direction(illu: ArrayLike | PlaneWave, modetype: str | None, axis: int = 2)
     return modetype
 
 
-def _power_forms(
-    basis: PlaneWaveBasisByComp, k0: float, material: MaterialLike, poltype: str
-) -> NDArray[np.complex128]:
-    """Hermitian up/down power blocks from Cartesian E cross H*, averaged in the cell."""
-    electric = np.stack(
-        [
-            efield(
-                [0, 0, 0],
-                basis=basis,
-                k0=k0,
-                material=material,
-                modetype=side,
-                poltype=poltype,
-            )
-            for side in ("up", "down")
-        ]
-    )
-    magnetic = np.stack(
-        [
-            hfield(
-                [0, 0, 0],
-                basis=basis,
-                k0=k0,
-                material=material,
-                modetype=side,
-                poltype=poltype,
-            )
-            for side in ("up", "down")
-        ]
-    )
-    a, b = (basis.normal_axis + 1) % 3, (basis.normal_axis + 2) % 3
-    q = basis.components
-    same = np.all(q[:, None, :] == q[None, :, :], axis=-1)
-    result = np.empty((2, 2, len(basis), len(basis)), complex)
-    for i in range(2):
-        for j in range(2):
-            result[i, j] = (
-                0.25
-                * same
-                * (
-                    magnetic[i, b].conj()[:, None] * electric[j, a]
-                    - magnetic[i, a].conj()[:, None] * electric[j, b]
-                    + electric[i, a].conj()[:, None] * magnetic[j, b]
-                    - electric[i, b].conj()[:, None] * magnetic[j, a]
-                )
-            )
-    return result
-
-
 def chirality_density(
     basis: PlaneWaveBasisByComp,
     k0: float,
     material: MaterialLike = 1,
-    poltype: str = "helicity",
+    poltype: str | None = None,
     z: ArrayLike = (0.0, 0.0),
 ) -> tuple[NDArray[np.complex128], NDArray[np.complex128], NDArray[np.complex128]]:
     """Up/down/coherent-cross forms of 2 Re(E* . i Z H), along the basis normal.
@@ -506,6 +586,7 @@ def chirality_density(
     Re(u* U u + d* D d + d* X u). X can be complex for a shifted interval.
     This corrects upstream's attenuation average and discarded cross phase.
     """
+    poltype = _resolve_poltype(poltype)
     medium = Material(material)
     if poltype not in ("helicity", "parity") or (
         poltype == "parity" and medium.ischiral
@@ -558,9 +639,10 @@ def poynting_avg_z(
     basis: PlaneWaveBasisByComp,
     k0: float,
     material: MaterialLike = 1,
-    poltype: str = "helicity",
+    poltype: str | None = None,
 ) -> tuple[NDArray[np.complex128], NDArray[np.complex128]]:
     """Same- and opposite-direction time-averaged axial power-flux forms."""
+    poltype = _resolve_poltype(poltype)
     if basis.alignment != "xy":
         raise ValueError("axial power forms currently require xy-aligned plane bases")
     medium = Material(material)

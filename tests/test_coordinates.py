@@ -68,6 +68,39 @@ def test_coordinate_and_vector_reference_and_output_semantics(name):
         getattr(sp, name)([1] * (dim + 1))
 
 
+@pytest.mark.parametrize("name", NAMES)
+def test_single_coordinate_fast_path_preserves_gufunc_semantics(name):
+    dim = 2 if "pol" in name else 3
+    points = np.array([0.4, 0.7, -0.3])[:dim]
+    vector = np.array([0.2, -0.4, 0.8])[:dim]
+    point_function, vector_function = getattr(sp, name), getattr(sp, "v" + name)
+    expected = getattr(oracle, name)(points)
+    for convert in (np.asarray, list, tuple):
+        assert_allclose(
+            point_function(convert(points)), expected, rtol=1e-14, atol=1e-15
+        )
+        for values in (vector, vector + 0.3j * vector[::-1]):
+            result = vector_function(convert(values), convert(points))
+            oracle_result = getattr(oracle, "v" + name)(values, points)
+            assert result.dtype == oracle_result.dtype
+            assert_allclose(result, oracle_result, rtol=1e-14, atol=1e-15)
+            output = np.empty_like(result)
+            assert vector_function(values, points, output) is output
+            assert_allclose(output, result, rtol=1e-14, atol=1e-15)
+    output = points.copy()
+    assert point_function(output, output) is output
+    assert_allclose(output, expected, rtol=1e-14, atol=1e-15)
+
+    class Intercept(np.ndarray):
+        def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+            return "intercepted"
+
+    subclass = points.view(Intercept)
+    assert point_function(subclass) == "intercepted"
+    assert vector_function(subclass, points) == "intercepted"
+    assert vector_function(vector, subclass) == "intercepted"
+
+
 @given(x=st.floats(0.2, 2), y=st.floats(-1, 1), z=st.floats(-1, 1))
 @settings(max_examples=40)
 def test_coordinate_roundtrip_vector_norm_and_frame_composition(x, y, z):

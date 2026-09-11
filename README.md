@@ -3,13 +3,17 @@
 A personal Rust rewrite of treams, with a typed Python API and native analytic
 pullbacks. The numerical core runs without Python or an autodiff framework.
 
-This is an active rewrite, not yet a replacement for all of treams. See
-[implementation status](docs/status.md) for verified coverage and remaining work.
+The documented CPU rewrite is complete for the pinned treams 0.4.5 numerical
+inventory, with explicit Python objects and first-order Advect integration. See
+[implementation status](docs/status.md) for the API contract and qualified limits.
+The complete performance grid passes 527 runtime and 525 peak-RSS comparisons;
+[benchmarks](docs/benchmarks.md) records the inputs and two recorded-adjoint memory
+exceptions. There is no runtime fallback to treams, SciPy or Cython.
 
 ```sh
-uv sync --group dev
-just build-ext
+uv sync --locked --group dev
 just verify
+just build-ext-release
 uv run pre-commit install
 ```
 
@@ -72,7 +76,8 @@ Batched Cartesian electric fields for either multipole family use
 `tr.diff.field(coefficients, points, basis, ks)`.
 The output has shape `(number_of_points, 3)`. Its pullback returns cotangents for
 amplitudes, sample coordinates, basis origins, and the two helicity wavenumbers.
-Cylindrical axial wavenumbers remain fixed basis labels.
+For cylinders, `residual.pullback_axial` also returns axial-wavenumber cotangents;
+pass `kzs` to the Advect field functions when optimizing them.
 `tr.advect.field` composes this calculation with scattering and ordinary NumPy
 objectives; `tr.advect.expansion` similarly differentiates basis translations.
 
@@ -86,9 +91,10 @@ print(sphere.xs(wave))
 ```
 
 The illumination may also be expanded explicitly with `wave.expand(basis)`.
-`plane_wave_angle(theta, phi, pol, ...)` accepts angles in radians. Illumination
-parameters currently remain ordinary constants when used in an Advect objective;
-scattering and field parameters retain their native VJPs.
+`plane_wave_angle(theta, phi, pol, ...)` accepts angles in radians. Wave-object
+constructors take ordinary arrays. Use `ad.plane_expansion` for differentiable
+illumination wavevectors and origins, and `ad.plane_field` for differentiable
+plane-wave amplitudes, sample points and wavevectors.
 
 Planar stacks use explicit up/down plane-wave channels:
 
@@ -102,6 +108,34 @@ Use `ad.fresnel`, `ad.propagation`, and `ad.smatrix_add` to differentiate comple
 stacks. Their arrays have shape `(2, 2, number_of_modes, number_of_modes)`, indexing
 outgoing direction, incoming direction, output mode, and input mode. Directions
 are ordered up/down; low-level Fresnel polarization indices are ordered 0/1.
+
+`ad.smatrix_tr` differentiates transmitted/reflected power, including port media
+and incident amplitudes. It accepts independent illuminations as columns and
+returns T/R rows. `ad.smatrix_cd` evaluates both helicities in one native batch.
+
+```python
+def transmittance(impedance):
+    ks = np.array([[1.3, 1.3], [2.0, 2.0]])  # below, above; polarizations 0, 1
+    zs = np.stack([1.0, impedance])
+    q = np.array([[0.2, 0.3]])
+    blocks = ad.interface(ks, zs, q[0])
+    powers = ad.smatrix_tr(
+        blocks,
+        np.array([[1.0], [0.2j]]),
+        ks[::-1],
+        zs[::-1],
+        q,
+        modes=[(0, 0), (0, 1)],  # transverse-direction index, polarization
+    )
+    return np.real(powers[0, 0])
+
+
+print(grad(transmittance)(np.array(0.7)))  # approximately 0.24412137
+```
+
+Interface media are ordered below/above; S-matrix power ports are ordered
+above/below, hence the reversals. At normal incidence use `fixed_q=True` when
+the transverse direction is held fixed.
 
 Periodic spherical unit cells use the same S-matrix interface:
 

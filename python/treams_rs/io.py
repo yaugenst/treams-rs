@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import platform
+from collections.abc import Mapping, Sequence
 from importlib.metadata import version
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 import h5py
@@ -14,9 +16,7 @@ from ._core import Material, SphericalWaveBasis
 from ._tmatrix import TMatrix
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
-    from numpy.typing import NDArray
+    from numpy.typing import ArrayLike, NDArray
 
 type MatrixSet = TMatrix | Sequence[MatrixSet] | NDArray[np.object_]
 
@@ -49,6 +49,143 @@ INVLENGTHS = {unit + "^{-1}": 1 / scale for unit, scale in LENGTHS.items()}
 FREQUENCIES = {prefix + "Hz": 10.0**power for prefix, power in _PREFIXES.items()} | {
     prefix + "s^{-1}": 10.0**-power for prefix, power in _PREFIXES.items()
 }
+
+
+def mesh_spheres(
+    radii: ArrayLike,
+    positions: ArrayLike,
+    model: Any,
+    meshsize: float | None = None,
+    meshsize_boundary: float | None = None,
+) -> Any:
+    """Add spheres, physical volume/surface groups and mesh sizes to a Gmsh model.
+
+    The caller owns Gmsh initialization, mesh generation, writing and finalization.
+    Entity tags are allocated by Gmsh so pre-existing geometry remains usable.
+    """
+    radii, positions = (
+        np.atleast_1d(np.asarray(radii, dtype=float)),
+        np.atleast_2d(np.asarray(positions, dtype=float)),
+    )
+    if radii.ndim != 1 or radii.size == 0 or positions.shape != (radii.size, 3):
+        raise ValueError("require one radius and Cartesian position per sphere")
+    if (
+        not np.isfinite(radii).all()
+        or np.any(radii <= 0)
+        or not np.isfinite(positions).all()
+    ):
+        raise ValueError("sphere radii must be positive and geometry finite")
+    meshsize = float(np.max(radii) * 0.2) if meshsize is None else meshsize
+    meshsize_boundary = meshsize if meshsize_boundary is None else meshsize_boundary
+    if (
+        not np.isfinite([meshsize, meshsize_boundary]).all()
+        or min(meshsize, meshsize_boundary) <= 0
+    ):
+        raise ValueError("mesh sizes must be finite and positive")
+    volumes = [
+        (3, model.occ.addSphere(*position, radius))
+        for radius, position in zip(radii, positions, strict=True)
+    ]
+    model.occ.synchronize()
+    for volume in volumes:
+        model.addPhysicalGroup(3, [volume[1]])
+        surfaces = model.getBoundary([volume], combined=False, oriented=False)
+        model.addPhysicalGroup(2, [tag for dim, tag in surfaces if dim == 2])
+    model.mesh.setSize(model.getEntities(0), meshsize)
+    model.mesh.setSize(
+        model.getBoundary(volumes, combined=False, oriented=False, recursive=True),
+        meshsize_boundary,
+    )
+    return model
+
+
+def _save_scatterers(
+    group: h5py.Group,
+    scatterers: Mapping[str, Any] | Sequence[Mapping[str, Any]],
+    lunit: str,
+) -> None:
+    items = [scatterers] if isinstance(scatterers, Mapping) else scatterers
+    for index, item in enumerate(items):
+        scatterer = group.require_group(
+            "scatterer" if len(items) == 1 else f"scatterer_{index}"
+        )
+        _description(
+            scatterer,
+            *(str(item.get(key, "")) for key in ("name", "description", "keywords")),
+        )
+        for name in ("material", "geometry"):
+            values = item.get(name, {})
+            child = scatterer.require_group(name)
+            _description(
+                child,
+                *(
+                    str(values.get(key, ""))
+                    for key in ("name", "description", "keywords")
+                ),
+            )
+            if name == "material":
+                for key in (
+                    "relative_permittivity",
+                    "relative_permeability",
+                    "chirality",
+                ):
+                    if key in values:
+                        child[key] = values[key]
+                continue
+            unit = values.get("unit", lunit)
+            if unit not in LENGTHS:
+                raise ValueError(f"unrecognized geometry length unit: {unit}")
+            child.attrs["unit"] = unit
+            if "shape" in values:
+                child.attrs["shape"] = values["shape"]
+            data = {
+                key: value
+                for key, value in values.items()
+                if key not in ("name", "description", "keywords", "shape", "unit")
+            }
+            if "position" in item:
+                data["position"] = item["position"]
+            for key, value in data.items():
+                child.create_dataset(key, data=value).attrs["unit"] = unit
+
+
+def _save_computation(
+    group: h5py.Group, computation: Mapping[str, Any], lunit: str
+) -> None:
+    target = group.require_group("computation")
+    _description(
+        target,
+        *(str(computation.get(key, "")) for key in ("name", "description", "keywords")),
+    )
+    if "method" in computation:
+        target.attrs["method"] = computation["method"]
+    target.attrs["software"] = (
+        computation.get("software")
+        or f"python={platform.python_version()}, treams-rs={version('treams-rs')}, h5py={version('h5py')}, numpy={np.__version__}"
+    )
+    mesh = computation.get("mesh")
+    if mesh is not None:
+        if isinstance(mesh, Mapping):
+            saved_mesh = target.require_group("mesh")
+            saved_mesh.attrs["unit"] = lunit
+            for name, content in mesh.items():
+                saved_mesh[name] = content
+        else:
+            path = Path(mesh)
+            saved_mesh = target.create_dataset(
+                "mesh" + path.suffix, data=path.read_text(encoding="utf-8")
+            )
+            saved_mesh.attrs["unit"] = lunit
+        group["mesh"] = h5py.SoftLink(saved_mesh.name)
+    files = computation.get("files", ())
+    if files:
+        file_group = target.require_group("files")
+        for item in files:
+            path = Path(item["path"] if isinstance(item, Mapping) else item)
+            name = (
+                item.get("name", path.name) if isinstance(item, Mapping) else path.name
+            )
+            file_group[name] = path.read_text(encoding="utf-8")
 
 
 def _collect(value: MatrixSet) -> tuple[tuple[int, ...], list[TMatrix]]:
@@ -94,13 +231,17 @@ def save_hdf5(
     uuid: bytes | None = None,
     uuid_version: int = 4,
     lunit: str = "nm",
+    *,
+    scatterers: Mapping[str, Any] | Sequence[Mapping[str, Any]] | None = None,
+    computation: Mapping[str, Any] | None = None,
 ) -> None:
     """Write spherical T matrices to an open HDF5 group, one matrix at a time.
 
     Supports one matrix or rectangular parameter sweeps sharing a basis and
     polarization convention. k0 and positions use reciprocal lunit and lunit.
-    Additional scatterer/computation metadata can be written through h5py.
-    This numerical interchange does not certify a complete tmat.h5 submission.
+    Optional scatterer and computation dictionaries write tmat.h5 v1 material,
+    geometry, mesh and reproducibility-file metadata. The format version records
+    the layout; this writer does not certify acceptance by a T-matrix database.
     """
     if lunit not in LENGTHS:
         raise ValueError(f"unrecognized length unit: {lunit}")
@@ -169,6 +310,19 @@ def save_hdf5(
         ).reshape(shape)
         embedding["chirality"] = embedding["chirality_parameter"]
     _description(embedding, embedding_name, embedding_description, embedding_keywords)
+    if scatterers is not None:
+        _save_scatterers(h5file, scatterers, lunit)
+    if computation is not None:
+        _save_computation(h5file, computation, lunit)
+    if (
+        scatterers
+        and computation
+        and (
+            computation.get("mesh") is not None
+            or "semi-analytical" in computation.get("keywords", "")
+        )
+    ):
+        h5file.attrs["storage_format_version"] = "v1"
 
 
 def _text(value: object) -> str:

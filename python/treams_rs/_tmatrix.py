@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import TYPE_CHECKING, Any, Self, cast, override
 
 import numpy as np
 
+from . import _operators as op
 from . import diff, lattice
 from ._core import CylindricalWaveBasis, Material, MaterialLike, SphericalWaveBasis
-from ._operators import changepoltype, expandlattice
+from ._operators import Operator, changepoltype, expandlattice
 from ._plane import PlaneWave
 from ._source import MultipoleWave
+from .config import _resolve_poltype
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -26,6 +28,16 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
     """
 
     _basis_type: type[B]
+    modetype = ("singular", "regular")
+    translate = op.OperatorAttribute(op.Translate)
+    expandlattice = op.OperatorAttribute(op.ExpandLattice)
+    permute = op.OperatorAttribute(op.Permute)
+    efield = op.OperatorAttribute(op.EField)
+    hfield = op.OperatorAttribute(op.HField)
+    dfield = op.OperatorAttribute(op.DField)
+    bfield = op.OperatorAttribute(op.BField)
+    gfield = op.OperatorAttribute(op.GField)
+    ffield = op.OperatorAttribute(op.FField)
 
     def __init__(
         self,
@@ -34,8 +46,9 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
         k0: float,
         basis: B | None = None,
         material: MaterialLike = 1,
-        poltype: str = "helicity",
+        poltype: str | None = None,
     ):
+        poltype = _resolve_poltype(poltype)
         self.array: NDArray[np.complex128] = np.array(
             arr, dtype=np.complex128, copy=True
         )
@@ -80,14 +93,53 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
     def __len__(self) -> int:
         return len(self.array)
 
+    def __getitem__(self, key: Any) -> Any:
+        if isinstance(key, self._basis_type):
+            indices = [self.basis.modes.index(mode) for mode in key]
+            return type(self)(
+                self.array[np.ix_(indices, indices)],
+                basis=cast("B", self.basis[indices]),
+                k0=self.k0,
+                material=self.material,
+                poltype=self.poltype,
+            )
+        return self.array[key]
+
+    def valid_points(self, grid: ArrayLike, radii: ArrayLike) -> NDArray[np.bool_]:
+        """Points strictly outside the enclosing spheres or infinite cylinders."""
+        points, radii = np.asarray(grid, dtype=float), np.asarray(radii, dtype=float)
+        dim = 2 if isinstance(self.basis, CylindricalWaveBasis) else 3
+        if (
+            points.ndim == 0
+            or points.shape[-1] not in (dim, 3)
+            or not np.isfinite(points).all()
+        ):
+            raise ValueError("grid requires finite Cartesian points")
+        if (
+            radii.shape != (len(self.basis.positions),)
+            or not np.isfinite(radii).all()
+            or np.any(radii < 0)
+        ):
+            raise ValueError(
+                "one finite nonnegative radius required per expansion origin"
+            )
+        valid = np.ones(points.shape[:-1], dtype=bool)
+        for radius, position in zip(radii, self.basis.positions, strict=True):
+            valid &= (
+                np.sum((points[..., :dim] - position[:dim]) ** 2, axis=-1) > radius**2
+            )
+        return valid
+
     def __array__(
         self, dtype: DTypeLike | None = None, copy: bool | None = None
     ) -> NDArray[np.generic]:
         return np.asarray(self.array, dtype=dtype, copy=copy)
 
     def __matmul__(
-        self, other: ArrayLike | PlaneWave | MultipoleWave
+        self, other: ArrayLike | PlaneWave | MultipoleWave | Operator
     ) -> NDArray[np.complex128]:
+        if isinstance(other, Operator):
+            return NotImplemented
         return self.array @ self._incident(other)
 
     def _incident(
@@ -357,8 +409,9 @@ class TMatrix(_TMatrix[SphericalWaveBasis]):
         k0: float,
         radii: ArrayLike,
         materials: Sequence[MaterialLike],
-        poltype: str = "helicity",
+        poltype: str | None = None,
     ) -> TMatrix:
+        poltype = _resolve_poltype(poltype)
         layers = [Material(m) for m in materials]
         if not layers:
             raise ValueError("sphere requires layer materials and an embedding medium")
@@ -446,8 +499,9 @@ class TMatrixC(_TMatrix[CylindricalWaveBasis]):
         k0: float,
         radii: ArrayLike,
         materials: Sequence[MaterialLike],
-        poltype: str = "helicity",
+        poltype: str | None = None,
     ) -> TMatrixC:
+        poltype = _resolve_poltype(poltype)
         layers = [Material(m) for m in materials]
         if not layers:
             raise ValueError(
