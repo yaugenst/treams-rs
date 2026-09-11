@@ -4,7 +4,10 @@
 use nalgebra::DMatrix;
 use rayon::prelude::*;
 
-use crate::{Complex, Error, Result, finite, jet::Jet, special::angular_jets, waves::Mode};
+use crate::{
+    Complex, Error, Result, fields::FieldBasis, finite, jet::Jet, special::angular_jets,
+    waves::Mode,
+};
 
 // Scale before squaring or dividing: nearly axial directions may have transverse
 // components small enough that their squares underflow while their azimuth matters.
@@ -227,42 +230,61 @@ pub fn spherical(
         .collect()
 }
 
+#[allow(clippy::float_cmp)] // Axial wavenumbers are exact static mode labels.
+fn cylindrical_coefficient<const N: usize>(
+    mode: crate::cylwaves::Mode,
+    vector: [Complex; 3],
+    direction: &Direction<N>,
+    pol: u8,
+) -> Jet<N> {
+    if mode.pol != pol || Complex::new(mode.kz, 0.0) != vector[2] {
+        Jet::default()
+    } else if direction.transverse.value == Complex::default() {
+        Jet::constant(Complex::i().powi(mode.m))
+    } else {
+        (Complex::i() * direction.xy[0] + direction.xy[1]).powi(mode.m)
+    }
+}
+
 /// Regular cylindrical multipole amplitudes of one plane wave.
-#[allow(clippy::float_cmp)] // kz is an exact basis mode label, not a tolerance match.
 pub fn cylindrical(
     basis: &crate::cylwaves::Basis,
     vector: [Complex; 3],
     pol: u8,
 ) -> Result<Vec<Complex>> {
     basis.validate()?;
-    let (_, _, xy) = wavenumbers(vector)?;
+    let direction = Direction::<0>::new(vector)?;
     if pol > 1 || vector[2].im != 0.0 {
         return Err(Error::InvalidInput(
             "cylindrical expansion requires real axial wavenumber and polarization 0 or 1".into(),
         ));
     }
-    basis
+    Ok(basis
         .modes
         .iter()
         .map(|&(origin, mode)| {
-            if mode.pol != pol || mode.kz != vector[2].re {
-                return Ok(Complex::default());
-            }
-            let angular = if xy == [Complex::default(); 2] {
-                Complex::i().powi(mode.m)
-            } else {
-                (Complex::i() * xy[0] + xy[1]).powi(mode.m)
-            };
-            let phase = (Complex::i()
-                * vector
-                    .iter()
-                    .zip(basis.positions[origin])
-                    .map(|(k, r)| k * r)
-                    .sum::<Complex>())
-            .exp();
-            Ok(phase * angular)
+            phase(vector, basis.positions[origin])
+                * cylindrical_coefficient(mode, vector, &direction, pol).value
         })
-        .collect()
+        .collect())
+}
+
+impl FieldBasis {
+    fn plane_coefficient<const N: usize>(
+        &self,
+        i: usize,
+        vector: [Complex; 3],
+        direction: &Direction<N>,
+        pol: u8,
+        helicity: bool,
+    ) -> Jet<N> {
+        match self {
+            Self::Spherical(b) => {
+                spherical_coefficient(b.modes[i].1, vector, direction, pol, helicity)
+            }
+            Self::Cylindrical(b) => cylindrical_coefficient(b.modes[i].1, vector, direction, pol),
+        }
+    }
 }
 
 /// Geometry retained for weighted plane fields or their full sampling operator.
@@ -454,10 +476,10 @@ impl FieldResidual {
     }
 }
 
-/// Inputs retained for plane-to-spherical conversion; no output Jacobian is stored.
+/// Inputs retained for plane-to-multipole conversion; no output Jacobian is stored.
 #[derive(Debug)]
 pub struct ExpansionResidual {
-    basis: crate::basis::Basis,
+    basis: FieldBasis,
     vectors: Vec<[Complex; 3]>,
     polarizations: Vec<u8>,
     helicity: bool,
@@ -465,39 +487,47 @@ pub struct ExpansionResidual {
 /// Plane-expansion cotangents.
 #[derive(Debug)]
 pub struct ExpansionGradient {
-    /// Spherical origin cotangents.
+    /// Multipole origin cotangents.
     pub origins: Vec<[f64; 3]>,
     /// Full complex plane-wavevector cotangents.
     pub vectors: Vec<[Complex; 3]>,
 }
-/// Expand multiple plane waves in a regular spherical basis.
+/// Expand multiple plane waves in a regular multipole basis.
 pub fn expansion(
-    basis: crate::basis::Basis,
+    basis: impl Into<FieldBasis>,
     vectors: Vec<[Complex; 3]>,
     polarizations: Vec<u8>,
     helicity: bool,
 ) -> Result<(DMatrix<Complex>, ExpansionResidual)> {
+    let basis = basis.into();
     basis.validate()?;
     if vectors.is_empty()
         || vectors.len() != polarizations.len()
         || polarizations.iter().any(|&p| p > 1)
+        || (matches!(basis, FieldBasis::Cylindrical(_)) && vectors.iter().any(|k| k[2].im != 0.0))
     {
         return Err(Error::InvalidInput(
-            "require nonempty plane vectors and matching polarizations 0/1".into(),
+            "require nonempty plane vectors and matching polarizations 0/1; cylindrical axial labels must be real".into(),
         ));
     }
-    let mut value = DMatrix::zeros(basis.modes.len(), vectors.len());
+    let mut value = DMatrix::zeros(basis.len(), vectors.len());
     value
         .as_mut_slice()
-        .par_chunks_mut(basis.modes.len())
+        .par_chunks_mut(basis.len())
         .enumerate()
         .try_for_each(|(j, column)| -> Result<()> {
             let direction = Direction::<0>::new(vectors[j])?;
-            for (out, &(p, mode)) in column.iter_mut().zip(&basis.modes) {
-                *out =
-                    spherical_coefficient(mode, vectors[j], &direction, polarizations[j], helicity)
-                        .value
-                        * phase(vectors[j], basis.positions[p]);
+            let phases: Vec<_> = basis
+                .origins()
+                .iter()
+                .map(|&p| phase(vectors[j], p))
+                .collect();
+            for (i, out) in column.iter_mut().enumerate() {
+                let p = basis.origin_pol(i).0;
+                *out = basis
+                    .plane_coefficient(i, vectors[j], &direction, polarizations[j], helicity)
+                    .value
+                    * phases[p];
             }
             Ok(())
         })?;
@@ -512,10 +542,10 @@ pub fn expansion(
     ))
 }
 impl ExpansionResidual {
-    /// Spherical output and plane input mode counts.
+    /// Multipole output and plane input mode counts.
     #[must_use]
     pub fn shape(&self) -> (usize, usize) {
-        (self.basis.modes.len(), self.vectors.len())
+        (self.basis.len(), self.vectors.len())
     }
     /// Differentiate origin phases and the full direction-dependent angular coefficient.
     pub fn pullback(self, g: &DMatrix<Complex>, fixed_vectors: bool) -> Result<ExpansionGradient> {
@@ -525,7 +555,7 @@ impl ExpansionResidual {
             ));
         }
         let zero = || ExpansionGradient {
-            origins: vec![[0.0; 3]; self.basis.positions.len()],
+            origins: vec![[0.0; 3]; self.basis.origins().len()],
             vectors: vec![[Complex::default(); 3]; self.vectors.len()],
         };
         self.vectors
@@ -542,21 +572,30 @@ impl ExpansionResidual {
                 } else {
                     Direction::<3>::new(vector)?
                 };
-                for (i, &(p, mode)) in self.basis.modes.iter().enumerate() {
-                    let position = self.basis.positions[p];
-                    let angular = spherical_coefficient(
-                        mode,
+                let phases: Vec<_> = self
+                    .basis
+                    .origins()
+                    .iter()
+                    .map(|&p| phase(vector, p))
+                    .collect();
+                for i in 0..self.basis.len() {
+                    let p = self.basis.origin_pol(i).0;
+                    let position = self.basis.origins()[p];
+                    let angular = self.basis.plane_coefficient(
+                        i,
                         vector,
                         &direction,
                         self.polarizations[j],
                         self.helicity,
                     );
-                    let phase = phase(vector, position);
+                    let phase = phases[p];
                     let value = phase * angular.value;
                     for axis in 0..3 {
                         result.origins[p][axis] +=
                             (g[(i, j)].conj() * value * Complex::i() * vector[axis]).re;
-                        if !fixed_vectors {
+                        if !fixed_vectors
+                            && (axis < 2 || matches!(self.basis, FieldBasis::Spherical(_)))
+                        {
                             result.vectors[j][axis] += g[(i, j)]
                                 * (phase
                                     * (angular.derivative[axis]

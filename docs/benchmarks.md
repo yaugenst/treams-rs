@@ -235,3 +235,22 @@ parameter Jacobian is retained. Results do not imply this speedup for every arra
 Raw results on [redacted-host]: `/tmp/cylindrical-array-converged-n4-m5-t4.json`
 and `/tmp/cylindrical-array-converged-n9-m3-t4.json`. Reproduce with
 `--workload cylindrical-array --particles 9 --lmax 3 --threads 4 --repeats 7`.
+
+## Cylindrical plane illumination and phase reuse
+
+Four origins, mmax=12 (200 cylindrical modes), kz=0.2, and 128 transverse
+vectors with both polarizations (256 plane modes). Four matched threads, seven
+samples after warmup, complete matrix checked against treams. Rust takes 0.220 ms
+versus 6.376 ms (**28.9x**); the native origin/transverse-wavevector reverse takes
+0.446 ms. Forward peak RSS is 39.9 MiB versus 67.7 MiB.
+
+The initial implementation took 0.377 ms forward and 0.537 ms reverse. Reusing
+each origin phase across its multipoles reduced both. The same change improves
+spherical plane illumination: the previously described two-origin, lmax=8 case
+now takes 0.494 ms versus 14.143 ms (**28.6x**), with 1.163 ms reverse.
+Cylindrical axial labels remain fixed in these gradients.
+
+Raw results: `/tmp/cylindrical-plane-expansion-n4-m12-k128-t4.json` and
+`/tmp/plane-expansion-phases-n2-l8-k64-t4.json` on [redacted-host]. The cylindrical
+case uses `--workload cylindrical-plane-expansion --particles 4 --lmax 12
+--samples 128 --threads 4 --repeats 7`.

@@ -20,6 +20,21 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    fn cylindrical_plane_expansion_scale_adjoint(kx in 0.1_f64..0.7, x in -0.3_f64..0.3, helicity in any::<bool>()) {
+        let basis=crate::cylwaves::Basis{modes:(-3..=3).flat_map(|m|(0..2).map(move|pol|(0,crate::cylwaves::Mode{kz:0.0,m,pol}))).collect(),positions:vec![[x,0.1,0.2]]};
+        let vectors=vec![[Complex::new(kx,0.1),Complex::new(0.3,0.2),Complex::default()]];
+        let (value,residual)=crate::plane::expansion(basis.clone(),vectors.clone(),vec![1],helicity).unwrap();
+        let g=DMatrix::from_element(value.nrows(),1,Complex::new(0.2,0.1));
+        let gradient=residual.pullback(&g,false).unwrap();
+        let spatial:f64=gradient.origins.iter().flatten().zip(basis.positions.iter().flatten()).map(|(g,x)|g*x).sum();
+        let spectral:f64=gradient.vectors.iter().flatten().zip(vectors.iter().flatten()).map(|(g,k)|(g.conj()*k).re).sum();
+        prop_assert!((spatial-spectral).abs()<1e-10);
+        let scaled=crate::cylwaves::Basis{positions:basis.positions.iter().map(|p|p.map(|x|x*1.7)).collect(),..basis};
+        let (other,_)=crate::plane::expansion(scaled,vectors.iter().map(|v|v.map(|k|k/1.7)).collect(),vec![1],helicity).unwrap();
+        prop_assert!((value-other).norm()<1e-10);
+    }
+
+    #[test]
     fn cylindrical_channels_scale_and_period_adjoint(k in 1.0_f64..2.0, period in 1.3_f64..2.2, x in -0.3_f64..0.3) {
         let basis=crate::cylwaves::Basis{modes:(-3..=3).flat_map(|m|(0..2).map(move|pol|(0,crate::cylwaves::Mode{kz:0.0,m,pol}))).collect(),positions:vec![[x,0.1,0.2]]};
         let q=vec![[0.0,0.2],[0.0,2.5]];

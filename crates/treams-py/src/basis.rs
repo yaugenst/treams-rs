@@ -386,6 +386,32 @@ fn plane_expansion(
     let (value, residual) = py
         .detach(move || treams_core::plane::expansion(basis, vectors, polarizations, helicity))
         .map_err(error)?;
+    finish_plane_expansion(py, value, residual, fixed_vectors)
+}
+
+#[pyfunction]
+fn cylindrical_plane_expansion(
+    py: Python<'_>,
+    modes: Vec<(usize, f64, i32, u8)>,
+    origins: Vec<[f64; 3]>,
+    vectors: Vec<[Complex; 3]>,
+    polarizations: Vec<u8>,
+    helicity: bool,
+    fixed_vectors: bool,
+) -> PyResult<(Bound<'_, PyArray2<Complex>>, PlaneExpansionContext)> {
+    let basis = make_cyl_basis(modes, origins);
+    let (value, residual) = py
+        .detach(move || treams_core::plane::expansion(basis, vectors, polarizations, helicity))
+        .map_err(error)?;
+    finish_plane_expansion(py, value, residual, fixed_vectors)
+}
+
+fn finish_plane_expansion(
+    py: Python<'_>,
+    value: nalgebra::DMatrix<Complex>,
+    residual: treams_core::plane::ExpansionResidual,
+    fixed_vectors: bool,
+) -> PyResult<(Bound<'_, PyArray2<Complex>>, PlaneExpansionContext)> {
     let array = Array2::from_shape_vec((value.ncols(), value.nrows()), Vec::from(value.data))
         .map_err(|e| PyValueError::new_err(e.to_string()))?
         .reversed_axes()
@@ -402,6 +428,7 @@ fn plane_expansion(
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PlaneExpansionContext>()?;
     m.add_function(wrap_pyfunction!(plane_expansion, m)?)?;
+    m.add_function(wrap_pyfunction!(cylindrical_plane_expansion, m)?)?;
     m.add_class::<RotationContext>()?;
     m.add_function(wrap_pyfunction!(rotation, m)?)?;
     m.add_function(wrap_pyfunction!(cyl_rotation, m)?)?;

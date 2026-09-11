@@ -16,7 +16,7 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 | Testing | Native proptest invariants and adjoint identities; Hypothesis physical invariants; treams/SciPy reference comparisons; complete Python workflows | Expand qualification with every ported subsystem |
 | Performance | Cached angular plans and radial tables, faer LU and matmul, block-diagonal local storage, Rayon coupling assembly | See measured scope and limitations in benchmarks.md |
 | Cylindrical scattering | Complex J/H and derivatives; multilayer chiral coefficients and complete T-matrix with all parameter VJPs; cylindrical bases, translations, clusters, electric fields and cross widths; regular spherical conversion; periodic plane-wave radiation and adjoints | Broader cutoff qualification |
-| Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections; full unit-vector and xy/yz/zx component plane bases, diffraction orders, native Cartesian fields and slab illumination | Cylindrical plane-expansion VJPs |
+| Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections; full unit-vector and xy/yz/zx component plane bases, diffraction orders, native Cartesian fields and slab illumination; spherical/cylindrical illumination VJPs | Broader constrained-incidence workflows |
 | Planar layers | Native chiral Fresnel coefficients and propagation; one-LU S-matrix composition with reused-factor adjoint; interfaces, multilayer slabs, stacking/doubling, polarization conversion and power-flux transmittance/reflectance | Oriented interfaces, internal-field convenience; full SMatrix annotation API |
 | Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D; periodic coupling and solves; spherical 2D and cylindrical 1D particle-to-plane channels and S matrices; complete native pullbacks and Advect reflectance gradients; direct-sum, reference, energy, Bloch/split/scale invariants | Broader combined particle/layer workflows |
 | Remaining public API | Not implemented | Field-operator conveniences, EBCM, band calculations, I/O and remaining observables |
@@ -176,3 +176,13 @@ sides and polarization conventions. Equal medium wavenumbers share cylindrical
 Ewald evaluation without merging their separate wavenumber gradients. A large-cell
 regression checks split independence against a converged reference; upstream's
 automatic split loses accuracy for that case.
+
+`diff.plane_expansion` and `advect.plane_expansion` now share the same native
+forward/pullback for spherical and cylindrical destinations. Cylindrical vector
+axial components are exact, fixed labels with zero cotangents; transverse complex
+components and every origin component are differentiated. Tests cover up/down,
+helicity/parity, lossy/chiral media, field reconstruction, scale invariants and
+complete Advect cylinder illumination, scattering and total-field intensity.
+Origin phases are computed once per plane/origin pair in both directions rather
+than repeated for every multipole. The matrix buffer transfers directly to NumPy;
+the residual holds only inputs.

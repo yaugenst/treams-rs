@@ -28,25 +28,25 @@ impl From<crate::cylwaves::Basis> for FieldBasis {
     }
 }
 impl FieldBasis {
-    fn validate(&self) -> Result<()> {
+    pub(crate) fn validate(&self) -> Result<()> {
         match self {
             Self::Spherical(b) => b.validate(),
             Self::Cylindrical(b) => b.validate(),
         }
     }
-    fn origins(&self) -> &[[f64; 3]] {
+    pub(crate) fn origins(&self) -> &[[f64; 3]] {
         match self {
             Self::Spherical(b) => &b.positions,
             Self::Cylindrical(b) => &b.positions,
         }
     }
-    fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         match self {
             Self::Spherical(b) => b.modes.len(),
             Self::Cylindrical(b) => b.modes.len(),
         }
     }
-    fn origin_pol(&self, i: usize) -> (usize, usize) {
+    pub(crate) fn origin_pol(&self, i: usize) -> (usize, usize) {
         match self {
             Self::Spherical(b) => (b.modes[i].0, usize::from(b.modes[i].1.pol)),
             Self::Cylindrical(b) => (b.modes[i].0, usize::from(b.modes[i].1.pol)),

@@ -129,3 +129,13 @@ np.testing.assert_allclose(
 print(
     "Clean wheel: cylindrical array power and native radiation period gradient passed"
 )
+
+
+cincident = tr.expand((cylinder.basis, cports), k0=1.3)
+cvectors = np.column_stack(cports.kvecs(1.3))
+np.testing.assert_allclose(
+    cincident,
+    tr.diff.plane_expansion(cylinder.basis, cvectors, cports.pol)[0],
+    atol=1e-14,
+)
+print("Clean wheel: cylindrical plane-illumination operator passed")

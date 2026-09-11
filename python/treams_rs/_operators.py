@@ -8,6 +8,7 @@ import numpy as np
 
 from . import diff
 from ._core import (
+    CylindricalWaveBasis,
     Material,
     PlaneWaveBasisByComp,
     PlaneWaveBasisByUnitVector,
@@ -17,7 +18,7 @@ from ._core import (
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
 
-    from ._core import CylindricalWaveBasis, MaterialLike
+    from ._core import MaterialLike
 
     type Basis = SphericalWaveBasis | CylindricalWaveBasis
     type FieldBasis = Basis | PlaneWaveBasisByComp | PlaneWaveBasisByUnitVector
@@ -45,10 +46,8 @@ def expand(
     """
     destination, source = basis if isinstance(basis, tuple) else (basis, basis)
     if isinstance(source, (PlaneWaveBasisByComp, PlaneWaveBasisByUnitVector)):
-        if not isinstance(destination, SphericalWaveBasis):
-            raise ValueError(
-                "plane expansion currently requires a spherical destination"
-            )
+        if not isinstance(destination, (SphericalWaveBasis, CylindricalWaveBasis)):
+            raise ValueError("plane expansion requires a multipole destination")
         medium = Material(material)
         if not np.isfinite(k0) or k0 <= 0 or (poltype == "parity" and medium.ischiral):
             raise ValueError(

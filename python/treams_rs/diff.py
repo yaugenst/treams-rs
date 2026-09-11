@@ -333,15 +333,16 @@ def plane_field(
 
 
 def plane_expansion(
-    destination: SphericalWaveBasis,
+    destination: SphericalWaveBasis | CylindricalWaveBasis,
     vectors: ArrayLike,
     polarizations: ArrayLike,
     *,
     poltype: str = "helicity",
     fixed_vectors: bool = False,
 ) -> tuple[NDArray[np.complex128], _native.PlaneExpansionContext]:
-    """Regular plane-to-spherical expansion; VJP returns (origins, full wavevectors).
+    """Regular plane-to-multipole expansion; VJP returns (origins, wavevectors).
 
+    Cylindrical axial components are fixed labels with zero cotangents.
     At axial propagation, fixed_vectors enables origin gradients at fixed incidence.
     """
     if poltype not in ("helicity", "parity"):
@@ -349,6 +350,15 @@ def plane_expansion(
     pols = np.asarray(polarizations)
     if not np.all((pols == 0) | (pols == 1)):
         raise ValueError("polarizations must be 0 or 1")
+    if isinstance(destination, CylindricalWaveBasis):
+        return _native.cylindrical_plane_expansion(
+            list(destination.modes),
+            destination.positions.tolist(),
+            np.asarray(vectors, dtype=np.complex128).tolist(),
+            pols.astype(np.int64).tolist(),
+            poltype == "helicity",
+            fixed_vectors,
+        )
     return _native.plane_expansion(
         list(destination.modes),
         destination.positions.tolist(),

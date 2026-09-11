@@ -463,12 +463,12 @@ def plane_expansion(
     origins: ArrayLike,
     vectors: ArrayLike,
     *,
-    destination: SphericalWaveBasis,
+    destination: SphericalWaveBasis | CylindricalWaveBasis,
     polarizations: ArrayLike,
     poltype: str = "helicity",
     fixed_vectors: bool = False,
 ) -> NDArray[np.complex128]:
-    """Plane-to-spherical illumination with native origin and wavevector pullbacks."""
+    """Plane-to-multipole illumination with native origin and wavevector pullbacks."""
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
         value, context = diff.plane_expansion(

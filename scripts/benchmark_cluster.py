@@ -106,6 +106,18 @@ def worker(
             if backend in ("treams", "check"):
                 oracle_source = treams.PlaneWaveBasisByComp.default(q)
 
+        if workload == "cylindrical-plane-expansion":
+            q = np.column_stack([np.full(samples, 0.2), np.linspace(0.1, 1.7, samples)])
+            if backend in ("rust", "check"):
+                basis = CylindricalWaveBasis.default([0.2], order, particles, positions)
+                source_basis = PlaneWaveBasisByComp.default(q, "zx")
+                vectors = np.column_stack(source_basis.kvecs(1.3))
+            if backend in ("treams", "check"):
+                oracle_basis = treams.CylindricalWaveBasis.default(
+                    [0.2], order, particles, positions
+                )
+                oracle_source = treams.PlaneWaveBasisByComp.default(q, "zx")
+
         if workload in ("periodic", "array"):
             width = int(np.ceil(np.sqrt(particles)))
             positions = (
@@ -178,7 +190,7 @@ def worker(
         eta = 0.7 if workload == "cylindrical-array" else 0
 
         def rust():
-            if workload == "plane-expansion":
+            if workload in ("plane-expansion", "cylindrical-plane-expansion"):
                 return diff.plane_expansion(basis, vectors, source_basis.pol)
             if workload in ("plane-field", "plane-operator"):
                 return diff.plane_field(
@@ -203,7 +215,8 @@ def worker(
                 for index, (radius, eps) in enumerate(zip(radii, epsilon, strict=True)):
                     value, context = (
                         diff.cylinder([0.2], order, 1.3, [radius], [eps, 1])
-                        if workload == "cylindrical-array"
+                        if workload
+                        in ("cylindrical-array", "cylindrical-plane-expansion")
                         else diff.sphere(order, 1.3, [radius], [eps, 1])
                     )
                     contexts.append(context)
@@ -239,7 +252,7 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
-            if workload == "plane-expansion":
+            if workload in ("plane-expansion", "cylindrical-plane-expansion"):
                 return treams.expand((oracle_basis, oracle_source), k0=1.3)
             if workload in ("plane-field", "plane-operator"):
                 operator = np.asarray(
@@ -407,6 +420,7 @@ def worker(
                         "plane-field",
                         "plane-operator",
                         "plane-expansion",
+                        "cylindrical-plane-expansion",
                     )
                     else None,
                     "particles": particles,
@@ -418,7 +432,8 @@ def worker(
                         else 4 * (2 * order + 1)
                         if workload == "cylindrical-field"
                         else 2 * (2 * order + 1)
-                        if workload == "cylindrical-array"
+                        if workload
+                        in ("cylindrical-array", "cylindrical-plane-expansion")
                         else 2 * order * (order + 2)
                     ),
                     "threads": threads,
@@ -455,6 +470,7 @@ def main() -> None:
             "plane-field",
             "plane-operator",
             "plane-expansion",
+            "cylindrical-plane-expansion",
             "cylindrical-array",
         ],
         default="cluster",
