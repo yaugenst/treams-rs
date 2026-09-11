@@ -78,3 +78,24 @@ np.testing.assert_allclose(
     rtol=1e-12,
 )
 print("Clean wheel: cylindrical field operator and magnetic impedance gradient passed")
+
+
+plane = tr.PlaneWaveBasisByComp.default([[0.2, 0.3], [1.5, -0.1]])
+vectors = np.column_stack(plane.kvecs(1.3))
+operator = tr.efield(points, basis=plane, k0=1.3)
+np.testing.assert_allclose(
+    operator, tr.diff.plane_field(None, points, vectors, plane.pol)[0], rtol=1e-12
+)
+
+
+def plane_energy(scale):
+    field = ad.plane_field(
+        np.ones(len(plane)), points / scale, vectors * scale, polarizations=plane.pol
+    )
+    return anp.sum(anp.real(field * anp.conj(field)))
+
+
+np.testing.assert_allclose(advect.grad(plane_energy)(np.array(1.0)), 0, atol=1e-12)
+print(
+    "Clean wheel: plane operator and Advect coordinate/wavevector scale identity passed"
+)

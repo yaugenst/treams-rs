@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from . import _native
+from . import _native, diff
 from ._core import (
     CylindricalWaveBasis,
     Material,
@@ -95,6 +95,21 @@ class PlaneWave:
     @property
     def kvecs(self) -> NDArray[np.complex128]:
         return self.material.ks(self.k0)[:, None] * self.direction
+
+    def efield(self, r: ArrayLike) -> NDArray[np.complex128]:
+        """Cartesian samples using the native weighted plane-field kernel."""
+        points = np.asarray(r, dtype=np.float64)
+        if points.ndim == 0 or points.shape[-1] != 3:
+            raise ValueError("require Cartesian field points (..., 3)")
+        value, _ = diff.plane_field(
+            self.amplitudes,
+            points.reshape(-1, 3),
+            self.kvecs,
+            [0, 1],
+            poltype=self.poltype,
+            fixed_vectors=True,
+        )
+        return value.reshape(points.shape)
 
     def expand(
         self, basis: SphericalWaveBasis | CylindricalWaveBasis | PlaneWaveBasisByComp

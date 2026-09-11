@@ -298,3 +298,35 @@ def cylinder(
         if kappa is None
         else np.ascontiguousarray(kappa, dtype=np.complex128),
     )
+
+
+def plane_field(
+    coefficients: ArrayLike | None,
+    points: ArrayLike,
+    vectors: ArrayLike,
+    polarizations: ArrayLike,
+    *,
+    poltype: str = "helicity",
+    fixed_vectors: bool = False,
+) -> tuple[NDArray[np.complex128], _native.PlaneFieldContext]:
+    """Weighted Cartesian plane fields or their full operator when coefficients=None.
+
+    Pullback returns (amplitudes, points, full complex wavevectors). The amplitude
+    gradient is empty for an operator. Use fixed_vectors at the polarization axis,
+    where a full direction derivative is undefined in the upstream convention.
+    """
+    if poltype not in ("helicity", "parity"):
+        raise ValueError("invalid polarization type")
+    pols = np.asarray(polarizations)
+    if not np.all((pols == 0) | (pols == 1)):
+        raise ValueError("polarizations must be 0 or 1")
+    return _native.plane_field(
+        np.ascontiguousarray(vectors, dtype=np.complex128),
+        pols.astype(np.int64).tolist(),
+        np.ascontiguousarray(points, dtype=np.float64),
+        None
+        if coefficients is None
+        else np.ascontiguousarray(coefficients, dtype=np.complex128),
+        poltype == "helicity",
+        fixed_vectors,
+    )

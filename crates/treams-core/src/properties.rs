@@ -20,6 +20,28 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    #[allow(clippy::indexing_slicing)] // Fixed two-mode matrix and Cartesian triples.
+    fn plane_field_operator_and_scale_adjoint(kx in 0.1_f64..0.7, x in -0.5_f64..0.5, helicity in any::<bool>()) {
+        let vectors=vec![[Complex::new(kx,0.0),Complex::new(0.2,0.0),Complex::new(1.3,0.1)],[Complex::new(1.5,0.0),Complex::new(-0.1,0.0),Complex::new(0.0,0.2)]];
+        let points=vec![[x,0.2,0.1],[0.3,-0.1,0.2]];
+        let coefficients=vec![Complex::new(0.7,0.1),Complex::new(-0.2,0.3)];
+        let (matrix,operator)=crate::plane::field(vectors.clone(),vec![0,1],points.clone(),None,helicity).unwrap();
+        let (value,weighted)=crate::plane::field(vectors.clone(),vec![0,1],points.clone(),Some(coefficients.clone()),helicity).unwrap();
+        prop_assert!((&matrix*nalgebra::DVector::from_vec(coefficients.clone())-&value).norm()<1e-12);
+        let g=DMatrix::from_element(6,1,Complex::new(0.2,0.1));
+        let full_g=DMatrix::from_fn(6,2,|i,j|g[(i,0)]*coefficients[j].conj());
+        let a=operator.pullback(&full_g,false).unwrap();
+        let b=weighted.pullback(&g,false).unwrap();
+        for (a,b) in a.points.iter().flatten().zip(b.points.iter().flatten()) {prop_assert!((a-b).abs()<1e-12);}
+        for (a,b) in a.vectors.iter().flatten().zip(b.vectors.iter().flatten()) {prop_assert!((*a-b).norm()<1e-12);}
+        let spatial:f64=b.points.iter().flatten().zip(points.iter().flatten()).map(|(g,p)|g*p).sum();
+        let spectral:f64=b.vectors.iter().flatten().zip(vectors.iter().flatten()).map(|(g,k)|(g.conj()*k).re).sum();
+        prop_assert!((spatial-spectral).abs()<1e-12);
+        let amplitude:f64=b.coefficients.iter().zip(&coefficients).map(|(g,c)|(g.conj()*c).re).sum();
+        prop_assert!((amplitude-g.dotc(&value).re).abs()<1e-12);
+    }
+
+    #[test]
     #[allow(clippy::indexing_slicing)] // Fixed Cartesian triples and two helicities.
     fn conversion_field_and_adjoint(m in -2_i32..3, kz in -0.7_f64..0.7, x in -0.3_f64..0.3, helicity in any::<bool>()) {
         let destination=crate::basis::Basis{modes:(1..=8).flat_map(|l|(-l..=l).flat_map(move|m|(0..2).map(move|pol|(0,Mode{l,m,pol})))).collect(),positions:vec![[x,0.1,-0.2]]};

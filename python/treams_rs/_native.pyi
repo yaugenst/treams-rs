@@ -334,3 +334,17 @@ class PeriodicContext:
     def pullback(
         self, cotangent: ComplexArray
     ) -> tuple[RealArray, RealArray, ComplexArray, RealArray, RealArray]: ...
+
+class PlaneFieldContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[ComplexArray, RealArray, ComplexArray]: ...
+
+def plane_field(
+    vectors: ComplexArray,
+    polarizations: list[int],
+    points: RealArray,
+    coefficients: ComplexArray | None,
+    helicity: bool,
+    fixed_vectors: bool,
+) -> tuple[ComplexArray, PlaneFieldContext]: ...

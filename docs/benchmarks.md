@@ -164,3 +164,34 @@ times without suppressing adjacent-order position derivatives. This measurement
 covers common-origin conversion; it does not establish displaced-origin speedup.
 Raw results: `/tmp/conversion-before-l12-k32-t4.json` and
 `/tmp/conversion-l12-k32-t4.json` on [redacted-host].
+
+## Plane fields and direct NumPy buffer transfer
+
+Four matched threads, 128 plane modes (64 transverse vectors, both polarizations),
+4,096 Cartesian samples, including propagating and evanescent waves at k0=1.3.
+Every benchmark first compares the full result against upstream.
+
+| Output | treams forward | Rust forward | Speedup | Rust reverse | Forward peak RSS, treams / Rust |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Weighted plane field | 139.37 ms | 1.95 ms | 71.5x | 3.58 ms | 88.3 / 42.1 MiB |
+| Full plane field operator | 137.13 ms | 2.70 ms | 50.7x | 9.76 ms | 88.1 / 65.7 MiB |
+
+The initial weighted reverse pass took 6.10 ms. Contracting polarization
+cotangents over all samples before differentiating each mode reduced it to 3.58 ms.
+The initial full operator took 13.32 ms forward and 89.4 MiB peak RSS: transferring
+the owned Rust buffer directly to NumPy removes that extra copy. Its final reverse
+pass packs the returned stride layout with a bulk copy and still accepts arbitrary
+cotangent strides. These are complete Python/native boundary timings, including
+input conversion, output transfer and residual creation. No output Jacobian is
+retained. Seven samples after warmup; process and scheduling variability remain.
+
+The same buffer transfer applies to multipole field operators. Rechecking four
+spherical origins, lmax=3 and 2,048 points gives 823.02 / 42.83 ms (19.2x), with
+75.81 ms reverse and 97.1 / 53.5 MiB forward peak RSS. The earlier copying path used
+64.2 MiB for Rust. Weighted multipole fields already avoid the full operator.
+
+Raw results on [redacted-host]: `/tmp/plane-field-d128-p4096-t4.json`,
+`/tmp/plane-operator-packed-d128-p4096-t4.json` and
+`/tmp/field-operator-zero-copy-n4-l3-p2048-t4.json`. Development baselines include
+`/tmp/plane-field-before-d128-p4096-t4.json` and
+`/tmp/plane-operator-d128-p4096-t4.json`.

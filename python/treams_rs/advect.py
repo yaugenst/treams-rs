@@ -420,3 +420,40 @@ def lattice_expansion(
         return value, context.pullback
 
     return _call((destination_positions, source_positions, ks, kpar, a), forward)
+
+
+def plane_field(
+    coefficients: ArrayLike | None,
+    points: ArrayLike,
+    vectors: ArrayLike,
+    *,
+    polarizations: ArrayLike,
+    poltype: str = "helicity",
+    fixed_vectors: bool = False,
+) -> NDArray[np.complex128]:
+    """Native plane field/operator, differentiable in amplitudes, points and wavevectors.
+
+    fixed_vectors removes the wavevectors from the differentiable inputs.
+    """
+    dynamic: _Values = (points,) if coefficients is None else (coefficients, points)
+    if not fixed_vectors:
+        dynamic += (vectors,)
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.plane_field(
+            None if coefficients is None else values[0],
+            values[0] if coefficients is None else values[1],
+            vectors if fixed_vectors else values[-1],
+            polarizations,
+            poltype=poltype,
+            fixed_vectors=fixed_vectors,
+        )
+
+        def pullback(g: NDArray[np.complex128]) -> _Values:
+            gc, gp, gk = context.pullback(g)
+            gradients: _Values = (gp,) if coefficients is None else (gc, gp)
+            return gradients if fixed_vectors else (*gradients, gk)
+
+        return value, pullback
+
+    return _call(dynamic, forward)

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from . import diff
-from ._core import Material
+from ._core import Material, PlaneWaveBasisByComp
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from ._core import CylindricalWaveBasis, MaterialLike, SphericalWaveBasis
 
     type Basis = SphericalWaveBasis | CylindricalWaveBasis
+    type FieldBasis = Basis | PlaneWaveBasisByComp
 
 
 def rotate(
@@ -66,7 +67,7 @@ def expand(
 def _field(
     kind: str,
     r: ArrayLike,
-    basis: Basis,
+    basis: FieldBasis,
     k0: float,
     material: MaterialLike,
     modetype: str | None,
@@ -78,17 +79,25 @@ def _field(
         raise ValueError(
             "require Cartesian field points (..., 3) and positive finite k0"
         )
-    modetype = "regular" if modetype is None else modetype
-    if modetype not in ("regular", "singular"):
-        raise ValueError("multipole fields require regular or singular waves")
+    plane = isinstance(basis, PlaneWaveBasisByComp)
+    modetype = ("up" if plane else "regular") if modetype is None else modetype
+    if modetype not in (("up", "down") if plane else ("regular", "singular")):
+        raise ValueError("invalid field mode type for this basis")
+    if poltype not in ("helicity", "parity") or (
+        poltype == "parity" and medium.ischiral
+    ):
+        raise ValueError("invalid polarization type for embedding medium")
     weights = np.ones(len(basis), dtype=np.complex128)
     if kind in ("H", "B"):
         weights *= -1j / medium.impedance
         if poltype == "helicity":
             weights *= 2 * basis.pol - 1
         else:
-            basis = type(basis)(
-                [(*mode[:3], 1 - mode[3]) for mode in basis.modes], basis.positions
+            modes = [(*mode[:-1], 1 - mode[-1]) for mode in basis.modes]
+            basis = (
+                type(basis)(modes)
+                if isinstance(basis, PlaneWaveBasisByComp)
+                else type(basis)(modes, basis.positions)
             )
     if kind == "D":
         weights *= (
@@ -102,20 +111,30 @@ def _field(
             if poltype == "helicity"
             else medium.mu
         )
-    value, _ = diff.field_operator(
-        points.reshape(-1, 3),
-        basis,
-        medium.ks(k0),
-        poltype=poltype,
-        singular=modetype == "singular",
-    )
+    if isinstance(basis, PlaneWaveBasisByComp):
+        value, _ = diff.plane_field(
+            None,
+            points.reshape(-1, 3),
+            np.column_stack(basis.kvecs(k0, medium, modetype)),
+            basis.pol,
+            poltype=poltype,
+            fixed_vectors=True,
+        )
+    else:
+        value, _ = diff.field_operator(
+            points.reshape(-1, 3),
+            basis,
+            medium.ks(k0),
+            poltype=poltype,
+            singular=modetype == "singular",
+        )
     return value.reshape((*points.shape[:-1], 3, len(basis))) * weights
 
 
 def efield(
     r: ArrayLike,
     *,
-    basis: Basis,
+    basis: FieldBasis,
     k0: float,
     material: MaterialLike = 1,
     modetype: str | None = None,
@@ -128,7 +147,7 @@ def efield(
 def hfield(
     r: ArrayLike,
     *,
-    basis: Basis,
+    basis: FieldBasis,
     k0: float,
     material: MaterialLike = 1,
     modetype: str | None = None,
@@ -141,7 +160,7 @@ def hfield(
 def dfield(
     r: ArrayLike,
     *,
-    basis: Basis,
+    basis: FieldBasis,
     k0: float,
     material: MaterialLike = 1,
     modetype: str | None = None,
@@ -154,7 +173,7 @@ def dfield(
 def bfield(
     r: ArrayLike,
     *,
-    basis: Basis,
+    basis: FieldBasis,
     k0: float,
     material: MaterialLike = 1,
     modetype: str | None = None,

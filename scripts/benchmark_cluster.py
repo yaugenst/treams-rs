@@ -53,6 +53,30 @@ def worker(
             [np.arange(particles) * 0.8, np.zeros((particles, 2))]
         )
 
+        if workload in ("plane-field", "plane-operator"):
+            q = np.column_stack(
+                [
+                    np.linspace(0.1, 1.7, particles * order),
+                    np.full(particles * order, 0.2),
+                ]
+            )
+            points = np.column_stack(
+                [
+                    np.linspace(0.1, 4, samples),
+                    np.full(samples, 0.3),
+                    np.full(samples, 0.4),
+                ]
+            )
+            rng = np.random.default_rng(5)
+            amplitudes = rng.normal(size=2 * particles * order) + 1j * rng.normal(
+                size=2 * particles * order
+            )
+            if backend in ("rust", "check"):
+                basis = PlaneWaveBasisByComp.default(q)
+                vectors = np.column_stack(basis.kvecs(1.3))
+            if backend in ("treams", "check"):
+                oracle_basis = treams.PlaneWaveBasisByComp.default(q)
+
         if workload == "conversion":
             if particles != 1:
                 raise ValueError(
@@ -127,6 +151,13 @@ def worker(
                 )
 
         def rust():
+            if workload in ("plane-field", "plane-operator"):
+                return diff.plane_field(
+                    None if workload == "plane-operator" else amplitudes,
+                    points,
+                    vectors,
+                    basis.pol,
+                )
             if workload == "conversion":
                 return diff.expansion(basis, source_basis, [1.3, 1.3])
             if workload == "rotation":
@@ -166,6 +197,13 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload in ("plane-field", "plane-operator"):
+                operator = np.asarray(
+                    treams.efield(points, basis=oracle_basis, k0=1.3, modetype="up")
+                )
+                return (
+                    operator if workload == "plane-operator" else operator @ amplitudes
+                )
             if workload == "conversion":
                 return treams.expand((oracle_basis, oracle_source), k0=1.3)
             if workload == "rotation":
@@ -280,7 +318,9 @@ def worker(
                     "lmax": order,
                     "dimension": particles
                     * (
-                        4 * (2 * order + 1)
+                        2 * order
+                        if workload in ("plane-field", "plane-operator")
+                        else 4 * (2 * order + 1)
                         if workload == "cylindrical-field"
                         else 2 * order * (order + 2)
                     ),
@@ -315,6 +355,8 @@ def main() -> None:
             "array",
             "rotation",
             "conversion",
+            "plane-field",
+            "plane-operator",
         ],
         default="cluster",
     )
