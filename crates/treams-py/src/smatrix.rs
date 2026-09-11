@@ -3,9 +3,9 @@
 
 use nalgebra::DMatrix;
 use numpy::{
-    IntoPyArray, PyArray1, PyArray2, PyArray4, PyArray5, PyReadonlyArray2, PyReadonlyArray4,
-    PyReadonlyArray5,
-    ndarray::{Array2, Array4, Array5},
+    IntoPyArray, PyArray1, PyArray2, PyArray3, PyArray4, PyArray5, PyReadonlyArray1,
+    PyReadonlyArray2, PyReadonlyArray3, PyReadonlyArray4, PyReadonlyArray5,
+    ndarray::{Array2, Array3, Array4, Array5, s},
 };
 use pyo3::{exceptions::PyValueError, prelude::*};
 use treams_core::{
@@ -27,12 +27,14 @@ fn from_array(value: PyReadonlyArray4<'_, Complex>) -> PyResult<Blocks> {
         return Err(PyValueError::new_err("S matrices must be finite"));
     }
     Ok(std::array::from_fn(|b| {
-        DMatrix::from_fn(s[2], s[3], |i, j| a[(b / 2, b % 2, i, j)])
+        crate::tmatrix::matrix_from_view(a.slice(s![b / 2, b % 2, .., ..]))
     }))
 }
 fn array<'py>(py: Python<'py>, value: &Blocks) -> Bound<'py, PyArray4<Complex>> {
     let (d, c) = value[0].shape();
-    Array4::from_shape_fn((2, 2, d, c), |(a, b, i, j)| value[2 * a + b][(i, j)]).into_pyarray(py)
+    Array4::from_shape_fn((2, 2, c, d), |(a, b, j, i)| value[2 * a + b][(i, j)])
+        .permuted_axes([0, 1, 3, 2])
+        .into_pyarray(py)
 }
 
 #[pyclass]
@@ -147,6 +149,12 @@ fn smatrix_add<'py>(
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<IlluminationContext>()?;
+    module.add_class::<SMatrixPeriodicContext>()?;
+    module.add_class::<BandContext>()?;
+    module.add_function(wrap_pyfunction!(smatrix_illuminate, module)?)?;
+    module.add_function(wrap_pyfunction!(smatrix_periodic, module)?)?;
+    module.add_function(wrap_pyfunction!(bands, module)?)?;
     module.add_class::<ArrayContext>()?;
     module.add_function(wrap_pyfunction!(smatrix_from_array, module)?)?;
     module.add_class::<SMatrixContext>()?;
@@ -160,6 +168,191 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(interface, module)?)?;
     module.add_function(wrap_pyfunction!(propagation, module)?)?;
     Ok(())
+}
+
+#[pyclass]
+#[derive(Debug)]
+struct IlluminationContext {
+    residual: Option<smatrix::IlluminationResidual>,
+}
+
+type IlluminationGradient<'py> = (
+    Bound<'py, PyArray4<Complex>>,
+    Bound<'py, PyArray4<Complex>>,
+    Bound<'py, PyArray2<Complex>>,
+    Bound<'py, PyArray2<Complex>>,
+);
+
+#[pymethods]
+impl IlluminationContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray3<'py, Complex>,
+    ) -> PyResult<IlluminationGradient<'py>> {
+        let residual = self
+            .residual
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let (n, p) = residual.shape();
+        let a = cotangent.as_array();
+        if a.dim() != (4, n, p) || a.iter().any(|z| !z.re.is_finite() || !z.im.is_finite()) {
+            return Err(PyValueError::new_err(
+                "cotangent must be finite and match the field coefficient shape",
+            ));
+        }
+        let g = std::array::from_fn(|b| DMatrix::from_fn(n, p, |i, j| a[(b, i, j)]));
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let (lower, upper, [up, down]) = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        Ok((
+            array(py, &lower),
+            array(py, &upper),
+            crate::tmatrix::matrix(py, &up),
+            crate::tmatrix::matrix(py, &down),
+        ))
+    }
+}
+
+#[pyfunction]
+fn smatrix_illuminate<'py>(
+    py: Python<'py>,
+    lower: PyReadonlyArray4<'py, Complex>,
+    upper: PyReadonlyArray4<'py, Complex>,
+    up: PyReadonlyArray2<'py, Complex>,
+    down: PyReadonlyArray2<'py, Complex>,
+) -> PyResult<(Bound<'py, PyArray3<Complex>>, IlluminationContext)> {
+    let lower = from_array(lower)?;
+    let upper = from_array(upper)?;
+    let incoming = [
+        crate::tmatrix::from_array(up)?,
+        crate::tmatrix::from_array(down)?,
+    ];
+    let (value, residual) = py
+        .detach(move || smatrix::illuminate(lower, upper, incoming))
+        .map_err(error)?;
+    let (n, p) = residual.shape();
+    let value = Array3::from_shape_fn((4, n, p), |(b, i, j)| value[b][(i, j)]).into_pyarray(py);
+    Ok((
+        value,
+        IlluminationContext {
+            residual: Some(residual),
+        },
+    ))
+}
+
+#[pyclass]
+#[derive(Debug)]
+struct SMatrixPeriodicContext {
+    residual: Option<smatrix::PeriodicResidual>,
+}
+
+#[pymethods]
+impl SMatrixPeriodicContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'py, Complex>,
+    ) -> PyResult<Bound<'py, PyArray4<Complex>>> {
+        let g = crate::tmatrix::from_array(cotangent)?;
+        let n = self
+            .residual
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?
+            .dimension();
+        if g.shape() != (2 * n, 2 * n) {
+            return Err(PyValueError::new_err(
+                "cotangent shape does not match transfer matrix",
+            ));
+        }
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let result = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        Ok(array(py, &result))
+    }
+}
+
+#[pyfunction]
+fn smatrix_periodic<'py>(
+    py: Python<'py>,
+    smats: PyReadonlyArray4<'py, Complex>,
+) -> PyResult<(Bound<'py, PyArray2<Complex>>, SMatrixPeriodicContext)> {
+    let smats = from_array(smats)?;
+    let (value, residual) = py.detach(move || smatrix::periodic(smats)).map_err(error)?;
+    Ok((
+        crate::tmatrix::matrix(py, &value),
+        SMatrixPeriodicContext {
+            residual: Some(residual),
+        },
+    ))
+}
+
+#[pyclass]
+#[derive(Debug)]
+struct BandContext {
+    residual: Option<smatrix::BandResidual>,
+}
+
+#[pymethods]
+impl BandContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        wavenumbers: PyReadonlyArray1<'py, Complex>,
+        eigenvectors: PyReadonlyArray2<'py, Complex>,
+    ) -> PyResult<(Bound<'py, PyArray4<Complex>>, f64)> {
+        let g: Vec<_> = wavenumbers.as_array().iter().copied().collect();
+        let vectors = crate::tmatrix::from_array(eigenvectors)?;
+        let residual = self
+            .residual
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        if g.len() != residual.wavenumbers.len()
+            || vectors.shape() != residual.vectors().shape()
+            || g.iter().any(|z| !z.re.is_finite() || !z.im.is_finite())
+        {
+            return Err(PyValueError::new_err(
+                "cotangent shapes must match finite Bloch outputs",
+            ));
+        }
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let (smats, period) = py
+            .detach(move || residual.pullback(&g, vectors))
+            .map_err(error)?;
+        Ok((array(py, &smats), period))
+    }
+}
+
+type BandResult<'py> = (
+    Bound<'py, PyArray1<Complex>>,
+    Bound<'py, PyArray2<Complex>>,
+    BandContext,
+);
+
+#[pyfunction]
+fn bands<'py>(
+    py: Python<'py>,
+    smats: PyReadonlyArray4<'py, Complex>,
+    period: f64,
+) -> PyResult<BandResult<'py>> {
+    let blocks = from_array(smats)?;
+    let residual = py
+        .detach(move || smatrix::bands(blocks, period))
+        .map_err(error)?;
+    Ok((
+        residual.wavenumbers.clone().into_pyarray(py),
+        crate::tmatrix::matrix(py, residual.vectors()),
+        BandContext {
+            residual: Some(residual),
+        },
+    ))
 }
 
 #[pyclass]

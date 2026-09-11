@@ -4,9 +4,10 @@
 use nalgebra::DMatrix;
 use numpy::{
     IntoPyArray, PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2,
-    ndarray::Array2,
+    ndarray::{Array2, ArrayView2},
 };
 use pyo3::{exceptions::PyValueError, prelude::*};
+use rayon::prelude::*;
 use treams_core::{
     Complex,
     interaction::{self, InteractionResidual},
@@ -28,7 +29,39 @@ pub(crate) fn from_array(value: PyReadonlyArray2<'_, Complex>) -> PyResult<DMatr
     if a.iter().any(|z| !z.re.is_finite() || !z.im.is_finite()) {
         return Err(PyValueError::new_err("array must be finite"));
     }
-    Ok(DMatrix::from_fn(a.nrows(), a.ncols(), |i, j| a[(i, j)]))
+    Ok(matrix_from_view(a))
+}
+
+pub(crate) fn matrix_from_view(a: ArrayView2<'_, Complex>) -> DMatrix<Complex> {
+    // Tile the NumPy-to-column-major copy so large C-order inputs do not walk
+    // one cache line per element. Both tiles fit in the CPU's L1 data cache.
+    let mut result = DMatrix::zeros(a.nrows(), a.ncols());
+    if a.is_empty() {
+        return result;
+    }
+    let fill = |(block, columns): (usize, &mut [Complex])| {
+        for row in (0..a.nrows()).step_by(32) {
+            for (j, column) in columns.chunks_mut(a.nrows()).enumerate() {
+                for i in row..(row + 32).min(a.nrows()) {
+                    column[i] = a[(i, 32 * block + j)];
+                }
+            }
+        }
+    };
+    if a.len() >= 65_536 {
+        result
+            .as_mut_slice()
+            .par_chunks_mut(32 * a.nrows())
+            .enumerate()
+            .for_each(fill);
+    } else {
+        result
+            .as_mut_slice()
+            .chunks_mut(32 * a.nrows())
+            .enumerate()
+            .for_each(fill);
+    }
+    result
 }
 
 #[pyclass]

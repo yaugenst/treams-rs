@@ -6,11 +6,254 @@ use nalgebra::DMatrix;
 
 use crate::{
     Complex, Error, Result, finite,
-    interaction::{product, view, view_mut},
+    interaction::{product, product_adjoint_left, product_adjoint_right, view, view_mut},
+    linalg::{self, SolveResidual},
+    ratio,
 };
 
 /// Blocks ordered as transmission up, reflection up, reflection down, transmission down.
 pub type Blocks = [DMatrix<Complex>; 4];
+
+/// Internal-field solve for specified incident amplitudes, retaining one LU.
+#[derive(Debug)]
+pub struct IlluminationResidual {
+    lower: Blocks,
+    upper: Blocks,
+    incoming: [DMatrix<Complex>; 2],
+    solve: SolveResidual,
+    down: DMatrix<Complex>,
+}
+
+/// Illuminate a pair of stacks. Returns outgoing up/down and internal up/down.
+/// Each input and output matrix has one column per independent illumination.
+pub fn illuminate(
+    lower: Blocks,
+    upper: Blocks,
+    incoming: [DMatrix<Complex>; 2],
+) -> Result<([DMatrix<Complex>; 4], IlluminationResidual)> {
+    let n = dimension(&lower)?;
+    let p = incoming[0].ncols();
+    if dimension(&upper)? != n
+        || p == 0
+        || incoming
+            .iter()
+            .any(|a| a.shape() != (n, p) || a.iter().any(|&z| !finite(z)))
+    {
+        return Err(Error::InvalidInput(
+            "require matching S matrices and finite mode-by-illumination inputs".into(),
+        ));
+    }
+    let direct = product(&upper[3], &incoming[1]);
+    let rhs = product(&lower[0], &incoming[0]) + product(&lower[1], &direct);
+    let solve = linalg::solve(
+        &(DMatrix::identity(n, n) - product(&lower[1], &upper[2])),
+        rhs,
+    )?;
+    let down = product(&upper[2], &solve.value) + direct;
+    let top = product(&upper[0], &solve.value) + product(&upper[1], &incoming[1]);
+    let bottom = product(&lower[2], &incoming[0]) + product(&lower[3], &down);
+    if top
+        .iter()
+        .chain(bottom.iter())
+        .chain(down.iter())
+        .any(|&z| !finite(z))
+    {
+        return Err(Error::Singular);
+    }
+    let value = [top, bottom, solve.value.clone(), down.clone()];
+    Ok((
+        value,
+        IlluminationResidual {
+            lower,
+            upper,
+            incoming,
+            solve,
+            down,
+        },
+    ))
+}
+
+impl IlluminationResidual {
+    /// Mode and independent-illumination counts.
+    #[must_use]
+    pub fn shape(&self) -> (usize, usize) {
+        self.solve.value.shape()
+    }
+
+    /// Return lower/upper S matrices and incoming up/down amplitude cotangents.
+    pub fn pullback(
+        self,
+        g: &[DMatrix<Complex>; 4],
+    ) -> Result<(Blocks, Blocks, [DMatrix<Complex>; 2])> {
+        if g.iter()
+            .any(|a| a.shape() != self.shape() || a.iter().any(|&z| !finite(z)))
+        {
+            return Err(Error::InvalidInput(
+                "invalid field coefficient cotangent".into(),
+            ));
+        }
+        let down = &g[3] + product_adjoint_left(&self.lower[3], &g[1]);
+        let up = &g[2]
+            + product_adjoint_left(&self.upper[0], &g[0])
+            + product_adjoint_left(&self.upper[2], &down);
+        let rhs = self.solve.adjoint_rhs(up)?;
+        let direct = down + product_adjoint_left(&self.lower[1], &rhs);
+        let incoming = [
+            product_adjoint_left(&self.lower[2], &g[1])
+                + product_adjoint_left(&self.lower[0], &rhs),
+            product_adjoint_left(&self.upper[1], &g[0])
+                + product_adjoint_left(&self.upper[3], &direct),
+        ];
+        drop(self.lower);
+        drop(self.upper);
+        // Contract the coupled field equations directly. Rank-P products avoid
+        // multiplying dense N-by-N operator cotangents in the weighted reverse.
+        let lower = [
+            product_adjoint_right(&rhs, &self.incoming[0]),
+            product_adjoint_right(&rhs, &self.down),
+            product_adjoint_right(&g[1], &self.incoming[0]),
+            product_adjoint_right(&g[1], &self.down),
+        ];
+        let upper = [
+            product_adjoint_right(&g[0], &self.solve.value),
+            product_adjoint_right(&g[0], &self.incoming[1]),
+            product_adjoint_right(&direct, &self.solve.value),
+            product_adjoint_right(&direct, &self.incoming[1]),
+        ];
+        Ok((lower, upper, incoming))
+    }
+}
+
+/// Transfer-matrix solve for periodic repetition of an S matrix.
+#[derive(Debug)]
+pub struct PeriodicResidual {
+    top: DMatrix<Complex>,
+    reflection: DMatrix<Complex>,
+    solve: SolveResidual,
+}
+
+/// Convert scattering blocks to the transfer matrix used for periodic bands.
+pub fn periodic(blocks: Blocks) -> Result<(DMatrix<Complex>, PeriodicResidual)> {
+    let n = dimension(&blocks)?;
+    let [up, reflection_up, reflection_down, down] = blocks;
+    let mut top = DMatrix::zeros(n, 2 * n);
+    top.columns_mut(0, n).copy_from(&up);
+    top.columns_mut(n, n).copy_from(&reflection_up);
+    let mut rhs = -product(&reflection_down, &top);
+    for i in 0..n {
+        rhs[(i, n + i)] += 1.0;
+    }
+    let solve = linalg::solve(&down, rhs)?;
+    let mut value = DMatrix::zeros(2 * n, 2 * n);
+    value.rows_mut(0, n).copy_from(&top);
+    value.rows_mut(n, n).copy_from(&solve.value);
+    Ok((
+        value,
+        PeriodicResidual {
+            top,
+            reflection: reflection_down,
+            solve,
+        },
+    ))
+}
+
+impl PeriodicResidual {
+    /// Number of plane-wave modes in each propagation direction.
+    #[must_use]
+    pub fn dimension(&self) -> usize {
+        self.top.nrows()
+    }
+
+    /// Pull back a transfer-matrix cotangent into all four scattering blocks.
+    pub fn pullback(self, g: &DMatrix<Complex>) -> Result<Blocks> {
+        let n = self.dimension();
+        if g.shape() != (2 * n, 2 * n) || g.iter().any(|&z| !finite(z)) {
+            return Err(Error::InvalidInput(
+                "invalid periodic transfer cotangent".into(),
+            ));
+        }
+        let (down, rhs) = self.solve.pullback(g.rows(n, n).into_owned())?;
+        let reflection = -product_adjoint_right(&rhs, &self.top);
+        let top = g.rows(0, n) - product_adjoint_left(&self.reflection, &rhs);
+        Ok([
+            top.columns(0, n).into_owned(),
+            top.columns(n, n).into_owned(),
+            reflection,
+            down,
+        ])
+    }
+}
+
+/// Periodic Bloch modes and the native transfer/eigensystem reverse contexts.
+#[derive(Debug)]
+pub struct BandResidual {
+    periodic: PeriodicResidual,
+    eigen: linalg::EigenResidual,
+    period: f64,
+    /// Normal Bloch wavenumbers, using the principal complex logarithm.
+    pub wavenumbers: Vec<Complex>,
+}
+
+/// Bloch modes of a periodically repeated S matrix with positive repeat distance.
+pub fn bands(blocks: Blocks, period: f64) -> Result<BandResidual> {
+    if !period.is_finite() || period <= 0.0 {
+        return Err(Error::InvalidInput(
+            "band period must be finite and positive".into(),
+        ));
+    }
+    let (transfer, periodic) = periodic(blocks)?;
+    let eigen = linalg::eig(&transfer)?;
+    let wavenumbers: Vec<_> = eigen
+        .values
+        .iter()
+        .map(|v| -Complex::i() * v.ln() / period)
+        .collect();
+    if wavenumbers.iter().any(|&z| !finite(z)) {
+        return Err(Error::SpecialFunction(
+            "zero or non-finite Bloch multiplier".into(),
+        ));
+    }
+    Ok(BandResidual {
+        periodic,
+        eigen,
+        period,
+        wavenumbers,
+    })
+}
+
+impl BandResidual {
+    /// Unit right Bloch eigenvectors, with the largest component real positive.
+    #[must_use]
+    pub fn vectors(&self) -> &DMatrix<Complex> {
+        &self.eigen.vectors
+    }
+
+    /// Return S-matrix and repeat-distance cotangents; logarithm branch is fixed.
+    pub fn pullback(
+        self,
+        wavenumbers: &[Complex],
+        vectors: DMatrix<Complex>,
+    ) -> Result<(Blocks, f64)> {
+        if wavenumbers.len() != self.wavenumbers.len() || wavenumbers.iter().any(|&z| !finite(z)) {
+            return Err(Error::InvalidInput(
+                "invalid Bloch wavenumber cotangent".into(),
+            ));
+        }
+        let period = -wavenumbers
+            .iter()
+            .zip(&self.wavenumbers)
+            .map(|(g, k)| (g.conj() * k).re)
+            .sum::<f64>()
+            / self.period;
+        let values: Vec<_> = wavenumbers
+            .iter()
+            .zip(&self.eigen.values)
+            .map(|(g, l)| g * ratio(-Complex::i() / self.period, *l).conj())
+            .collect();
+        let matrix = self.eigen.pullback(&values, vectors)?;
+        Ok((self.periodic.pullback(&matrix)?, period))
+    }
+}
 
 /// Radiation of an effective periodic multipole response into plane-wave ports.
 #[derive(Clone, Debug)]

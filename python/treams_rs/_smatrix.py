@@ -41,7 +41,7 @@ class SMatrices:
         poltype: str = "helicity",
     ):
         self.array: NDArray[np.complex128] = np.array(
-            smats, dtype=np.complex128, copy=True
+            smats, dtype=np.complex128, copy=True, order="C"
         )
         if (
             self.array.shape != (2, 2, len(basis), len(basis))
@@ -164,6 +164,17 @@ class SMatrices:
         )
 
     def add(self, upper: SMatrices) -> SMatrices:
+        self._check_adjacent(upper)
+        value, _ = diff.smatrix_add(self.array, upper.array)
+        return type(self)(
+            value,
+            basis=self.basis,
+            k0=self.k0,
+            material=(upper.material[0], self.material[1]),
+            poltype=self.poltype,
+        )
+
+    def _check_adjacent(self, upper: SMatrices) -> None:
         if (
             self.k0 != upper.k0
             or self.poltype != upper.poltype
@@ -174,14 +185,6 @@ class SMatrices:
             raise ValueError(
                 "coupled S matrices must match basis, k0, polarization and internal medium"
             )
-        value, _ = diff.smatrix_add(self.array, upper.array)
-        return type(self)(
-            value,
-            basis=self.basis,
-            k0=self.k0,
-            material=(upper.material[0], self.material[1]),
-            poltype=self.poltype,
-        )
 
     @classmethod
     def stack(cls, items: Sequence[SMatrices]) -> SMatrices:
@@ -305,13 +308,24 @@ class SMatrices:
         illu2: ArrayLike | PlaneWave | None = None,
         *,
         modetype: str | None = None,
-    ) -> tuple[NDArray[np.complex128], NDArray[np.complex128]]:
+        smat: SMatrices | None = None,
+    ) -> tuple[NDArray[np.complex128], ...]:
+        """Outgoing fields, and optionally internal fields below an adjacent stack.
+
+        With ``smat``, return outgoing up/down and internal up/down coefficients.
+        Incident PlaneWave metadata refers to the outer media of the combined pair.
+        """
+        upper = self if smat is None else smat
+        if smat is not None:
+            self._check_adjacent(smat)
         modetype = _direction(illu, modetype, self.basis.normal_axis)
-        first = self._incident(illu, modetype)
+        first = (self if modetype == "up" else upper)._incident(illu, modetype)
         second = (
             np.zeros_like(first)
             if illu2 is None
-            else self._incident(illu2, "down" if modetype == "up" else "up")
+            else (upper if modetype == "up" else self)._incident(
+                illu2, "down" if modetype == "up" else "up"
+            )
         )
         if (
             first.shape != (len(self.basis),)
@@ -323,7 +337,34 @@ class SMatrices:
                 "illumination requires one finite amplitude per basis mode"
             )
         up, down = (first, second) if modetype == "up" else (second, first)
+        if smat is not None:
+            fields = diff.smatrix_illuminate(
+                self.array, smat.array, up[:, None], down[:, None]
+            )[0]
+            return tuple(fields[:, :, 0])
         return self[0, 0] @ up + self[0, 1] @ down, self[1, 0] @ up + self[1, 1] @ down
+
+    def periodic(self) -> NDArray[np.complex128]:
+        """Transfer matrix for repeating a cell along the basis normal.
+
+        The outer media must match. Strongly evanescent channels can make a
+        transfer matrix ill-conditioned; finite-stack composition remains in S form.
+        """
+        if self.material[0] != self.material[1]:
+            raise ValueError("periodic repetition requires matching outer media")
+        return diff.smatrix_periodic(self.array)[0]
+
+    def bands_kz(
+        self, az: float
+    ) -> tuple[NDArray[np.complex128], NDArray[np.complex128]]:
+        """Bloch wavenumbers along the basis normal and their right eigenvectors.
+
+        The name preserves treams' z-normal convention; yz/zx bases use x/y.
+        ``az`` is the positive cell length along that normal.
+        """
+        if self.material[0] != self.material[1]:
+            raise ValueError("periodic repetition requires matching outer media")
+        return diff.bands(self.array, az)[0]
 
     def tr(
         self, illu: ArrayLike | PlaneWave, *, modetype: str | None = None

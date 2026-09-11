@@ -20,6 +20,42 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    #[allow(clippy::indexing_slicing)] // Fixed two-mode eigensystem.
+    fn general_eigensystem_scale_and_shift_adjoint(x in -0.3_f64..0.3) {
+        let a=DMatrix::from_row_slice(2,2,&[Complex::new(1.2,0.1),Complex::new(0.2,x),Complex::new(0.1,-0.2),Complex::new(2.7,0.3)]);
+        let residual=crate::linalg::eig(&a).unwrap();
+        let w=residual.values.clone();
+        let diagonal=DMatrix::from_diagonal(&nalgebra::DVector::from_vec(w.clone()));
+        prop_assert!((&a*&residual.vectors-&residual.vectors*diagonal).norm()<1e-12);
+        let gw=[Complex::new(0.2,0.1),Complex::new(-0.3,0.2)];
+        let gv=DMatrix::from_element(2,2,Complex::new(x,0.1));
+        let gradient=residual.pullback(&gw,gv).unwrap();
+        let expected:f64=gw.iter().zip(w).map(|(g,w)|(g.conj()*w).re).sum();
+        prop_assert!((gradient.dotc(&a).re-expected).abs()<1e-12);
+        prop_assert!((gradient.trace()-gw.iter().sum::<Complex>()).norm()<1e-12);
+    }
+
+    #[test]
+    fn linear_solve_and_internal_field_amplitude_adjoint(x in -0.3_f64..0.3, scale in 0.5_f64..2.0) {
+        let a=DMatrix::from_row_slice(2,2,&[Complex::new(1.2,0.1),Complex::new(0.2,x),Complex::new(0.1,-0.2),Complex::new(2.7,0.3)]);
+        let b=DMatrix::from_element(2,1,Complex::new(x,0.2));
+        let solved=crate::linalg::solve(&a,b.clone()).unwrap();
+        prop_assert!((&a*&solved.value-&b).norm()<1e-12);
+        let scaled=crate::linalg::solve(&a.map(|z|z*scale),b.map(|z|z*scale)).unwrap();
+        prop_assert!((&scaled.value-&solved.value).norm()<1e-12);
+        let (ga,gb)=solved.pullback(DMatrix::from_element(2,1,Complex::new(0.2,0.1))).unwrap();
+        prop_assert!((ga.dotc(&a).re+gb.dotc(&b).re).abs()<1e-12);
+        let blocks:crate::smatrix::Blocks=std::array::from_fn(|i|if i==0 || i==3 {DMatrix::identity(2,2)}else{DMatrix::from_element(2,2,Complex::new(x,0.05))});
+        let incoming=[b.clone(),b.map(|z|z*scale)];
+        let (fields,residual)=crate::smatrix::illuminate(blocks.clone(),blocks,incoming.clone()).unwrap();
+        let g=std::array::from_fn(|_|DMatrix::from_element(2,1,Complex::new(0.2,0.1)));
+        let (_,_,gradient)=residual.pullback(&g).unwrap();
+        let output:f64=fields.iter().zip(g.iter()).map(|(v,g)|g.dotc(v).re).sum();
+        let input:f64=incoming.iter().zip(gradient.iter()).map(|(v,g)|g.dotc(v).re).sum();
+        prop_assert!((output-input).abs()<1e-12);
+    }
+
+    #[test]
     fn periodic_conversion_scale_adjoint(k in 1.1_f64..2.0, kz in -0.7_f64..0.7, period in 1.2_f64..2.2, x in -0.3_f64..0.3, helicity in any::<bool>()) {
         let source=crate::basis::Basis{modes:(1..=3).flat_map(|l|(-l..=l).flat_map(move|m|(0..2).map(move|pol|(0,Mode{l,m,pol})))).collect(),positions:vec![[x,0.1,-0.2]]};
         let destination=crate::cylwaves::Basis{modes:(-3..=3).flat_map(|m|(0..2).map(move|pol|(0,crate::cylwaves::Mode{kz,m,pol}))).collect(),positions:vec![[0.2,-0.1,0.1]]};

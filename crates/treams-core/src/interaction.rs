@@ -1,9 +1,9 @@
 //! Dense multiple-scattering solve with a factorization-reusing pullback.
 
 use faer::{
-    Accum, MatMut, MatRef,
+    Accum, Conj, MatMut, MatRef,
     linalg::{
-        matmul::matmul,
+        matmul::{matmul, matmul_with_conj},
         solvers::{PartialPivLu, Solve},
     },
 };
@@ -19,12 +19,44 @@ pub(crate) fn view_mut(matrix: &mut DMatrix<Complex>) -> MatMut<'_, Complex> {
     MatMut::from_column_major_slice_mut(matrix.as_mut_slice(), rows, cols)
 }
 pub(crate) fn product(left: &DMatrix<Complex>, right: &DMatrix<Complex>) -> DMatrix<Complex> {
+    product_op(left, right, false, false)
+}
+pub(crate) fn product_adjoint_left(
+    left: &DMatrix<Complex>,
+    right: &DMatrix<Complex>,
+) -> DMatrix<Complex> {
+    product_op(left, right, true, false)
+}
+pub(crate) fn product_adjoint_right(
+    left: &DMatrix<Complex>,
+    right: &DMatrix<Complex>,
+) -> DMatrix<Complex> {
+    product_op(left, right, false, true)
+}
+fn product_op(
+    left: &DMatrix<Complex>,
+    right: &DMatrix<Complex>,
+    adjoint_left: bool,
+    adjoint_right: bool,
+) -> DMatrix<Complex> {
+    let left = if adjoint_left {
+        view(left).transpose()
+    } else {
+        view(left)
+    };
+    let right = if adjoint_right {
+        view(right).transpose()
+    } else {
+        view(right)
+    };
     let mut result = DMatrix::zeros(left.nrows(), right.ncols());
-    matmul(
+    matmul_with_conj(
         view_mut(&mut result),
         Accum::Replace,
-        view(left),
-        view(right),
+        left,
+        if adjoint_left { Conj::Yes } else { Conj::No },
+        right,
+        if adjoint_right { Conj::Yes } else { Conj::No },
         Complex::new(1.0, 0.0),
         faer::get_global_parallelism(),
     );

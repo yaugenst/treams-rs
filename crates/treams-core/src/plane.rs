@@ -5,7 +5,7 @@ use nalgebra::DMatrix;
 use rayon::prelude::*;
 
 use crate::{
-    Complex, Error, Result, fields::FieldBasis, finite, jet::Jet, special::angular_jets,
+    Complex, Error, Result, fields::FieldBasis, finite, jet::Jet, ratio, special::angular_jets,
     waves::Mode,
 };
 
@@ -23,11 +23,6 @@ fn algebraic_norm(values: &[Complex]) -> Complex {
         .sqrt()
         * scale
 }
-fn ratio(numerator: Complex, denominator: Complex) -> Complex {
-    let scale = denominator.re.abs().max(denominator.im.abs());
-    (numerator / scale) / (denominator / scale)
-}
-
 fn wavenumbers(vector: [Complex; 3]) -> Result<(Complex, Complex, [Complex; 2])> {
     if vector.iter().any(|&v| !finite(v)) {
         return Err(Error::InvalidInput("wavevector must be finite".into()));

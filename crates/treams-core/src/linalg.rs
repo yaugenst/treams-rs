@@ -1,0 +1,190 @@
+//! Dense linear solves and general complex eigensystems with native pullbacks.
+#![allow(clippy::indexing_slicing)] // Validated matrix dimensions and eigenvector pivots.
+
+use faer::linalg::solvers::{Eigen, PartialPivLu, Solve};
+use nalgebra::DMatrix;
+
+use crate::{
+    Complex, Error, Result, finite,
+    interaction::{product_adjoint_left, product_adjoint_right, view, view_mut},
+    ratio,
+};
+
+/// Factorization and solution retained for a linear solve's implicit adjoint.
+#[derive(Clone, Debug)]
+pub struct SolveResidual {
+    lu: PartialPivLu<Complex>,
+    /// Solution of A X = B, with one or more right-hand sides.
+    pub value: DMatrix<Complex>,
+}
+
+/// Solve A X = B with pivoted LU; B is a matrix of right-hand sides.
+pub fn solve(operator: &DMatrix<Complex>, mut rhs: DMatrix<Complex>) -> Result<SolveResidual> {
+    let n = operator.nrows();
+    if n == 0
+        || !operator.is_square()
+        || rhs.nrows() != n
+        || rhs.ncols() == 0
+        || operator.iter().chain(rhs.iter()).any(|&z| !finite(z))
+    {
+        return Err(Error::InvalidInput(
+            "require a finite nonempty square operator and matching right-hand sides".into(),
+        ));
+    }
+    let lu = PartialPivLu::new(view(operator));
+    if (0..n).any(|i| lu.U()[(i, i)] == Complex::default()) {
+        return Err(Error::Singular);
+    }
+    lu.solve_in_place(view_mut(&mut rhs));
+    if rhs.iter().any(|&z| !finite(z)) {
+        return Err(Error::Singular);
+    }
+    Ok(SolveResidual { lu, value: rhs })
+}
+
+impl SolveResidual {
+    pub(crate) fn adjoint_rhs(&self, mut g: DMatrix<Complex>) -> Result<DMatrix<Complex>> {
+        if g.shape() != self.value.shape() || g.iter().any(|&z| !finite(z)) {
+            return Err(Error::InvalidInput("invalid linear-solve cotangent".into()));
+        }
+        self.lu.solve_adjoint_in_place(view_mut(&mut g));
+        Ok(g)
+    }
+
+    /// Return operator and right-hand-side cotangents, reusing the forward LU.
+    pub fn pullback(self, g: DMatrix<Complex>) -> Result<(DMatrix<Complex>, DMatrix<Complex>)> {
+        let g = self.adjoint_rhs(g)?;
+        Ok((-product_adjoint_right(&g, &self.value), g))
+    }
+}
+
+/// Right eigensystem, with unit vectors whose largest component is real positive.
+#[derive(Debug)]
+pub struct EigenResidual {
+    /// Eigenvalues in the solver's order.
+    pub values: Vec<Complex>,
+    /// Corresponding right eigenvectors, stored in columns.
+    pub vectors: DMatrix<Complex>,
+    pivots: Vec<usize>,
+    scale: f64,
+}
+
+/// General complex eigendecomposition. Repeated eigenvalues are allowed in forward.
+pub fn eig(operator: &DMatrix<Complex>) -> Result<EigenResidual> {
+    let n = operator.nrows();
+    if n == 0 || !operator.is_square() || operator.iter().any(|&z| !finite(z)) {
+        return Err(Error::InvalidInput(
+            "eigensystem requires a finite nonempty square matrix".into(),
+        ));
+    }
+    let scale = operator.iter().map(|z| z.norm()).fold(0.0, f64::max);
+    let scale = if scale == 0.0 { 1.0 } else { scale };
+    let decomposition = Eigen::new(view(&operator.map(|z| z / scale)))
+        .map_err(|err| Error::SpecialFunction(format!("eigendecomposition: {err:?}")))?;
+    let values: Vec<_> = (0..n).map(|i| decomposition.S()[i] * scale).collect();
+    let mut vectors = DMatrix::from_fn(n, n, |i, j| decomposition.U()[(i, j)]);
+    let mut pivots = Vec::with_capacity(n);
+    for mut column in vectors.column_iter_mut() {
+        let pivot = (0..n)
+            .max_by(|&i, &j| column[i].norm_sqr().total_cmp(&column[j].norm_sqr()))
+            .ok_or(Error::Singular)?;
+        let phase = column[pivot] / column[pivot].norm();
+        let normalization = phase * column.norm();
+        column /= normalization;
+        pivots.push(pivot);
+    }
+    if values.iter().chain(vectors.iter()).any(|&z| !finite(z)) {
+        return Err(Error::SpecialFunction("non-finite eigensystem".into()));
+    }
+    Ok(EigenResidual {
+        values,
+        vectors,
+        pivots,
+        scale,
+    })
+}
+
+impl EigenResidual {
+    /// Contract eigenvalue and eigenvector cotangents under the fixed pivot phase.
+    ///
+    /// Repeated eigenvalues support equal eigenvalue weights and zero vector
+    /// cotangents within each repeated group. Individual modes there have no VJP.
+    pub fn pullback(
+        self,
+        values: &[Complex],
+        mut vectors: DMatrix<Complex>,
+    ) -> Result<DMatrix<Complex>> {
+        let n = self.values.len();
+        if values.len() != n
+            || vectors.shape() != (n, n)
+            || values.iter().chain(vectors.iter()).any(|&z| !finite(z))
+        {
+            return Err(Error::InvalidInput("invalid eigensystem cotangent".into()));
+        }
+        let vector_active: Vec<_> = vectors
+            .column_iter()
+            .map(|v| v.iter().any(|&z| z != Complex::default()))
+            .collect();
+        if !vector_active.iter().any(|&active| active) && values.iter().all(|&g| g == values[0]) {
+            // Sum of all eigenvalues is trace(A), including defective matrices.
+            return Ok(DMatrix::identity(n, n) * values[0]);
+        }
+        // Project out normalization and pivot-phase changes before contracting
+        // the off-diagonal eigenvector derivative.
+        for j in 0..n {
+            let inner = vectors.column(j).dotc(&self.vectors.column(j));
+            let pivot = self.pivots[j];
+            let pivot_size = self.vectors[(pivot, j)].norm();
+            if inner.im.abs() > 64.0 * f64::EPSILON * vectors.column(j).norm()
+                && (0..n).any(|i| {
+                    i != pivot
+                        && (pivot_size - self.vectors[(i, j)].norm()).abs()
+                            <= 64.0 * f64::EPSILON * pivot_size
+                })
+            {
+                return Err(Error::InvalidInput(
+                    "phase-dependent eigenvector pullback requires a unique largest component"
+                        .into(),
+                ));
+            }
+            for i in 0..n {
+                vectors[(i, j)] -= inner.re * self.vectors[(i, j)];
+            }
+            vectors[(pivot, j)] += Complex::i() * inner.im / self.vectors[(pivot, j)].re;
+        }
+        let mut g = product_adjoint_left(&self.vectors, &vectors);
+        for j in 0..n {
+            for i in 0..n {
+                if i == j {
+                    g[(i, j)] = values[i];
+                    continue;
+                }
+                let gap = self.values[j] - self.values[i];
+                if gap.norm() <= 64.0 * f64::EPSILON * self.scale {
+                    let weight_scale = values[i].norm().max(values[j].norm());
+                    if vector_active[i]
+                        || vector_active[j]
+                        || (values[i] - values[j]).norm() > 64.0 * f64::EPSILON * weight_scale
+                    {
+                        return Err(Error::InvalidInput(
+                            "individual eigenmodes have no pullback at repeated eigenvalues".into(),
+                        ));
+                    }
+                    g[(i, j)] = Complex::default();
+                } else {
+                    g[(i, j)] = ratio(g[(i, j)], gap.conj());
+                }
+            }
+        }
+        let lu = PartialPivLu::new(view(&self.vectors));
+        if (0..n).any(|i| lu.U()[(i, i)] == Complex::default()) {
+            return Err(Error::Singular);
+        }
+        let mut result = product_adjoint_right(&g, &self.vectors);
+        lu.solve_adjoint_in_place(view_mut(&mut result));
+        if result.iter().any(|&z| !finite(z)) {
+            return Err(Error::Singular);
+        }
+        Ok(result)
+    }
+}

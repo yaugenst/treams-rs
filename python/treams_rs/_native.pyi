@@ -122,6 +122,44 @@ class InteractionContext:
         self, cotangent: ComplexArray
     ) -> tuple[ComplexArray, ComplexArray]: ...
 
+class SolveContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[ComplexArray, ComplexArray]: ...
+
+class EigenContext:
+    def pullback(
+        self, eigenvalues: ComplexArray, eigenvectors: ComplexArray
+    ) -> ComplexArray: ...
+
+def linear_solve(
+    operator: ComplexArray, rhs: ComplexArray
+) -> tuple[ComplexArray, SolveContext]: ...
+def eig(operator: ComplexArray) -> tuple[ComplexArray, ComplexArray, EigenContext]: ...
+
+class IlluminationContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[ComplexArray, ComplexArray, ComplexArray, ComplexArray]: ...
+
+class SMatrixPeriodicContext:
+    def pullback(self, cotangent: ComplexArray) -> ComplexArray: ...
+
+def smatrix_illuminate(
+    lower: ComplexArray, upper: ComplexArray, up: ComplexArray, down: ComplexArray
+) -> tuple[ComplexArray, IlluminationContext]: ...
+def smatrix_periodic(
+    smats: ComplexArray,
+) -> tuple[ComplexArray, SMatrixPeriodicContext]: ...
+
+class BandContext:
+    def pullback(
+        self, wavenumbers: ComplexArray, eigenvectors: ComplexArray
+    ) -> tuple[ComplexArray, float]: ...
+
+def bands(
+    smats: ComplexArray, period: float
+) -> tuple[ComplexArray, ComplexArray, BandContext]: ...
 def sphere(
     lmax: int,
     k0: float,

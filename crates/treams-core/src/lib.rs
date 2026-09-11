@@ -13,6 +13,7 @@ pub mod interaction;
 mod jet;
 pub mod lattice;
 pub mod layers;
+pub mod linalg;
 pub mod plane;
 pub mod rotation;
 pub mod smatrix;
@@ -46,4 +47,10 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 pub(crate) fn finite(z: Complex) -> bool {
     z.re.is_finite() && z.im.is_finite()
+}
+
+// Avoid squaring an unscaled complex denominator (overflow/underflow).
+pub(crate) fn ratio(numerator: Complex, denominator: Complex) -> Complex {
+    let scale = denominator.re.abs().max(denominator.im.abs());
+    (numerator / scale) / (denominator / scale)
 }

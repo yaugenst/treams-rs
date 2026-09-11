@@ -54,6 +54,31 @@ def worker(
             [np.arange(particles) * 0.8, np.zeros((particles, 2))]
         )
 
+        if workload == "internal-field":
+            n = 2 * particles * order
+            rng = np.random.default_rng(81)
+            lower, upper = [
+                0.1
+                / np.sqrt(n)
+                * (rng.normal(size=(2, 2, n, n)) + 1j * rng.normal(size=(2, 2, n, n)))
+                for _ in range(2)
+            ]
+            for blocks in (lower, upper):
+                blocks[0, 0] += np.eye(n)
+                blocks[1, 1] += np.eye(n)
+            up, down = [
+                (rng.normal(size=(n, samples)) + 1j * rng.normal(size=(n, samples)))
+                / np.sqrt(n)
+                for _ in range(2)
+            ]
+            if backend in ("treams", "check"):
+                q = np.column_stack(
+                    [np.linspace(0.1, 0.8, n // 2), np.full(n // 2, 0.2)]
+                )
+                oracle_basis = treams.PlaneWaveBasisByComp.default(q)
+                oracle_lower = treams.SMatrices(lower, basis=oracle_basis, k0=1.3)
+                oracle_upper = treams.SMatrices(upper, basis=oracle_basis, k0=1.3)
+
         if workload == "slab":
             q = np.column_stack([np.linspace(0.1, 0.8, samples), np.full(samples, 0.2)])
             layer_eps = np.array(
@@ -219,6 +244,8 @@ def worker(
         eta = 0.7 if workload == "cylindrical-array" else 0
 
         def rust():
+            if workload == "internal-field":
+                return diff.smatrix_illuminate(lower, upper, up, down)
             if workload == "slab":
                 return SMatrices.slab(
                     layer_thickness, basis, 1.3, list(layer_eps)
@@ -287,6 +314,8 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload == "internal-field":
+                return np.asarray(oracle_lower.illuminate(up, down, smat=oracle_upper))
             if workload == "slab":
                 value = treams.SMatrices.slab(
                     layer_thickness, oracle_basis, 1.3, list(layer_eps)
@@ -464,6 +493,7 @@ def worker(
                     if workload
                     in (
                         "field",
+                        "internal-field",
                         "cylindrical-field",
                         "field-operator",
                         "conversion",
@@ -480,6 +510,8 @@ def worker(
                     "lmax": order,
                     "dimension": 2 * samples
                     if workload == "slab"
+                    else 2 * particles * order
+                    if workload == "internal-field"
                     else 2 * samples * (2 * order + 1)
                     if workload == "periodic-conversion"
                     else particles
@@ -519,6 +551,7 @@ def main() -> None:
             "cluster",
             "slab",
             "field",
+            "internal-field",
             "cylindrical-field",
             "field-operator",
             "periodic",

@@ -196,3 +196,38 @@ np.testing.assert_allclose(
     rtol=1e-12,
 )
 print("Clean wheel: spherical array to cylindrical power and period adjoint passed")
+
+
+lower_interface = tr.SMatrices.interface(cports, 1.3, [1, 2.3])
+upper_interface = tr.SMatrices.interface(cports, 1.3, [2.3, 1])
+internal = lower_interface.illuminate([1, 0], smat=upper_interface)
+np.testing.assert_allclose(internal[:2], [[1, 0], [0, 0]], atol=1e-12)
+
+
+def internal_norm(scale):
+    value = ad.smatrix_illuminate(
+        lower_interface.array,
+        upper_interface.array,
+        scale * np.array([[1.0], [0.0]]),
+        np.zeros((2, 1)),
+    )[2:]
+    return anp.sum(anp.real(value * anp.conj(value)))
+
+
+np.testing.assert_allclose(
+    advect.grad(internal_norm)(np.array(1.0)), 2 * internal_norm(1.0), atol=1e-12
+)
+
+
+def uniform_band_norm(k0, period):
+    normal = anp.sqrt(k0**2 - 0.2**2 - 0.3**2)
+    vectors = anp.stack([anp.stack([0.2, 0.3, normal])] * 2)
+    smats = ad.propagation(vectors, anp.stack([0.0, 0.0, period]))
+    k, _ = ad.bands(smats, period)
+    return anp.sum(anp.real(k * anp.conj(k)))
+
+
+gk, gp = advect.grad(uniform_band_norm, argnums=(0, 1))(np.array(1.3), np.array(0.4))
+np.testing.assert_allclose(gk, 8 * 1.3, atol=2e-11)
+np.testing.assert_allclose(gp, 0, atol=2e-11)
+print("Clean wheel: internal fields and degenerate uniform-band adjoints passed")

@@ -116,6 +116,33 @@ def interaction(local: ArrayLike, coupling: ArrayLike) -> NDArray[np.complex128]
     return _call((local, coupling), forward)
 
 
+def solve(operator: ArrayLike, rhs: ArrayLike) -> NDArray[np.complex128]:
+    """Differentiable A X = B for a matrix B, reusing native pivoted LU in reverse."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.solve(values[0], values[1])
+        return value, context.pullback
+
+    return _call((operator, rhs), forward)
+
+
+def eig(operator: ArrayLike) -> tuple[NDArray[np.complex128], NDArray[np.complex128]]:
+    """Native complex eigensystem with eigenvalue and phase-fixed vector VJPs.
+
+    At repeated eigenvalues only equally weighted eigenvalue sums, without vector
+    dependence, have a supported pullback. Individual eigenmodes are undefined.
+    """
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        (eigenvalues, eigenvectors), context = diff.eig(values[0])
+        return np.vstack((eigenvalues, eigenvectors)), lambda g: (
+            context.pullback(g[0], g[1:]),
+        )
+
+    packed = _call((operator,), forward)
+    return packed[0], packed[1:]
+
+
 def smatrix_add(lower: ArrayLike, upper: ArrayLike) -> NDArray[np.complex128]:
     """Differentiable Redheffer composition, with arrays shaped (2, 2, n, n)."""
 
@@ -124,6 +151,45 @@ def smatrix_add(lower: ArrayLike, upper: ArrayLike) -> NDArray[np.complex128]:
         return value, context.pullback
 
     return _call((lower, upper), forward)
+
+
+def smatrix_illuminate(
+    lower: ArrayLike, upper: ArrayLike, up: ArrayLike, down: ArrayLike
+) -> NDArray[np.complex128]:
+    """Outgoing/internal up/down fields for mode-by-illumination incident arrays."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.smatrix_illuminate(*values)
+        return value, context.pullback
+
+    return _call((lower, upper, up, down), forward)
+
+
+def smatrix_periodic(smats: ArrayLike) -> NDArray[np.complex128]:
+    """Native periodic transfer matrix, with a factorization-reusing adjoint."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.smatrix_periodic(values[0])
+        return value, lambda g: (context.pullback(g),)
+
+    return _call((smats,), forward)
+
+
+def bands(
+    smats: ArrayLike, period: ArrayLike
+) -> tuple[NDArray[np.complex128], NDArray[np.complex128]]:
+    """Normal Bloch wavenumbers/vectors, with native S-matrix and period pullbacks."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        (wavenumbers, vectors), context = diff.bands(
+            values[0], float(np.asarray(values[1]))
+        )
+        return np.vstack((wavenumbers, vectors)), lambda g: context.pullback(
+            g[0], g[1:]
+        )
+
+    packed = _call((smats, period), forward)
+    return packed[0], packed[1:]
 
 
 def smatrix_from_array(

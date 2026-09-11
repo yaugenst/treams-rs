@@ -13,6 +13,31 @@ if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
 
 
+def solve(
+    operator: ArrayLike, rhs: ArrayLike
+) -> tuple[NDArray[np.complex128], _native.SolveContext]:
+    """Solve A X = B for a matrix B; VJP returns (A_bar, B_bar) using retained LU."""
+    return _native.linear_solve(
+        np.ascontiguousarray(operator, dtype=np.complex128),
+        np.ascontiguousarray(rhs, dtype=np.complex128),
+    )
+
+
+def eig(
+    operator: ArrayLike,
+) -> tuple[tuple[NDArray[np.complex128], NDArray[np.complex128]], _native.EigenContext]:
+    """Complex eigenvalues and unit right eigenvectors, plus their native pullback.
+
+    Each vector's largest component is real positive. Pullback takes separate
+    value/vector cotangents. Individual modes at repeated eigenvalues have no VJP;
+    equal value weights with zero vector cotangents support spectral sums there.
+    """
+    values, vectors, context = _native.eig(
+        np.ascontiguousarray(operator, dtype=np.complex128)
+    )
+    return (values, vectors), context
+
+
 def smatrix_from_array(
     response: ArrayLike, channels: ArrayLike
 ) -> tuple[NDArray[np.complex128], _native.ArrayContext]:
@@ -21,6 +46,44 @@ def smatrix_from_array(
         np.ascontiguousarray(response, dtype=np.complex128),
         np.ascontiguousarray(channels, dtype=np.complex128),
     )
+
+
+def smatrix_illuminate(
+    lower: ArrayLike, upper: ArrayLike, up: ArrayLike, down: ArrayLike
+) -> tuple[NDArray[np.complex128], _native.IlluminationContext]:
+    """Outgoing up/down and internal up/down coefficients of two adjacent stacks.
+
+    Inputs up/down have shape (modes, illuminations); output shape is
+    (4, modes, illuminations). The native solve only computes these right-hand
+    sides. Pullback returns lower, upper, up and down cotangents.
+    """
+    return _native.smatrix_illuminate(
+        np.ascontiguousarray(lower, dtype=np.complex128),
+        np.ascontiguousarray(upper, dtype=np.complex128),
+        np.ascontiguousarray(up, dtype=np.complex128),
+        np.ascontiguousarray(down, dtype=np.complex128),
+    )
+
+
+def smatrix_periodic(
+    smats: ArrayLike,
+) -> tuple[NDArray[np.complex128], _native.SMatrixPeriodicContext]:
+    """Periodic transfer matrix and its four-block scattering-matrix pullback."""
+    return _native.smatrix_periodic(np.ascontiguousarray(smats, dtype=np.complex128))
+
+
+def bands(
+    smats: ArrayLike, period: float
+) -> tuple[tuple[NDArray[np.complex128], NDArray[np.complex128]], _native.BandContext]:
+    """Normal Bloch wavenumbers and right vectors, with S-matrix/period pullback.
+
+    Uses the principal logarithm. Derivatives hold its branch and eigenvector
+    pivot phase fixed; individual modes at repeated eigenvalues are undefined.
+    """
+    wavenumbers, vectors, context = _native.bands(
+        np.ascontiguousarray(smats, dtype=np.complex128), period
+    )
+    return (wavenumbers, vectors), context
 
 
 def spherical_channels(

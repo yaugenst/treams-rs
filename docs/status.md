@@ -17,9 +17,10 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 | Performance | Cached angular plans and radial tables, faer LU and matmul, block-diagonal local storage, Rayon coupling assembly | See measured scope and limitations in benchmarks.md |
 | Cylindrical scattering | Complex J/H and derivatives; multilayer chiral coefficients and complete T-matrix with all parameter VJPs; cylindrical bases, translations, clusters, electric fields and cross widths; regular spherical conversion; periodic plane-wave radiation and adjoints | Broader cutoff qualification |
 | Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections; full unit-vector and xy/yz/zx component plane bases, diffraction orders, native Cartesian fields and slab illumination; spherical/cylindrical illumination VJPs | Broader constrained-incidence workflows |
-| Planar layers | Native chiral Fresnel coefficients and propagation; one-LU S-matrix composition with reused-factor adjoint; interfaces, multilayer slabs, stacking/doubling, polarization conversion and power-flux transmittance/reflectance | Internal-field convenience; full SMatrix annotation API |
+| Planar layers | Native chiral Fresnel coefficients and propagation; one-LU S-matrix composition with reused-factor adjoint; interfaces, multilayer slabs, stacking/doubling, polarization conversion, power-flux transmittance/reflectance and internal fields between adjacent stacks | Full SMatrix annotation API |
 | Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D; periodic coupling and solves; spherical 2D and cylindrical 1D particle-to-plane channels and S matrices; complete native pullbacks and Advect reflectance gradients; direct-sum, reference, energy, Bloch/split/scale invariants | Broader combined particle/layer workflows |
-| Remaining public API | Not implemented | Field-operator conveniences, EBCM, band calculations, I/O and remaining observables |
+| Bloch bands | Native periodic transfer matrices, complex right eigensystems, Bloch wavenumbers/vectors; native S-matrix, period and eigenvector adjoints; complete Advect multilayer bands | Wider conditioning and branch-crossing qualification; individual degenerate modes have no derivative |
+| Remaining public API | Not implemented | Field-operator conveniences, EBCM, I/O and remaining observables |
 
 The optimized `diff.cluster` is restricted to non-overlapping homogeneous,
 nonmagnetic spheres in vacuum with a common multipole cutoff. Its pullback covers
@@ -235,3 +236,33 @@ from upstream's annotated, already-interacting input. Common-origin constructor
 references and Hypothesis lossless power and coordinate scaling invariants pass.
 Cross-family conversions include displaced origin pairs, rather than reproducing
 upstream's matching-particle-index mask.
+
+`SMatrices.illuminate(..., smat=upper)` returns outgoing up/down and internal
+up/down coefficients between adjacent stacks. It checks the shared medium and
+uses the correct outer medium for each PlaneWave input. The native
+`diff.smatrix_illuminate` and Advect adapter also accept multiple independent
+illuminations as matrix columns. Forward solves only those right-hand sides;
+reverse reuses the LU and contracts the coupled field equations with rank-P
+products. It avoids constructing the complete combined S matrix, dense operator
+cotangents and explicit conjugate-transpose copies. Tests cover all four input
+pullbacks, treams coefficients, Cartesian E/H boundary continuity for every normal,
+amplitude identities and complete lossy/chiral multilayer Advect gradients.
+
+`SMatrices.periodic()` and `bands_kz(period)` require matching outer media and
+use the basis normal (z/x/y for xy/yz/zx). The transfer construction solves both
+right-hand blocks with one native LU. `diff.bands` and `advect.bands` expose
+wavenumbers and right eigenvectors with native S-matrix and period pullbacks.
+`diff.solve` and `diff.eig` expose the same underlying numerical boundaries.
+Eigenvectors have unit norm with their largest component real positive. Their
+pullback includes both normalization and phase; phase-dependent cotangents at a
+tied largest component are explicitly rejected. Equal eigenvalue weights and zero
+vector cotangents support spectral sums within repeated groups; individual modes
+at degeneracy have no supported derivative. Band derivatives hold the principal
+logarithm branch fixed. Strongly evanescent transfer matrices can be ill-conditioned;
+finite-stack composition continues to use stable S matrices.
+
+Reference eigensystems, uniform propagating/evanescent bands, all input VJPs,
+Hermitian spectral invariants, native scale/shift identities, and complete Advect
+multilayer band gradients cover this path. Eigensystem values, vectors and vector
+pullbacks are checked under common input scales from 1e-200 to 1e200. A uniform
+cell's complete frequency/period gradient is checked at polarization degeneracy.

@@ -303,3 +303,31 @@ Raw result: `/tmp/periodic-conversion-n1-l12-k32-t4.json` on [redacted-host].
 Reproduce with `--workload periodic-conversion --particles 1 --lmax 12
 --samples 32 --threads 4 --repeats 7`. This is conversion timing, excluding
 particle construction and the periodic interaction solve.
+
+## Dense internal illumination
+
+Two general dense S matrices, one incident right-hand side in each direction,
+four matched threads and seven samples after warmup. Random complex reflections
+scale as 0.1/sqrt(N), with identity transmission plus similarly sized perturbations;
+seed 81 makes the well-conditioned algebra benchmark reproducible. This measures
+illumination of supplied S matrices, excluding their physical construction. All
+four outgoing/internal fields are checked against treams before timing.
+
+| Modes | treams ms | Rust ms | Speedup | Rust reverse ms | treams / Rust forward peak MiB |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 256 | 3.60 | 2.88 | 1.25x | 1.17 | 82.4 / 64.1 |
+| 1024 | 60.65 | 68.00 | 0.89x | 32.15 | 258.0 / 355.7 |
+
+The larger forward case remains slower and uses more memory. Rust includes owned
+input copies and a retained LU for its native pullback; treams returns fields only.
+Copying protects reverse correctness if Python subsequently mutates the inputs.
+Tiled parallel input copies reduced the 1024-mode forward from an initial 92 ms
+to 68 ms. Adjoint matrix views, rank-one contractions and releasing primal S
+matrices before allocating their gradients reduced reverse from 92 ms to 32 ms.
+The initial forward-plus-reverse peak was about 595 MiB. These improvements do not
+establish universal outperformance of treams.
+
+Raw results: `/tmp/internal-field-parallel-copy-n256-p1-t4.json` and
+`/tmp/internal-field-parallel-copy-n1024-p1-t4.json` on [redacted-host]. Reproduce
+with `--workload internal-field --particles 1 --lmax 512 --samples 1 --threads 4`.
+Here lmax is only a size argument: the dense matrix has 2*lmax modes.
