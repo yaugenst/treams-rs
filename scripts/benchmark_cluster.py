@@ -39,6 +39,7 @@ def worker(
             _native,
             diff,
             lattice,
+            special,
         )
 
         if _native.build_profile() != "release":
@@ -78,6 +79,9 @@ def worker(
                 oracle_basis = treams.PlaneWaveBasisByComp.default(q)
                 oracle_lower = treams.SMatrices(lower, basis=oracle_basis, k0=1.3)
                 oracle_upper = treams.SMatrices(upper, basis=oracle_basis, k0=1.3)
+
+        if workload.startswith("bessel"):
+            bessel_arguments = np.linspace(0.6, 8.0, samples) + 0.2j
 
         if workload in ("particle-cluster", "particle-cluster-public"):
             degrees = [order + i % 2 for i in range(particles)]
@@ -287,6 +291,17 @@ def worker(
         eta = 0.7 if workload == "cylindrical-array" else 0
 
         def rust():
+            if workload == "bessel-forward":
+                return special.hankel1(order, bessel_arguments), None
+            if workload == "bessel-derivative-forward":
+                return special.hankel1_d(order, bessel_arguments), None
+            if workload.startswith("bessel"):
+                return diff.bessel(
+                    order,
+                    bessel_arguments,
+                    kind="h1",
+                    derivative=workload == "bessel-derivative",
+                )
             if workload == "particle-cluster-public":
                 return TMatrix.cluster(
                     local_tmats, positions
@@ -392,6 +407,13 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload.startswith("bessel"):
+                function = (
+                    treams.special.hankel1_d
+                    if "derivative" in workload
+                    else treams.special.hankel1
+                )
+                return function(order, bessel_arguments)
             if workload in ("particle-cluster", "particle-cluster-public"):
                 return treams.TMatrix.cluster(
                     oracle_tmats, positions
@@ -572,6 +594,8 @@ def worker(
         if backend == "rust" and workload not in (
             "internal-field-forward",
             "particle-cluster-public",
+            "bessel-forward",
+            "bessel-derivative-forward",
         ):
             sample_total = 0.0
             for iteration in range((repeats + 1) * batch):
@@ -663,7 +687,9 @@ def worker(
                     "layers": particles if workload == "slab" else None,
                     "channels": samples if workload == "slab" else None,
                     "lmax": order,
-                    "dimension": particle_dimension
+                    "dimension": samples
+                    if workload.startswith("bessel")
+                    else particle_dimension
                     if workload in ("particle-cluster", "particle-cluster-public")
                     else 2 * samples
                     if workload == "slab"
@@ -714,6 +740,10 @@ def main() -> None:
     parser.add_argument(
         "--workload",
         choices=[
+            "bessel-forward",
+            "bessel-derivative-forward",
+            "bessel",
+            "bessel-derivative",
             "cluster",
             "particle-cluster",
             "particle-cluster-public",

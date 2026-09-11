@@ -17,6 +17,41 @@ if TYPE_CHECKING:
     from .ebcm import Modes
 
 
+def bessel(
+    order: ArrayLike,
+    z: ArrayLike,
+    *,
+    kind: str = "j",
+    spherical: bool = False,
+    derivative: bool = False,
+) -> tuple[NDArray[np.complex128], _native.BesselContext]:
+    """Broadcast Bessel values/first derivatives and a complex-argument pullback.
+
+    Order is held fixed. kind is j, y, h1 or h2. The pullback reduces broadcast
+    axes to the original z shape; scalar arguments retain only one native value.
+    """
+    orders, arguments, shape, argument_shape = _bessel_inputs(order, z)
+    return _native.bessel(
+        orders, arguments, kind, spherical, int(derivative), shape, argument_shape
+    )
+
+
+def _bessel_inputs(
+    order: ArrayLike, z: ArrayLike
+) -> tuple[
+    NDArray[np.float64], NDArray[np.complex128], tuple[int, ...], tuple[int, ...]
+]:
+    orders = np.asarray(order, dtype=np.float64)
+    arguments = np.asarray(z, dtype=np.complex128)
+    degrees, values = np.broadcast_arrays(orders, arguments)
+    return (
+        (orders if orders.size == 1 else degrees).ravel(),
+        (arguments if arguments.size == 1 else values).ravel(),
+        values.shape,
+        arguments.shape,
+    )
+
+
 def chirality_density(
     ks: ArrayLike, normal: ArrayLike, z: ArrayLike = (0.0, 0.0)
 ) -> tuple[NDArray[np.complex128], _native.ChiralityContext]:

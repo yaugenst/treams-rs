@@ -10,6 +10,7 @@ mod fields;
 mod lattice;
 mod linalg;
 mod smatrix;
+mod special;
 mod tmatrix;
 
 use num_complex::Complex64;
@@ -141,6 +142,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     lattice::register(m)?;
     linalg::register(m)?;
     ebcm::register(m)?;
+    special::register(m)?;
     m.add_class::<MieContext>()?;
     m.add_function(wrap_pyfunction!(build_profile, m)?)?;
     m.add_function(wrap_pyfunction!(mie, m)?)?;

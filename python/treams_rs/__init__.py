@@ -1,6 +1,6 @@
 """T-matrix scattering with a Rust numerical core and native pullbacks."""
 
-from . import coeffs, diff, ebcm, lattice
+from . import coeffs, diff, ebcm, lattice, special
 from ._core import (
     CylindricalWaveBasis,
     Material,
@@ -58,6 +58,7 @@ __all__ = [
     "plane_wave_angle",
     "poynting_avg_z",
     "rotate",
+    "special",
     "spherical_wave",
     "translate",
 ]

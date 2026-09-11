@@ -87,3 +87,16 @@ bench-performance: build-ext-release
     for order in 64 512; do
         uv run --no-sync python scripts/benchmark_cluster.py --workload plane-permutation --particles 1 --lmax "$order" --samples 1 --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/plane-permutation-l${order}.json"
     done
+    for order in 64 512; do
+        uv run --no-sync python scripts/benchmark_cluster.py --workload oriented-chirality --particles 1 --lmax "$order" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/oriented-chirality-l${order}.json"
+    done
+    for workload in particle-cluster particle-cluster-public; do
+        for particles in 4 16; do
+            uv run --no-sync python scripts/benchmark_cluster.py --workload "$workload" --particles "$particles" --lmax 3 --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/${workload}-n${particles}-l3.json"
+        done
+    done
+    for workload in bessel bessel-derivative bessel-forward bessel-derivative-forward; do
+        for samples in 128 4096; do
+            uv run --no-sync python scripts/benchmark_cluster.py --workload "$workload" --samples "$samples" --particles 1 --lmax 3 --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/${workload}-n${samples}.json"
+        done
+    done

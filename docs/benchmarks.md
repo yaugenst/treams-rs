@@ -501,3 +501,34 @@ Raw results: `particle-cluster{-public,}-n{4,16}-l3.json` and
 `block-adjoint-cluster-n{8,32}-l3.json` under `benchmarks/results`.
 Use `--workload particle-cluster` or `--workload particle-cluster-public` with
 `--particles 16 --lmax 3 --threads 4` to reproduce the heterogeneous cases.
+
+## Broadcast Bessel functions
+
+Outgoing cylindrical Hankel H1 of order 3 at 128 or 4096 complex arguments,
+uniform real part 0.6–8.0 and imaginary part 0.2. Results and first derivatives
+are compared with the corresponding `treams.special` functions before timing.
+Release, four matched threads, seven batched samples including result destruction.
+
+| Values | Operation | Path | treams us | Rust us | Speedup | Rust reverse us |
+| ---: | --- | --- | ---: | ---: | ---: | ---: |
+| 128 | H1 | Public forward | 60.86 | 32.13 | 1.89x | — |
+| 4096 | H1 | Public forward | 1905.60 | 550.44 | 3.46x | — |
+| 128 | H1 derivative | Public forward | 93.62 | 39.13 | 2.39x | — |
+| 4096 | H1 derivative | Public forward | 3035.05 | 936.35 | 3.24x | — |
+| 128 | H1 | Recorded | 61.54 | 28.52 | 2.16x | 36.16 |
+| 4096 | H1 | Recorded | 1911.90 | 554.59 | 3.45x | 935.10 |
+| 128 | H1 derivative | Recorded | 93.36 | 48.76 | 1.91x | 62.43 |
+| 4096 | H1 derivative | Recorded | 3034.26 | 882.62 | 3.44x | 1389.10 |
+
+An initial 128-value measurement failed the runtime gate (65.59 us versus 61.08 us).
+Parallel evaluation now starts at 64 values, and ordinary forward calls borrow
+inputs without creating an unused residual. Both forward-only and recorded cases
+pass. Separate runs have scheduling variability, so the small differences between
+recorded and ordinary forward numbers are not evidence that recording is free.
+Rust peak RSS was 39.8–41.0 MiB versus 64.9–65.4 MiB upstream for these cases.
+Scalar call overhead and other special-function families are not qualified by
+this table. No derivative-order or higher-order autodiff support is implied.
+
+Raw results: `benchmarks/results/bessel{,-derivative}{,-forward}-n{128,4096}.json`.
+Use `--workload bessel-forward --samples 4096 --particles 1 --lmax 3 --threads 4`;
+the other workload names match the result filenames. All use the same accuracy gate.

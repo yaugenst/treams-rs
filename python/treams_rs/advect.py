@@ -70,6 +70,25 @@ def _call(values: _Values, forward: _Forward) -> NDArray[np.complex128]:
     )
 
 
+def bessel(
+    z: ArrayLike,
+    *,
+    order: ArrayLike,
+    kind: str = "j",
+    spherical: bool = False,
+    derivative: bool = False,
+) -> NDArray[np.complex128]:
+    """Broadcast Bessel values with a native argument VJP; order is held fixed."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.bessel(
+            order, values[0], kind=kind, spherical=spherical, derivative=derivative
+        )
+        return value, lambda g: (context.pullback(g),)
+
+    return _call((z,), forward)
+
+
 def chirality_density(
     ks: ArrayLike, normal: ArrayLike, z: ArrayLike = (0.0, 0.0)
 ) -> NDArray[np.complex128]:

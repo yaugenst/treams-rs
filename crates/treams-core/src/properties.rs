@@ -20,6 +20,29 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    fn bessel_wronskian_adjoint(x in 0.7_f64..4.0, y in -0.3_f64..0.3, order in 0_i32..10, spherical in any::<bool>()) {
+        use crate::special::{Bessel, bessel_array};
+        let z=Complex::new(x,y);
+        let call=|kind,derivative| {
+            let (v,r)=bessel_array(vec![f64::from(order)],vec![z],kind,spherical,derivative).unwrap();
+            (*v.first().unwrap(),r)
+        };
+        let (j,jr)=call(Bessel::J,0);
+        let (yp,ypr)=call(Bessel::Y,1);
+        let (jp,jpr)=call(Bessel::J,1);
+        let (yv,yr)=call(Bessel::Y,0);
+        let expected=if spherical {1.0/z.powu(2)} else {2.0/(std::f64::consts::PI*z)};
+        prop_assert!((j*yp-jp*yv-expected).norm()<1e-11*expected.norm());
+        let g=Complex::new(0.4,0.3);
+        let gradient=jr.pullback(&[g*yp.conj()]).unwrap().into_iter()
+            .chain(ypr.pullback(&[g*j.conj()]).unwrap())
+            .chain(jpr.pullback(&[-g*yv.conj()]).unwrap())
+            .chain(yr.pullback(&[-g*jp.conj()]).unwrap()).sum::<Complex>();
+        let derivative=-(if spherical {2.0} else {1.0})*expected/z;
+        prop_assert!((gradient-g*derivative.conj()).norm()<2e-10*expected.norm());
+    }
+
+    #[test]
     fn local_block_adjoint_matches_dense(x in -0.1_f64..0.1) {
         let a=DMatrix::from_fn(2,2,|i,j| Complex::new(if i==j {0.2} else {x}, if i<j {0.03} else {-0.04}));
         let b=DMatrix::from_fn(3,3,|i,j| Complex::new(if i==j {0.3} else {-0.01}, if i<j {x} else {0.02}));

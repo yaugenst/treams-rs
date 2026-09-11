@@ -154,6 +154,28 @@ class SolveContext:
         self, cotangent: ComplexArray
     ) -> tuple[ComplexArray, ComplexArray]: ...
 
+def bessel_forward(
+    orders: RealArray,
+    arguments: ComplexArray,
+    kind: str,
+    spherical: bool,
+    derivative: int,
+    shape: tuple[int, ...],
+) -> ComplexArray: ...
+
+class BesselContext:
+    def pullback(self, cotangent: ComplexArray) -> ComplexArray: ...
+
+def bessel(
+    orders: RealArray,
+    arguments: ComplexArray,
+    kind: str,
+    spherical: bool,
+    derivative: int,
+    shape: tuple[int, ...],
+    argument_shape: tuple[int, ...],
+) -> tuple[ComplexArray, BesselContext]: ...
+
 class ParticleClusterContext:
     def pullback(
         self, cotangent: ComplexArray

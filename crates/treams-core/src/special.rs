@@ -3,6 +3,215 @@
 use std::f64::consts::PI;
 
 use crate::{Complex, Error, Result, finite};
+use rayon::prelude::*;
+
+/// Cylindrical Bessel solution, also used at half order for spherical functions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Bessel {
+    /// Regular first-kind solution.
+    J,
+    /// Second-kind solution.
+    Y,
+    /// Outgoing Hankel solution.
+    H1,
+    /// Incoming Hankel solution.
+    H2,
+}
+
+fn bessel_raw(order: f64, z: Complex, kind: Bessel, spherical: bool) -> Result<Complex> {
+    let order = if spherical { order + 0.5 } else { order };
+    let value = match kind {
+        Bessel::J => complex_bessel::besselj(order, z),
+        Bessel::Y => complex_bessel::bessely(order, z),
+        Bessel::H1 => complex_bessel::hankel1(order, z),
+        Bessel::H2 => complex_bessel::hankel2(order, z),
+    }
+    .map_err(|e| Error::SpecialFunction(e.to_string()))?;
+    Ok(if spherical {
+        (PI / (2.0 * z)).sqrt() * value
+    } else {
+        value
+    })
+}
+
+/// Bessel value or one of its first two complex-argument derivatives.
+///
+/// Order is held fixed. Spherical regular functions use analytic origin limits.
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Integral order in 0..=256 checked before conversion.
+pub fn bessel(
+    order: f64,
+    z: Complex,
+    kind: Bessel,
+    spherical_kind: bool,
+    derivative: u8,
+) -> Result<Complex> {
+    if !order.is_finite() || !finite(z) || derivative > 2 {
+        return Err(Error::InvalidInput(
+            "finite order/argument and derivative 0, 1 or 2 required".into(),
+        ));
+    }
+    if spherical_kind
+        && kind == Bessel::J
+        && z.norm() < 0.5
+        && (0.0..=256.0).contains(&order)
+        && order.fract() == 0.0
+    {
+        let jet = spherical(order as u32, z, Radial::Regular)?;
+        return Ok(match derivative {
+            0 => jet.value,
+            1 => jet.first,
+            _ => jet.second,
+        });
+    }
+    let evaluate = |v| bessel_raw(v, z, kind, spherical_kind);
+    let value = if derivative == 0 {
+        evaluate(order)?
+    } else if spherical_kind {
+        let f = evaluate(order)?;
+        let first = order * crate::ratio(f, z) - evaluate(order + 1.0)?;
+        if derivative == 1 {
+            first
+        } else {
+            -2.0 * crate::ratio(first, z)
+                + order * (order + 1.0) * crate::ratio(crate::ratio(f, z), z)
+                - f
+        }
+    } else if derivative == 1 {
+        if order == 0.0 {
+            -evaluate(1.0)?
+        } else {
+            0.5 * (evaluate(order - 1.0)? - evaluate(order + 1.0)?)
+        }
+    } else {
+        0.25 * (evaluate(order - 2.0)? - 2.0 * evaluate(order)? + evaluate(order + 2.0)?)
+    };
+    if !finite(value) {
+        return Err(Error::SpecialFunction("nonfinite Bessel result".into()));
+    }
+    Ok(value)
+}
+
+/// Elementwise Bessel arguments retained for a complex-argument pullback.
+#[derive(Debug)]
+pub struct BesselResidual {
+    orders: Vec<f64>,
+    arguments: Vec<Complex>,
+    kind: Bessel,
+    spherical: bool,
+    derivative: u8,
+    size: usize,
+}
+
+#[allow(clippy::indexing_slicing)] // Scalar-or-element indexing after equal-length validation.
+fn element<T: Copy>(values: &[T], i: usize) -> T {
+    values[if values.len() == 1 { 0 } else { i }]
+}
+
+/// Evaluate borrowed elementwise Bessel arguments without recording a pullback.
+pub fn bessel_values(
+    orders: &[f64],
+    arguments: &[Complex],
+    kind: Bessel,
+    spherical: bool,
+    derivative: u8,
+) -> Result<Vec<Complex>> {
+    let size = if orders.is_empty() || arguments.is_empty() {
+        0
+    } else {
+        orders.len().max(arguments.len())
+    };
+    if (orders.len() != size && orders.len() != 1)
+        || (arguments.len() != size && arguments.len() != 1)
+        || derivative > 1
+    {
+        return Err(Error::InvalidInput(
+            "Bessel arrays must have equal lengths or scalar inputs, and derivative 0 or 1".into(),
+        ));
+    }
+    let evaluate = |i| {
+        bessel(
+            element(orders, i),
+            element(arguments, i),
+            kind,
+            spherical,
+            derivative,
+        )
+    };
+    if size >= 64 {
+        (0..size).into_par_iter().map(evaluate).collect()
+    } else {
+        (0..size).map(evaluate).collect()
+    }
+}
+
+/// Evaluate elementwise Bessel functions, broadcasting either scalar input.
+pub fn bessel_array(
+    orders: Vec<f64>,
+    arguments: Vec<Complex>,
+    kind: Bessel,
+    spherical: bool,
+    derivative: u8,
+) -> Result<(Vec<Complex>, BesselResidual)> {
+    let value = bessel_values(&orders, &arguments, kind, spherical, derivative)?;
+    let size = value.len();
+    Ok((
+        value,
+        BesselResidual {
+            orders,
+            arguments,
+            kind,
+            spherical,
+            derivative,
+            size,
+        },
+    ))
+}
+
+impl BesselResidual {
+    fn evaluate(&self, i: usize, derivative: u8) -> Result<Complex> {
+        bessel(
+            element(&self.orders, i),
+            element(&self.arguments, i),
+            self.kind,
+            self.spherical,
+            derivative,
+        )
+    }
+
+    /// Contract the holomorphic argument derivative; scalar inputs receive a sum.
+    pub fn pullback(self, cotangent: &[Complex]) -> Result<Vec<Complex>> {
+        if cotangent.len() != self.size || cotangent.iter().any(|&g| !finite(g)) {
+            return Err(Error::InvalidInput(
+                "Bessel cotangent must be finite and match output".into(),
+            ));
+        }
+        let evaluate = |(i, &g): (usize, &Complex)| {
+            if g == Complex::default() {
+                Ok(g)
+            } else {
+                Ok(g * self.evaluate(i, self.derivative + 1)?.conj())
+            }
+        };
+        let result: Vec<_> = if self.size >= 64 {
+            cotangent
+                .par_iter()
+                .enumerate()
+                .map(evaluate)
+                .collect::<Result<_>>()?
+        } else {
+            cotangent
+                .iter()
+                .enumerate()
+                .map(evaluate)
+                .collect::<Result<_>>()?
+        };
+        Ok(if self.arguments.len() == 1 {
+            vec![result.into_iter().sum()]
+        } else {
+            result
+        })
+    }
+}
 
 /// Regular or outgoing radial solution.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
