@@ -18,6 +18,7 @@ from ._operators import (
     ffield,
     gfield,
     hfield,
+    permute,
     rotate,
     translate,
 )
@@ -52,6 +53,7 @@ __all__ = [
     "gfield",
     "hfield",
     "lattice",
+    "permute",
     "plane_wave",
     "plane_wave_angle",
     "poynting_avg_z",

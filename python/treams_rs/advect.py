@@ -828,3 +828,21 @@ def periodic_conversion(
         return value, context.pullback
 
     return _call((destination_origins, source_origins, ks, kzs, period), forward)
+
+
+def plane_permutation(
+    vectors: ArrayLike,
+    *,
+    polarizations: ArrayLike,
+    n: int = 1,
+    poltype: str = "helicity",
+) -> NDArray[np.complex128]:
+    """Cyclic-axis polarization coefficients with native complex-vector pullbacks."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.plane_permutation(
+            values[0], polarizations, n, poltype=poltype
+        )
+        return value, lambda g: (context.pullback(g),)
+
+    return _call((vectors,), forward)

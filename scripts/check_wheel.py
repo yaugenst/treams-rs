@@ -363,3 +363,9 @@ np.testing.assert_allclose(advect.grad(phase_scale)(np.array(1.0)), 0, atol=1e-1
 print(
     "Clean wheel: plane translation, identity expansion and native phase adjoint passed"
 )
+
+permuted = plane.permute(1)
+transform = tr.permute(1, basis=plane, k0=1.3)
+inverse = tr.permute(-1, basis=permuted, k0=1.3)
+np.testing.assert_allclose(inverse @ transform, np.eye(len(plane)), atol=1e-12)
+print("Clean wheel: plane-wave coordinate transformation passed")

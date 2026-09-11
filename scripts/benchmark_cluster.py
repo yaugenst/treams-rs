@@ -117,7 +117,12 @@ def worker(
             if backend in ("treams", "check"):
                 oracle_basis = treams.PlaneWaveBasisByComp.default(q)
 
-        if workload in ("plane-field", "plane-operator", "plane-phases"):
+        if workload in (
+            "plane-field",
+            "plane-operator",
+            "plane-phases",
+            "plane-permutation",
+        ):
             q = np.column_stack(
                 [
                     np.linspace(0.1, 1.7, particles * order),
@@ -263,6 +268,8 @@ def worker(
         eta = 0.7 if workload == "cylindrical-array" else 0
 
         def rust():
+            if workload == "plane-permutation":
+                return diff.plane_permutation(vectors, basis.pol)
             if workload == "plane-phases":
                 return diff.plane_phases(points, vectors)
             if workload == "ebcm":
@@ -350,6 +357,10 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload == "plane-permutation":
+                return treams.pw.permute_xyz(
+                    *oracle_vectors.T, np.arange(2)[:, None], oracle_basis.pol[None, :]
+                )
             if workload == "plane-phases":
                 return treams.pw.translate(
                     *oracle_vectors.T,
@@ -473,16 +484,27 @@ def worker(
         baseline = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
         function = rust if backend == "rust" else upstream
         function()
+        # Microsecond kernels need sustained samples, not seven individual calls
+        # dominated by timer noise, cold caches and CPU frequency ramp-up.
+        batch = 1
+        while True:
+            start = time.perf_counter()
+            for _ in range(batch):
+                function()
+            if time.perf_counter() - start >= 0.02:
+                break
+            batch *= 10
         times = []
         for _ in range(repeats):
             start = time.perf_counter()
-            result = function()
-            times.append(time.perf_counter() - start)
-            del result
+            for _ in range(batch):
+                function()
+            times.append((time.perf_counter() - start) / batch)
         peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
         backward_times = []
         if backend == "rust" and workload != "internal-field-forward":
-            for iteration in range(repeats + 1):
+            sample_total = 0.0
+            for iteration in range((repeats + 1) * batch):
                 value, context = (
                     diff.layer_stack(layer_ks, layer_zs, q, layer_thickness)
                     if workload == "slab"
@@ -516,8 +538,11 @@ def worker(
                 else:
                     context.pullback(cotangent)
                 elapsed = time.perf_counter() - start
-                if iteration:
-                    backward_times.append(elapsed)
+                sample_total += elapsed
+                if (iteration + 1) % batch == 0:
+                    if iteration >= batch:
+                        backward_times.append(sample_total / batch)
+                    sample_total = 0.0
                 del value, context, cotangent
         backward_peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
         print(
@@ -555,6 +580,7 @@ def worker(
                         "plane-field",
                         "plane-operator",
                         "plane-phases",
+                        "plane-permutation",
                         "plane-expansion",
                         "cylindrical-plane-expansion",
                     )
@@ -572,7 +598,13 @@ def worker(
                     else particles
                     * (
                         2 * order
-                        if workload in ("plane-field", "plane-operator", "plane-phases")
+                        if workload
+                        in (
+                            "plane-field",
+                            "plane-operator",
+                            "plane-phases",
+                            "plane-permutation",
+                        )
                         else 4 * (2 * order + 1)
                         if workload == "cylindrical-field"
                         else 2 * (2 * order + 1)
@@ -585,6 +617,8 @@ def worker(
                     "peak_rss_mib": peak,
                     "baseline_rss_mib": baseline,
                     "samples_seconds": times,
+                    "calls_per_timing_sample": batch,
+                    "forward_includes_result_destruction": True,
                     "backward_median_seconds": statistics.median(backward_times)
                     if backward_times
                     else None,
@@ -619,6 +653,7 @@ def main() -> None:
             "plane-field",
             "plane-operator",
             "plane-phases",
+            "plane-permutation",
             "plane-expansion",
             "cylindrical-plane-expansion",
             "cylindrical-array",

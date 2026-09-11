@@ -28,6 +28,37 @@ fn from_array(value: PyReadonlyArray4<'_, Complex>) -> PyResult<Blocks> {
         crate::tmatrix::matrix_from_view(a.slice(s![b / 2, b % 2, .., ..]))
     }))
 }
+fn illumination_blocks(
+    value: PyReadonlyArray4<'_, Complex>,
+) -> PyResult<[smatrix::StoredBlock; 4]> {
+    let a = value.as_array();
+    let s = a.shape();
+    if s[0] != 2 || s[1] != 2 || s[2] == 0 || s[2] != s[3] {
+        return Err(PyValueError::new_err(
+            "S matrices require shape (2, 2, n, n) with n > 0",
+        ));
+    }
+    let block = |i: usize| -> PyResult<smatrix::StoredBlock> {
+        let matrix = a.slice(s![i / 2, i % 2, .., ..]);
+        if matrix.strides()[1] == 1
+            && let Some(data) = matrix.as_slice_memory_order()
+        {
+            smatrix::StoredBlock::from_rows(s[2], data.to_vec()).map_err(error)
+        } else {
+            Ok(crate::tmatrix::matrix_from_view(matrix).into())
+        }
+    };
+    if s[2] >= 256 {
+        let ((a, b), (c, d)) = rayon::join(
+            || rayon::join(|| block(0), || block(1)),
+            || rayon::join(|| block(2), || block(3)),
+        );
+        Ok([a?, b?, c?, d?])
+    } else {
+        Ok([block(0)?, block(1)?, block(2)?, block(3)?])
+    }
+}
+
 fn cotangent_blocks(value: PyReadonlyArray4<'_, Complex>) -> PyResult<Blocks> {
     let blocks = from_array(value)?;
     if blocks
@@ -330,14 +361,14 @@ fn smatrix_illuminate<'py>(
     up: PyReadonlyArray2<'py, Complex>,
     down: PyReadonlyArray2<'py, Complex>,
 ) -> PyResult<(Bound<'py, PyArray3<Complex>>, IlluminationContext)> {
-    let lower = from_array(lower)?;
-    let upper = from_array(upper)?;
+    let lower = illumination_blocks(lower)?;
+    let upper = illumination_blocks(upper)?;
     let incoming = [
         crate::tmatrix::from_array(up)?,
         crate::tmatrix::from_array(down)?,
     ];
     let (value, residual) = py
-        .detach(move || smatrix::illuminate(lower, upper, incoming))
+        .detach(move || smatrix::illuminate_stored(lower, upper, incoming))
         .map_err(error)?;
     let (n, p) = residual.shape();
     let value = Array3::from_shape_fn((4, n, p), |(b, i, j)| value[b][(i, j)]).into_pyarray(py);

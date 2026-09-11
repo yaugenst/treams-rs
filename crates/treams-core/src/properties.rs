@@ -110,6 +110,30 @@ proptest! {
     }
 
     #[test]
+    fn local_quotient_common_scale(x in -0.3_f64..0.3, exponent in prop_oneof![Just(-300),Just(0),Just(300)]) {
+        let scale=10_f64.powi(exponent);
+        let a=Complex::new(0.7,x);
+        let b=Complex::new(1.3,0.4);
+        let result=crate::jet::Jet::<2>::variable(a*scale,0)/crate::jet::Jet::<2>::variable(b*scale,1);
+        prop_assert!((result.value-a/b).norm()<1e-14);
+        prop_assert!((result.derivative[0]*scale-Complex::new(1.0,0.0)/b).norm()<1e-14);
+        prop_assert!((result.derivative[1]*scale+a/b/b).norm()<1e-14);
+    }
+
+    #[test]
+    fn plane_permutation_inverse_and_homogeneous_adjoint(x in -0.2_f64..0.2, helicity in any::<bool>()) {
+        let k=[Complex::new(0.4+x,0.1),Complex::new(0.3,-0.05),Complex::new(0.8,0.1)];
+        let (forward,residual)=crate::plane::permutation(vec![k,k],vec![0,1],1,helicity).unwrap();
+        let rotated=[k[2],k[0],k[1]];
+        let (inverse,_)=crate::plane::permutation(vec![rotated,rotated],vec![0,1],2,helicity).unwrap();
+        prop_assert!((&inverse*&forward-DMatrix::identity(2,2)).norm()<1e-12);
+        let g=DMatrix::from_fn(2,2,|i,j|Complex::new(if i==j {0.7}else{-0.1},0.2));
+        let gradient=residual.pullback(&g).unwrap();
+        let contraction:Complex=gradient.iter().flat_map(|row|row.iter().zip(k).map(|(g,v)|g.conj()*v)).sum();
+        prop_assert!(contraction.norm()<1e-12);
+    }
+
+    #[test]
     fn linear_solve_and_internal_field_amplitude_adjoint(x in -0.3_f64..0.3, scale in 0.5_f64..2.0) {
         let a=DMatrix::from_row_slice(2,2,&[Complex::new(1.2,0.1),Complex::new(0.2,x),Complex::new(0.1,-0.2),Complex::new(2.7,0.3)]);
         let b=DMatrix::from_element(2,1,Complex::new(x,0.2));
@@ -119,11 +143,16 @@ proptest! {
         prop_assert!((&scaled.value-&solved.value).norm()<1e-12);
         let (ga,gb)=solved.pullback(DMatrix::from_element(2,1,Complex::new(0.2,0.1))).unwrap();
         prop_assert!((ga.dotc(&a).re+gb.dotc(&b).re).abs()<1e-12);
-        let blocks:crate::smatrix::Blocks=std::array::from_fn(|i|if i==0 || i==3 {DMatrix::identity(2,2)}else{DMatrix::from_element(2,2,Complex::new(x,0.05))});
+        let blocks:crate::smatrix::Blocks=std::array::from_fn(|i|if i==0 || i==3 {DMatrix::identity(2,2)}else{DMatrix::from_fn(2,2,|r,c|Complex::new(x+if r==0 {0.01}else{0.02},if c==0 {0.05}else{0.06}))});
         let incoming=[b.clone(),b.map(|z|z*scale)];
-        let (fields,residual)=crate::smatrix::illuminate(blocks.clone(),blocks,incoming.clone()).unwrap();
+        let (fields,residual)=crate::smatrix::illuminate(blocks.clone(),blocks.clone(),incoming.clone()).unwrap();
+        let rows=||blocks.clone().map(|b|crate::smatrix::StoredBlock::from_rows(2,Vec::from(b.transpose().data)).unwrap());
+        let (row_fields,row_residual)=crate::smatrix::illuminate_stored(rows(),rows(),incoming.clone()).unwrap();
+        for (left,right) in fields.iter().zip(row_fields.iter()) { prop_assert!((left-right).norm()<1e-12); }
         let g=std::array::from_fn(|_|DMatrix::from_element(2,1,Complex::new(0.2,0.1)));
-        let (_,_,gradient)=residual.pullback(&g).unwrap();
+        let (lower,upper,gradient)=residual.pullback(&g).unwrap();
+        let (row_lower,row_upper,row_gradient)=row_residual.pullback(&g).unwrap();
+        for (left,right) in lower.iter().chain(&upper).chain(&gradient).zip(row_lower.iter().chain(&row_upper).chain(&row_gradient)) { prop_assert!((left-right).norm()<1e-12); }
         let output:f64=fields.iter().zip(g.iter()).map(|(v,g)|g.dotc(v).re).sum();
         let input:f64=incoming.iter().zip(gradient.iter()).map(|(v,g)|g.dotc(v).re).sum();
         prop_assert!((output-input).abs()<1e-12);

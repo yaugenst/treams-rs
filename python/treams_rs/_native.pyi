@@ -502,3 +502,10 @@ def periodic_conversion(
     period: float,
     helicity: bool,
 ) -> tuple[ComplexArray, PeriodicConversionContext]: ...
+
+class PlanePermutationContext:
+    def pullback(self, cotangent: ComplexArray) -> ComplexArray: ...
+
+def plane_permutation(
+    vectors: ComplexArray, polarizations: RealArray, turns: int, helicity: bool
+) -> tuple[ComplexArray, PlanePermutationContext]: ...

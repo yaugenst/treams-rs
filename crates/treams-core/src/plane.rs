@@ -12,7 +12,10 @@ use crate::{
 // Scale before squaring or dividing: nearly axial directions may have transverse
 // components small enough that their squares underflow while their azimuth matters.
 fn algebraic_norm(values: &[Complex]) -> Complex {
-    let scale = values.iter().map(|v| v.norm()).fold(0.0, f64::max);
+    let scale = values
+        .iter()
+        .map(|v| v.re.abs().max(v.im.abs()))
+        .fold(0.0, f64::max);
     if scale == 0.0 {
         return Complex::default();
     }
@@ -27,7 +30,10 @@ fn wavenumbers(vector: [Complex; 3]) -> Result<(Complex, Complex, [Complex; 2])>
     if vector.iter().any(|&v| !finite(v)) {
         return Err(Error::InvalidInput("wavevector must be finite".into()));
     }
-    let scale = vector[..2].iter().map(|v| v.norm()).fold(0.0, f64::max);
+    let scale = vector[..2]
+        .iter()
+        .map(|v| v.re.abs().max(v.im.abs()))
+        .fold(0.0, f64::max);
     let (transverse, xy) = if scale == 0.0 {
         (Complex::default(), [Complex::default(); 2])
     } else {
@@ -357,6 +363,189 @@ pub struct PhaseGradient {
     pub points: Vec<[f64; 3]>,
     /// Complex wavevector cotangents in the real Hermitian pairing.
     pub vectors: Vec<[Complex; 3]>,
+}
+
+/// Inputs retained for a cyclic Cartesian-axis permutation of plane polarizations.
+#[derive(Debug)]
+pub struct PermutationResidual {
+    vectors: Vec<[Complex; 3]>,
+    polarizations: Vec<u8>,
+    turns: usize,
+    helicity: bool,
+}
+
+fn permutation_pair<const N: usize>(vector: [Complex; 3], turns: usize) -> Result<[Jet<N>; 2]> {
+    if turns == 0 {
+        wavenumbers(vector)?;
+        return Ok([Jet::constant(1.0), Jet::default()]);
+    }
+    let rotated = std::array::from_fn(|axis| vector[(axis + 3 - turns) % 3]);
+    let source_direction = Direction::<N>::new(vector)?;
+    let destination = Direction::<N>::new(rotated)?;
+    if source_direction.transverse.value != Complex::default()
+        && destination.transverse.value != Complex::default()
+    {
+        let unpermute = |mut jet: Jet<N>| {
+            jet.derivative = std::array::from_fn(|j| jet.derivative[(j + turns) % 3]);
+            jet
+        };
+        let pair = if turns == 1 {
+            (
+                -source_direction.xy[1] * unpermute(destination.xy[0]),
+                -Complex::i()
+                    * source_direction.xy[0]
+                    * (source_direction.k / unpermute(destination.transverse)),
+            )
+        } else {
+            (
+                -source_direction.xy[0] * unpermute(destination.xy[1]),
+                Complex::i()
+                    * source_direction.xy[1]
+                    * (source_direction.k / unpermute(destination.transverse)),
+            )
+        };
+        return Ok(pair.into());
+    }
+    // At an axis, evaluate the defined Cartesian polarization gauges directly.
+    let source = polarization_jet::<N>(vector, 0, false)?;
+    let mut result = [Jet::default(); 2];
+    for (p, output) in result.iter_mut().enumerate() {
+        // The algebraic dual of the parity pair is (-M, N).
+        let dual_pol = u8::from(p == 1);
+        let sign = if p == 0 { -1.0 } else { 1.0 };
+        let dual = polarization_jet::<N>(rotated, dual_pol, false)?;
+        for (axis, mut component) in dual.into_iter().enumerate() {
+            component.derivative = std::array::from_fn(|j| component.derivative[(j + turns) % 3]);
+            *output += sign * component * source[(axis + 3 - turns) % 3];
+        }
+    }
+    Ok(result)
+}
+
+fn permutation_polarization<const N: usize>(
+    pair: [Jet<N>; 2],
+    pol: u8,
+    helicity: bool,
+) -> [Jet<N>; 2] {
+    let [same, cross] = pair;
+    std::array::from_fn(|p| {
+        if helicity {
+            if p == usize::from(pol) {
+                same + (2.0 * f64::from(pol) - 1.0) * cross
+            } else {
+                Jet::default()
+            }
+        } else if p == usize::from(pol) {
+            same
+        } else {
+            cross
+        }
+    })
+}
+
+/// Polarization coefficients for cyclic xyz -> zxy permutations, shape (2, modes).
+///
+/// Each column contains both output polarizations for one input mode; matching
+/// direction labels and construction of a dense basis operator are separate.
+pub fn permutation(
+    vectors: Vec<[Complex; 3]>,
+    polarizations: Vec<u8>,
+    turns: usize,
+    helicity: bool,
+) -> Result<(DMatrix<Complex>, PermutationResidual)> {
+    if vectors.is_empty()
+        || polarizations.len() != vectors.len()
+        || polarizations.iter().any(|&p| p > 1)
+    {
+        return Err(Error::InvalidInput(
+            "require matching nonempty vectors and polarizations".into(),
+        ));
+    }
+    let turns = turns % 3;
+    let mut value = DMatrix::zeros(2, vectors.len());
+    let fill = |(group, output): (usize, &mut [Complex])| -> Result<()> {
+        let first = 2 * group;
+        let pair = permutation_pair::<0>(vectors[first], turns)?;
+        for (offset, column) in output.chunks_mut(2).enumerate() {
+            let i = first + offset;
+            let pair = if offset == 0 || vectors[i] == vectors[first] {
+                pair
+            } else {
+                permutation_pair::<0>(vectors[i], turns)?
+            };
+            for (out, coefficient) in
+                column
+                    .iter_mut()
+                    .zip(permutation_polarization(pair, polarizations[i], helicity))
+            {
+                *out = coefficient.value;
+            }
+        }
+        Ok(())
+    };
+    if vectors.len() >= 1024 {
+        value
+            .as_mut_slice()
+            .par_chunks_mut(4)
+            .enumerate()
+            .try_for_each(fill)?;
+    } else {
+        value
+            .as_mut_slice()
+            .chunks_mut(4)
+            .enumerate()
+            .try_for_each(fill)?;
+    }
+    if value.iter().any(|&z| !finite(z)) {
+        return Err(Error::InvalidInput("plane permutation overflow".into()));
+    }
+    Ok((
+        value,
+        PermutationResidual {
+            vectors,
+            polarizations,
+            turns,
+            helicity,
+        },
+    ))
+}
+
+impl PermutationResidual {
+    /// Number of input plane modes.
+    #[must_use]
+    pub fn modes(&self) -> usize {
+        self.vectors.len()
+    }
+
+    /// Contract the complex-wavevector derivatives of both polarization outputs.
+    /// Direction derivatives at an axial polarization gauge are undefined.
+    pub fn pullback(self, g: &DMatrix<Complex>) -> Result<Vec<[Complex; 3]>> {
+        if g.shape() != (2, self.modes()) || g.iter().any(|&z| !finite(z)) {
+            return Err(Error::InvalidInput(
+                "invalid plane-permutation cotangent".into(),
+            ));
+        }
+        if self.turns == 0 {
+            return Ok(vec![[Complex::default(); 3]; self.modes()]);
+        }
+        let gradient = |i: usize| -> Result<[Complex; 3]> {
+            let coefficients = permutation_polarization(
+                permutation_pair::<3>(self.vectors[i], self.turns)?,
+                self.polarizations[i],
+                self.helicity,
+            );
+            Ok(std::array::from_fn(|axis| {
+                (0..2)
+                    .map(|p| g[(p, i)] * coefficients[p].derivative[axis].conj())
+                    .sum()
+            }))
+        };
+        if self.modes() >= 1024 {
+            (0..self.modes()).into_par_iter().map(gradient).collect()
+        } else {
+            (0..self.modes()).map(gradient).collect()
+        }
+    }
 }
 
 /// Plane-wave translation phases with shape (displacements, wavevectors).

@@ -342,7 +342,77 @@ fn plane_phases<'py>(
     ))
 }
 
+#[pyclass]
+#[derive(Debug)]
+struct PlanePermutationContext {
+    residual: Option<treams_core::plane::PermutationResidual>,
+}
+
+#[pymethods]
+impl PlanePermutationContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'py, Complex>,
+    ) -> PyResult<Bound<'py, PyArray2<Complex>>> {
+        let g = crate::tmatrix::from_array(cotangent)?;
+        let residual = self
+            .residual
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        if g.shape() != (2, residual.modes()) {
+            return Err(PyValueError::new_err(
+                "permutation cotangent must have shape (2, modes)",
+            ));
+        }
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let gradient = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        Ok(array(py, &gradient))
+    }
+}
+
+#[pyfunction]
+#[allow(clippy::float_cmp)] // Polarizations are exact discrete labels, not measured floats.
+fn plane_permutation<'py>(
+    py: Python<'py>,
+    vectors: PyReadonlyArray2<'py, Complex>,
+    polarizations: PyReadonlyArray1<'py, f64>,
+    turns: usize,
+    helicity: bool,
+) -> PyResult<(Bound<'py, PyArray2<Complex>>, PlanePermutationContext)> {
+    let vectors = triples(vectors)?;
+    let polarizations = polarizations
+        .as_array()
+        .iter()
+        .map(|&p| {
+            if p == 0.0 || p == 1.0 {
+                Ok(u8::from(p == 1.0))
+            } else {
+                Err(PyValueError::new_err("polarizations must be 0 or 1"))
+            }
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    let (value, residual) = py
+        .detach(move || treams_core::plane::permutation(vectors, polarizations, turns, helicity))
+        .map_err(error)?;
+    let value = Array2::from_shape_vec((value.ncols(), 2), Vec::from(value.data))
+        .map_err(|e| PyValueError::new_err(e.to_string()))?
+        .reversed_axes()
+        .into_pyarray(py);
+    Ok((
+        value,
+        PlanePermutationContext {
+            residual: Some(residual),
+        },
+    ))
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PlanePermutationContext>()?;
+    m.add_function(wrap_pyfunction!(plane_permutation, m)?)?;
     m.add_class::<PlanePhaseContext>()?;
     m.add_function(wrap_pyfunction!(plane_phases, m)?)?;
     m.add_class::<PlaneFieldContext>()?;

@@ -37,13 +37,32 @@ pub(crate) fn product_adjoint_left(
     left: &DMatrix<Complex>,
     right: &DMatrix<Complex>,
 ) -> DMatrix<Complex> {
-    product_op(left, right, true, false)
+    product_adjoint_left_view(view(left), view(right))
+}
+pub(crate) fn product_adjoint_left_view(
+    left: MatRef<'_, Complex>,
+    right: MatRef<'_, Complex>,
+) -> DMatrix<Complex> {
+    let mut result = DMatrix::zeros(left.ncols(), right.ncols());
+    matmul_with_conj(
+        view_mut(&mut result),
+        Accum::Replace,
+        left.transpose(),
+        Conj::Yes,
+        right,
+        Conj::No,
+        Complex::new(1.0, 0.0),
+        faer::get_global_parallelism(),
+    );
+    result
 }
 pub(crate) fn product_adjoint_right(
     left: &DMatrix<Complex>,
     right: &DMatrix<Complex>,
 ) -> DMatrix<Complex> {
-    product_op(left, right, false, true)
+    let mut result = DMatrix::zeros(left.nrows(), right.nrows());
+    product_adjoint_right_into(&mut result, left, right);
+    result
 }
 pub(crate) fn product_adjoint_right_into(
     result: &mut DMatrix<Complex>,
@@ -60,36 +79,6 @@ pub(crate) fn product_adjoint_right_into(
         Complex::new(1.0, 0.0),
         faer::get_global_parallelism(),
     );
-}
-
-fn product_op(
-    left: &DMatrix<Complex>,
-    right: &DMatrix<Complex>,
-    adjoint_left: bool,
-    adjoint_right: bool,
-) -> DMatrix<Complex> {
-    let left = if adjoint_left {
-        view(left).transpose()
-    } else {
-        view(left)
-    };
-    let right = if adjoint_right {
-        view(right).transpose()
-    } else {
-        view(right)
-    };
-    let mut result = DMatrix::zeros(left.nrows(), right.ncols());
-    matmul_with_conj(
-        view_mut(&mut result),
-        Accum::Replace,
-        left,
-        if adjoint_left { Conj::Yes } else { Conj::No },
-        right,
-        if adjoint_right { Conj::Yes } else { Conj::No },
-        Complex::new(1.0, 0.0),
-        faer::get_global_parallelism(),
-    );
-    result
 }
 
 #[derive(Clone, Debug)]

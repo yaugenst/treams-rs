@@ -636,3 +636,27 @@ def periodic_conversion(
         period,
         poltype == "helicity",
     )
+
+
+def plane_permutation(
+    vectors: ArrayLike,
+    polarizations: ArrayLike,
+    n: int = 1,
+    *,
+    poltype: str = "helicity",
+) -> tuple[NDArray[np.complex128], _native.PlanePermutationContext]:
+    """Cyclic Cartesian-axis change, with both output polarizations per input mode.
+
+    Returns coefficients of shape (2, modes). The new wavevectors are
+    np.roll(vectors, n, axis=1). The native pullback differentiates complex vectors.
+    """
+    if n != int(n):
+        raise ValueError("number of permutations must be integer")
+    if poltype not in ("helicity", "parity"):
+        raise ValueError("invalid polarization type")
+    return _native.plane_permutation(
+        np.asarray(vectors, dtype=np.complex128),
+        np.asarray(polarizations, dtype=np.float64),
+        int(n) % 3,
+        poltype == "helicity",
+    )

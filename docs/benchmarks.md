@@ -348,50 +348,80 @@ particle construction and the periodic interaction solve.
 
 ## Dense internal illumination
 
-Two general dense S matrices, four matched threads and seven samples after
-warmup. Random complex reflections scale as 0.1/sqrt(N), with identity transmission
-plus similarly sized perturbations; seed 81. All four fields are checked against
-treams before timing. Construction of the supplied S matrices is excluded.
+Two general dense S matrices, four matched threads, seven samples after warmup.
+Random complex reflections scale as 0.1/sqrt(N), with identity transmission plus
+similarly sized perturbations; seed 81. All four fields are checked against treams
+before timing. Construction of the supplied S matrices is excluded.
+
+These refreshed measurements use batches lasting at least 20 ms per sample and
+include destruction of returned fields and residuals. Reverse samples aggregate
+the same number of fresh contexts, with forward preparation outside the timer.
+Earlier tables in this document used individual calls and excluded forward result
+cleanup. Raw results record the batch size and methodology explicitly.
 
 The former 1024-mode regression (68 ms and 355.7 MiB versus treams' 60.7 ms and
 258.0 MiB) is corrected on the ordinary forward path. `SMatrices.illuminate`
-now borrows its input blocks and avoids recording unused adjoint inputs. The
-shared native LU overwrites the operator in one packed buffer, rather than
-copying it and allocating separate dense L and U matrices.
+borrows its input blocks and avoids recording unused adjoint inputs. The shared
+native LU overwrites the operator in one packed buffer instead of copying it and
+allocating separate dense L and U matrices.
 
 | Modes | RHS columns | treams ms | Rust forward ms | Speedup | treams / Rust peak MiB |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 256 | 1 | 3.61 | 1.40 | 2.58x | 82.0 / 57.9 |
-| 256 | 8 | 3.73 | 1.75 | 2.13x | 82.7 / 57.3 |
-| 1024 | 1 | 61.72 | 37.00 | 1.67x | 258.7 / 234.8 |
-| 1024 | 8 | 63.25 | 33.54 | 1.89x | 259.4 / 234.4 |
+| 256 | 1 | 3.54 | 0.87 | 4.07x | 82.6 / 56.6 |
+| 256 | 8 | 4.19 | 1.51 | 2.79x | 83.0 / 57.5 |
+| 1024 | 1 | 62.09 | 34.04 | 1.82x | 259.2 / 234.0 |
+| 1024 | 8 | 63.52 | 30.49 | 2.08x | 259.4 / 235.1 |
 
-Differentiable illumination is measured separately and still includes owned
-input snapshots plus the retained LU. Snapshots preserve the pullback after
-Python input mutation. In reverse, their buffers are overwritten with the block
-gradients after the incident-amplitude cotangents have been computed. Rank-P
-contractions avoid dense operator cotangents and conjugate-transpose copies.
+Differentiable illumination includes owned input snapshots plus the retained LU.
+Snapshots preserve the pullback after Python input mutation. Large blocks copy in
+parallel; contiguous row-major inputs retain their layout without a transpose.
+In reverse, their buffers are overwritten with the block gradients after the
+incident-amplitude cotangents have been computed. Rank-P contractions avoid dense
+operator cotangents and conjugate-transpose copies.
 
 | Modes | RHS columns | treams forward ms | Rust recorded forward ms | Speedup | Rust reverse ms | Rust forward / through-reverse peak MiB |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 256 | 1 | 3.69 | 3.06 | 1.21x | 0.89 | 62.6 / 66.3 |
-| 256 | 8 | 4.13 | 3.33 | 1.24x | 0.99 | 62.9 / 67.2 |
-| 1024 | 1 | 65.52 | 60.22 | 1.09x | 21.66 | 331.9 / 388.0 |
-| 1024 | 8 | 68.45 | 60.54 | 1.13x | 24.82 | 332.3 / 391.3 |
+| 256 | 1 | 3.94 | 0.93 | 4.23x | 0.30 | 65.6 / 85.6 |
+| 256 | 8 | 3.82 | 1.11 | 3.43x | 0.50 | 65.2 / 85.2 |
+| 1024 | 1 | 61.40 | 40.97 | 1.50x | 29.96 | 332.1 / 420.6 |
+| 1024 | 8 | 66.26 | 41.26 | 1.61x | 33.34 | 332.4 / 423.8 |
 
 Recording the 1024-mode adjoint still uses more memory than upstream's forward-only
 operation: about 332 versus 259 MiB. This cost is explicit, not hidden in the
-forward-only result. The previous reverse took 32 ms with a 435 MiB peak. RSS
-includes imports, setup allocations and allocator retention, not just live arrays.
-These cases establish no universal speed guarantee for arbitrary matrices or hosts.
+forward-only result. RSS includes imports, setup allocations and allocator
+retention, not just live arrays. These cases establish no universal speed
+guarantee for arbitrary matrices or hosts.
 
 Raw samples, binary hashes and environments are stored in
 `benchmarks/results/internal-{forward,adjoint}-l{128,512}-p{1,8}.json`.
-`just bench-performance` reruns all eight accuracy-checked cases on an idle host,
-failing if Rust is slower; forward-only cases also fail if Rust uses more peak RSS.
-The harness also accepts `--require-speedup` and `--require-rss-ratio` for other
+`just bench-performance` reruns these eight accuracy-checked cases and the two
+compact permutation cases below on an idle host, failing if Rust is slower;
+forward-only illumination and permutation also gate peak RSS against upstream.
+The harness accepts `--require-speedup` and `--require-rss-ratio` for other
 workloads. Timing gates are separate from shared hosted correctness CI.
 Here lmax is only a size argument: the dense matrix has 2*lmax modes.
+
+## Compact plane permutations
+
+Cyclic Cartesian-axis transforms return both output polarizations for each input
+mode, shape (2, N). The reference is `treams.pw.permute_xyz` broadcast to the same
+shape; these are not timings for a dense N-by-N public operator. Four matched
+threads, release, accuracy checked first, seven batched samples including output
+and residual destruction as described above.
+
+| Modes | treams us | Rust us | Speedup | Rust reverse us | treams / Rust forward peak MiB |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 128 | 7.52 | 5.41 | 1.39x | 16.78 | 65.0 / 42.2 |
+| 1024 | 170.23 | 34.68 | 4.91x | 77.78 | 65.2 / 43.4 |
+
+Geometry is shared between adjacent equal directions, while their input
+cotangents remain independent. The residual stores only the vectors and discrete
+labels. Raw results: `benchmarks/results/plane-permutation-l{64,512}.json`.
+
+The shared scaled polarization and complex quotient arithmetic was also rechecked
+on the full plane-field operator (128 modes, 4096 samples). It takes 1.81 ms versus
+138.43 ms upstream (76.55x), with 9.77 ms reverse and forward peak RSS of 67.5 versus
+89.5 MiB. The result is in `plane-transform-check-field-n128.json`.
 
 ## Plane translation phases
 

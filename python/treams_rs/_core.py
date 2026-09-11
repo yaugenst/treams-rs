@@ -5,6 +5,7 @@ from __future__ import annotations
 import cmath
 import math
 from dataclasses import dataclass
+from functools import cached_property
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -147,9 +148,11 @@ class PlaneWaveBasisByUnitVector:
     def qz(self) -> NDArray[np.complex128]:
         return self.directions[:, 2]
 
-    @property
+    @cached_property
     def pol(self) -> NDArray[np.int64]:
-        return np.array([m[3] for m in self.modes], dtype=np.int64)
+        result = np.array([m[3] for m in self.modes], dtype=np.int64)
+        result.flags.writeable = False
+        return result
 
     @classmethod
     def default(cls, kvecs: ArrayLike) -> PlaneWaveBasisByUnitVector:
@@ -164,7 +167,19 @@ class PlaneWaveBasisByUnitVector:
         values = self.directions * Material(material).ks(k0)[self.pol, None]
         return values[:, 0], values[:, 1], values[:, 2]
 
+    def rotate(self, phi: float) -> PlaneWaveBasisByUnitVector:
+        """Rotate direction labels around z, preserving their polarizations."""
+        if not math.isfinite(phi):
+            raise ValueError("rotation angle must be finite")
+        c, s = math.cos(phi), math.sin(phi)
+        return type(self)(
+            (c * x - s * y, s * x + c * y, z, p) for x, y, z, p in self.modes
+        )
+
     def permute(self, n: int = 1) -> PlaneWaveBasisByUnitVector:
+        if n != int(n):
+            raise ValueError("number of permutations must be integer")
+        n = int(n)
         vectors = np.roll(self.directions, n % 3, axis=1)
         return type(self)((*v, int(p)) for v, p in zip(vectors, self.pol, strict=True))
 
@@ -290,15 +305,29 @@ class PlaneWaveBasisByComp:
     def kz(self) -> NDArray[np.float64] | None:
         return self._component("z")
 
+    def rotate(self, phi: float) -> PlaneWaveBasisByComp:
+        """Rotate xy direction labels around z, preserving their polarizations."""
+        if self.alignment != "xy":
+            raise ValueError("z rotation of component bases requires xy alignment")
+        if not math.isfinite(phi):
+            raise ValueError("rotation angle must be finite")
+        c, s = math.cos(phi), math.sin(phi)
+        return type(self)((c * x - s * y, s * x + c * y, p) for x, y, p in self.modes)
+
     def permute(self, n: int = 1) -> PlaneWaveBasisByComp:
+        if n != int(n):
+            raise ValueError("number of permutations must be integer")
+        n = int(n)
         alignments = ("xy", "yz", "zx")
         return type(self)(
             self.modes, alignments[(alignments.index(self.alignment) + n) % 3]
         )
 
-    @property
+    @cached_property
     def pol(self) -> NDArray[np.int64]:
-        return np.array([m[2] for m in self.modes])
+        result = np.array([m[2] for m in self.modes])
+        result.flags.writeable = False
+        return result
 
     def kvecs(
         self, k0: float, material: MaterialLike = 1, modetype: str = "up"
@@ -355,9 +384,11 @@ class _WaveBasis[M: tuple[int, float, int, int]]:
     def m(self) -> NDArray[np.int64]:
         return np.array([m[2] for m in self.modes], dtype=np.int64)
 
-    @property
+    @cached_property
     def pol(self) -> NDArray[np.int64]:
-        return np.array([m[3] for m in self.modes], dtype=np.int64)
+        result = np.array([m[3] for m in self.modes], dtype=np.int64)
+        result.flags.writeable = False
+        return result
 
     @property
     def isglobal(self) -> bool:

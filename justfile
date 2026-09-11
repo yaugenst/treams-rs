@@ -84,3 +84,6 @@ bench-performance: build-ext-release
             uv run --no-sync python scripts/benchmark_cluster.py --workload internal-field --particles 1 --lmax "$order" --samples "$columns" --threads 4 --require-speedup 1 > "benchmarks/results/internal-adjoint-l${order}-p${columns}.json"
         done
     done
+    for order in 64 512; do
+        uv run --no-sync python scripts/benchmark_cluster.py --workload plane-permutation --particles 1 --lmax "$order" --samples 1 --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/plane-permutation-l${order}.json"
+    done

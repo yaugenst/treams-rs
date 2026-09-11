@@ -3,12 +3,13 @@
 
 use faer::MatRef;
 use nalgebra::DMatrix;
+use rayon::prelude::*;
 
 use crate::{
     Complex, Error, Result, finite,
     interaction::{
-        product, product_adjoint_left, product_adjoint_right, product_adjoint_right_into,
-        product_views, view, view_mut,
+        product, product_adjoint_left, product_adjoint_left_view, product_adjoint_right,
+        product_adjoint_right_into, product_views, view, view_mut,
     },
     linalg::{self, Lu, SolveResidual},
     ratio,
@@ -16,6 +17,46 @@ use crate::{
 
 /// Blocks ordered as transmission up, reflection up, reflection down, transmission down.
 pub type Blocks = [DMatrix<Complex>; 4];
+
+/// Owned square block that preserves its input memory order.
+#[derive(Debug)]
+pub struct StoredBlock {
+    values: DMatrix<Complex>,
+    row_major: bool,
+}
+impl From<DMatrix<Complex>> for StoredBlock {
+    fn from(values: DMatrix<Complex>) -> Self {
+        Self {
+            values,
+            row_major: false,
+        }
+    }
+}
+impl StoredBlock {
+    /// Take ownership of row-major values without transposing their storage.
+    pub fn from_rows(dimension: usize, values: Vec<Complex>) -> Result<Self> {
+        if dimension.checked_mul(dimension) != Some(values.len()) {
+            return Err(Error::InvalidInput(
+                "block values must match its square dimension".into(),
+            ));
+        }
+        Ok(Self {
+            values: DMatrix::from_vec(dimension, dimension, values),
+            row_major: true,
+        })
+    }
+    fn view(&self) -> MatRef<'_, Complex> {
+        let data = view(&self.values);
+        if self.row_major {
+            data.transpose()
+        } else {
+            data
+        }
+    }
+    fn into_buffer(self) -> DMatrix<Complex> {
+        self.values
+    }
+}
 
 /// Geometry for compact, transversely averaged chirality forms.
 #[derive(Debug)]
@@ -154,8 +195,8 @@ fn internal_operator(lower: MatRef<'_, Complex>, upper: MatRef<'_, Complex>) -> 
 /// Internal-field solve for specified incident amplitudes, retaining one LU.
 #[derive(Debug)]
 pub struct IlluminationResidual {
-    lower: Blocks,
-    upper: Blocks,
+    lower: [StoredBlock; 4],
+    upper: [StoredBlock; 4],
     incoming: [DMatrix<Complex>; 2],
     solve: SolveResidual,
     down: DMatrix<Complex>,
@@ -168,9 +209,22 @@ pub fn illuminate(
     upper: Blocks,
     incoming: [DMatrix<Complex>; 2],
 ) -> Result<([DMatrix<Complex>; 4], IlluminationResidual)> {
+    illuminate_stored(
+        lower.map(StoredBlock::from),
+        upper.map(StoredBlock::from),
+        incoming,
+    )
+}
+
+/// Illuminate owned blocks in either memory order, preserving their buffers for reverse.
+pub fn illuminate_stored(
+    lower: [StoredBlock; 4],
+    upper: [StoredBlock; 4],
+    incoming: [DMatrix<Complex>; 2],
+) -> Result<([DMatrix<Complex>; 4], IlluminationResidual)> {
     let (top, bottom, down, solve) = illumination_fields(
-        lower.each_ref().map(view),
-        upper.each_ref().map(view),
+        lower.each_ref().map(StoredBlock::view),
+        upper.each_ref().map(StoredBlock::view),
         incoming.each_ref().map(view),
     )?;
     let value = [top, bottom, solve.value.clone(), down.clone()];
@@ -211,18 +265,27 @@ fn illumination_fields(
 ) -> Result<InternalFields> {
     let n = lower[0].nrows();
     let p = incoming[0].ncols();
+    let nonfinite = |a: &MatRef<'_, Complex>| {
+        let a = if a.row_stride() == 1 {
+            *a
+        } else {
+            a.transpose()
+        };
+        (0..a.ncols()).any(|j| (0..a.nrows()).any(|i| !finite(a[(i, j)])))
+    };
     if n == 0
         || p == 0
         || lower.iter().chain(&upper).any(|a| a.shape() != (n, n))
         || incoming.iter().any(|a| a.shape() != (n, p))
-        || lower.iter().chain(&upper).chain(&incoming).any(|&a| {
-            let a = if a.row_stride() == 1 {
-                a
-            } else {
-                a.transpose()
-            };
-            (0..a.ncols()).any(|j| (0..a.nrows()).any(|i| !finite(a[(i, j)])))
-        })
+        || if n >= 256 {
+            lower
+                .par_iter()
+                .chain(upper.par_iter())
+                .chain(incoming.par_iter())
+                .any(nonfinite)
+        } else {
+            lower.iter().chain(&upper).chain(&incoming).any(nonfinite)
+        }
     {
         return Err(Error::InvalidInput(
             "require matching finite S matrices and mode-by-illumination inputs".into(),
@@ -230,7 +293,8 @@ fn illumination_fields(
     }
     let direct = product_views(upper[3], incoming[1]);
     let rhs = product_views(lower[0], incoming[0]) + product_views(lower[1], view(&direct));
-    let solve = linalg::solve_owned(internal_operator(lower[1], upper[2]), rhs)?;
+    let operator = internal_operator(lower[1], upper[2]);
+    let solve = linalg::solve_owned(operator, rhs)?;
     let down = product_views(upper[2], view(&solve.value)) + direct;
     let top = product_views(upper[0], view(&solve.value)) + product_views(upper[1], incoming[1]);
     let bottom = product_views(lower[2], incoming[0]) + product_views(lower[3], view(&down));
@@ -264,22 +328,22 @@ impl IlluminationResidual {
                 "invalid field coefficient cotangent".into(),
             ));
         }
-        let down = &g[3] + product_adjoint_left(&self.lower[3], &g[1]);
+        let down = &g[3] + product_adjoint_left_view(self.lower[3].view(), view(&g[1]));
         let up = &g[2]
-            + product_adjoint_left(&self.upper[0], &g[0])
-            + product_adjoint_left(&self.upper[2], &down);
+            + product_adjoint_left_view(self.upper[0].view(), view(&g[0]))
+            + product_adjoint_left_view(self.upper[2].view(), view(&down));
         let rhs = self.solve.adjoint_rhs(up)?;
-        let direct = down + product_adjoint_left(&self.lower[1], &rhs);
+        let direct = down + product_adjoint_left_view(self.lower[1].view(), view(&rhs));
         let incoming = [
-            product_adjoint_left(&self.lower[2], &g[1])
-                + product_adjoint_left(&self.lower[0], &rhs),
-            product_adjoint_left(&self.upper[1], &g[0])
-                + product_adjoint_left(&self.upper[3], &direct),
+            product_adjoint_left_view(self.lower[2].view(), view(&g[1]))
+                + product_adjoint_left_view(self.lower[0].view(), view(&rhs)),
+            product_adjoint_left_view(self.upper[1].view(), view(&g[0]))
+                + product_adjoint_left_view(self.upper[3].view(), view(&direct)),
         ];
         // The primal blocks are dead after the amplitude pullback. Overwrite
         // them with rank-P gradients instead of allocating eight dense matrices.
-        let mut lower = self.lower;
-        let mut upper = self.upper;
+        let mut lower = self.lower.map(StoredBlock::into_buffer);
+        let mut upper = self.upper.map(StoredBlock::into_buffer);
         for ((output, left), right) in lower.iter_mut().zip([&rhs, &rhs, &g[1], &g[1]]).zip([
             &self.incoming[0],
             &self.down,

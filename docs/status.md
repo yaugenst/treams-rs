@@ -20,7 +20,7 @@ need their actual polarization vectors in the forms and are explicitly unsupport
 | Project | Cargo/PyO3/maturin/uv, lockfiles, just, Ruff, strict Pyrefly, Clippy, pre-commit; hosted Linux CI passing on Python 3.12 and 3.13 | Broader packaged-platform qualification |
 | Spherical functions | Complex regular/outgoing radial values and first two derivatives; Legendre functions; Wigner 3j; Cartesian harmonics | Wider extreme-argument/order qualification; full special namespace |
 | Sphere coefficients | Multilayer, lossy, magnetic, chiral Mie; all continuous input VJPs | Extreme-layer-conditioning analysis |
-| Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks; regular cylindrical-to-spherical and periodic spherical-to-cylindrical conversion with native pullbacks; explicit expandlattice dispatch | Remaining wave-family conversions; plane-wave basis rotations |
+| Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks; regular cylindrical-to-spherical and periodic spherical-to-cylindrical conversion with native pullbacks; explicit expandlattice dispatch | Remaining low-level wave-family API coverage |
 | Multipole fields | Spherical/cylindrical Cartesian waves and analytic axis limits; weighted fields and full field operators with native position/wavenumber VJPs and linear residuals; electric, magnetic, displacement, flux and Riemann-Silberstein operators; Advect magnetic and G/F samples; native weighted/full plane fields and complex-wavevector VJPs | Cylindrical axial-label derivatives and upstream operator-attribute machinery |
 | Finite scattering | Dense solve and factorization-reusing adjoint; optimized sphere clusters; heterogeneous local matrices via public API | Native end-to-end heterogeneous-cluster parameter context |
 | Python interface | Material, spherical/cylindrical bases, TMatrix.sphere, TMatrixC.cylinder, clusters, interaction.solve, changepoltype, expand, xs/xw and averaged cross sections; explicit spherical/cylindrical sources with weighted E/H/D/B/G/F fields and direct T-matrix illumination | Full upstream ndarray annotation machinery is not reproduced; explicit .array is used |
@@ -35,7 +35,7 @@ need their actual polarization vectors in the forms and are explicitly unsupport
 | Global observables | Native TMatrix cd/db/chi with matrix and CD embedding-wavenumber pullbacks; thin SVD and singular-value VJP; complete Advect chiral-sphere gradients; xy plane chirality-density forms with native wavenumber and interval adjoints; SMatrices.cd with direction-aware polarization swapping | Oriented-plane chirality forms; direct high-level S-matrix observable adapters |
 | Axisymmetric EBCM | Native sampled-surface regular/outgoing Q integrals and radius, slope, complex-wavenumber and impedance pullbacks; callable-surface convenience; complete Advect deformed-particle solve | Wider shape/order conditioning and quadrature qualification |
 | HDF5 interchange | Optional h5py adapter; scalar matrices and rectangular parameter sweeps; streamed matrix writes; chirality, mode origins/indices and length-unit round trips; legacy treams names and rectangular incident/scattered mode sets | Gmsh mesh helper and extended tmat.h5 v1 submission metadata |
-| Remaining public API | Not implemented | Remaining field-operator conveniences and public low-level namespace coverage |
+| Remaining public API | Plane-wave z rotations and native cyclic-axis polarization transforms | Remaining field-operator conveniences and public low-level namespace coverage |
 
 `translate` covers spherical, cylindrical and both plane basis families, including
 batched displacements, rectangular mode subsets and masks. Multipoles translate
@@ -328,7 +328,9 @@ pullbacks, treams coefficients, Cartesian E/H boundary continuity for every norm
 amplitude identities and complete lossy/chiral multilayer Advect gradients.
 Ordinary illumination borrows contiguous blocks without recording an adjoint;
 strided blocks are packed. Hypothesis tests cover C/F/block-F/reversed/strided
-layouts and owned pullbacks after all original inputs are overwritten.
+layouts and owned pullbacks after all original inputs are overwritten. Large
+recorded blocks are copied in parallel while retaining contiguous row-major
+storage; a native property compares values and every input gradient across layouts.
 `just bench-performance` checks runtime and forward memory against upstream
 at 256/1024 modes and one/eight illuminations. The recorded adjoint still owns
 input snapshots and has a larger memory footprint than forward alone.
@@ -378,3 +380,22 @@ pullback there is rejected; a zero cotangent allows smooth compositions such as
 chi squared. Reference metrics, scale/phase/helicity-swap invariants, rectangular
 SVDs, Frobenius-gradient properties and complete chiral-sphere Advect derivatives
 cover these cases. Higher derivatives remain unsupported.
+
+
+`permute` provides cyclic Cartesian-axis polarization matrices for component and
+unit-vector plane bases; the output geometry is `basis.permute(n)`. Compact
+`diff.plane_permutation` and `advect.plane_permutation` return both output
+polarizations for every incident mode and expose native complex-vector pullbacks.
+The forward shares geometry for adjacent equal directions, while their cotangents
+remain independent. Tests cover all coordinate alignments, both polarization
+conventions, loss, evanescent waves, Cartesian field reconstruction, inverse maps,
+Advect compositions and scales from 1e-300 to 1e300. Axial direction derivatives
+remain undefined in the polarization gauge; forward axis values are supported.
+
+Plane `rotate` matches upstream's coefficient-preserving direction-label rotation;
+its explicit output basis is `basis.rotate(phi + psi)`. Theta must be zero and
+component bases must have xy alignment. It is not an arbitrary-axis physical
+rotation of the polarization vectors. All rotation matrices accept `where` masks.
+Polarization arrays are cached, read-only views of the fixed basis labels.
+The shared local quotient rule now uses scaled complex division for forward values
+and derivatives, checked by a native common-scale invariant.

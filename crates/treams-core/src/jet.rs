@@ -7,7 +7,7 @@ use std::{
     ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
-use crate::Complex;
+use crate::{Complex, ratio};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Jet<const N: usize> {
@@ -93,10 +93,11 @@ impl<const N: usize> Mul for Jet<N> {
 impl<const N: usize> Div for Jet<N> {
     type Output = Self;
     fn div(self, rhs: Self) -> Self {
+        let value = ratio(self.value, rhs.value);
         Self {
-            value: self.value / rhs.value,
+            value,
             derivative: std::array::from_fn(|i| {
-                (self.derivative[i] - self.value / rhs.value * rhs.derivative[i]) / rhs.value
+                ratio(self.derivative[i] - value * rhs.derivative[i], rhs.value)
             }),
         }
     }

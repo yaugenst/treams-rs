@@ -61,11 +61,68 @@ def changepoltype(
 
 
 def rotate(
-    phi: float, theta: float = 0, psi: float = 0, *, basis: Basis | tuple[Basis, Basis]
+    phi: float,
+    theta: float = 0,
+    psi: float = 0,
+    *,
+    basis: FieldBasis | tuple[FieldBasis, FieldBasis],
+    where: ArrayLike = True,
 ) -> NDArray[np.complex128]:
-    """Rotation matrix in the z-y-z convention; basis origins remain fixed."""
+    """Rotation matrix in the z-y-z convention.
+
+    Multipole origins remain fixed. Plane-wave rotations preserve coefficients
+    and rotate the direction labels; their output basis is basis.rotate(phi+psi).
+    As in treams, plane-wave theta must be zero and component bases must be xy.
+    """
     destination, source = basis if isinstance(basis, tuple) else (basis, basis)
-    return diff.rotation([phi, theta, psi], destination, source)[0]
+    if isinstance(source, (PlaneWaveBasisByComp, PlaneWaveBasisByUnitVector)):
+        if type(destination) is not type(source) or destination.modes != source.modes:
+            raise ValueError("plane rotations require matching input and output bases")
+        if theta != 0 or not np.isfinite([phi, psi]).all():
+            raise ValueError("plane rotations require finite phi/psi and zero theta")
+        if isinstance(source, PlaneWaveBasisByComp) and (
+            source.alignment != "xy"
+            or not isinstance(destination, PlaneWaveBasisByComp)
+            or destination.alignment != "xy"
+        ):
+            raise ValueError("plane rotations require xy alignment")
+        return _masked(np.eye(len(source), dtype=np.complex128), where)
+    if not isinstance(destination, (SphericalWaveBasis, CylindricalWaveBasis)):
+        raise ValueError("rotations require matching wave families")
+    return _masked(diff.rotation([phi, theta, psi], destination, source)[0], where)
+
+
+def permute(
+    n: int = 1,
+    *,
+    basis: PlaneWaveBasisByComp | PlaneWaveBasisByUnitVector,
+    k0: float | None = None,
+    material: MaterialLike = 1,
+    modetype: str = "up",
+    poltype: str = "helicity",
+    where: ArrayLike = True,
+) -> NDArray[np.complex128]:
+    """Cyclic coordinate permutation; the output basis is basis.permute(n).
+
+    Returns an explicit polarization matrix. Basis directions transform separately,
+    preserving the same Cartesian field under the corresponding axis permutation.
+    """
+    if isinstance(basis, PlaneWaveBasisByUnitVector):
+        vectors = basis.directions
+    elif isinstance(basis, PlaneWaveBasisByComp):
+        if k0 is None:
+            raise ValueError("component plane permutations require k0")
+        vectors = np.column_stack(basis.kvecs(k0, material, modetype))
+    else:
+        raise TypeError("permutations require a plane-wave basis")
+    coefficients, _ = diff.plane_permutation(vectors, basis.pol, n, poltype=poltype)
+    same = _plane_wave_match(vectors, vectors)
+    return _masked(
+        np.where(
+            same, coefficients[basis.pol[:, None], np.arange(len(basis))[None, :]], 0
+        ),
+        where,
+    )
 
 
 def expand(
