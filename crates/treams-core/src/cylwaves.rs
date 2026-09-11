@@ -3,6 +3,7 @@
 
 use crate::{
     Complex, Error, Result, finite,
+    jet::Jet,
     special::{Radial, cylindrical},
 };
 use nalgebra::DMatrix;
@@ -18,7 +19,7 @@ pub struct Mode {
     pub pol: u8,
 }
 impl Mode {
-    fn validate(self) -> Result<()> {
+    pub(crate) fn validate(self) -> Result<()> {
         if !self.kz.is_finite() || self.m.unsigned_abs() > 128 || self.pol > 1 {
             return Err(Error::InvalidInput(
                 "require finite kz, |m| <= 128 and polarization 0 or 1".into(),
@@ -64,9 +65,10 @@ pub fn translate(
         return Ok(Translation::default());
     }
     let order = from.m - to.m;
+    let kz = from.kz;
     let [x, y, z] = position;
     let rho = x.hypot(y);
-    let mut krho = (k * k - from.kz * from.kz).sqrt();
+    let mut krho = (k * k - kz * kz).sqrt();
     if krho.im < 0.0 {
         krho = -krho;
     }
@@ -75,12 +77,32 @@ pub fn translate(
             "cylindrical cutoff requires a limiting formulation".into(),
         ));
     }
+    if radial == Radial::Regular && (krho * rho).norm() < 0.5 {
+        let k = Jet::<5>::variable(k, 3);
+        let kz = Jet::variable(kz, 4);
+        let mut transverse = (k * k - kz * kz).sqrt();
+        if transverse.value.im < 0.0 {
+            transverse = -transverse;
+        }
+        let wave = regular_harmonic(
+            order,
+            transverse,
+            std::array::from_fn(|i| Jet::variable(position[i], i)),
+            kz,
+        );
+        return Ok(Translation {
+            value: wave.value,
+            position: std::array::from_fn(|i| wave.derivative[i]),
+            k: wave.derivative[3],
+            kz: wave.derivative[4],
+        });
+    }
     let phi = y.atan2(x);
-    let phase = (Complex::i() * (f64::from(order) * phi + from.kz * z)).exp();
+    let phase = (Complex::i() * (f64::from(order) * phi + kz * z)).exp();
     let radial_jet = cylindrical(order, krho * rho, radial)?;
     let value = radial_jet.value * phase;
     let transverse = if rho == 0.0 {
-        let phase_z = (Complex::i() * from.kz * z).exp();
+        let phase_z = (Complex::i() * kz * z).exp();
         match order {
             1 => [krho * phase_z * 0.5, Complex::i() * krho * phase_z * 0.5],
             -1 => [-krho * phase_z * 0.5, Complex::i() * krho * phase_z * 0.5],
@@ -88,15 +110,42 @@ pub fn translate(
         }
     } else {
         let dr = radial_jet.first * krho * phase;
-        let azimuthal = Complex::i() * f64::from(order) * value / (rho * rho);
-        [dr * x / rho - azimuthal * y, dr * y / rho + azimuthal * x]
+        let azimuthal = Complex::i() * f64::from(order) * (value / rho);
+        [
+            dr * (x / rho) - azimuthal * (y / rho),
+            dr * (y / rho) + azimuthal * (x / rho),
+        ]
     };
     Ok(Translation {
         value,
-        position: [transverse[0], transverse[1], Complex::i() * from.kz * value],
+        position: [transverse[0], transverse[1], Complex::i() * kz * value],
         k: radial_jet.first * rho * k / krho * phase,
-        kz: -radial_jet.first * rho * from.kz / krho * phase + Complex::i() * z * value,
+        kz: -radial_jet.first * rho * kz / krho * phase + Complex::i() * z * value,
     })
+}
+
+/// Regular `J_m` harmonic as a Cartesian power series, for `|k_rho rho| < 0.5`.
+/// Factoring the azimuthal polynomial keeps derivatives regular on the cylinder axis.
+pub(crate) fn regular_harmonic<const N: usize>(
+    order: i32,
+    transverse: Jet<N>,
+    r: [Jet<N>; 3],
+    kz: Jet<N>,
+) -> Jet<N> {
+    let m = order.abs();
+    let azimuth = r[0] + Complex::i() * if order < 0 { -r[1] } else { r[1] };
+    let sign = if order < 0 && m % 2 == 1 { -1.0 } else { 1.0 };
+    let step = -0.25 * transverse * transverse * (r[0] * r[0] + r[1] * r[1]);
+    let mut term = Jet::constant((-libm::lgamma(f64::from(m + 1))).exp());
+    let mut sum = term;
+    for q in 1..32 {
+        term = term * step / f64::from(q * (m + q));
+        sum += term;
+        if term.norm() <= f64::EPSILON * sum.norm() {
+            break;
+        }
+    }
+    sign * (0.5 * transverse * azimuth).powi(m) * sum * (Complex::i() * kz * r[2]).exp()
 }
 
 /// Cylindrical modes at Cartesian origins.

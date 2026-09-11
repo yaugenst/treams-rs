@@ -9,6 +9,127 @@ from hypothesis import strategies as st
 from treams_rs import _native
 
 
+@pytest.mark.parametrize("offset", [1e-9, 1e-100, 1e-200, 1e-300])
+def test_cylindrical_field_near_axis_gradient(offset):
+    from treams_rs import CylindricalWaveBasis, diff
+
+    basis = CylindricalWaveBasis.default([0.2], 3)
+
+    def evaluate(x):
+        value, context = diff.field(
+            np.ones(len(basis), complex), [[x, -x, 0.1]], basis, [1.3, 1.3]
+        )
+        return value, context.pullback(np.ones_like(value))
+
+    actual, gradients = evaluate(offset)
+    expected, axis_gradients = evaluate(0)
+    np.testing.assert_allclose(actual, expected, atol=1e-8)
+    for a, b in zip(gradients, axis_gradients, strict=True):
+        np.testing.assert_allclose(a, b, atol=1e-8)
+
+
+@pytest.mark.parametrize("poltype", ["helicity", "parity"])
+@pytest.mark.parametrize("outgoing", [False, True])
+@pytest.mark.parametrize("axis", [False, True])
+def test_cylindrical_field_reference_and_pullback(poltype, outgoing, axis):
+    import treams
+
+    from treams_rs import CylindricalWaveBasis, Material, diff
+
+    rng = np.random.default_rng(913)
+    positions = np.array([[0, 0, 0], [0, 0, -0.2]])
+    basis = CylindricalWaveBasis.default([0.2, -0.3], 3, 2, positions)
+    material = Material((2.3 + 0.1j, 1.1, 0.07 if poltype == "helicity" else 0))
+    ks = material.ks(1.3)
+    coefficients = rng.normal(size=len(basis)) + 1j * rng.normal(size=len(basis))
+    points = np.array([[0.2, 0.1, 0.4], [-0.3, 0.2, -0.1]])
+    if axis:
+        points[:, :2] = 0
+    if axis and outgoing:
+        with pytest.raises(ValueError, match="singular"):
+            diff.field(coefficients, points, basis, ks, poltype=poltype, singular=True)
+        return
+
+    value, ctx = diff.field(
+        coefficients, points, basis, ks, poltype=poltype, singular=outgoing
+    )
+    expected = (
+        treams.efield(
+            points,
+            basis=treams.CylindricalWaveBasis(basis.modes, positions),
+            k0=1.3,
+            material=treams.Material(material.epsilon, material.mu, material.kappa),
+            poltype=poltype,
+            modetype="singular" if outgoing else "regular",
+        )
+        @ coefficients
+    )
+    np.testing.assert_allclose(value, expected, rtol=2e-12, atol=2e-12)
+    g = rng.normal(size=value.shape) + 1j * rng.normal(size=value.shape)
+    inputs = [coefficients, points, positions, ks]
+    directions = [
+        0.1
+        * (
+            rng.normal(size=v.shape)
+            + (1j * rng.normal(size=v.shape) if np.iscomplexobj(v) else 0)
+        )
+        for v in inputs
+    ]
+    if poltype == "parity":
+        directions[-1][:] = directions[-1][0]
+
+    def shifted(h):
+        c, p, o, k = [v + h * d for v, d in zip(inputs, directions, strict=True)]
+        return diff.field(
+            c,
+            p,
+            CylindricalWaveBasis(basis.modes, o),
+            k,
+            poltype=poltype,
+            singular=outgoing,
+        )[0]
+
+    gradients = ctx.pullback(g)
+    numeric = np.vdot(g, (shifted(1e-6) - shifted(-1e-6)) / (2e-6)).real
+    analytic = sum(
+        np.vdot(g, d).real for g, d in zip(gradients, directions, strict=True)
+    )
+    np.testing.assert_allclose(analytic, numeric, rtol=2e-7, atol=2e-7)
+
+
+@given(radius=st.floats(0.1, 0.4), kz=st.floats(-0.5, 0.5))
+def test_cylinder_scattered_field_advect(radius, kz):
+    import advect
+    import advect.numpy as anp
+
+    from treams_rs import CylindricalWaveBasis
+    from treams_rs import advect as ad
+
+    basis = CylindricalWaveBasis.default([kz], 2)
+
+    def objective(radius):
+        matrix = ad.cylinder([kz], 2, 1.3, anp.reshape(radius, (1,)), [3 + 0.1j, 1])
+        amplitudes = matrix @ anp.ones(len(basis))
+        field = ad.field(
+            amplitudes,
+            [[0.8, 0.4, 0.1]],
+            [[0, 0, 0]],
+            [1.3, 1.3],
+            basis=basis,
+            singular=True,
+        )
+        return anp.sum(anp.real(field * anp.conj(field)))
+
+    gradient = advect.grad(objective)(np.array(radius))
+    h = 1e-5
+    np.testing.assert_allclose(
+        gradient,
+        (objective(radius + h) - objective(radius - h)) / (2 * h),
+        rtol=1e-6,
+        atol=1e-10,
+    )
+
+
 @pytest.mark.oracle_numerical
 @pytest.mark.filterwarnings(
     "ignore:`scipy.special.sph_harm` is deprecated.*:DeprecationWarning"

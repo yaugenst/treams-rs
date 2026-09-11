@@ -9,6 +9,72 @@ use crate::{
     waves::Mode,
 };
 
+/// Multipole basis for Cartesian field evaluation.
+#[derive(Clone, Debug)]
+pub enum FieldBasis {
+    /// Spherical vector waves.
+    Spherical(crate::basis::Basis),
+    /// Cylindrical vector waves; axial wavenumbers are fixed mode labels.
+    Cylindrical(crate::cylwaves::Basis),
+}
+impl From<crate::basis::Basis> for FieldBasis {
+    fn from(value: crate::basis::Basis) -> Self {
+        Self::Spherical(value)
+    }
+}
+impl From<crate::cylwaves::Basis> for FieldBasis {
+    fn from(value: crate::cylwaves::Basis) -> Self {
+        Self::Cylindrical(value)
+    }
+}
+impl FieldBasis {
+    fn validate(&self) -> Result<()> {
+        match self {
+            Self::Spherical(b) => b.validate(),
+            Self::Cylindrical(b) => b.validate(),
+        }
+    }
+    fn origins(&self) -> &[[f64; 3]] {
+        match self {
+            Self::Spherical(b) => &b.positions,
+            Self::Cylindrical(b) => &b.positions,
+        }
+    }
+    fn len(&self) -> usize {
+        match self {
+            Self::Spherical(b) => b.modes.len(),
+            Self::Cylindrical(b) => b.modes.len(),
+        }
+    }
+    fn origin_pol(&self, i: usize) -> (usize, usize) {
+        match self {
+            Self::Spherical(b) => (b.modes[i].0, usize::from(b.modes[i].1.pol)),
+            Self::Cylindrical(b) => (b.modes[i].0, usize::from(b.modes[i].1.pol)),
+        }
+    }
+    fn wave<const DERIVATIVES: bool>(
+        &self,
+        i: usize,
+        k: Complex,
+        r: [f64; 3],
+        helicity: bool,
+        radial: Radial,
+    ) -> Result<VectorWave> {
+        match self {
+            Self::Spherical(b) => {
+                spherical_wave_impl::<DERIVATIVES>(b.modes[i].1, k, r, helicity, radial)
+            }
+            Self::Cylindrical(b) => {
+                if DERIVATIVES {
+                    cylindrical_wave_impl::<4>(b.modes[i].1, k, r, helicity, radial)
+                } else {
+                    cylindrical_wave_impl::<0>(b.modes[i].1, k, r, helicity, radial)
+                }
+            }
+        }
+    }
+}
+
 /// Electric vector spherical wave and its analytic Cartesian derivatives.
 #[derive(Clone, Copy, Debug)]
 pub struct VectorWave {
@@ -18,6 +84,95 @@ pub struct VectorWave {
     pub position: [[Complex; 3]; 3],
     /// Complex wave number derivative.
     pub k: [Complex; 3],
+}
+
+/// Cartesian cylindrical vector wave and its spatial/medium-wavenumber derivatives.
+/// Adjacent scalar harmonics remove all polar-coordinate divisions at the axis.
+pub fn cylindrical_wave(
+    mode: crate::cylwaves::Mode,
+    k: Complex,
+    position: [f64; 3],
+    helicity: bool,
+    radial: Radial,
+) -> Result<VectorWave> {
+    cylindrical_wave_impl::<4>(mode, k, position, helicity, radial)
+}
+
+fn cylindrical_wave_impl<const N: usize>(
+    mode: crate::cylwaves::Mode,
+    k: Complex,
+    position: [f64; 3],
+    helicity: bool,
+    radial: Radial,
+) -> Result<VectorWave> {
+    use crate::{cylwaves, jet::Jet};
+    mode.validate()?;
+    if !finite(k) || k == Complex::default() || position.iter().any(|x| !x.is_finite()) {
+        return Err(Error::InvalidInput(
+            "require a finite nonzero wavenumber and finite field position".into(),
+        ));
+    }
+    let r: [Jet<N>; 3] = std::array::from_fn(|i| Jet::variable(position[i], i));
+    let k = Jet::<N>::variable(k, 3);
+    let mut transverse = (k * k - mode.kz * mode.kz).sqrt();
+    if transverse.value.im < 0.0 {
+        transverse = -transverse;
+    }
+    if transverse.value == Complex::default() {
+        return Err(Error::InvalidInput(
+            "cylindrical cutoff requires a limiting formulation".into(),
+        ));
+    }
+    let rho = position[0].hypot(position[1]);
+    let [lower, center, upper] =
+        if radial == Radial::Regular && (transverse.value * rho).norm() < 0.5 {
+            [mode.m - 1, mode.m, mode.m + 1]
+                .map(|m| cylwaves::regular_harmonic(m, transverse, r, Jet::constant(mode.kz)))
+        } else {
+            if rho == 0.0 {
+                return Err(Error::SpecialFunction(
+                    "outgoing cylindrical wave is singular on the axis".into(),
+                ));
+            }
+            let radius = (r[0] * r[0] + r[1] * r[1]).sqrt();
+            let argument = transverse * radius;
+            let radial = crate::special::cylindrical(mode.m, argument.value, radial)?;
+            let value = argument.map(radial.value, radial.first);
+            let derivative = argument.map(radial.first, radial.second);
+            let azimuth = (r[0] + Complex::i() * r[1]) / radius;
+            let phase = (Complex::i() * mode.kz * r[2]).exp() * azimuth.powi(mode.m);
+            let adjacent = f64::from(mode.m) * value / argument;
+            [
+                (adjacent + derivative) * phase / azimuth,
+                value * phase,
+                (adjacent - derivative) * phase * azimuth,
+            ]
+        };
+    let m = [
+        0.5 * Complex::i() * (lower + upper),
+        0.5 * (upper - lower),
+        Jet::default(),
+    ];
+    let n = [
+        0.5 * Complex::i() * mode.kz / k * (lower - upper),
+        -0.5 * mode.kz / k * (lower + upper),
+        transverse / k * center,
+    ];
+    let fields: [Jet<N>; 3] = std::array::from_fn(|i| {
+        if helicity {
+            (n[i] + (2.0 * f64::from(mode.pol) - 1.0) * m[i]) * std::f64::consts::FRAC_1_SQRT_2
+        } else if mode.pol == 0 {
+            m[i]
+        } else {
+            n[i]
+        }
+    });
+    Ok(VectorWave {
+        value: fields.map(|v| v.value),
+        position: fields
+            .map(|v| std::array::from_fn(|i| v.derivative.get(i).copied().unwrap_or_default())),
+        k: fields.map(|v| v.derivative.get(3).copied().unwrap_or_default()),
+    })
 }
 
 fn cross(a: [Complex; 3], b: [Complex; 3]) -> [Complex; 3] {
@@ -154,7 +309,7 @@ fn spherical_wave_impl<const DERIVATIVES: bool>(
 /// Storage is linear in sample and mode count; no sample-by-mode Jacobian is retained.
 #[derive(Debug)]
 pub struct FieldResidual {
-    basis: crate::basis::Basis,
+    basis: FieldBasis,
     coefficients: Vec<Complex>,
     points: Vec<[f64; 3]>,
     ks: [Complex; 2],
@@ -179,7 +334,7 @@ pub struct FieldGradient {
 
 /// Evaluate weighted electric fields in parallel over samples.
 pub fn field(
-    basis: crate::basis::Basis,
+    basis: impl Into<FieldBasis>,
     coefficients: Vec<Complex>,
     points: Vec<[f64; 3]>,
     ks: [Complex; 2],
@@ -187,8 +342,9 @@ pub fn field(
     radial: Radial,
 ) -> Result<FieldResidual> {
     use rayon::prelude::*;
+    let basis = basis.into();
     basis.validate()?;
-    if coefficients.len() != basis.modes.len()
+    if coefficients.len() != basis.len()
         || coefficients.iter().any(|&v| !finite(v))
         || points.iter().flatten().any(|v| !v.is_finite())
         || ks.iter().any(|&v| !finite(v) || v.norm_sqr() == 0.0)
@@ -200,15 +356,10 @@ pub fn field(
         .par_iter()
         .map(|point| {
             let mut value = [Complex::default(); 3];
-            for (&(particle, mode), &amplitude) in basis.modes.iter().zip(&coefficients) {
-                let position = std::array::from_fn(|a| point[a] - basis.positions[particle][a]);
-                let wave = spherical_wave_impl::<false>(
-                    mode,
-                    ks[usize::from(mode.pol)],
-                    position,
-                    helicity,
-                    radial,
-                )?;
+            for (i, &amplitude) in coefficients.iter().enumerate() {
+                let (particle, pol) = basis.origin_pol(i);
+                let position = std::array::from_fn(|a| point[a] - basis.origins()[particle][a]);
+                let wave = basis.wave::<false>(i, ks[pol], position, helicity, radial)?;
                 for (v, f) in value.iter_mut().zip(wave.value) {
                     *v += amplitude * f;
                 }
@@ -238,7 +389,7 @@ impl FieldResidual {
         let zero = || FieldGradient {
             coefficients: vec![Complex::default(); self.coefficients.len()],
             points: Vec::new(),
-            origins: vec![[0.0; 3]; self.basis.positions.len()],
+            origins: vec![[0.0; 3]; self.basis.origins().len()],
             ks: [Complex::default(); 2],
         };
         let mut result = points
@@ -246,12 +397,17 @@ impl FieldResidual {
             .zip(self.points.par_iter())
             .zip(cotangent.par_iter())
             .try_fold(zero, |mut sum, ((point_gradient, point), g)| {
-                for (i, &(particle, mode)) in self.basis.modes.iter().enumerate() {
+                for i in 0..self.basis.len() {
+                    let (particle, pol) = self.basis.origin_pol(i);
                     let position =
-                        std::array::from_fn(|a| point[a] - self.basis.positions[particle][a]);
-                    let pol = usize::from(mode.pol);
-                    let wave =
-                        spherical_wave(mode, self.ks[pol], position, self.helicity, self.radial)?;
+                        std::array::from_fn(|a| point[a] - self.basis.origins()[particle][a]);
+                    let wave = self.basis.wave::<true>(
+                        i,
+                        self.ks[pol],
+                        position,
+                        self.helicity,
+                        self.radial,
+                    )?;
                     let amplitude = self.coefficients[i];
                     for (component, &cot) in g.iter().enumerate() {
                         sum.coefficients[i] += wave.value[component].conj() * cot;

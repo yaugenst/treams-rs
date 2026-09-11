@@ -1,7 +1,10 @@
 //! Field samples and one-use native pullback contexts.
 #![allow(clippy::indexing_slicing)] // Fixed triples and validated array dimensions.
 
-use crate::{basis::make_basis, error};
+use crate::{
+    basis::{make_basis, make_cyl_basis},
+    error,
+};
 use numpy::{
     IntoPyArray, PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2,
     ndarray::Array2,
@@ -90,7 +93,48 @@ fn field<'py>(
     helicity: bool,
     outgoing: bool,
 ) -> PyResult<(Bound<'py, PyArray2<Complex>>, FieldContext)> {
-    let basis = make_basis(modes, origins);
+    evaluate(
+        py,
+        make_basis(modes, origins).into(),
+        coefficients,
+        points,
+        ks,
+        helicity,
+        outgoing,
+    )
+}
+
+#[pyfunction]
+fn cylindrical_field<'py>(
+    py: Python<'py>,
+    modes: Vec<(usize, f64, i32, u8)>,
+    origins: Vec<[f64; 3]>,
+    coefficients: PyReadonlyArray1<'py, Complex>,
+    points: PyReadonlyArray2<'py, f64>,
+    ks: [Complex; 2],
+    helicity: bool,
+    outgoing: bool,
+) -> PyResult<(Bound<'py, PyArray2<Complex>>, FieldContext)> {
+    evaluate(
+        py,
+        make_cyl_basis(modes, origins).into(),
+        coefficients,
+        points,
+        ks,
+        helicity,
+        outgoing,
+    )
+}
+
+fn evaluate<'py>(
+    py: Python<'py>,
+    basis: fields::FieldBasis,
+    coefficients: PyReadonlyArray1<'py, Complex>,
+    points: PyReadonlyArray2<'py, f64>,
+    ks: [Complex; 2],
+    helicity: bool,
+    outgoing: bool,
+) -> PyResult<(Bound<'py, PyArray2<Complex>>, FieldContext)> {
     let coefficients = coefficients.to_vec()?;
     let points = triples(points)?;
     let radial = if outgoing {
@@ -112,5 +156,6 @@ fn field<'py>(
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<FieldContext>()?;
     m.add_function(wrap_pyfunction!(field, m)?)?;
+    m.add_function(wrap_pyfunction!(cylindrical_field, m)?)?;
     Ok(())
 }

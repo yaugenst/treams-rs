@@ -169,6 +169,15 @@ def field(
     helicity: bool,
     outgoing: bool,
 ) -> tuple[NDArray[np.complex128], FieldContext]: ...
+def cylindrical_field(
+    modes: list[tuple[int, float, int, int]],
+    origins: list[list[float]],
+    coefficients: ComplexArray,
+    points: RealArray,
+    ks: tuple[complex, complex],
+    helicity: bool,
+    outgoing: bool,
+) -> tuple[ComplexArray, FieldContext]: ...
 
 class CylinderMatrixContext:
     def pullback(

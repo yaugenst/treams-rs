@@ -32,6 +32,7 @@ def worker(
 
     if backend in ("rust", "check"):
         from treams_rs import (
+            CylindricalWaveBasis,
             PlaneWaveBasisByComp,
             SphericalWaveBasis,
             _native,
@@ -72,7 +73,7 @@ def worker(
                 basis = SphericalWaveBasis.default(order, particles, positions)
                 ports = PlaneWaveBasisByComp.default(q)
 
-        if workload == "field":
+        if workload in ("field", "cylindrical-field"):
             points = np.column_stack(
                 [
                     np.linspace(0.1, particles * 0.8 + 0.2, samples),
@@ -81,17 +82,31 @@ def worker(
                 ]
             )
             rng = np.random.default_rng(5)
-            dimension = particles * 2 * order * (order + 2)
+            dimension = particles * (
+                4 * (2 * order + 1)
+                if workload == "cylindrical-field"
+                else 2 * order * (order + 2)
+            )
             amplitudes = rng.normal(size=dimension) + 1j * rng.normal(size=dimension)
             if backend in ("rust", "check"):
-                basis = SphericalWaveBasis.default(order, particles, positions)
+                basis = (
+                    CylindricalWaveBasis.default(
+                        [0.2, -0.3], order, particles, positions
+                    )
+                    if workload == "cylindrical-field"
+                    else SphericalWaveBasis.default(order, particles, positions)
+                )
             if backend in ("treams", "check"):
-                oracle_basis = treams.SphericalWaveBasis.default(
-                    order, particles, positions
+                oracle_basis = (
+                    treams.CylindricalWaveBasis.default(
+                        [0.2, -0.3], order, particles, positions
+                    )
+                    if workload == "cylindrical-field"
+                    else treams.SphericalWaveBasis.default(order, particles, positions)
                 )
 
         def rust():
-            if workload == "field":
+            if workload in ("field", "cylindrical-field"):
                 return diff.field(amplitudes, points, basis, [1.3, 1.3], singular=True)
             if workload in ("periodic", "array"):
                 dimension = len(basis)
@@ -124,7 +139,7 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
-            if workload == "field":
+            if workload in ("field", "cylindrical-field"):
                 return (
                     np.asarray(
                         treams.efield(
@@ -226,10 +241,17 @@ def worker(
                     if backend == "rust"
                     else None,
                     "workload": workload,
-                    "samples": samples if workload == "field" else None,
+                    "samples": samples
+                    if workload in ("field", "cylindrical-field")
+                    else None,
                     "particles": particles,
                     "lmax": order,
-                    "dimension": particles * 2 * order * (order + 2),
+                    "dimension": particles
+                    * (
+                        4 * (2 * order + 1)
+                        if workload == "cylindrical-field"
+                        else 2 * order * (order + 2)
+                    ),
                     "threads": threads,
                     "median_seconds": statistics.median(times),
                     "peak_rss_mib": peak,
@@ -252,7 +274,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--workload",
-        choices=["cluster", "field", "periodic", "array"],
+        choices=["cluster", "field", "cylindrical-field", "periodic", "array"],
         default="cluster",
     )
     parser.add_argument("--samples", type=int, default=2048)

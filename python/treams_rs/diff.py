@@ -175,7 +175,7 @@ def expansion(
 def field(
     coefficients: ArrayLike,
     points: ArrayLike,
-    basis: SphericalWaveBasis,
+    basis: SphericalWaveBasis | CylindricalWaveBasis,
     ks: ArrayLike,
     *,
     poltype: str = "helicity",
@@ -183,16 +183,16 @@ def field(
 ) -> tuple[NDArray[np.complex128], _native.FieldContext]:
     """Electric samples (N, 3); VJP returns (coefficients, points, origins, ks).
 
-    Inputs are multipole amplitudes, Cartesian points (N, 3), a spherical basis,
+    Inputs are multipole amplitudes, Cartesian points (N, 3), a multipole basis,
     and negative/positive helicity wavenumbers. The residual uses linear storage.
+    Cylindrical axial wavenumbers remain fixed mode labels.
     """
     values = np.asarray(ks, dtype=np.complex128)
     if values.shape != (2,):
         raise ValueError("ks must contain negative and positive helicity wavenumbers")
     if poltype not in ("helicity", "parity"):
         raise ValueError("invalid polarization type")
-    return _native.field(
-        list(basis.modes),
+    args = (
         basis.positions.tolist(),
         np.ascontiguousarray(coefficients, dtype=np.complex128),
         np.ascontiguousarray(points, dtype=np.float64),
@@ -200,6 +200,9 @@ def field(
         poltype == "helicity",
         singular,
     )
+    if isinstance(basis, CylindricalWaveBasis):
+        return _native.cylindrical_field(list(basis.modes), *args)
+    return _native.field(list(basis.modes), *args)
 
 
 def cylinder(

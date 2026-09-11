@@ -60,6 +60,19 @@ allocate upstream's sample-by-component-by-mode matrix. Reverse mode recomputes
 local wave derivatives and reduces cotangents with Rayon; no dense Jacobian is
 retained. This is one qualified field workload, not a claim about all field sizes.
 
+The shared spherical/cylindrical field path was rechecked on the same spherical
+workload: 40.64 ms forward, 71.11 ms reverse, 41.28 MiB peak RSS. Forward remained
+20.24x faster than treams (`shared-fields-n4-l3-p2048-t4.json`).
+
+The cylindrical workload uses four origins, orders -3 through 3, axial labels
+0.2 and -0.3 and both helicities (112 modes), with the same 2,048 points and four
+threads. It measures 47.57 ms forward versus treams' 502.92 ms (10.57x), 64.24 ms
+reverse, and 41.64 versus 94.11 MiB forward peak RSS. The initial implementation
+took 138.96 ms forward; reusing the radial value and its first two derivatives
+across adjacent orders removed repeated Bessel calls. The forward residual remains
+linear in modes plus samples. Both versions and raw samples are recorded in
+`cylindrical-fields*-n4-l3-p2048-t4.json`. Reproduce with `--workload cylindrical-field`.
+
 ## Periodic sphere arrays and adjoints
 
 The periodic workload includes local sphere coefficients, the 2D Ewald coupling,

@@ -20,6 +20,21 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    fn cylindrical_field_maxwell(m in -7_i32..8, pol in 0_u8..2, kz in -0.7_f64..0.7, x in -1.0_f64..1.0, y in 0.2_f64..1.2, outgoing in any::<bool>()) {
+        let k=Complex::new(1.3,0.1);
+        let radial=if outgoing {Radial::Outgoing} else {Radial::Regular};
+        for position in [[x,y,0.3],[if outgoing {x} else {0.0},if outgoing {y} else {0.0},0.3]] {
+            let mode=crate::cylwaves::Mode{kz,m,pol};
+            let wave=crate::fields::cylindrical_wave(mode,k,position,true,radial).unwrap();
+            let [jx,jy,jz]=wave.position;
+            let curl=[jz[1]-jy[2],jx[2]-jz[0],jy[0]-jx[1]];
+            let scale=1.0+wave.value.iter().map(Complex::norm_sqr).sum::<f64>().sqrt();
+            for (curl,e) in curl.iter().zip(wave.value) {prop_assert!((*curl-(2.0*f64::from(pol)-1.0)*k*e).norm()<1e-10*scale);}
+            prop_assert!((jx[0]+jy[1]+jz[2]).norm()<1e-10*scale);
+        }
+    }
+
+    #[test]
     fn spherical_channel_scale_and_adjoint(k in 1.0_f64..2.0, qx in 0.1_f64..0.4, area in 2.0_f64..4.0, scale in 0.5_f64..2.0, helicity in any::<bool>()) {
         let modes=(1..=3).flat_map(|l|(-l..=l).flat_map(move |m|(0..2).map(move |pol|(0,Mode{l,m,pol})))).collect();
         let basis=crate::basis::Basis{modes,positions:vec![[0.1,0.2,-0.3]]};

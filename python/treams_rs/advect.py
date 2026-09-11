@@ -242,15 +242,14 @@ def field(
     origins: ArrayLike,
     ks: ArrayLike,
     *,
-    basis: SphericalWaveBasis,
+    basis: SphericalWaveBasis | CylindricalWaveBasis,
     poltype: str = "helicity",
     singular: bool = False,
 ) -> NDArray[np.complex128]:
     """Electric field; differentiable in amplitudes, points, origins and wavenumbers."""
-    from ._core import SphericalWaveBasis
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        dynamic_basis = SphericalWaveBasis(basis.modes, positions=values[2])
+        dynamic_basis = type(basis)(basis.modes, positions=values[2])
         value, context = diff.field(
             values[0],
             values[1],

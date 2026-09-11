@@ -68,9 +68,11 @@ from source. This is a first-order, one-use VJP contract. A new forward call is
 required for another VJP; forward mode, higher-order derivatives, staging, checkpointing, and Jacobian-building
 helpers that repeatedly call one residual are unsupported.
 
-Batched Cartesian electric fields use `tr.diff.field(coefficients, points, basis, ks)`.
+Batched Cartesian electric fields for either multipole family use
+`tr.diff.field(coefficients, points, basis, ks)`.
 The output has shape `(number_of_points, 3)`. Its pullback returns cotangents for
 amplitudes, sample coordinates, basis origins, and the two helicity wavenumbers.
+Cylindrical axial wavenumbers remain fixed basis labels.
 `tr.advect.field` composes this calculation with scattering and ordinary NumPy
 objectives; `tr.advect.expansion` similarly differentiates basis translations.
 
