@@ -11,6 +11,7 @@ use std::{
 
 use numpy::npyffi::{NPY_TYPES, PY_UFUNC_API, PyUFuncGenericFunction, npy_intp};
 use pyo3::{prelude::*, types::PyCapsule};
+use rayon::prelude::*;
 
 static FP_CLEAR: OnceLock<(Py<PyCapsule>, unsafe extern "C" fn())> = OnceLock::new();
 use treams_core::{
@@ -165,6 +166,93 @@ unsafe extern "C" fn angular_loop<const KIND: u8>(
     finish_loop(result);
 }
 
+// Read-only views exist only while a NumPy callback is active. Parallel kernels
+// collect owned output before any store, so even aliased inputs remain unchanged.
+struct Input {
+    pointer: *const c_char,
+    stride: npy_intp,
+}
+// SAFETY: NumPy holds the input buffers for the callback's lifetime; workers only
+// read them and the blocking Rayon collection finishes before output is written.
+unsafe impl Sync for Input {}
+impl Input {
+    unsafe fn read<T: Copy>(&self, i: usize) -> T {
+        // SAFETY: The registration fixes T to the operand dtype; NumPy provides
+        // valid strides and i is less than its nonnegative npy_intp loop count.
+        unsafe {
+            self.pointer
+                .wrapping_offset(
+                    self.stride
+                        .wrapping_mul(isize::try_from(i).unwrap_or_default()),
+                )
+                .cast::<T>()
+                .read_unaligned()
+        }
+    }
+}
+
+// Fixed arity scalar kernels share NumPy's masking, buffering and strided loop
+// contract. Every input is copied before writing, including in-place operations.
+macro_rules! scalar_loop {
+    ($name:ident, $output:ty, $count:literal, $( $index:literal => $argument:ident : $ty:ty ),+ => $body:expr) => {
+        unsafe extern "C" fn $name(args: *mut *mut c_char, dimensions: *mut npy_intp, steps: *mut npy_intp, _data: *mut c_void) {
+            // SAFETY: register supplies this exact operand signature, and NumPy
+            // provides valid byte strides/counts and buffers overlapping arrays.
+            // Scalar copies permit unaligned storage and all reads precede writes.
+            let result = std::panic::catch_unwind(|| unsafe {
+                let n = usize::try_from(*dimensions).unwrap_or_default();
+                let mut pointers: [*mut c_char; $count + 1] = std::array::from_fn(|i| *args.add(i));
+                if n >= 1024 {
+                    let inputs: [Input; $count] = std::array::from_fn(|i|Input{pointer:*args.add(i),stride:*steps.add(i)});
+                    let evaluate=|i| {
+                        $(let $argument=inputs.get_unchecked($index).read::<$ty>(i);)+
+                        $body
+                    };
+                    let values: Vec<$output>=(0..n).into_par_iter().map(evaluate).collect::<treams_core::Result<_>>()?;
+                    let mut output=*args.add($count);
+                    for value in values {
+                        output.cast::<$output>().write_unaligned(value);
+                        output=output.wrapping_offset(*steps.add($count));
+                    }
+                    return Ok(());
+                }
+                for _ in 0..n {
+                    $(let $argument = pointers.get_unchecked($index).cast::<$ty>().read_unaligned();)+
+                    let value: $output = ($body)?;
+                    pointers.get_unchecked($count).cast::<$output>().write_unaligned(value);
+                    for (i,pointer) in pointers.iter_mut().enumerate() {
+                        *pointer = pointer.wrapping_offset(*steps.add(i));
+                    }
+                }
+                Ok::<_, Error>(())
+            });
+            finish_loop(result);
+        }
+    };
+}
+
+#[allow(clippy::cast_possible_truncation)] // Checked integral labels within the supported domain.
+fn label(value: f64) -> treams_core::Result<i32> {
+    if value.fract() != 0.0 || !(-260.0..=260.0).contains(&value) {
+        return Err(Error::InvalidInput(
+            "special-function labels must be integers in [-260, 260]".into(),
+        ));
+    }
+    Ok(value as i32)
+}
+
+scalar_loop!(wigner_small_loop, Complex, 4, 0=>l:f64, 1=>m:f64, 2=>k:f64, 3=>theta:Complex => {
+    treams_core::rotation::wigner_small(label(l)?,label(m)?,label(k)?,theta)
+});
+scalar_loop!(wigner_loop, Complex, 6, 0=>l:f64, 1=>m:f64, 2=>k:f64, 3=>phi:Complex, 4=>theta:Complex, 5=>psi:Complex => {
+    treams_core::rotation::wigner(label(l)?,label(m)?,label(k)?,[phi,theta,psi])
+});
+scalar_loop!(wigner3j_loop, f64, 6, 0=>l1:f64, 1=>l2:f64, 2=>l3:f64, 3=>m1:f64, 4=>m2:f64, 5=>m3:f64 => {
+    Ok(treams_core::angular::wigner3j(label(l1)?,label(l2)?,label(l3)?,label(m1)?,label(m2)?,label(m3)?))
+});
+scalar_loop!(gamma_loop, Complex, 2, 0=>n:f64, 1=>z:Complex => treams_core::integrals::incgamma(n,z));
+scalar_loop!(kambe_loop, Complex, 3, 0=>n:f64, 1=>z:Complex, 2=>eta:Complex => treams_core::integrals::intkambe(label(n)?,z,eta));
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     let capsule = module
         .py()
@@ -259,5 +347,12 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     add!("lpmv", angular_loop::<0>, ANGULAR_TYPES, 3);
     add!("pi_fun", angular_loop::<1>, ANGULAR_TYPES, 3);
     add!("tau_fun", angular_loop::<2>, ANGULAR_TYPES, 3);
+    const D: c_char = NPY_TYPES::NPY_DOUBLE as c_char;
+    const Z: c_char = NPY_TYPES::NPY_CDOUBLE as c_char;
+    add!("wignersmalld", wigner_small_loop, [D, D, D, Z, Z], 4);
+    add!("wignerd", wigner_loop, [D, D, D, Z, Z, Z, Z], 6);
+    add!("wigner3j", wigner3j_loop, [D, D, D, D, D, D, D], 6);
+    add!("incgamma_ufunc", gamma_loop, [D, Z, Z], 2);
+    add!("intkambe_ufunc", kambe_loop, [D, Z, Z, Z], 3);
     Ok(())
 }

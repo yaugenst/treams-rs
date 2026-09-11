@@ -21,7 +21,7 @@ gauge singularity; both values and derivatives use that limit.
 | Subsystem | Implemented and checked | Remaining |
 | --- | --- | --- |
 | Project | Cargo/PyO3/maturin/uv, lockfiles, just, Ruff, strict Pyrefly, Clippy, pre-commit; hosted Linux CI passing on Python 3.12 and 3.13 | Broader packaged-platform qualification |
-| Spherical functions | Public broadcast Bessel J/Y and incoming/outgoing Hankel values and first derivatives, cylindrical and spherical, with native argument VJPs; public integer-degree Legendre/pi/tau ufuncs and argument VJPs; Wigner 3j and Cartesian harmonics in the core | Wider extreme-argument/order qualification; remaining angular/vector special namespace |
+| Spherical functions | Public broadcast Bessel J/Y and incoming/outgoing Hankel values and first derivatives, cylindrical and spherical, with native argument VJPs; public integer-degree Legendre/pi/tau ufuncs and argument VJPs; public Wigner 3j and small/full D matrices, native Euler-angle VJPs, and broadcast upper-gamma/Kambe integrals; Cartesian harmonics in the core | Wider extreme-argument/order qualification; remaining angular/vector special namespace |
 | Sphere coefficients | Multilayer, lossy, magnetic, chiral Mie; all continuous input VJPs | Extreme-layer-conditioning analysis |
 | Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks; regular cylindrical-to-spherical and periodic spherical-to-cylindrical conversion with native pullbacks; explicit expandlattice dispatch | Remaining low-level wave-family API coverage |
 | Multipole fields | Spherical/cylindrical Cartesian waves and analytic axis limits; weighted fields and full field operators with native position/wavenumber VJPs and linear residuals; electric, magnetic, displacement, flux and Riemann-Silberstein operators; Advect magnetic and G/F samples; native weighted/full plane fields and complex-wavevector VJPs | Cylindrical axial-label derivatives and upstream operator-attribute machinery |
@@ -479,3 +479,22 @@ follows right-hand order, as in upstream. Unit directions preserve their exact
 normalized values. `CylindricalWaveBasis.diffr_orders` accepts a scalar signed axial
 period and a nonnegative reciprocal cutoff. Lattice/WaveVector annotation objects
 are not yet reproduced; geometry remains explicit in numerical calls.
+
+
+`special.wignersmalld`, `wignerd` and `wigner3j` expose NumPy broadcasting,
+masked output and native loops. Individual D elements use the
+[Jacobi recurrence](https://dlmf.nist.gov/18.9.E2), with O(l) arithmetic and O(1)
+local storage. Half-angle powers preserve tiny-angle off-diagonal entries.
+Independent full-matrix comparisons and unitarity are checked through degree 128.
+`diff.wigner` and `advect.wigner` differentiate all three complex Euler angles,
+keep integer labels fixed, own their inputs and reduce broadcast gradients.
+Native generator identities, Hypothesis group composition and complete Advect
+objectives check the derivatives. Large evaluations use Rayon without copying
+broadcast inputs; the ufunc writes only after all parallel reads finish, preserving
+in-place, strided and unaligned input/output semantics.
+
+`special.incgamma` and `special.intkambe` now expose the existing Rust Ewald
+integrals as broadcast ufuncs with direct scalar paths. Their domains remain
+integer/half-integer gamma degree and integer Kambe order. Their derivatives
+already enter the periodic solver pullbacks; direct public integral contexts
+remain to be exposed. No SciPy fallback is used.

@@ -80,6 +80,12 @@ def worker(
                 oracle_lower = treams.SMatrices(lower, basis=oracle_basis, k0=1.3)
                 oracle_upper = treams.SMatrices(upper, basis=oracle_basis, k0=1.3)
 
+        if workload.startswith(("wigner", "incgamma", "intkambe")):
+            special_arguments = (
+                0.7 + 0.1j if samples == 1 else np.linspace(0.3, 1.3, samples) + 0.1j
+            )
+            wigner_degrees = order if samples == 1 else np.full(samples, order)
+
         if workload.startswith("angular-"):
             angular_kind = workload.split("-")[1]
             angular_arguments = (
@@ -313,6 +319,18 @@ def worker(
         eta = 0.7 if workload == "cylindrical-array" else 0
 
         def rust():
+            if workload == "wigner":
+                return diff.wigner(order, 1, -2, 0.2, special_arguments, -0.1)
+            if workload == "wigner-forward":
+                return special.wignerd(order, 1, -2, 0.2, special_arguments, -0.1), None
+            if workload == "wigner-small-forward":
+                return special.wignersmalld(order, 1, -2, special_arguments), None
+            if workload == "wigner3j-forward":
+                return special.wigner3j(order, order, wigner_degrees, 1, -2, 1), None
+            if workload == "incgamma-forward":
+                return special.incgamma(1.5, special_arguments), None
+            if workload == "intkambe-forward":
+                return special.intkambe(-2, special_arguments, 0.7 + 0.1j), None
             if workload.startswith("angular-"):
                 if workload.endswith("-forward"):
                     return getattr(special, angular_name)(
@@ -435,6 +453,18 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload in ("wigner", "wigner-forward"):
+                return treams.special.wignerd(
+                    order, 1, -2, 0.2, special_arguments, -0.1
+                )
+            if workload == "wigner-small-forward":
+                return treams.special.wignersmalld(order, 1, -2, special_arguments)
+            if workload == "wigner3j-forward":
+                return treams.special.wigner3j(order, order, wigner_degrees, 1, -2, 1)
+            if workload == "incgamma-forward":
+                return treams.special.incgamma(1.5, special_arguments)
+            if workload == "intkambe-forward":
+                return treams.special.intkambe(-2, special_arguments, 0.7 + 0.1j)
             if workload.startswith("angular-"):
                 return getattr(treams.special, angular_name)(
                     *angular_labels, angular_arguments
@@ -629,16 +659,7 @@ def worker(
             times.append((time.perf_counter() - start) / batch)
         peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
         backward_times = []
-        if backend == "rust" and workload not in (
-            "internal-field-forward",
-            "particle-cluster-public",
-            "cylindrical-particle-cluster-public",
-            "bessel-forward",
-            "bessel-derivative-forward",
-            "angular-legendre-forward",
-            "angular-pi-forward",
-            "angular-tau-forward",
-        ):
+        if backend == "rust" and not workload.endswith(("-forward", "-public")):
             sample_total = 0.0
             for iteration in range((repeats + 1) * batch):
                 value, context = (
@@ -730,7 +751,9 @@ def worker(
                     "channels": samples if workload == "slab" else None,
                     "lmax": order,
                     "dimension": samples
-                    if workload.startswith(("bessel", "angular-"))
+                    if workload.startswith(
+                        ("bessel", "angular-", "wigner", "incgamma", "intkambe")
+                    )
                     else particle_dimension
                     if "particle-cluster" in workload
                     else 2 * samples
@@ -782,6 +805,12 @@ def main() -> None:
     parser.add_argument(
         "--workload",
         choices=[
+            "wigner",
+            "wigner-forward",
+            "wigner-small-forward",
+            "wigner3j-forward",
+            "incgamma-forward",
+            "intkambe-forward",
             "angular-legendre",
             "angular-pi",
             "angular-tau",

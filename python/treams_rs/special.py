@@ -149,3 +149,71 @@ def tau_fun(
     ):
         return _native.angular_value(n, m, z, "tau")
     return _native.tau_fun(n, m, z, out=out, where=where)
+
+
+wignersmalld = _native.wignersmalld
+wignerd = _native.wignerd
+
+
+def incgamma(
+    n: ArrayLike,
+    z: ArrayLike,
+    *,
+    out: NDArray[np.complex128] | None = None,
+    where: ArrayLike = True,
+) -> complex | NDArray[np.complex128]:
+    """Upper incomplete gamma for integer and half-integer degree."""
+    if (
+        out is None
+        and where is True
+        and isinstance(n, (int, float))
+        and isinstance(z, (int, float, complex))
+    ):
+        return _native.incgamma(n, z)
+    return _native.incgamma_ufunc(n, z, out=out, where=where)
+
+
+def intkambe(
+    n: ArrayLike,
+    z: ArrayLike,
+    eta: ArrayLike,
+    *,
+    out: NDArray[np.complex128] | None = None,
+    where: ArrayLike = True,
+) -> complex | NDArray[np.complex128]:
+    """Kambe integral with integer order and broadcast complex arguments."""
+    if (
+        out is None
+        and where is True
+        and isinstance(n, int)
+        and isinstance(z, (int, float, complex))
+        and isinstance(eta, (int, float, complex))
+    ):
+        return _native.intkambe(n, z, eta)
+    return _native.intkambe_ufunc(n, z, eta, out=out, where=where)
+
+
+def wigner3j(
+    j1: ArrayLike,
+    j2: ArrayLike,
+    j3: ArrayLike,
+    m1: ArrayLike,
+    m2: ArrayLike,
+    m3: ArrayLike,
+    *,
+    out: NDArray[np.float64] | None = None,
+    where: ArrayLike = True,
+) -> float | NDArray[np.float64]:
+    """Integer Wigner 3j symbol with selection rules and native broadcasting."""
+    if (
+        out is None
+        and where is True
+        and isinstance(j1, int)
+        and isinstance(j2, int)
+        and isinstance(j3, int)
+        and isinstance(m1, int)
+        and isinstance(m2, int)
+        and isinstance(m3, int)
+    ):
+        return _native.wigner3j_scalar(j1, j2, j3, m1, m2, m3)
+    return _native.wigner3j(j1, j2, j3, m1, m2, m3, out=out, where=where)

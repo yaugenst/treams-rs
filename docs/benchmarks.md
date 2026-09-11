@@ -658,3 +658,48 @@ Peak RSS is 40.3–41.7 MiB for Rust versus 64.1–65.2 MiB for upstream.
 The 18 `angular-*.json` files in [raw results](../benchmarks/results/) record every
 sample, native-extension hash, Python/NumPy version, thread configuration and
 reverse peak RSS. The other 32 recipe results were refreshed in the same run.
+
+
+## Wigner elements, Euler pullbacks and public Ewald integrals
+
+The complete `just bench-performance` recipe passed all 68 runtime gates after
+this change, including the 50 earlier workloads and 18 new cases. The preceding
+angular table records the run saved in commit 4f41708; the current raw JSON files
+were refreshed by this larger run. The same RSS qualification applies: ordinary
+forward and special-function/particle recording paths must use no more peak RSS
+than upstream; retained internal-illumination adjoint inputs are measured separately.
+
+Individual Wigner elements use the [Jacobi recurrence](https://dlmf.nist.gov/18.9.E2),
+without allocating a full angular matrix. Public ufuncs parallelize large strided
+arrays while preserving masked/in-place behavior. Owned Wigner residuals retain
+only labels and Euler arguments, and compute local angle derivatives in reverse.
+The scalar Wigner-3j path bypasses NumPy dispatch; this removed its measured scalar
+overhead. No accuracy tolerance was relaxed.
+
+Wigner degree is 6, row 1, column -2, with outer Euler angles 0.2 and -0.1.
+The polar argument is 0.7+0.1j for scalars and spans [0.3,1.3]+0.1j for arrays.
+The 3j case uses degrees (6,6,6) and orders (1,-2,1). Gamma degree is 1.5;
+Kambe order is -2 and eta=0.7+0.1j. Units below are microseconds.
+
+| Operation | Count | Upstream forward | Rust forward | Speedup | Rust reverse |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| wigner-forward | 1 | 1.510 | 1.236 | 1.22x | — |
+| wigner-forward | 128 | 40.153 | 14.328 | 2.80x | — |
+| wigner-forward | 4096 | 2256.407 | 135.234 | 16.69x | — |
+| wigner-small-forward | 1 | 1.124 | 0.970 | 1.16x | — |
+| wigner-small-forward | 128 | 39.366 | 12.470 | 3.16x | — |
+| wigner-small-forward | 4096 | 2127.653 | 119.326 | 17.83x | — |
+| wigner3j-forward | 1 | 1.302 | 0.292 | 4.47x | — |
+| wigner3j-forward | 128 | 28.319 | 16.130 | 1.76x | — |
+| wigner3j-forward | 4096 | 1003.028 | 141.485 | 7.09x | — |
+| incgamma-forward | 1 | 0.672 | 0.314 | 2.14x | — |
+| incgamma-forward | 128 | 20.111 | 15.654 | 1.28x | — |
+| incgamma-forward | 4096 | 1085.018 | 164.622 | 6.59x | — |
+| intkambe-forward | 1 | 0.835 | 0.374 | 2.23x | — |
+| intkambe-forward | 128 | 24.098 | 22.111 | 1.09x | — |
+| intkambe-forward | 4096 | 1358.198 | 204.507 | 6.64x | — |
+| wigner | 1 | 1.428 | 0.718 | 1.99x | 0.742 |
+| wigner | 128 | 39.724 | 24.048 | 1.65x | 22.380 |
+| wigner | 4096 | 2357.991 | 144.681 | 16.30x | 274.425 |
+
+Peak RSS spans 39.9–41.5 MiB for Rust versus 64.2–65.8 MiB for upstream. All native hashes, timing samples, reverse measurements and environment details are in the corresponding [raw results](../benchmarks/results/).

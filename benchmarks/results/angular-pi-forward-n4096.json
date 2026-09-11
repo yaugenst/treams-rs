@@ -19,17 +19,17 @@
       "lmax": 6,
       "dimension": 4096,
       "threads": 4,
-      "median_seconds": 0.000652242659998592,
-      "peak_rss_mib": 64.4453125,
-      "baseline_rss_mib": 64.4453125,
+      "median_seconds": 0.0006507702800445258,
+      "peak_rss_mib": 63.953125,
+      "baseline_rss_mib": 63.953125,
       "samples_seconds": [
-        0.0006527392700081691,
-        0.0006524630700005218,
-        0.00065213826004765,
-        0.000652242659998592,
-        0.0006521513500774745,
-        0.0006518216499534901,
-        0.0006535992000135594
+        0.0006521100099780596,
+        0.0006510960900050122,
+        0.000651281390018994,
+        0.0006507702800445258,
+        0.0006507644799421541,
+        0.000650500070041744,
+        0.0006506080699909944
       ],
       "calls_per_timing_sample": 100,
       "forward_includes_result_destruction": true,
@@ -65,7 +65,7 @@
       "platform": "Linux-7.2.4-200.fc44.x86_64-x86_64-with-glibc2.43",
       "numpy_version": "2.5.3",
       "treams_version": "0.4.5",
-      "native_sha256": "956610419634603116e35ee3aee8e6964fdce1d63f7722546bb38cb9666f89b3",
+      "native_sha256": "f00c797d0660aa9cdd987fc69dfd29bd7fc9547c49c2800fbf3cba1a66139ab9",
       "native_profile": "release",
       "workload": "angular-pi-forward",
       "oracle": "treams public operation",
@@ -78,17 +78,17 @@
       "lmax": 6,
       "dimension": 4096,
       "threads": 4,
-      "median_seconds": 6.967940599133726e-05,
-      "peak_rss_mib": 40.6953125,
-      "baseline_rss_mib": 40.1328125,
+      "median_seconds": 8.10959800001001e-05,
+      "peak_rss_mib": 41.07421875,
+      "baseline_rss_mib": 40.52734375,
       "samples_seconds": [
-        6.967940599133726e-05,
-        6.963526499748696e-05,
-        6.990942200354766e-05,
-        6.946452999545727e-05,
-        6.958855300035793e-05,
-        6.989767200138886e-05,
-        7.017358900338877e-05
+        7.989204899058677e-05,
+        8.10959800001001e-05,
+        8.118490299966652e-05,
+        8.110028099326882e-05,
+        8.090967600583099e-05,
+        8.123472401348408e-05,
+        8.091010600037407e-05
       ],
       "calls_per_timing_sample": 1000,
       "forward_includes_result_destruction": true,
@@ -109,5 +109,5 @@
       ]
     }
   ],
-  "speedup": 9.360623138487727
+  "speedup": 8.024692223260914
 }

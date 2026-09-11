@@ -20,6 +20,25 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    fn wigner_generator_and_euler_adjoint(l in 0_i32..16, seed in 0_i32..32, x in -3.0_f64..3.0, y in -0.3_f64..0.3) {
+        use crate::rotation::{wigner_array,wigner_small};
+        let m=seed%(2*l+1)-l;
+        let k=(seed+3)%(2*l+1)-l;
+        let theta=Complex::new(x,y);
+        let (value,r)=wigner_array(vec![[l,m,k]],[vec![Complex::default()],vec![theta],vec![Complex::default()]]).unwrap();
+        let value=*value.first().unwrap();
+        let ladder=|m:i32|0.5*f64::from(l*(l+1)-m*(m+1)).max(0.0).sqrt();
+        let derivatives=[-Complex::i()*f64::from(m)*value,
+            ladder(m)*wigner_small(l,m+1,k,theta).unwrap()-ladder(m-1)*wigner_small(l,m-1,k,theta).unwrap(),
+            -Complex::i()*f64::from(k)*value];
+        let g=Complex::new(0.4,0.2);
+        let gradient=r.pullback(&[g]).unwrap();
+        for (actual,expected) in gradient.iter().zip(derivatives) {
+            prop_assert!((*actual.first().unwrap()-g*expected.conj()).norm()<1e-11*(1.0+expected.norm()));
+        }
+    }
+
+    #[test]
     fn angular_legendre_recurrence_adjoint(l in 1_i32..12, seed in 0_i32..24, x in -0.8_f64..0.8, y in -0.3_f64..0.3) {
         use crate::special::{Angular, angular_array, angular_value};
         let m=seed%(2*l+1)-l;

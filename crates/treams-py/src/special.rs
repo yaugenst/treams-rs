@@ -22,6 +22,27 @@ fn bessel_kind(kind: &str) -> PyResult<Bessel> {
     })
 }
 
+fn reduce_broadcast(
+    gradient: Vec<Complex>,
+    shape: &[usize],
+    argument_shape: &[usize],
+) -> PyResult<ArrayD<Complex>> {
+    let shape_error = |e: numpy::ndarray::ShapeError| PyValueError::new_err(e.to_string());
+    if gradient.len() == 1 {
+        return ArrayD::from_shape_vec(IxDyn(argument_shape), gradient).map_err(shape_error);
+    }
+    let mut result = ArrayD::from_shape_vec(IxDyn(shape), gradient).map_err(shape_error)?;
+    let leading = shape.len() - argument_shape.len();
+    for axis in (0..shape.len()).rev() {
+        if axis < leading || argument_shape.get(axis - leading) == Some(&1) {
+            result = result.sum_axis(Axis(axis));
+        }
+    }
+    result
+        .into_shape_with_order(IxDyn(argument_shape))
+        .map_err(shape_error)
+}
+
 macro_rules! argument_context {
     ($name:ident, $residual:ty) => {
         #[pyclass]
@@ -52,24 +73,7 @@ macro_rules! argument_context {
                     PyValueError::new_err("pullback residual has already been consumed")
                 })?;
                 let gradient = py.detach(move || residual.pullback(&g)).map_err(error)?;
-                let shape_error =
-                    |e: numpy::ndarray::ShapeError| PyValueError::new_err(e.to_string());
-                let result = if gradient.len() == 1 {
-                    ArrayD::from_shape_vec(IxDyn(&self.argument_shape), gradient)
-                        .map_err(shape_error)?
-                } else {
-                    let mut result = ArrayD::from_shape_vec(IxDyn(&self.shape), gradient)
-                        .map_err(shape_error)?;
-                    let leading = self.shape.len() - self.argument_shape.len();
-                    for axis in (0..self.shape.len()).rev() {
-                        if axis < leading || self.argument_shape.get(axis - leading) == Some(&1) {
-                            result = result.sum_axis(Axis(axis));
-                        }
-                    }
-                    result
-                        .into_shape_with_order(IxDyn(&self.argument_shape))
-                        .map_err(shape_error)?
-                };
+                let result = reduce_broadcast(gradient, &self.shape, &self.argument_shape)?;
                 Ok(result.into_pyarray(py))
             }
         }
@@ -243,7 +247,132 @@ fn angular<'py>(
     ))
 }
 
+#[pyclass]
+#[derive(Debug)]
+struct WignerContext {
+    residual: Option<treams_core::rotation::WignerResidual>,
+    shape: Vec<usize>,
+    argument_shapes: [Vec<usize>; 3],
+}
+
+type EulerGradient<'py> = (
+    Bound<'py, PyArrayDyn<Complex>>,
+    Bound<'py, PyArrayDyn<Complex>>,
+    Bound<'py, PyArrayDyn<Complex>>,
+);
+
+#[pymethods]
+impl WignerContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArrayDyn<'py, Complex>,
+    ) -> PyResult<EulerGradient<'py>> {
+        let g = cotangent.as_array();
+        if g.shape() != self.shape || g.iter().any(|z| !z.re.is_finite() || !z.im.is_finite()) {
+            return Err(PyValueError::new_err(
+                "Wigner cotangent must be finite and match output shape",
+            ));
+        }
+        let g: Vec<_> = g.iter().copied().collect();
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let gradients = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        let [a, b, c] = gradients;
+        let [sa, sb, sc] = &self.argument_shapes;
+        Ok((
+            reduce_broadcast(a, &self.shape, sa)?.into_pyarray(py),
+            reduce_broadcast(b, &self.shape, sb)?.into_pyarray(py),
+            reduce_broadcast(c, &self.shape, sc)?.into_pyarray(py),
+        ))
+    }
+}
+
+#[pyfunction]
+#[allow(clippy::too_many_arguments)] // Three Euler arguments and their broadcast metadata.
+fn wigner<'py>(
+    py: Python<'py>,
+    labels: Vec<[i32; 3]>,
+    phi: PyReadonlyArray1<'py, Complex>,
+    theta: PyReadonlyArray1<'py, Complex>,
+    psi: PyReadonlyArray1<'py, Complex>,
+    shape: Vec<usize>,
+    argument_shapes: [Vec<usize>; 3],
+) -> PyResult<(Bound<'py, PyArrayDyn<Complex>>, WignerContext)> {
+    if argument_shapes.iter().any(|a| {
+        a.len() > shape.len()
+            || a.iter()
+                .rev()
+                .zip(shape.iter().rev())
+                .any(|(&a, &b)| a != 1 && a != b)
+    }) {
+        return Err(PyValueError::new_err(
+            "argument shapes must broadcast to output",
+        ));
+    }
+    let angles = [
+        phi.as_array().to_vec(),
+        theta.as_array().to_vec(),
+        psi.as_array().to_vec(),
+    ];
+    let (value, residual) = py
+        .detach(move || treams_core::rotation::wigner_array(labels, angles))
+        .map_err(error)?;
+    let value = ArrayD::from_shape_vec(IxDyn(&shape), value)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?
+        .into_pyarray(py);
+    Ok((
+        value,
+        WignerContext {
+            residual: Some(residual),
+            shape,
+            argument_shapes,
+        },
+    ))
+}
+
+#[pyfunction]
+fn wigner_scalar(
+    py: Python<'_>,
+    labels: [i32; 3],
+    angles: [Complex; 3],
+) -> PyResult<(Bound<'_, PyArrayDyn<Complex>>, WignerContext)> {
+    let (value, residual) =
+        treams_core::rotation::wigner_array(vec![labels], angles.map(|z| vec![z]))
+            .map_err(error)?;
+    let value = ArrayD::from_shape_vec(IxDyn(&[]), value)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?
+        .into_pyarray(py);
+    Ok((
+        value,
+        WignerContext {
+            residual: Some(residual),
+            shape: Vec::new(),
+            argument_shapes: std::array::from_fn(|_| Vec::new()),
+        },
+    ))
+}
+
+#[pyfunction]
+fn wigner3j_scalar(j1: i32, j2: i32, j3: i32, m1: i32, m2: i32, m3: i32) -> PyResult<f64> {
+    if [j1, j2, j3, m1, m2, m3]
+        .iter()
+        .any(|n| n.unsigned_abs() > 260)
+    {
+        return Err(PyValueError::new_err(
+            "Wigner labels must be integers in [-260, 260]",
+        ));
+    }
+    Ok(treams_core::angular::wigner3j(j1, j2, j3, m1, m2, m3))
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(wigner3j_scalar, module)?)?;
+    module.add_class::<WignerContext>()?;
+    module.add_function(wrap_pyfunction!(wigner, module)?)?;
+    module.add_function(wrap_pyfunction!(wigner_scalar, module)?)?;
     module.add_class::<BesselContext>()?;
     module.add_class::<AngularContext>()?;
     module.add_function(wrap_pyfunction!(angular, module)?)?;

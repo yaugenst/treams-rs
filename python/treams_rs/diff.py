@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 
@@ -96,6 +96,70 @@ def angular(
         kind,
         broadcast[2].shape,
         arguments.shape,
+    )
+
+
+def wigner(
+    degree: ArrayLike,
+    row: ArrayLike,
+    column: ArrayLike,
+    phi: ArrayLike,
+    theta: ArrayLike,
+    psi: ArrayLike,
+) -> tuple[NDArray[np.complex128], _native.WignerContext]:
+    """Broadcast Wigner D elements and native pullbacks to all three Euler angles.
+
+    Integer degree/row/column labels stay fixed; angles may be complex. Each
+    pullback reduces to its original input shape and owns its forward inputs.
+    """
+    if (
+        isinstance(degree, int)
+        and isinstance(row, int)
+        and isinstance(column, int)
+        and isinstance(phi, (int, float, complex))
+        and isinstance(theta, (int, float, complex))
+        and isinstance(psi, (int, float, complex))
+    ):
+        return _native.wigner_scalar(
+            (degree, row, column), (complex(phi), complex(theta), complex(psi))
+        )
+    labels = tuple(np.asarray(v, dtype=np.float64) for v in (degree, row, column))
+    if any(
+        np.any(~np.isfinite(v) | (v != np.floor(v)) | (np.abs(v) > 260)) for v in labels
+    ):
+        raise ValueError("Wigner labels must be integers in [-260, 260]")
+    angles = tuple(np.asarray(v, dtype=np.complex128) for v in (phi, theta, psi))
+    arrays = (*labels, *angles)
+    fixed = all(
+        v.size == 1 and v.ndim <= angles[1].ndim
+        for v in (*labels, angles[0], angles[2])
+    )
+    broadcast = (
+        arrays
+        if fixed or all(v.shape == arrays[0].shape for v in arrays)
+        else np.broadcast_arrays(*arrays)
+    )
+    modes = (
+        [tuple(int(v.item()) for v in labels)]
+        if all(v.size == 1 for v in labels)
+        else [
+            tuple(int(v) for v in mode)
+            for mode in zip(*(v.flat for v in broadcast[:3]), strict=True)
+        ]
+    )
+    return _native.wigner(
+        [(mode[0], mode[1], mode[2]) for mode in modes],
+        cast(
+            "NDArray[np.complex128]", angles[0] if angles[0].size == 1 else broadcast[3]
+        ).ravel(),
+        cast(
+            "NDArray[np.complex128]", angles[1] if angles[1].size == 1 else broadcast[4]
+        ).ravel(),
+        cast(
+            "NDArray[np.complex128]", angles[2] if angles[2].size == 1 else broadcast[5]
+        ).ravel(),
+        broadcast[4].shape,
+        (angles[0].shape, angles[1].shape, angles[2].shape),
     )
 
 

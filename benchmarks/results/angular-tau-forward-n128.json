@@ -19,17 +19,17 @@
       "lmax": 6,
       "dimension": 128,
       "threads": 4,
-      "median_seconds": 1.2946421600645408e-05,
-      "peak_rss_mib": 64.578125,
-      "baseline_rss_mib": 64.578125,
+      "median_seconds": 1.302143079956295e-05,
+      "peak_rss_mib": 65.30859375,
+      "baseline_rss_mib": 65.30859375,
       "samples_seconds": [
-        1.2952622699958738e-05,
-        1.2946005599224009e-05,
-        1.2940107399481349e-05,
-        1.2959855901135597e-05,
-        1.2987295600760262e-05,
-        1.2946421600645408e-05,
-        1.2941576399316545e-05
+        1.3028282900631894e-05,
+        1.3027609798882622e-05,
+        1.302143079956295e-05,
+        1.3013444500393235e-05,
+        1.3015263499983121e-05,
+        1.3038956199306994e-05,
+        1.3015935600560625e-05
       ],
       "calls_per_timing_sample": 10000,
       "forward_includes_result_destruction": true,
@@ -65,7 +65,7 @@
       "platform": "Linux-7.2.4-200.fc44.x86_64-x86_64-with-glibc2.43",
       "numpy_version": "2.5.3",
       "treams_version": "0.4.5",
-      "native_sha256": "956610419634603116e35ee3aee8e6964fdce1d63f7722546bb38cb9666f89b3",
+      "native_sha256": "f00c797d0660aa9cdd987fc69dfd29bd7fc9547c49c2800fbf3cba1a66139ab9",
       "native_profile": "release",
       "workload": "angular-tau-forward",
       "oracle": "treams public operation",
@@ -78,17 +78,17 @@
       "lmax": 6,
       "dimension": 128,
       "threads": 4,
-      "median_seconds": 8.791638699767646e-06,
-      "peak_rss_mib": 40.31640625,
-      "baseline_rss_mib": 40.06640625,
+      "median_seconds": 9.269231698999648e-06,
+      "peak_rss_mib": 40.515625,
+      "baseline_rss_mib": 40.21875,
       "samples_seconds": [
-        8.789787700516173e-06,
-        8.791612699860707e-06,
-        8.786571500240825e-06,
-        8.791638699767646e-06,
-        8.829191701079254e-06,
-        8.821581499068997e-06,
-        8.794339800078887e-06
+        9.264701600477564e-06,
+        9.268645600241143e-06,
+        9.267303701199126e-06,
+        9.269231698999648e-06,
+        9.270437699160539e-06,
+        9.273759699135554e-06,
+        9.280349999608007e-06
       ],
       "calls_per_timing_sample": 10000,
       "forward_includes_result_destruction": true,
@@ -109,5 +109,5 @@
       ]
     }
   ],
-  "speedup": 1.4725834446526525
+  "speedup": 1.40480152211194
 }

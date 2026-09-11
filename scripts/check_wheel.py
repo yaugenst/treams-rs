@@ -407,3 +407,20 @@ np.testing.assert_allclose(
     (15 * z**2 - 3) / 2,
 )
 print("Clean wheel: angular ufuncs, finite polar derivatives and Advect passed")
+
+
+beta = np.linspace(0, 0.7, 2048)
+value, context = tr.diff.wigner(1, -1, 0, 0.0, beta, 0.0)
+np.testing.assert_allclose(value, np.sin(beta) / np.sqrt(2), atol=1e-15)
+np.testing.assert_allclose(
+    context.pullback(np.ones_like(beta, dtype=complex))[1],
+    np.cos(beta) / np.sqrt(2),
+    atol=1e-15,
+)
+np.testing.assert_allclose(tr.special.wignersmalld(1, -1, 0, beta), value, atol=1e-15)
+np.testing.assert_allclose(tr.special.wigner3j(1, 1, 0, 0, 0, 0), -1 / np.sqrt(3))
+np.testing.assert_allclose(
+    tr.special.incgamma(1, [0.7, 1.3]), np.exp(-np.array([0.7, 1.3]))
+)
+assert np.isfinite(tr.special.intkambe(-2, 0.7 + 0.1j, 0.8))
+print("Clean wheel: Wigner symbols and Euler adjoints, gamma and Kambe ufuncs passed")

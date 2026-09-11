@@ -101,6 +101,24 @@ def angular(
     return _call((z,), forward)
 
 
+def wigner(
+    phi: ArrayLike,
+    theta: ArrayLike,
+    psi: ArrayLike,
+    *,
+    degree: ArrayLike,
+    row: ArrayLike,
+    column: ArrayLike,
+) -> NDArray[np.complex128]:
+    """Wigner D elements with native complex Euler-angle pullbacks."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.wigner(degree, row, column, *values)
+        return value, context.pullback
+
+    return _call((phi, theta, psi), forward)
+
+
 def chirality_density(
     ks: ArrayLike, normal: ArrayLike, z: ArrayLike = (0.0, 0.0)
 ) -> NDArray[np.complex128]:

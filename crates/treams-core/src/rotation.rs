@@ -4,6 +4,7 @@
 
 use crate::{Complex, Error, Result, basis::Basis, cylwaves, finite, interaction::product};
 use nalgebra::{DMatrix, SymmetricEigen};
+use rayon::prelude::*;
 use std::collections::BTreeMap;
 
 fn ladder(l: i32, m: i32) -> f64 {
@@ -171,4 +172,191 @@ impl RotationResidual {
         }
         Ok(result)
     }
+}
+
+// Jacobi recurrence (DLMF 18.9.1-2) evaluates one Wigner element in O(l) time and O(1)
+// storage. Half-angle powers preserve off-diagonal limits when cos(theta) rounds
+// to one. Symmetries keep both Jacobi parameters nonnegative.
+fn wigner_element<const N: usize>(
+    l: i32,
+    mut m: i32,
+    mut k: i32,
+    theta: crate::jet::Jet<N>,
+) -> crate::jet::Jet<N> {
+    use crate::jet::Jet;
+    let parity = |n: i32| if n % 2 == 0 { 1.0 } else { -1.0 };
+    let mut sign = 1.0;
+    if k.abs() > m.abs() {
+        sign *= parity(m - k);
+        std::mem::swap(&mut m, &mut k);
+    }
+    if m < 0 {
+        sign *= parity(m - k);
+        m = -m;
+        k = -k;
+    }
+    let (a, b) = (f64::from(m - k), f64::from(m + k));
+    let x = theta.map(theta.value.cos(), -theta.value.sin());
+    let half = theta * 0.5;
+    let sine = half.map(half.value.sin(), half.value.cos());
+    let cosine = half.map(half.value.cos(), -half.value.sin());
+    let normalization = (0.5
+        * (libm::lgamma(f64::from(l + m + 1)) + libm::lgamma(f64::from(l - m + 1))
+            - libm::lgamma(f64::from(l + k + 1))
+            - libm::lgamma(f64::from(l - k + 1))))
+    .exp();
+    let n = l - m;
+    let mut prev = Jet::constant(1.0);
+    let mut polynomial = if n == 0 {
+        prev
+    } else {
+        0.5 * ((a - b) + (a + b + 2.0) * x)
+    };
+    for j in 2..=n {
+        let j = f64::from(j);
+        let t = 2.0 * j + a + b;
+        let next = ((t - 1.0) * (t * (t - 2.0) * x + a * a - b * b) * polynomial
+            - 2.0 * (j + a - 1.0) * (j + b - 1.0) * t * prev)
+            * (1.0 / (2.0 * j * (j + a + b) * (t - 2.0)));
+        prev = polynomial;
+        polynomial = next;
+    }
+    sign * parity(m - k) * normalization * sine.powi(m - k) * cosine.powi(m + k) * polynomial
+}
+
+/// Individual Wigner small-d element at a real or complex angle, without a matrix.
+pub fn wigner_small(l: i32, m: i32, k: i32, theta: Complex) -> Result<Complex> {
+    if !(0..=128).contains(&l) || !finite(theta) {
+        return Err(Error::InvalidInput(
+            "require 0 <= l <= 128 and finite Wigner angle".into(),
+        ));
+    }
+    if m.unsigned_abs() > l.unsigned_abs() || k.unsigned_abs() > l.unsigned_abs() {
+        return Ok(Complex::default());
+    }
+    let value = wigner_element(l, m, k, crate::jet::Jet::<0>::constant(theta)).value;
+    if !finite(value) {
+        return Err(Error::SpecialFunction("nonfinite Wigner result".into()));
+    }
+    Ok(value)
+}
+
+/// Wigner D element in the z-y-z convention, allowing complex Euler angles.
+pub fn wigner(l: i32, m: i32, k: i32, angles: [Complex; 3]) -> Result<Complex> {
+    if angles.iter().any(|&z| !finite(z)) {
+        return Err(Error::InvalidInput("Wigner angles must be finite".into()));
+    }
+    let value = (-Complex::i() * (f64::from(m) * angles[0] + f64::from(k) * angles[2])).exp()
+        * wigner_small(l, m, k, angles[1])?;
+    if !finite(value) {
+        return Err(Error::SpecialFunction("nonfinite Wigner result".into()));
+    }
+    Ok(value)
+}
+
+/// Owned Wigner labels and broadcast Euler angles; reverse uses local chain rules.
+#[derive(Debug)]
+pub struct WignerResidual {
+    labels: Vec<[i32; 3]>,
+    angles: [Vec<Complex>; 3],
+    size: usize,
+}
+
+impl WignerResidual {
+    fn element(&self, i: usize) -> ([i32; 3], [Complex; 3]) {
+        (
+            self.labels[if self.labels.len() == 1 { 0 } else { i }],
+            std::array::from_fn(|axis| {
+                self.angles[axis][if self.angles[axis].len() == 1 { 0 } else { i }]
+            }),
+        )
+    }
+
+    /// Real-Hermitian pullback to each complex Euler angle, reducing scalar inputs.
+    pub fn pullback(self, cotangent: &[Complex]) -> Result<[Vec<Complex>; 3]> {
+        if cotangent.len() != self.size || cotangent.iter().any(|&g| !finite(g)) {
+            return Err(Error::InvalidInput(
+                "Wigner cotangent must be finite and match output".into(),
+            ));
+        }
+        let evaluate = |(i, &g): (usize, &Complex)| {
+            let ([l, m, k], angles) = self.element(i);
+            if g == Complex::default()
+                || m.unsigned_abs() > l.unsigned_abs()
+                || k.unsigned_abs() > l.unsigned_abs()
+            {
+                return Ok([Complex::default(); 3]);
+            }
+            let angles: [crate::jet::Jet<3>; 3] =
+                std::array::from_fn(|axis| crate::jet::Jet::variable(angles[axis], axis));
+            let value = (-Complex::i() * (f64::from(m) * angles[0] + f64::from(k) * angles[2]))
+                .exp()
+                * wigner_element(l, m, k, angles[1]);
+            if !value.finite() {
+                return Err(Error::SpecialFunction("nonfinite Wigner derivative".into()));
+            }
+            Ok(value.derivative.map(|derivative| g * derivative.conj()))
+        };
+        let gradients: Vec<[Complex; 3]> = if self.size >= 1024 {
+            cotangent
+                .par_iter()
+                .enumerate()
+                .map(evaluate)
+                .collect::<Result<_>>()?
+        } else {
+            cotangent
+                .iter()
+                .enumerate()
+                .map(evaluate)
+                .collect::<Result<_>>()?
+        };
+        Ok(std::array::from_fn(|axis| {
+            if self.angles[axis].len() == 1 {
+                vec![gradients.iter().map(|g| g[axis]).sum()]
+            } else {
+                gradients.iter().map(|g| g[axis]).collect()
+            }
+        }))
+    }
+}
+
+/// Broadcast Wigner values with all three Euler angles differentiable.
+pub fn wigner_array(
+    labels: Vec<[i32; 3]>,
+    angles: [Vec<Complex>; 3],
+) -> Result<(Vec<Complex>, WignerResidual)> {
+    let sizes = [
+        labels.len(),
+        angles[0].len(),
+        angles[1].len(),
+        angles[2].len(),
+    ];
+    let size = if sizes.contains(&0) {
+        0
+    } else {
+        sizes.into_iter().max().unwrap_or_default()
+    };
+    if sizes.iter().any(|&n| n != 1 && n != size) {
+        return Err(Error::InvalidInput(
+            "Wigner arrays must have equal lengths or scalar inputs".into(),
+        ));
+    }
+    let residual = WignerResidual {
+        labels,
+        angles,
+        size,
+    };
+    let evaluate = |i| {
+        let ([l, m, k], a) = residual.element(i);
+        wigner(l, m, k, a)
+    };
+    let values = if size >= 1024 {
+        (0..size)
+            .into_par_iter()
+            .map(evaluate)
+            .collect::<Result<_>>()?
+    } else {
+        (0..size).map(evaluate).collect::<Result<_>>()?
+    };
+    Ok((values, residual))
 }

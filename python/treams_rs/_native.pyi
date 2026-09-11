@@ -598,3 +598,27 @@ class PlanePermutationContext:
 def plane_permutation(
     vectors: ComplexArray, polarizations: RealArray, turns: int, helicity: bool
 ) -> tuple[ComplexArray, PlanePermutationContext]: ...
+
+wignersmalld: np.ufunc
+wignerd: np.ufunc
+wigner3j: np.ufunc
+incgamma_ufunc: np.ufunc
+intkambe_ufunc: np.ufunc
+
+class WignerContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[ComplexArray, ComplexArray, ComplexArray]: ...
+
+def wigner(
+    labels: list[tuple[int, int, int]],
+    phi: ComplexArray,
+    theta: ComplexArray,
+    psi: ComplexArray,
+    shape: tuple[int, ...],
+    argument_shapes: tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...]],
+) -> tuple[ComplexArray, WignerContext]: ...
+def wigner_scalar(
+    labels: tuple[int, int, int], angles: tuple[complex, complex, complex]
+) -> tuple[ComplexArray, WignerContext]: ...
+def wigner3j_scalar(j1: int, j2: int, j3: int, m1: int, m2: int, m3: int) -> float: ...
