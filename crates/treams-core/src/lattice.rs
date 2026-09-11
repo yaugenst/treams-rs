@@ -432,13 +432,33 @@ pub fn derivatives(
     r: [f64; 3],
     eta: Complex,
 ) -> Result<Derivatives> {
-    let result = sum_impl::<16>(wave, k, lattice, r, eta)?;
-    Ok(Derivatives {
-        value: result.value,
-        k: result.derivative[0],
-        position: std::array::from_fn(|i| result.derivative[1 + i]),
-        bloch: std::array::from_fn(|i| result.derivative[4 + i]),
-        vectors: std::array::from_fn(|i| std::array::from_fn(|j| result.derivative[7 + 3 * i + j])),
+    fn unpack<const N: usize>(result: Jet<N>, dim: usize) -> Derivatives {
+        Derivatives {
+            value: result.value,
+            k: result.derivative[0],
+            position: std::array::from_fn(|i| result.derivative[1 + i]),
+            bloch: std::array::from_fn(|i| {
+                if i < dim {
+                    result.derivative[4 + i]
+                } else {
+                    Complex::default()
+                }
+            }),
+            vectors: std::array::from_fn(|i| {
+                std::array::from_fn(|j| {
+                    if i < dim && j < dim {
+                        result.derivative[4 + dim + dim * i + j]
+                    } else {
+                        Complex::default()
+                    }
+                })
+            }),
+        }
+    }
+    Ok(match lattice.dim {
+        1 => unpack(sum_impl::<6>(wave, k, lattice, r, eta)?, 1),
+        2 => unpack(sum_impl::<10>(wave, k, lattice, r, eta)?, 2),
+        _ => unpack(sum_impl::<16>(wave, k, lattice, r, eta)?, 3),
     })
 }
 
@@ -485,16 +505,22 @@ fn sum_impl<const N: usize>(
         }
     });
     let direct: [[Jet<N>; 3]; 3] = std::array::from_fn(|i| {
-        std::array::from_fn(|j| Jet::variable(lattice.direct[(i, j)], 7 + 3 * i + j))
+        std::array::from_fn(|j| {
+            if i < dim && j < dim {
+                Jet::variable(lattice.direct[(i, j)], 4 + dim + dim * i + j)
+            } else {
+                Jet::constant(lattice.direct[(i, j)])
+            }
+        })
     });
     let reciprocal: [[Jet<N>; 3]; 3] = std::array::from_fn(|i| {
         std::array::from_fn(|j| Jet {
             value: Complex::new(lattice.reciprocal[(i, j)], 0.0),
             derivative: std::array::from_fn(|index| {
-                if index < 7 {
+                if index < 4 + dim {
                     return Complex::default();
                 }
-                let (p, q) = ((index - 7) / 3, (index - 7) % 3);
+                let (p, q) = ((index - 4 - dim) / dim, (index - 4 - dim) % dim);
                 Complex::new(
                     if p < dim && q < dim {
                         -lattice.reciprocal[(i, q)] * lattice.reciprocal[(p, j)] / (2.0 * PI)
@@ -509,10 +535,10 @@ fn sum_impl<const N: usize>(
     let measure = Jet {
         value: Complex::new(lattice.measure, 0.0),
         derivative: std::array::from_fn(|index| {
-            if index < 7 {
+            if index < 4 + dim {
                 return Complex::default();
             }
-            let (p, q) = ((index - 7) / 3, (index - 7) % 3);
+            let (p, q) = ((index - 4 - dim) / dim, (index - 4 - dim) % dim);
             Complex::new(
                 if p < dim && q < dim {
                     lattice.measure * lattice.reciprocal[(p, q)] / (2.0 * PI)
@@ -619,6 +645,17 @@ impl Gradient {
     }
 }
 
+impl Derivatives {
+    pub(crate) fn pullback(self, g: Complex) -> Gradient {
+        Gradient {
+            k: self.k.conj() * g,
+            position: self.position.map(|x| (g.conj() * x).re),
+            bloch: self.bloch.map(|x| (g.conj() * x).re),
+            vectors: self.vectors.map(|row| row.map(|x| (g.conj() * x).re)),
+        }
+    }
+}
+
 /// Contract a batch of scalar-wave cotangents, recomputing local derivatives per wave.
 /// Only sixteen local derivatives are live per Rayon worker; no mode Jacobian is retained.
 pub fn pullback(
@@ -640,13 +677,7 @@ pub fn pullback(
             if g == Complex::default() {
                 return Ok(Gradient::default());
             }
-            let d = derivatives(wave, k, lattice, r, eta)?;
-            Ok(Gradient {
-                k: d.k.conj() * g,
-                position: d.position.map(|x| (g.conj() * x).re),
-                bloch: d.bloch.map(|x| (g.conj() * x).re),
-                vectors: d.vectors.map(|row| row.map(|x| (g.conj() * x).re)),
-            })
+            Ok(derivatives(wave, k, lattice, r, eta)?.pullback(g))
         })
         .try_reduce(Gradient::default, |mut a, b| {
             a.add(b);

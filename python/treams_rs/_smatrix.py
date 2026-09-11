@@ -7,13 +7,15 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from . import coeffs, diff
-from ._core import Material, MaterialLike, PlaneWaveBasisByComp
+from ._core import Material, MaterialLike, PlaneWaveBasisByComp, SphericalWaveBasis
 from ._plane import PlaneWave
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
 
     from numpy.typing import ArrayLike, NDArray
+
+    from ._tmatrix import TMatrix
 
 
 class SMatrices:
@@ -98,6 +100,48 @@ class SMatrices:
                     result[:, :, i, j] = value[:, :, pol, pol2]
         return cls(result, basis=basis, k0=k0, material=(above, below)).changepoltype(
             poltype
+        )
+
+    @classmethod
+    def from_array(
+        cls,
+        tm: TMatrix,
+        basis: PlaneWaveBasisByComp,
+        *,
+        lattice: ArrayLike,
+        kpar: ArrayLike,
+        eta: complex = 0,
+    ) -> SMatrices:
+        """Solve one uncoupled spherical unit cell and radiate into plane-wave ports.
+
+        Lattice and Bloch vector are explicit. The input T matrix describes one
+        uncoupled unit cell; this constructor solves its periodic interaction.
+        """
+        if not isinstance(tm.basis, SphericalWaveBasis):
+            raise ValueError("array radiation currently requires spherical multipoles")
+        vectors = np.asarray(lattice, dtype=np.float64)
+        bloch = np.asarray(kpar, dtype=np.float64)
+        if vectors.shape != (2, 2) or bloch.shape != (2,):
+            raise ValueError("array radiation requires a 2D lattice and Bloch vector")
+        q = np.column_stack([basis.kx, basis.ky])
+        orders = (q - bloch) @ vectors.T / (2 * np.pi)
+        if not np.allclose(orders, np.round(orders), atol=1e-10, rtol=0):
+            raise ValueError(
+                "plane-wave channels must match the lattice diffraction orders"
+            )
+        response = tm.latticeinteraction.solve(vectors, bloch, eta=eta)
+        channels, _ = diff.spherical_channels(
+            tm.basis,
+            tm.ks,
+            q,
+            basis.pol,
+            float(abs(np.linalg.det(vectors))),
+            poltype=tm.poltype,
+            fixed_q=True,
+        )
+        value, _ = diff.smatrix_from_array(response, channels)
+        return cls(
+            value, basis=basis, k0=tm.k0, material=tm.material, poltype=tm.poltype
         )
 
     @classmethod

@@ -12,6 +12,75 @@ use crate::{
 /// Blocks ordered as transmission up, reflection up, reflection down, transmission down.
 pub type Blocks = [DMatrix<Complex>; 4];
 
+/// Radiation of an effective periodic multipole response into plane-wave ports.
+#[derive(Clone, Debug)]
+pub struct ArrayResidual {
+    response: DMatrix<Complex>,
+    channels: Blocks,
+    scattered: [DMatrix<Complex>; 2],
+    /// Four plane-wave scattering blocks, including direct transmission.
+    pub value: Blocks,
+}
+
+/// Compose an effective response with incident/emitted, up/down channel arrays.
+pub fn from_array(response: DMatrix<Complex>, channels: Blocks) -> Result<ArrayResidual> {
+    let d = response.nrows();
+    let c = channels[0].ncols();
+    if d == 0
+        || !response.is_square()
+        || c == 0
+        || response.iter().any(|&v| !finite(v))
+        || channels
+            .iter()
+            .any(|a| a.shape() != (d, c) || a.iter().any(|&v| !finite(v)))
+    {
+        return Err(Error::InvalidInput(
+            "require a finite square response and four matching multipole-by-plane channel arrays"
+                .into(),
+        ));
+    }
+    let scattered = std::array::from_fn(|side| product(&response, &channels[side]));
+    let mut value =
+        std::array::from_fn(|b| product(&channels[2 + b / 2].transpose(), &scattered[b % 2]));
+    for block in [0, 3] {
+        for i in 0..c {
+            value[block][(i, i)] += 1.0;
+        }
+    }
+    dimension(&value)
+        .map_err(|_| Error::SpecialFunction("non-finite array scattering matrix".into()))?;
+    Ok(ArrayResidual {
+        response,
+        channels,
+        scattered,
+        value,
+    })
+}
+impl ArrayResidual {
+    /// Effective-response and four-channel cotangents, consuming the residual.
+    pub fn pullback(self, g: &Blocks) -> Result<(DMatrix<Complex>, Blocks)> {
+        let c = dimension(g)?;
+        if c != self.value[0].nrows() {
+            return Err(Error::InvalidInput(
+                "invalid array scattering cotangent shape".into(),
+            ));
+        }
+        let mut response = DMatrix::zeros(self.response.nrows(), self.response.ncols());
+        let mut channels: Blocks =
+            std::array::from_fn(|_| DMatrix::zeros(self.response.nrows(), c));
+        for side in 0..2 {
+            let adjoint = product(&self.channels[2].conjugate(), &g[side])
+                + product(&self.channels[3].conjugate(), &g[2 + side]);
+            response += product(&adjoint, &self.channels[side].adjoint());
+            channels[side] = product(&self.response.adjoint(), &adjoint);
+            channels[2 + side] = (product(&g[2 * side], &self.scattered[0].adjoint())
+                + product(&g[2 * side + 1], &self.scattered[1].adjoint()))
+            .transpose();
+        }
+        Ok((response, channels))
+    }
+}
+
 fn dimension(blocks: &Blocks) -> Result<usize> {
     let n = blocks[0].nrows();
     if n == 0

@@ -20,6 +20,48 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    fn spherical_channel_scale_and_adjoint(k in 1.0_f64..2.0, qx in 0.1_f64..0.4, area in 2.0_f64..4.0, scale in 0.5_f64..2.0, helicity in any::<bool>()) {
+        let modes=(1..=3).flat_map(|l|(-l..=l).flat_map(move |m|(0..2).map(move |pol|(0,Mode{l,m,pol})))).collect();
+        let basis=crate::basis::Basis{modes,positions:vec![[0.1,0.2,-0.3]]};
+        let ks=[Complex::new(k,0.1);2];
+        let q=vec![[qx,0.2],[3.2,-0.1]];
+        let forward=crate::channels::spherical(basis.clone(),ks,q.clone(),vec![0,1],area,helicity).unwrap();
+        let scaled_basis=crate::basis::Basis{positions:basis.positions.iter().map(|r|r.map(|x|x*scale)).collect(),..basis.clone()};
+        let scaled=crate::channels::spherical(scaled_basis,ks.map(|k|k/scale),q.iter().map(|q|q.map(|x|x/scale)).collect(),vec![0,1],area*scale*scale,helicity).unwrap();
+        prop_assert!((&forward.value-scaled.value).norm()<1e-10*(1.0+forward.value.norm()));
+        let g=DMatrix::from_fn(forward.value.nrows(),2,|i,j|Complex::new(if i%3==j {0.3}else{-0.2},0.1));
+        let gradient=forward.pullback(&g,false).unwrap();
+        let spatial:f64=gradient.positions.iter().flatten().zip(basis.positions.iter().flatten()).map(|(g,r)|g*r).sum();
+        let spectral:f64=gradient.ks.iter().zip(ks).map(|(g,k)|(g.conj()*k).re).sum();
+        let transverse:f64=gradient.q.iter().flatten().zip(q.iter().flatten()).map(|(g,q)|g*q).sum();
+        prop_assert!((spatial-spectral-transverse+2.0*area*gradient.area).abs()<1e-8);
+    }
+
+    #[test]
+    #[allow(clippy::indexing_slicing)] // Fixed four channel blocks.
+    fn radiation_multilinearity_adjoint(values in prop::collection::vec(-0.5_f64..0.5,98)) {
+        let mut values=values.as_chunks::<2>().0.iter().map(|&[re,im]|Complex::new(re,im));
+        let response=DMatrix::from_iterator(3,3,values.by_ref().take(9));
+        let channels:crate::smatrix::Blocks=std::array::from_fn(|_|DMatrix::from_iterator(3,2,values.by_ref().take(6)));
+        let g:crate::smatrix::Blocks=std::array::from_fn(|_|DMatrix::from_iterator(2,2,values.by_ref().take(4)));
+        let forward=crate::smatrix::from_array(response.clone(),channels.clone()).unwrap();
+        let mut scattered=forward.value.clone();
+        for b in [0,3] {scattered[b]-=DMatrix::identity(2,2);}
+        let loss:f64=g.iter().zip(scattered).map(|(g,v)|g.dotc(&v).re).sum();
+        let (gt,gc)=forward.pullback(&g).unwrap();
+        prop_assert!((gt.dotc(&response).re-loss).abs()<1e-12);
+        for group in [0,2] {
+            let pairing:f64=(group..group+2).map(|i|gc[i].dotc(&channels[i]).re).sum();
+            prop_assert!((pairing-loss).abs()<1e-12);
+        }
+        let empty=crate::smatrix::from_array(DMatrix::zeros(3,3),channels).unwrap();
+        prop_assert!(empty.value[1].norm()==0.0 && empty.value[2].norm()==0.0);
+        prop_assert!((&empty.value[0]-DMatrix::identity(2,2)).norm()==0.0);
+        let (_,gc)=empty.pullback(&g).unwrap();
+        prop_assert!(gc.iter().all(|a|a.norm()==0.0));
+    }
+
+    #[test]
     #[allow(clippy::indexing_slicing)] // Fixed two-medium arrays.
     fn fresnel_dimensionless_adjoint(k in 1.0_f64..3.0, q in 0.0_f64..0.6, z in 0.7_f64..1.3) {
         let ks=[[Complex::new(k,0.1),Complex::new(k+0.2,0.1)],[Complex::new(k+0.5,0.2),Complex::new(k+0.8,0.2)]];

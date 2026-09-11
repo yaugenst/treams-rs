@@ -4,6 +4,31 @@ from numpy.typing import NDArray
 type ComplexArray = NDArray[np.complex128]
 type RealArray = NDArray[np.float64]
 
+class ArrayContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[ComplexArray, ComplexArray]: ...
+
+def smatrix_from_array(
+    response: ComplexArray, channels: ComplexArray
+) -> tuple[ComplexArray, ArrayContext]: ...
+
+class ChannelsContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[RealArray, ComplexArray, RealArray, float]: ...
+
+def spherical_channels(
+    modes: list[tuple[int, int, int, int]],
+    positions: list[list[float]],
+    ks: list[complex],
+    q: list[list[float]],
+    polarizations: list[int],
+    area: float,
+    helicity: bool,
+    fixed_q: bool,
+) -> tuple[ComplexArray, ChannelsContext]: ...
+
 class SMatrixContext:
     def pullback(
         self, cotangent: ComplexArray

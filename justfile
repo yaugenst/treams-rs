@@ -45,3 +45,13 @@ ci: verify
 
 build-wheel:
     uv run --no-sync maturin build --release --locked --out dist
+
+check-wheel: build-wheel
+    #!/usr/bin/env bash
+    set -euo pipefail
+    env_dir=$(mktemp -d)
+    trap 'rm -rf "$env_dir"' EXIT
+    uv venv --python .venv/bin/python "$env_dir"
+    wheel=$(ls -t dist/*.whl | head -n 1)
+    uv pip install --python "$env_dir/bin/python" "$wheel" advect
+    "$env_dir/bin/python" scripts/check_wheel.py

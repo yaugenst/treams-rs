@@ -31,7 +31,13 @@ def worker(
     from threadpoolctl import threadpool_info, threadpool_limits
 
     if backend in ("rust", "check"):
-        from treams_rs import SphericalWaveBasis, _native, diff, lattice
+        from treams_rs import (
+            PlaneWaveBasisByComp,
+            SphericalWaveBasis,
+            _native,
+            diff,
+            lattice,
+        )
 
         if _native.build_profile() != "release":
             raise RuntimeError("benchmark requires just build-ext-release")
@@ -46,7 +52,7 @@ def worker(
             [np.arange(particles) * 0.8, np.zeros((particles, 2))]
         )
 
-        if workload == "periodic":
+        if workload in ("periodic", "array"):
             width = int(np.ceil(np.sqrt(particles)))
             positions = (
                 np.column_stack(
@@ -60,8 +66,11 @@ def worker(
             )
             vectors = np.diag([width * 0.8, width * 0.8])
             bloch = np.array([0.1, 0.15])
+            orders = np.array([[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]])
+            q = bloch + orders @ (2 * np.pi * np.linalg.inv(vectors).T)
             if backend in ("rust", "check"):
                 basis = SphericalWaveBasis.default(order, particles, positions)
+                ports = PlaneWaveBasisByComp.default(q)
 
         if workload == "field":
             points = np.column_stack(
@@ -84,7 +93,7 @@ def worker(
         def rust():
             if workload == "field":
                 return diff.field(amplitudes, points, basis, [1.3, 1.3], singular=True)
-            if workload == "periodic":
+            if workload in ("periodic", "array"):
                 dimension = len(basis)
                 local = np.zeros((dimension, dimension), dtype=complex)
                 contexts = []
@@ -100,7 +109,18 @@ def worker(
                     basis, basis, [1.3, 1.3], vectors, bloch
                 )
                 value, context = diff.interaction(local, coupling)
-                return value, (contexts, coupling_context, context)
+                residual = (contexts, coupling_context, context)
+                if workload == "array":
+                    channels, channel_context = diff.spherical_channels(
+                        basis,
+                        [1.3, 1.3],
+                        np.column_stack([ports.kx, ports.ky]),
+                        ports.pol,
+                        float(abs(np.linalg.det(vectors))),
+                    )
+                    value, radiation_context = diff.smatrix_from_array(value, channels)
+                    residual += (channel_context, radiation_context)
+                return value, residual
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
@@ -122,8 +142,19 @@ def worker(
                 for r, e in zip(radii, epsilon, strict=True)
             ]
             cluster = treams.TMatrix.cluster(spheres, positions)
-            if workload == "periodic":
-                return cluster.latticeinteraction.solve(vectors, bloch)
+            if workload in ("periodic", "array"):
+                response = cluster.latticeinteraction.solve(vectors, bloch)
+                if workload == "array":
+                    scattering = treams.SMatrices.from_array(
+                        response, treams.PlaneWaveBasisByComp.default(q)
+                    )
+                    return np.array(
+                        [
+                            [np.asarray(scattering[i, j]) for j in range(2)]
+                            for i in range(2)
+                        ]
+                    )
+                return response
             return cluster.interaction.solve()
 
         if backend == "check":
@@ -148,8 +179,14 @@ def worker(
                 value, context = rust()
                 cotangent = np.full_like(value, (1 + 0.3j) / value.size)
                 start = time.perf_counter()
-                if workload == "periodic":
-                    sphere_contexts, coupling_context, solve_context = context
+                if workload in ("periodic", "array"):
+                    sphere_contexts, coupling_context, solve_context = context[:3]
+                    if workload == "array":
+                        channel_context, radiation_context = context[3:]
+                        cotangent, channels_gradient = radiation_context.pullback(
+                            cotangent
+                        )
+                        channel_context.pullback(channels_gradient)
                     local_gradient, coupling_gradient = solve_context.pullback(
                         cotangent
                     )
@@ -214,7 +251,9 @@ def worker(
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--workload", choices=["cluster", "field", "periodic"], default="cluster"
+        "--workload",
+        choices=["cluster", "field", "periodic", "array"],
+        default="cluster",
     )
     parser.add_argument("--samples", type=int, default=2048)
     parser.add_argument("--worker", choices=["rust", "treams", "check"])

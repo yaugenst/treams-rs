@@ -3,6 +3,7 @@
 #![allow(clippy::needless_pass_by_value, clippy::indexing_slicing)]
 
 mod basis;
+mod channels;
 mod cylinder;
 mod fields;
 mod lattice;
@@ -129,6 +130,7 @@ fn build_profile() -> &'static str {
 
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    channels::register(m)?;
     smatrix::register(m)?;
     tmatrix::register(m)?;
     cylinder::register(m)?;

@@ -256,8 +256,10 @@ impl PeriodicResidual {
                 self.destination.positions[block.destination][a]
                     - self.source.positions[block.source][a]
             });
-            for pol in 0..2 {
-                let mut g = vec![Complex::default(); block.rows.len() * block.cols.len()];
+            let mut g = std::array::from_fn(|_| {
+                vec![Complex::default(); block.rows.len() * block.cols.len()]
+            });
+            for (pol, g) in g.iter_mut().enumerate() {
                 for (j, &col) in block.cols.iter().enumerate() {
                     if usize::from(block.polarizations[j]) != pol {
                         continue;
@@ -266,13 +268,12 @@ impl PeriodicResidual {
                         g[j * block.rows.len() + i] = cotangent[(row, col)];
                     }
                 }
-                let gradient = block.plan.pullback_periodic(
-                    self.ks[pol],
-                    displacement,
-                    &self.lattice,
-                    self.eta,
-                    &g,
-                )?;
+            }
+            let gradients =
+                block
+                    .plan
+                    .pullback_periodic(self.ks, displacement, &self.lattice, self.eta, &g)?;
+            for (pol, gradient) in gradients.into_iter().enumerate() {
                 result.lattice(&gradient);
                 result.expansion.ks[pol] += gradient.k;
                 for (axis, value) in gradient.position.into_iter().enumerate() {

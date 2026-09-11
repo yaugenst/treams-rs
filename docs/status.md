@@ -16,9 +16,9 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 | Testing | Native proptest invariants and adjoint identities; Hypothesis physical invariants; treams/SciPy reference comparisons; complete Python workflows | Expand qualification with every ported subsystem |
 | Performance | Cached angular plans and radial tables, faer LU and matmul, block-diagonal local storage, Rayon coupling assembly | See measured scope and limitations in benchmarks.md |
 | Cylindrical scattering | Complex J/H and derivatives; multilayer chiral coefficients and complete T-matrix with all parameter VJPs; cylindrical bases, translations, clusters and cross widths | Cylindrical fields and conversions to spherical/plane waves |
-| Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections; xy-component plane-wave bases and slab illumination | General basis alignments, diffraction-order generation and plane-wave direction/material VJPs |
-| Planar layers | Native chiral Fresnel coefficients and propagation; one-LU S-matrix composition with reused-factor adjoint; interfaces, multilayer slabs, stacking/doubling, polarization conversion and power-flux transmittance/reflectance | Periodic particle-to-plane-wave channels; internal-field convenience; full SMatrix annotation API |
-| Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D, displaced sources, periodic coupling and interaction solves; all continuous-input native pullbacks and Advect composition; direct-sum, reference and Bloch/split/scale invariants | S-matrix channels and reflection/transmission |
+| Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections; xy-component plane-wave bases, diffraction orders and slab illumination | General basis alignments and standalone PlaneWave direction/material VJPs |
+| Planar layers | Native chiral Fresnel coefficients and propagation; one-LU S-matrix composition with reused-factor adjoint; interfaces, multilayer slabs, stacking/doubling, polarization conversion and power-flux transmittance/reflectance | Internal-field convenience; full SMatrix annotation API |
+| Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D; periodic coupling and solves; spherical 2D particle-to-plane channels and S matrices; complete native pullbacks and Advect reflectance gradients; direct-sum, reference, energy, Bloch/split/scale invariants | Cylindrical radiation channels; broader combined particle/layer workflows |
 | Remaining public API | Not implemented | Field-operator conveniences, EBCM, band calculations, I/O and remaining observables |
 
 The optimized `diff.cluster` is restricted to non-overlapping homogeneous,
@@ -54,8 +54,10 @@ wavenumbers, the real Bloch wavevector and every lattice-vector component.
 The split parameter eta is held fixed because the exact sum is independent of it.
 At coincident origins, derivatives use the regular image sum with that lattice
 point excluded under perturbation. Cylindrical axial labels remain fixed.
-The core propagates analytic local chain rules through at most sixteen continuous
-Ewald parameters, with derivative arithmetic compiled out of forward-only calls.
+The core propagates analytic local chain rules through six, ten or sixteen
+continuous Ewald parameters for 1D, 2D or 3D, with derivative arithmetic compiled
+out of forward-only calls. Equal medium wavenumbers share derivative evaluation
+between polarization cotangents.
 No full output-by-parameter Jacobian is stored in the residual.
 
 Planar interfaces, propagation and S-matrix composition have native pullbacks and
@@ -70,3 +72,19 @@ The new plane-wave basis fixes the transverse plane to xy. Slab power calculatio
 accept one incident amplitude vector or PlaneWave object per direction. Arrays are
 explicit rather than inheriting upstream's ndarray metadata. Fresnel's low-level
 API currently evaluates one (two-media, two-helicity) interface at a time.
+
+`SMatrices.from_array(tm, basis, lattice=..., kpar=...)` accepts an uncoupled
+spherical unit cell and solves its periodic interaction before radiating. This
+explicit constructor differs from upstream's annotated, already-interacting
+T-matrix input. The native `spherical_channels` and `smatrix_from_array` boundaries
+support arbitrary complex cotangents. Advect tests differentiate reflected power
+through particle radii, positions, complex permittivities, frequency, Bloch vector
+and every 2D cell component, including the moving diffraction orders.
+
+At exactly normal incidence, the upstream plane-wave polarization convention has
+no defined azimuth. Forward values preserve its convention; `fixed_q=True` enables
+all other channel derivatives while treating transverse directions as constants.
+A requested direction derivative there raises an explicit error. Near-normal,
+evanescent, chiral and lossy channels are reference checked. Diffraction-order
+generation includes all reciprocal vectors inside the cutoff, including skew
+cells where upstream's simple iterator can omit orders.

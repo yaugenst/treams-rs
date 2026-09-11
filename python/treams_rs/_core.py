@@ -126,6 +126,42 @@ class PlaneWaveBasisByComp:
             raise ValueError("transverse wavevectors require shape (n, 2)")
         return cls((float(kx), float(ky), pol) for kx, ky in values for pol in (1, 0))
 
+    @classmethod
+    def diffr_orders(
+        cls, kpar: ArrayLike, lattice: ArrayLike, bmax: float
+    ) -> PlaneWaveBasisByComp:
+        """Both polarizations of all reciprocal vectors with length <= bmax.
+
+        The cutoff applies before adding the Bloch vector. Opposite diffraction
+        orders are adjacent, following treams ordering for rectangular lattices.
+        """
+        a = np.asarray(lattice, dtype=np.float64)
+        q = np.asarray(kpar, dtype=np.float64)
+        if (
+            a.shape != (2, 2)
+            or q.shape != (2,)
+            or not np.isfinite(a).all()
+            or not np.isfinite(q).all()
+            or not math.isfinite(bmax)
+            or bmax < 0
+        ):
+            raise ValueError(
+                "require a finite 2D lattice, Bloch vector and nonnegative cutoff"
+            )
+        reciprocal = 2 * np.pi * np.linalg.inv(a).T
+        # |G.a_i| <= bmax |a_i| bounds every integer coordinate, also for skew cells.
+        bounds = np.ceil(bmax * np.linalg.norm(a, axis=1) / (2 * np.pi)).astype(int)
+        orders = [(0, 0)]
+        for m in range(int(bounds[0]) + 1):
+            ns = [*range(int(bounds[1]) + 1), *range(-1, -int(bounds[1]) - 1, -1)]
+            for n in ns:
+                if m == 0 and n <= 0:
+                    continue
+                vector = np.array([m, n]) @ reciprocal
+                if np.linalg.norm(vector) <= bmax:
+                    orders.extend([(m, n), (-m, -n)])
+        return cls.default(q + np.asarray(orders) @ reciprocal)
+
     @property
     def kx(self) -> NDArray[np.float64]:
         return np.array([m[0] for m in self.modes])

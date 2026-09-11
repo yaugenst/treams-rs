@@ -90,15 +90,29 @@ pub fn legendre(l: i32, m: i32, z: Complex) -> Complex {
     if l < 0 || m.abs() > l {
         return Complex::default();
     }
-    let w = (1.0 - z * z).sqrt();
-    let mut p = Complex::new(1.0, 0.0);
+    legendre_factor(l, m, crate::jet::Jet::<0>::constant(z)).value
+        * (1.0 - z * z).sqrt().powi(m.abs())
+}
+
+// Associated Legendre polynomial after factoring out sin(theta)^|m|. Keeping this
+// factor explicit avoids 0/0 and cancellation in angular functions near the poles.
+pub(crate) fn legendre_factor<const N: usize>(
+    l: i32,
+    m: i32,
+    z: crate::jet::Jet<N>,
+) -> crate::jet::Jet<N> {
+    use crate::jet::Jet;
+    if l < 0 || m.abs() > l {
+        return Jet::default();
+    }
+    let mut p = Jet::constant(1.0);
     if m >= 0 {
         for k in 1..=m {
-            p *= -f64::from(2 * k - 1) * w;
+            p *= -f64::from(2 * k - 1);
         }
     } else {
         for k in 1..=-m {
-            p *= w / f64::from(2 * k);
+            p *= 1.0 / f64::from(2 * k);
         }
     }
     if l == m.abs() {

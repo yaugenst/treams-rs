@@ -126,6 +126,61 @@ def smatrix_add(lower: ArrayLike, upper: ArrayLike) -> NDArray[np.complex128]:
     return _call((lower, upper), forward)
 
 
+def smatrix_from_array(
+    response: ArrayLike, channels: ArrayLike
+) -> NDArray[np.complex128]:
+    """Differentiable radiation of an effective multipole response into plane waves."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.smatrix_from_array(values[0], values[1])
+        return value, context.pullback
+
+    return _call((response, channels), forward)
+
+
+def spherical_channels(
+    positions: ArrayLike,
+    ks: ArrayLike,
+    q: ArrayLike,
+    area: ArrayLike,
+    *,
+    basis: SphericalWaveBasis,
+    polarizations: ArrayLike,
+    poltype: str = "helicity",
+    fixed_q: bool = False,
+) -> NDArray[np.complex128]:
+    """Differentiable spherical incidence/radiation channels.
+
+    fixed_q treats q as a static constant; this supports exactly normal incidence.
+    Direction gradients otherwise require nonzero transverse wavevectors.
+    """
+    from ._core import SphericalWaveBasis
+
+    static_q = np.asarray(q, dtype=np.float64) if fixed_q else None
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        dynamic_basis = SphericalWaveBasis(basis.modes, positions=values[0])
+        value, context = diff.spherical_channels(
+            dynamic_basis,
+            values[1],
+            static_q if static_q is not None else values[3],
+            polarizations,
+            float(np.asarray(values[2])),
+            poltype=poltype,
+            fixed_q=fixed_q,
+        )
+
+        def pullback(g: NDArray[np.complex128]) -> _Values:
+            positions, ks, q, area = context.pullback(g)
+            return (positions, ks, area) if fixed_q else (positions, ks, area, q)
+
+        return value, pullback
+
+    return _call(
+        (positions, ks, area) if fixed_q else (positions, ks, area, q), forward
+    )
+
+
 def fresnel(ks: ArrayLike, kzs: ArrayLike, zs: ArrayLike) -> NDArray[np.complex128]:
     """Differentiable chiral planar-interface coefficients."""
 

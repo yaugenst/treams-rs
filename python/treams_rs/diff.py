@@ -13,6 +13,49 @@ if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
 
 
+def smatrix_from_array(
+    response: ArrayLike, channels: ArrayLike
+) -> tuple[NDArray[np.complex128], _native.ArrayContext]:
+    """Radiate an effective periodic response; VJP returns (response, channels)."""
+    return _native.smatrix_from_array(
+        np.ascontiguousarray(response, dtype=np.complex128),
+        np.ascontiguousarray(channels, dtype=np.complex128),
+    )
+
+
+def spherical_channels(
+    basis: SphericalWaveBasis,
+    ks: ArrayLike,
+    q: ArrayLike,
+    polarizations: ArrayLike,
+    area: float,
+    *,
+    poltype: str = "helicity",
+    fixed_q: bool = False,
+) -> tuple[NDArray[np.complex128], _native.ChannelsContext]:
+    """Incident/emitted, up/down arrays, shaped (2, 2, multipoles, plane modes).
+
+    Emitted arrays are transposed: ``channels[1, side].T`` maps multipoles to
+    outgoing plane waves. VJP returns (positions, ks, q, area). At exactly normal
+    incidence the azimuth is undefined; set fixed_q for derivatives at fixed incidence.
+    """
+    if poltype not in ("helicity", "parity"):
+        raise ValueError("invalid polarization type")
+    pols = np.asarray(polarizations)
+    if not np.all((pols == 0) | (pols == 1)):
+        raise ValueError("polarizations must be 0 or 1")
+    return _native.spherical_channels(
+        list(basis.modes),
+        basis.positions.tolist(),
+        np.asarray(ks, dtype=np.complex128).tolist(),
+        np.asarray(q, dtype=np.float64).tolist(),
+        pols.astype(np.int64).tolist(),
+        area,
+        poltype == "helicity",
+        fixed_q,
+    )
+
+
 def smatrix_add(
     lower: ArrayLike, upper: ArrayLike
 ) -> tuple[NDArray[np.complex128], _native.SMatrixContext]:

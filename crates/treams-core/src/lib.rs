@@ -2,6 +2,7 @@
 
 pub mod angular;
 pub mod basis;
+pub mod channels;
 pub mod coeffs;
 pub mod cylinder;
 pub mod cylwaves;

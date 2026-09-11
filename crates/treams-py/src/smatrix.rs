@@ -3,13 +3,13 @@
 
 use nalgebra::DMatrix;
 use numpy::{
-    IntoPyArray, PyArray1, PyArray2, PyArray4, PyReadonlyArray4,
+    IntoPyArray, PyArray1, PyArray2, PyArray4, PyReadonlyArray2, PyReadonlyArray4,
     ndarray::{Array2, Array4},
 };
 use pyo3::{exceptions::PyValueError, prelude::*};
 use treams_core::{
     Complex,
-    smatrix::{self, Blocks, FresnelResidual, PropagationResidual, StackResidual},
+    smatrix::{self, ArrayResidual, Blocks, FresnelResidual, PropagationResidual, StackResidual},
 };
 
 use crate::error;
@@ -30,8 +30,66 @@ fn from_array(value: PyReadonlyArray4<'_, Complex>) -> PyResult<Blocks> {
     }))
 }
 fn array<'py>(py: Python<'py>, value: &Blocks) -> Bound<'py, PyArray4<Complex>> {
-    let n = value[0].nrows();
-    Array4::from_shape_fn((2, 2, n, n), |(a, b, i, j)| value[2 * a + b][(i, j)]).into_pyarray(py)
+    let (d, c) = value[0].shape();
+    Array4::from_shape_fn((2, 2, d, c), |(a, b, i, j)| value[2 * a + b][(i, j)]).into_pyarray(py)
+}
+
+#[pyclass]
+#[derive(Debug)]
+struct ArrayContext {
+    residual: Option<ArrayResidual>,
+}
+type ArrayGradient<'py> = (Bound<'py, PyArray2<Complex>>, Bound<'py, PyArray4<Complex>>);
+#[pymethods]
+impl ArrayContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray4<'py, Complex>,
+    ) -> PyResult<ArrayGradient<'py>> {
+        let g = from_array(cotangent)?;
+        let residual = self
+            .residual
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        if g[0].shape() != residual.value[0].shape() {
+            return Err(PyValueError::new_err(
+                "cotangent shape does not match forward output",
+            ));
+        }
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let (response, channels) = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        Ok((crate::tmatrix::matrix(py, &response), array(py, &channels)))
+    }
+}
+#[pyfunction]
+fn smatrix_from_array<'py>(
+    py: Python<'py>,
+    response: PyReadonlyArray2<'py, Complex>,
+    channels: PyReadonlyArray4<'py, Complex>,
+) -> PyResult<(Bound<'py, PyArray4<Complex>>, ArrayContext)> {
+    let response = crate::tmatrix::from_array(response)?;
+    let a = channels.as_array();
+    let s = a.shape();
+    if s[0] != 2 || s[1] != 2 {
+        return Err(PyValueError::new_err(
+            "channels require shape (2, 2, multipoles, plane modes)",
+        ));
+    }
+    let channels =
+        std::array::from_fn(|b| DMatrix::from_fn(s[2], s[3], |i, j| a[(b / 2, b % 2, i, j)]));
+    let residual = py
+        .detach(move || smatrix::from_array(response, channels))
+        .map_err(error)?;
+    Ok((
+        array(py, &residual.value),
+        ArrayContext {
+            residual: Some(residual),
+        },
+    ))
 }
 
 #[pyclass]
@@ -88,6 +146,8 @@ fn smatrix_add<'py>(
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<ArrayContext>()?;
+    module.add_function(wrap_pyfunction!(smatrix_from_array, module)?)?;
     module.add_class::<SMatrixContext>()?;
     module.add_function(wrap_pyfunction!(smatrix_add, module)?)?;
     module.add_class::<FresnelContext>()?;

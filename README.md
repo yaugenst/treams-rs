@@ -100,3 +100,20 @@ Use `ad.fresnel`, `ad.propagation`, and `ad.smatrix_add` to differentiate comple
 stacks. Their arrays have shape `(2, 2, number_of_modes, number_of_modes)`, indexing
 outgoing direction, incoming direction, output mode, and input mode. Directions
 are ordered up/down; low-level Fresnel polarization indices are ordered 0/1.
+
+Periodic spherical unit cells use the same S-matrix interface:
+
+```python
+cell = [[1.7, 0], [0, 1.8]]
+basis = tr.PlaneWaveBasisByComp.diffr_orders([0, 0], cell, 4)
+particle = tr.TMatrix.sphere(3, 2.1, 0.2, [3, 1])
+array = tr.SMatrices.from_array(particle, basis, lattice=cell, kpar=[0, 0])
+print(array.tr(tr.plane_wave([0, 0, 1], 1, k0=2.1)))
+```
+
+For inverse design, compose `ad.sphere`, `ad.lattice_expansion`, `ad.interaction`,
+`ad.spherical_channels` and `ad.smatrix_from_array`. All numerical pullbacks run in
+Rust. Channel derivatives cover origins, complex wavenumbers, transverse vectors
+and cell area. At exact normal incidence use `fixed_q=True` to hold the undefined
+polarization azimuth fixed; frequency, shape, material and cell gradients remain
+available. See `tests/test_channels.py` for a complete reflected-power objective.

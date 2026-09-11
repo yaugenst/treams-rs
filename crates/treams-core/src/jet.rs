@@ -142,7 +142,23 @@ macro_rules! assignments {
 scalar_ops!(Add, add, +, f64);
 scalar_ops!(Sub, sub, -, f64);
 scalar_ops!(Mul, mul, *, f64);
-scalar_ops!(Div, div, /, f64);
+// Real scaling must stay a real division: complex division can square a
+// subnormal denominator to zero when normalizing a nearly axial wavevector.
+impl<const N: usize> Div<f64> for Jet<N> {
+    type Output = Self;
+    fn div(self, rhs: f64) -> Self {
+        Self {
+            value: self.value / rhs,
+            derivative: self.derivative.map(|g| g / rhs),
+        }
+    }
+}
+impl<const N: usize> Div<Jet<N>> for f64 {
+    type Output = Jet<N>;
+    fn div(self, rhs: Jet<N>) -> Jet<N> {
+        Jet::constant(self) / rhs
+    }
+}
 scalar_ops!(Add, add, +, Complex);
 scalar_ops!(Sub, sub, -, Complex);
 scalar_ops!(Mul, mul, *, Complex);

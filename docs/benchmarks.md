@@ -73,12 +73,13 @@ as above, and Bloch wavevector (0.1, 0.15). Basis setup is outside both timings.
 | 4 | 3 | 4 | 118.94 | 14.06 | 8.46x | 89.5 / 40.7 |
 | 9 | 3 | 4 | 571.90 | 70.05 | 8.16x | 184.5 / 49.8 |
 
-Complete native reverse passes took 146.59 ms and 749.60 ms for the four-thread
+Before shared-polarization Ewald derivatives, complete native reverse passes took
+146.59 ms and 749.60 ms for the four-thread
 four- and nine-sphere cases, respectively. These include the dense adjoint solve,
 all particle pullbacks, and both origin sets, medium wavenumbers, Bloch vector and
 lattice geometry. Peak process RSS through the reverse pass was 43.4 and 60.0 MiB.
 Reverse timings exclude preparing a fresh forward context and use a fixed complex
-output cotangent. The benchmark currently spends about ten forward evaluations'
+output cotangent. That earlier benchmark spent about ten forward evaluations'
 time on one complete periodic reverse pass; recomputation keeps residual memory
 small, but reverse runtime still needs optimization. No derivative speedup over
 Dreams or another autodiff implementation has been measured.
@@ -89,4 +90,28 @@ native reverse timings separately from the forward comparison:
 
 ```sh
 uv run --no-sync python scripts/benchmark_cluster.py --workload periodic --particles 4 --lmax 3 --threads 4
+```
+
+## Complete periodic S matrices
+
+The `array` workload adds plane-wave incidence and radiation into ten ports
+(zero and four first diffraction orders, both polarizations). Correctness checks
+the full S matrix against treams before timing; reverse mode includes the channel
+and radiation pullbacks as well as the periodic solve and all particle contexts.
+
+| Spheres | lmax | Threads | treams ms | Rust ms | Speedup | Rust reverse ms | treams / Rust peak MiB |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 4 | 3 | 1 | 105.41 | 50.35 | 2.09x | 254.38 | 90.6 / 43.3 |
+| 4 | 3 | 4 | 117.41 | 15.27 | 7.69x | 71.30 | 90.8 / 42.8 |
+| 9 | 3 | 4 | 570.15 | 73.00 | 7.81x | 351.90 | 187.9 / 52.4 |
+
+For four spheres/four threads the complete reverse fell from 141.24 to 71.30 ms
+after sharing Ewald derivatives between equal-wavenumber polarizations and using
+only the active lattice parameters in local chain rules. This is about 4.7 forward
+evaluations per reverse, with no retained mode-by-parameter Jacobian. The larger
+case peaks at 60.5 MiB through reverse. Raw samples: `array-before-n4-l3-t4.json`
+and `array-n*-l3-t*.json`. Derivative speed relative to Dreams remains unmeasured.
+
+```sh
+uv run --no-sync python scripts/benchmark_cluster.py --workload array --particles 9 --lmax 3 --threads 4
 ```
