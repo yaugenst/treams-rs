@@ -401,3 +401,18 @@ def layer_stack(
     axis: int,
     fixed_q: bool,
 ) -> tuple[ComplexArray, LayersContext]: ...
+
+class PeriodicConversionContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[RealArray, RealArray, ComplexArray, RealArray, float]: ...
+
+def periodic_conversion(
+    to: list[tuple[int, float, int, int]],
+    source: list[tuple[int, int, int, int]],
+    to_positions: list[list[float]],
+    source_positions: list[list[float]],
+    ks: list[complex],
+    period: float,
+    helicity: bool,
+) -> tuple[ComplexArray, PeriodicConversionContext]: ...

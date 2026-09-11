@@ -98,18 +98,26 @@ def worker(
             if backend in ("treams", "check"):
                 oracle_basis = treams.PlaneWaveBasisByComp.default(q)
 
-        if workload == "conversion":
+        if workload in ("conversion", "periodic-conversion"):
             if particles != 1:
                 raise ValueError(
                     "the upstream conversion benchmark uses one common origin"
                 )
-            kz = np.linspace(-0.7, 0.7, samples)
+            kz = (
+                0.2 + 2 * np.pi / 200 * (np.arange(samples) - samples // 2)
+                if workload == "periodic-conversion"
+                else np.linspace(-0.7, 0.7, samples)
+            )
             if backend in ("rust", "check"):
                 basis = SphericalWaveBasis.default(order)
                 source_basis = CylindricalWaveBasis.default(kz, order)
+                if workload == "periodic-conversion":
+                    basis, source_basis = source_basis, basis
             if backend in ("treams", "check"):
                 oracle_basis = treams.SphericalWaveBasis.default(order)
                 oracle_source = treams.CylindricalWaveBasis.default(kz, order)
+                if workload == "periodic-conversion":
+                    oracle_basis, oracle_source = oracle_source, oracle_basis
 
         if workload in ("rotation", "plane-expansion"):
             if backend in ("rust", "check"):
@@ -226,6 +234,8 @@ def worker(
                 )
             if workload == "conversion":
                 return diff.expansion(basis, source_basis, [1.3, 1.3])
+            if workload == "periodic-conversion":
+                return diff.periodic_conversion(basis, source_basis, [1.3, 1.3], 200)
             if workload == "rotation":
                 return diff.rotation([0.2, 0.7, -0.3], basis)
             if workload == "field-operator":
@@ -295,6 +305,10 @@ def worker(
                 )
             if workload == "conversion":
                 return treams.expand((oracle_basis, oracle_source), k0=1.3)
+            if workload == "periodic-conversion":
+                return treams.expandlattice(
+                    200, 0.2, basis=(oracle_basis, oracle_source), k0=1.3
+                )
             if workload == "rotation":
                 return treams.rotate(0.2, 0.7, -0.3, basis=oracle_basis)
             if workload in ("field", "cylindrical-field", "field-operator"):
@@ -453,6 +467,7 @@ def worker(
                         "cylindrical-field",
                         "field-operator",
                         "conversion",
+                        "periodic-conversion",
                         "plane-field",
                         "plane-operator",
                         "plane-expansion",
@@ -465,6 +480,8 @@ def worker(
                     "lmax": order,
                     "dimension": 2 * samples
                     if workload == "slab"
+                    else 2 * samples * (2 * order + 1)
+                    if workload == "periodic-conversion"
                     else particles
                     * (
                         2 * order
@@ -508,6 +525,7 @@ def main() -> None:
             "array",
             "rotation",
             "conversion",
+            "periodic-conversion",
             "plane-field",
             "plane-operator",
             "plane-expansion",

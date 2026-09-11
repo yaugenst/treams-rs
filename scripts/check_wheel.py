@@ -165,3 +165,34 @@ np.testing.assert_allclose(
     atol=1e-9,
 )
 print("Clean wheel: compact multilayer thickness adjoint passed")
+
+
+array_basis = tr.CylindricalWaveBasis.default([0.2], 2)
+array_cylinder = tr.TMatrixC.from_array(
+    tr.TMatrix.sphere(2, 1.3, 0.2, [3, 1]), array_basis, lattice=1.7, kpar=0.2
+)
+array_scattering = np.eye(len(array_basis)) + 2 * array_cylinder.array
+np.testing.assert_allclose(
+    array_scattering.conj().T @ array_scattering, np.eye(len(array_basis)), atol=1e-10
+)
+
+
+def periodic_conversion_norm(period):
+    value = ad.periodic_conversion(
+        array_basis.positions,
+        modes.positions,
+        [1.3, 1.3],
+        array_basis.kz,
+        period,
+        destination=array_basis,
+        source=modes,
+    )
+    return anp.sum(anp.real(value * anp.conj(value)))
+
+
+np.testing.assert_allclose(
+    advect.grad(periodic_conversion_norm)(np.array(1.7)),
+    -2 * periodic_conversion_norm(1.7) / 1.7,
+    rtol=1e-12,
+)
+print("Clean wheel: spherical array to cylindrical power and period adjoint passed")

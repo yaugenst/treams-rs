@@ -8,13 +8,11 @@ import numpy as np
 
 from . import coeffs, diff
 from ._core import (
-    CylindricalWaveBasis,
     Material,
     MaterialLike,
     PlaneWaveBasisByComp,
-    SphericalWaveBasis,
 )
-from ._operators import efield, hfield
+from ._operators import _periodic_channels, efield, hfield
 from ._plane import PlaneWave
 
 if TYPE_CHECKING:
@@ -136,56 +134,8 @@ class SMatrices:
         Spherical arrays use a 2D xy cell. Cylindrical arrays use a 1D period along
         x and zx-aligned ports, radiating toward positive/negative y.
         """
-        vectors = np.atleast_2d(np.asarray(lattice, dtype=np.float64))
-        bloch = np.atleast_1d(np.asarray(kpar, dtype=np.float64))
-        q = basis.components
-        if isinstance(tm.basis, SphericalWaveBasis):
-            if (
-                vectors.shape != (2, 2)
-                or bloch.shape != (2,)
-                or basis.alignment != "xy"
-            ):
-                raise ValueError(
-                    "spherical arrays require a 2D xy lattice, Bloch vector and plane basis"
-                )
-            orders = (q - bloch) @ vectors.T / (2 * np.pi)
-        elif isinstance(tm.basis, CylindricalWaveBasis):
-            if (
-                vectors.shape != (1, 1)
-                or bloch.shape != (1,)
-                or basis.alignment != "zx"
-            ):
-                raise ValueError(
-                    "cylindrical arrays require a 1D x period, Bloch vector and zx plane basis"
-                )
-            orders = (q[:, 1] - bloch[0]) * vectors[0, 0] / (2 * np.pi)
-        else:
-            raise ValueError("array radiation requires a multipole basis")
-        if not np.allclose(orders, np.round(orders), atol=1e-10, rtol=0):
-            raise ValueError(
-                "plane-wave channels must match the lattice diffraction orders"
-            )
-        response = tm.latticeinteraction.solve(vectors, bloch, eta=eta)
-        if isinstance(tm.basis, SphericalWaveBasis):
-            channels, _ = diff.spherical_channels(
-                tm.basis,
-                tm.ks,
-                q,
-                basis.pol,
-                float(abs(np.linalg.det(vectors))),
-                poltype=tm.poltype,
-                fixed_q=True,
-            )
-        else:
-            channels, _ = diff.cylindrical_channels(
-                tm.basis,
-                tm.ks,
-                q,
-                basis.pol,
-                float(abs(vectors[0, 0])),
-                poltype=tm.poltype,
-                fixed_q=True,
-            )
+        channels = _periodic_channels(tm.basis, basis, tm.ks, lattice, kpar, tm.poltype)
+        response = tm.latticeinteraction.solve(lattice, kpar, eta=eta)
         value, _ = diff.smatrix_from_array(response, channels)
         return cls(
             value, basis=basis, k0=tm.k0, material=tm.material, poltype=tm.poltype

@@ -577,3 +577,35 @@ def layer_stack(
         return value, pullback
 
     return _call((ks, zs, thickness) if fixed_q else (ks, zs, q, thickness), forward)
+
+
+def periodic_conversion(
+    destination_origins: ArrayLike,
+    source_origins: ArrayLike,
+    ks: ArrayLike,
+    kzs: ArrayLike,
+    period: ArrayLike,
+    *,
+    destination: CylindricalWaveBasis,
+    source: SphericalWaveBasis,
+    poltype: str = "helicity",
+) -> NDArray[np.complex128]:
+    """Periodic spherical-to-cylindrical radiation, including moving Fourier labels."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        modes = [
+            (p, float(kz), m, pol)
+            for (p, _, m, pol), kz in zip(
+                destination.modes, np.asarray(values[3], dtype=np.float64), strict=True
+            )
+        ]
+        value, context = diff.periodic_conversion(
+            type(destination)(modes, values[0]),
+            type(source)(source.modes, values[1]),
+            values[2],
+            float(np.asarray(values[4])),
+            poltype=poltype,
+        )
+        return value, context.pullback
+
+    return _call((destination_origins, source_origins, ks, kzs, period), forward)

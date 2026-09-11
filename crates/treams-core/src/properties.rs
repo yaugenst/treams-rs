@@ -20,6 +20,24 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    fn periodic_conversion_scale_adjoint(k in 1.1_f64..2.0, kz in -0.7_f64..0.7, period in 1.2_f64..2.2, x in -0.3_f64..0.3, helicity in any::<bool>()) {
+        let source=crate::basis::Basis{modes:(1..=3).flat_map(|l|(-l..=l).flat_map(move|m|(0..2).map(move|pol|(0,Mode{l,m,pol})))).collect(),positions:vec![[x,0.1,-0.2]]};
+        let destination=crate::cylwaves::Basis{modes:(-3..=3).flat_map(|m|(0..2).map(move|pol|(0,crate::cylwaves::Mode{kz,m,pol}))).collect(),positions:vec![[0.2,-0.1,0.1]]};
+        let ks=[Complex::new(k,0.1);2];
+        let (value,residual)=crate::conversion::periodic_spherical_to_cylindrical(destination.clone(),source.clone(),ks,period,helicity).unwrap();
+        let g=DMatrix::from_element(value.nrows(),value.ncols(),Complex::new(0.2,0.1));
+        let gradient=residual.pullback(&g).unwrap();
+        let spatial:f64=gradient.expansion.destination.iter().flatten().zip(destination.positions.iter().flatten()).chain(gradient.expansion.source.iter().flatten().zip(source.positions.iter().flatten())).map(|(g,x)|g*x).sum();
+        let spectral:f64=gradient.expansion.ks.iter().zip(ks).map(|(g,k)|(g.conj()*k).re).sum();
+        let axial:f64=gradient.kz.iter().map(|g|g*kz).sum();
+        prop_assert!((spatial+period*gradient.period-spectral-axial).abs()<1e-10);
+        let scaled_source=crate::basis::Basis{positions:source.positions.iter().map(|p|p.map(|x|x*1.7)).collect(),..source};
+        let scaled_destination=crate::cylwaves::Basis{positions:destination.positions.iter().map(|p|p.map(|x|x*1.7)).collect(),modes:destination.modes.iter().map(|&(p,m)|(p,crate::cylwaves::Mode{kz:m.kz/1.7,..m})).collect()};
+        let (scaled,_)=crate::conversion::periodic_spherical_to_cylindrical(scaled_destination,scaled_source,ks.map(|k|k/1.7),period*1.7,helicity).unwrap();
+        prop_assert!((value-scaled).norm()<1e-10);
+    }
+
+    #[test]
     fn compact_layer_scale_adjoint(k in 1.1_f64..2.0, d in 0.1_f64..0.8, axis in 0_usize..3) {
         let ks=vec![[Complex::new(k,0.0);2],[Complex::new(1.7*k,0.0),Complex::new(1.8*k,0.0)],[Complex::new(k,0.0);2]];
         let zs=[Complex::new(1.0,0.0),Complex::new(0.7,0.0),Complex::new(1.0,0.0)];

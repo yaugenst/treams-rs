@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from . import diff
+from . import lattice as _lattice
 from ._core import (
     CylindricalWaveBasis,
     Material,
@@ -223,3 +224,131 @@ def bfield(
 ) -> NDArray[np.complex128]:
     """Magnetic-flux operator in units of electric field / vacuum light speed."""
     return _field("B", r, basis, k0, material, modetype, poltype)
+
+
+def _periodic_channels(
+    source: Basis,
+    destination: PlaneWaveBasisByComp,
+    ks: ArrayLike,
+    lattice: ArrayLike,
+    kpar: ArrayLike,
+    poltype: str,
+) -> NDArray[np.complex128]:
+    """Validate physical diffraction ports and return native incidence/emission blocks."""
+    vectors = np.atleast_2d(np.asarray(lattice, dtype=np.float64))
+    bloch = np.atleast_1d(np.asarray(kpar, dtype=np.float64))
+    q = destination.components
+    if isinstance(source, SphericalWaveBasis):
+        if (
+            vectors.shape != (2, 2)
+            or bloch.shape != (2,)
+            or destination.alignment != "xy"
+        ):
+            raise ValueError(
+                "spherical arrays require a 2D xy lattice, Bloch vector and plane basis"
+            )
+        orders = (q - bloch) @ vectors.T / (2 * np.pi)
+        measure = float(abs(np.linalg.det(vectors)))
+    else:
+        if (
+            vectors.shape != (1, 1)
+            or bloch.shape != (1,)
+            or destination.alignment != "zx"
+        ):
+            raise ValueError(
+                "cylindrical arrays require a 1D x period, Bloch vector and zx plane basis"
+            )
+        orders = (q[:, 1] - bloch[0]) * vectors[0, 0] / (2 * np.pi)
+        measure = float(abs(vectors[0, 0]))
+    if not np.allclose(orders, np.round(orders), atol=1e-10, rtol=0):
+        raise ValueError(
+            "plane-wave channels must match the lattice diffraction orders"
+        )
+    # Both native channel signatures share the same scalar cell-measure argument.
+    if isinstance(source, SphericalWaveBasis):
+        return diff.spherical_channels(
+            source, ks, q, destination.pol, measure, poltype=poltype, fixed_q=True
+        )[0]
+    return diff.cylindrical_channels(
+        source, ks, q, destination.pol, measure, poltype=poltype, fixed_q=True
+    )[0]
+
+
+def expandlattice(
+    lattice: ArrayLike,
+    kpar: ArrayLike,
+    *,
+    basis: FieldBasis | tuple[FieldBasis, FieldBasis],
+    k0: float,
+    material: MaterialLike = 1,
+    poltype: str = "helicity",
+    modetype: str | tuple[str, str] | None = None,
+    eta: complex = 0,
+) -> NDArray[np.complex128]:
+    """Periodic multipole coupling or radiation, with explicit cell and Bloch vector.
+
+    Spherical cells follow z/xy/xyz in 1D/2D/3D; cylindrical cells follow x/xy.
+    A basis pair is (destination, source). Cross-family radiation includes all
+    explicit origin pairs rather than an implicit matching-particle-index mask.
+    """
+    destination, source = basis if isinstance(basis, tuple) else (basis, basis)
+    medium = Material(material)
+    if (
+        not np.isfinite(k0)
+        or k0 <= 0
+        or poltype not in ("helicity", "parity")
+        or (poltype == "parity" and medium.ischiral)
+    ):
+        raise ValueError(
+            "invalid frequency or embedding medium for the polarization type"
+        )
+    if not isinstance(source, (SphericalWaveBasis, CylindricalWaveBasis)):
+        raise ValueError("periodic expansion requires a multipole source")
+    if isinstance(destination, PlaneWaveBasisByComp):
+        side = (
+            "up"
+            if modetype is None
+            else modetype[0]
+            if isinstance(modetype, tuple)
+            else modetype
+        )
+        if side not in ("up", "down") or (
+            isinstance(modetype, tuple) and modetype[1] != "singular"
+        ):
+            raise ValueError("plane radiation requires up/down outgoing plane modes")
+        channels = _periodic_channels(
+            source, destination, medium.ks(k0), lattice, kpar, poltype
+        )
+        return channels[1, 0 if side == "up" else 1].T
+    if isinstance(destination, CylindricalWaveBasis) and isinstance(
+        source, SphericalWaveBasis
+    ):
+        vectors = np.atleast_2d(np.asarray(lattice, dtype=np.float64))
+        bloch = np.atleast_1d(np.asarray(kpar, dtype=np.float64))
+        if vectors.shape != (1, 1) or bloch.shape != (1,):
+            raise ValueError(
+                "spherical-to-cylindrical radiation requires a 1D z period and Bloch component"
+            )
+        orders = (destination.kz - bloch[0]) * vectors[0, 0] / (2 * np.pi)
+        if not np.allclose(orders, np.round(orders), atol=1e-10, rtol=0):
+            raise ValueError(
+                "cylindrical axial wavenumbers must match diffraction orders"
+            )
+        if modetype not in (None, "singular", ("singular", "singular")):
+            raise ValueError(
+                "periodic spherical-to-cylindrical radiation requires outgoing waves"
+            )
+        return diff.periodic_conversion(
+            destination,
+            source,
+            medium.ks(k0),
+            float(abs(vectors[0, 0])),
+            poltype=poltype,
+        )[0]
+    if type(destination) is type(source):
+        if modetype not in (None, "regular", ("regular", "singular")):
+            raise ValueError("periodic coupling maps outgoing to regular waves")
+        return _lattice.expansion(
+            destination, source, medium.ks(k0), lattice, kpar, poltype=poltype, eta=eta
+        )
+    raise ValueError("unsupported periodic wave-family conversion")

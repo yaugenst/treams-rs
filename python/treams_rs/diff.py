@@ -451,3 +451,30 @@ def layer_stack(
         {"xy": 2, "yz": 0, "zx": 1}[alignment],
         fixed_q,
     )
+
+
+def periodic_conversion(
+    destination: CylindricalWaveBasis,
+    source: SphericalWaveBasis,
+    ks: ArrayLike,
+    period: float,
+    *,
+    poltype: str = "helicity",
+) -> tuple[NDArray[np.complex128], _native.PeriodicConversionContext]:
+    """Spherical z-periodic radiation into outgoing cylindrical waves.
+
+    VJP returns (destination origins, source origins, ks, destination kz, period).
+    Each cylindrical mode's real kz is differentiable independently; physical
+    diffraction orders satisfy kz=kpar+2*pi*n/period.
+    """
+    if poltype not in ("helicity", "parity"):
+        raise ValueError("invalid polarization type")
+    return _native.periodic_conversion(
+        list(destination.modes),
+        list(source.modes),
+        destination.positions.tolist(),
+        source.positions.tolist(),
+        np.asarray(ks, dtype=np.complex128).tolist(),
+        period,
+        poltype == "helicity",
+    )

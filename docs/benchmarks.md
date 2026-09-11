@@ -284,3 +284,22 @@ subsequent isolated four-layer measurement, not that preliminary timing.
 Raw results: `/tmp/slab-l4-q128-t4.json` and `/tmp/slab-l4-q512-t4.json` on
 [redacted-host]. Reproduce with `--workload slab --layers 4 --channels 512
 --threads 4 --repeats 7`.
+
+## Periodic spherical-to-cylindrical conversion
+
+One common origin, lmax=mmax=12, 336 spherical inputs and 1,600 cylindrical
+outputs across 32 axial diffraction orders. Wavenumber 1.3, period 200 and Bloch
+component 0.2. Four matched threads, seven samples after warmup; the complete
+matrix is checked against treams before timing.
+
+Rust takes **1.158 ms** versus **24.266 ms** for treams (**21.0x**). Its native
+reverse takes **6.114 ms**, covering both origins, complex medium wavenumbers,
+per-output axial wavenumbers and period. Forward peak RSS is **48.5 MiB** versus
+**73.6 MiB**; forward plus reverse peaks at 65.1 MiB for Rust. The residual holds
+geometry only. Axis selection eliminates zero coefficients while retaining
+adjacent azimuthal orders for their nonzero position derivatives.
+
+Raw result: `/tmp/periodic-conversion-n1-l12-k32-t4.json` on [redacted-host].
+Reproduce with `--workload periodic-conversion --particles 1 --lmax 12
+--samples 32 --threads 4 --repeats 7`. This is conversion timing, excluding
+particle construction and the periodic interaction solve.

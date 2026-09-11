@@ -425,8 +425,92 @@ fn finish_plane_expansion(
     ))
 }
 
+#[pyclass]
+#[derive(Debug)]
+struct PeriodicConversionContext {
+    residual: Option<treams_core::conversion::PeriodicConversionResidual>,
+}
+type PeriodicConversionGradient<'py> = (
+    Bound<'py, PyArray2<f64>>,
+    Bound<'py, PyArray2<f64>>,
+    Bound<'py, PyArray1<Complex>>,
+    Bound<'py, PyArray1<f64>>,
+    f64,
+);
+#[pymethods]
+impl PeriodicConversionContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'py, Complex>,
+    ) -> PyResult<PeriodicConversionGradient<'py>> {
+        let g = from_array(cotangent)?;
+        let residual = self
+            .residual
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        if g.shape() != residual.shape() || g.iter().any(|v| !v.re.is_finite() || !v.im.is_finite())
+        {
+            return Err(PyValueError::new_err(
+                "cotangent must be finite and match the conversion shape",
+            ));
+        }
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let result = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        Ok((
+            Array2::from_shape_fn((result.expansion.destination.len(), 3), |(i, j)| {
+                result.expansion.destination[i][j]
+            })
+            .into_pyarray(py),
+            Array2::from_shape_fn((result.expansion.source.len(), 3), |(i, j)| {
+                result.expansion.source[i][j]
+            })
+            .into_pyarray(py),
+            result.expansion.ks.to_vec().into_pyarray(py),
+            result.kz.into_pyarray(py),
+            result.period,
+        ))
+    }
+}
+#[pyfunction]
+fn periodic_conversion(
+    py: Python<'_>,
+    to: Vec<(usize, f64, i32, u8)>,
+    source: Vec<(usize, i32, i32, u8)>,
+    to_positions: Vec<[f64; 3]>,
+    source_positions: Vec<[f64; 3]>,
+    ks: [Complex; 2],
+    period: f64,
+    helicity: bool,
+) -> PyResult<(Bound<'_, PyArray2<Complex>>, PeriodicConversionContext)> {
+    let to = make_cyl_basis(to, to_positions);
+    let source = make_basis(source, source_positions);
+    let (value, residual) = py
+        .detach(move || {
+            treams_core::conversion::periodic_spherical_to_cylindrical(
+                to, source, ks, period, helicity,
+            )
+        })
+        .map_err(error)?;
+    let value = Array2::from_shape_vec((value.ncols(), value.nrows()), Vec::from(value.data))
+        .map_err(|e| PyValueError::new_err(e.to_string()))?
+        .reversed_axes()
+        .into_pyarray(py);
+    Ok((
+        value,
+        PeriodicConversionContext {
+            residual: Some(residual),
+        },
+    ))
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PlaneExpansionContext>()?;
+    m.add_class::<PeriodicConversionContext>()?;
+    m.add_function(wrap_pyfunction!(periodic_conversion, m)?)?;
     m.add_function(wrap_pyfunction!(plane_expansion, m)?)?;
     m.add_function(wrap_pyfunction!(cylindrical_plane_expansion, m)?)?;
     m.add_class::<RotationContext>()?;

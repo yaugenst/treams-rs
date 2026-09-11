@@ -8,7 +8,7 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 | Project | Cargo/PyO3/maturin/uv, lockfiles, just, Ruff, strict Pyrefly, Clippy, pre-commit; hosted Linux CI passing on Python 3.12 and 3.13 | Broader packaged-platform qualification |
 | Spherical functions | Complex regular/outgoing radial values and first two derivatives; Legendre functions; Wigner 3j; Cartesian harmonics | Wider extreme-argument/order qualification; full special namespace |
 | Sphere coefficients | Multilayer, lossy, magnetic, chiral Mie; all continuous input VJPs | Extreme-layer-conditioning analysis |
-| Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks; regular cylindrical-to-spherical conversion and native origin/wavenumber VJPs | Remaining wave-family conversions; plane-wave basis rotations |
+| Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks; regular cylindrical-to-spherical and periodic spherical-to-cylindrical conversion with native pullbacks; explicit expandlattice dispatch | Remaining wave-family conversions; plane-wave basis rotations |
 | Multipole fields | Spherical/cylindrical Cartesian waves and analytic axis limits; weighted fields and full field operators with native position/wavenumber VJPs and linear residuals; electric, magnetic, displacement and flux operators; Advect magnetic samples including impedance gradients; native weighted/full plane fields and complex-wavevector VJPs | Riemann-Silberstein fields, cylindrical axial-label derivatives and upstream operator-attribute machinery |
 | Finite scattering | Dense solve and factorization-reusing adjoint; optimized sphere clusters; heterogeneous local matrices via public API | Native end-to-end heterogeneous-cluster parameter context |
 | Python interface | Material, spherical/cylindrical bases, TMatrix.sphere, TMatrixC.cylinder, clusters, interaction.solve, changepoltype, expand, xs/xw and averaged cross sections | Full upstream ndarray annotation machinery is not reproduced; explicit .array is used |
@@ -214,3 +214,24 @@ Near-axis spherical translation tests separate the upstream angular routine's
 valid range from its rounded-axis regime. An extrapolated, resolved-angle
 reference independently checks values and Cartesian gradients through transverse
 offsets of 1e-300; the Rust result preserves terms that upstream rounds to zero.
+
+`diff.periodic_conversion` and `advect.periodic_conversion` map a spherical
+z-periodic array into outgoing cylindrical modes. Their native pullback covers
+both expansion origins, complex medium wavenumbers, every real output axial
+wavenumber and the period. Axial wavenumbers are independent parameters at this
+boundary; Advect composes the moving diffraction orders from Bloch vector and
+period. The regular and periodic conversions share their angular coefficient.
+The residual retains inputs only and transfers the output buffer without copying.
+Tests compare common-origin coefficients with upstream, reconstruct independent
+spherical image sums at displaced origins, and check all parameter VJPs, native
+scaling identities and complete Advect sphere-to-cylindrical radiation gradients.
+
+`expandlattice` exposes same-family periodic coupling, spherical-to-cylindrical
+radiation, and spherical/cylindrical-to-plane radiation with explicit geometry.
+Radiation ports must match the cell's diffraction orders. `TMatrixC.from_array`
+accepts an uncoupled spherical unit cell and explicitly solves its periodic
+interaction before converting both incident and outgoing channels. This differs
+from upstream's annotated, already-interacting input. Common-origin constructor
+references and Hypothesis lossless power and coordinate scaling invariants pass.
+Cross-family conversions include displaced origin pairs, rather than reproducing
+upstream's matching-particle-index mask.

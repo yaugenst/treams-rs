@@ -8,6 +8,7 @@ import numpy as np
 
 from . import diff, lattice
 from ._core import CylindricalWaveBasis, Material, MaterialLike, SphericalWaveBasis
+from ._operators import expandlattice
 from ._plane import PlaneWave
 
 if TYPE_CHECKING:
@@ -331,6 +332,41 @@ class TMatrixC(_TMatrix[CylindricalWaveBasis]):
     """Cylindrical T-matrix with fixed axial mode labels."""
 
     _basis_type = CylindricalWaveBasis
+
+    @classmethod
+    def from_array(
+        cls,
+        tm: TMatrix,
+        basis: CylindricalWaveBasis,
+        *,
+        lattice: ArrayLike,
+        kpar: ArrayLike,
+        eta: complex = 0,
+    ) -> TMatrixC:
+        """Solve a spherical 1D z-periodic unit cell in cylindrical channels.
+
+        ``tm`` contains the uncoupled particles of one cell. The cylindrical axial
+        wavenumbers must equal ``kpar + 2*pi*n/period`` for integer orders n.
+        """
+        if not isinstance(tm, TMatrix):
+            raise ValueError("from_array requires a spherical unit cell")
+        outgoing = expandlattice(
+            lattice,
+            kpar,
+            basis=(basis, tm.basis),
+            k0=tm.k0,
+            material=tm.material,
+            poltype=tm.poltype,
+        )
+        incident = diff.expansion(tm.basis, basis, tm.ks, poltype=tm.poltype)[0]
+        response = tm.latticeinteraction.solve(lattice, kpar, eta=eta)
+        return cls(
+            outgoing @ response @ incident,
+            k0=tm.k0,
+            basis=basis,
+            material=tm.material,
+            poltype=tm.poltype,
+        )
 
     @override
     def _default_basis(self, dimension: int) -> CylindricalWaveBasis:
