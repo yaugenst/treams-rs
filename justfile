@@ -155,3 +155,18 @@ bench-performance: build-ext-release
             uv run --no-sync python scripts/benchmark_cluster.py --workload "$name" --samples "$samples" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/${name}-adjoint-n${samples}.json"
         done
     done
+
+# Native geometry and mode metadata helpers, including scalar and broadcast calls.
+bench-geometry:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for name in volume2 volume3 reciprocal2 reciprocal3 refractive_index wave_vec_z; do
+        for samples in 1 128 4096; do
+            uv run --no-sync python scripts/benchmark_cluster.py --workload "geometry-${name}-forward" --samples "$samples" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/geometry-${name}-n${samples}.json"
+        done
+    done
+    for name in cube cubeedge diffr_orders_circle basischange pickmodes firstbrillouin1d firstbrillouin2d firstbrillouin3d; do
+        for samples in 1 4 16; do
+            uv run --no-sync python scripts/benchmark_cluster.py --workload "geometry-${name}-forward" --samples "$samples" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/geometry-${name}-n${samples}.json"
+        done
+    done

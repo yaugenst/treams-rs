@@ -329,11 +329,11 @@ impl LoopOutput for Complex {
         }
     }
 }
-impl LoopOutput for [Complex; 3] {
+impl<const N: usize> LoopOutput for [Complex; N] {
     const VECTOR: bool = true;
     #[inline]
     unsafe fn store(self, pointer: *mut c_char, component_stride: npy_intp) {
-        // SAFETY: The gufunc signature guarantees three complex components and
+        // SAFETY: The gufunc signature guarantees N complex components and
         // the supplied byte stride. Values were copied before any output store.
         unsafe {
             for (i, value) in self.into_iter().enumerate() {
@@ -342,6 +342,23 @@ impl LoopOutput for [Complex; 3] {
                         component_stride.wrapping_mul(isize::try_from(i).unwrap_or_default()),
                     )
                     .cast::<Complex>()
+                    .write_unaligned(value);
+            }
+        }
+    }
+}
+
+impl LoopOutput for [f64; 2] {
+    const VECTOR: bool = true;
+    unsafe fn store(self, pointer: *mut c_char, component_stride: npy_intp) {
+        // SAFETY: The registered output has two double components with the supplied stride.
+        unsafe {
+            for (i, value) in self.into_iter().enumerate() {
+                pointer
+                    .wrapping_offset(
+                        component_stride.wrapping_mul(isize::try_from(i).unwrap_or_default()),
+                    )
+                    .cast::<f64>()
                     .write_unaligned(value);
             }
         }
@@ -413,6 +430,118 @@ scalar_loop!(wigner3j_loop, f64, 6, 0=>l1:f64, 1=>l2:f64, 2=>l3:f64, 3=>m1:f64, 
 });
 scalar_loop!(gamma_loop, Complex, 2, 0=>n:f64, 1=>z:Complex => treams_core::integrals::incgamma(n,z));
 scalar_loop!(kambe_loop, Complex, 3, 0=>n:f64, 1=>z:Complex, 2=>eta:Complex => treams_core::integrals::intkambe(label(n)?,z,eta));
+
+scalar_loop!(@usize::MAX, refractive_indices_loop, [Complex;2], 3,0=>epsilon:Complex,1=>mu:Complex,2=>kappa:Complex=>Ok(treams_core::coeffs::Material{epsilon,mu,kappa}.indices()));
+scalar_loop!(@usize::MAX, refractive_indices_real_loop, [f64;2], 3,0=>epsilon:f64,1=>mu:f64,2=>kappa:f64=>{let n=(epsilon*mu).sqrt();Ok([n-kappa,n+kappa])});
+scalar_loop!(@usize::MAX, wave_vector_z_loop<T>, Complex, 3,0=>kx:T,1=>ky:T,2=>k:T=>Ok(treams_core::plane::wave_vector_z(kx.into(),ky.into(),k.into())));
+scalar_loop!(first_brillouin_1d_loop, f64, 2,0=>k:f64,1=>b:f64=>treams_core::geometry::first_brillouin_1d(k,b));
+
+#[inline]
+unsafe fn cell_input<T: Copy + Default>(
+    pointer: *mut c_char,
+    steps: *mut npy_intp,
+    dim: usize,
+) -> [[T; 3]; 3] {
+    // SAFETY: The caller validated dimension <=3 and the registered (i,i) input.
+    // Core strides support transposes, reversed and unaligned inputs.
+    unsafe {
+        std::array::from_fn(|i| {
+            std::array::from_fn(|j| {
+                if i < dim && j < dim {
+                    pointer
+                        .wrapping_offset(
+                            (*steps.add(2)).wrapping_mul(isize::try_from(i).unwrap_or_default())
+                                + (*steps.add(3))
+                                    .wrapping_mul(isize::try_from(j).unwrap_or_default()),
+                        )
+                        .cast::<T>()
+                        .read_unaligned()
+                } else {
+                    T::default()
+                }
+            })
+        })
+    }
+}
+unsafe extern "C" fn volume_loop<
+    T: Copy
+        + Default
+        + std::ops::Add<Output = T>
+        + std::ops::Sub<Output = T>
+        + std::ops::Mul<Output = T>,
+>(
+    args: *mut *mut c_char,
+    dimensions: *mut npy_intp,
+    steps: *mut npy_intp,
+    _data: *mut c_void,
+) {
+    // SAFETY: Registered double or transparent Wrapping<C-long> buffers use
+    // (i,i)->(). NumPy owns broadcasting and overlap buffering; each matrix is
+    // fully copied before any output write. Panics never cross the C callback.
+    let result = std::panic::catch_unwind(|| unsafe {
+        let n = usize::try_from(*dimensions).unwrap_or_default();
+        let dim = usize::try_from(*dimensions.add(1)).unwrap_or_default();
+        if !(1..=3).contains(&dim) {
+            return Err(Error::InvalidInput(
+                "cell dimension must be 1, 2 or 3".into(),
+            ));
+        }
+        let mut input = *args;
+        let mut output = *args.add(1);
+        for _ in 0..n {
+            let value = match dim {
+                1 => treams_core::geometry::volume(cell_input::<T>(input, steps, 1), 1)?,
+                2 => treams_core::geometry::volume(cell_input::<T>(input, steps, 2), 2)?,
+                _ => treams_core::geometry::volume(cell_input::<T>(input, steps, 3), 3)?,
+            };
+            output.cast::<T>().write_unaligned(value);
+            input = input.wrapping_offset(*steps);
+            output = output.wrapping_offset(*steps.add(1));
+        }
+        Ok(())
+    });
+    report_loop(result);
+}
+unsafe extern "C" fn reciprocal_loop(
+    args: *mut *mut c_char,
+    dimensions: *mut npy_intp,
+    steps: *mut npy_intp,
+    _data: *mut c_void,
+) {
+    // SAFETY: Registered (i,i)->(i,i) double arrays provide two core strides per
+    // operand. All input values are copied before output, including in-place use.
+    let result = std::panic::catch_unwind(|| unsafe {
+        let n = usize::try_from(*dimensions).unwrap_or_default();
+        let dim = usize::try_from(*dimensions.add(1)).unwrap_or_default();
+        if !(1..=3).contains(&dim) {
+            return Err(Error::InvalidInput(
+                "cell dimension must be 1, 2 or 3".into(),
+            ));
+        }
+        let mut input = *args;
+        let mut output = *args.add(1);
+        for _ in 0..n {
+            let value =
+                treams_core::geometry::reciprocal(cell_input::<f64>(input, steps, dim), dim)?;
+            for (i, row) in value.iter().enumerate().take(dim) {
+                for (j, &v) in row.iter().enumerate().take(dim) {
+                    output
+                        .wrapping_offset(
+                            (*steps.add(4)).wrapping_mul(isize::try_from(i).unwrap_or_default())
+                                + (*steps.add(5))
+                                    .wrapping_mul(isize::try_from(j).unwrap_or_default()),
+                        )
+                        .cast::<f64>()
+                        .write_unaligned(v);
+                }
+            }
+            input = input.wrapping_offset(*steps);
+            output = output.wrapping_offset(*steps.add(1));
+        }
+        Ok(())
+    });
+    report_loop(result);
+}
 
 fn wave_mode(l: f64, m: f64, pol: f64) -> treams_core::Result<treams_core::waves::Mode> {
     let pol = match label(pol)? {
@@ -1019,6 +1148,18 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     add!("incgamma_ufunc", gamma_loop, [D, Z, Z], 2);
     add!("intkambe_ufunc", kambe_loop, [D, Z, Z, Z], 3);
     const I: c_char = NPY_TYPES::NPY_LONG as c_char;
+    add!(@loops "refractive_indices",[Some(refractive_indices_real_loop),Some(refractive_indices_loop)],[[D,D,D,D],[Z,Z,Z,Z]],3,2,c"(),(),()->(2)".as_ptr());
+    add!(@loops "wave_vector_z",[Some(wave_vector_z_loop::<f64>),Some(wave_vector_z_loop::<Complex>)],[[D,D,D,Z],[Z,Z,Z,Z]],3,2,std::ptr::null());
+    add!("first_brillouin_1d", first_brillouin_1d_loop, [D, D, D], 2);
+    add!(@loops "cell_volume",[Some(volume_loop::<std::num::Wrapping<c_long>>),Some(volume_loop::<f64>)],[[I,I],[D,D]],1,2,c"(i,i)->()".as_ptr());
+    add!(
+        "cell_reciprocal",
+        reciprocal_loop,
+        [D, D],
+        1,
+        c"(i,i)->(i,i)".as_ptr()
+    );
+
     add!(@loops "sph_harm",[Some(sph_harm_loop::<f64>),Some(sph_harm_loop::<Complex>)],[[D,D,D,D,Z],[D,D,D,Z,Z]],4,2,std::ptr::null());
     add!(@loops "vsh_X",[Some(vsh_x_loop::<f64>),Some(vsh_x_loop::<Complex>)],[[I,I,D,D,Z],[I,I,Z,D,Z]],4,2,c"(),(),(),()->(3)".as_ptr());
     add!(@loops "vsh_Y",[Some(vsh_y_loop::<f64>),Some(vsh_y_loop::<Complex>)],[[I,I,D,D,Z],[I,I,Z,D,Z]],4,2,c"(),(),(),()->(3)".as_ptr());

@@ -38,12 +38,18 @@ impl Material {
     /// Principal-branch refractive index, following treams.
     #[must_use]
     pub fn index(self) -> Complex {
-        (self.epsilon * self.mu).sqrt()
+        crate::complex_sqrt(self.epsilon * self.mu)
+    }
+    /// Negative/positive-helicity indices on the outgoing branch.
+    #[must_use]
+    pub fn indices(self) -> [Complex; 2] {
+        let n = self.index();
+        [n - self.kappa, n + self.kappa].map(|v| if v.im < 0.0 { -v } else { v })
     }
     /// Principal-branch wave impedance, following treams.
     #[must_use]
     pub fn impedance(self) -> Complex {
-        (self.mu / self.epsilon).sqrt()
+        crate::complex_sqrt(self.mu / self.epsilon)
     }
 }
 

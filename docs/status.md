@@ -636,3 +636,21 @@ with Advect and optional HDF5. All 257 combined runtime gates and 253 applicable
 forward-RSS gates pass. The smallest scalar margin is 1.006x; this qualifies the
 measured grid, not every possible problem or machine. See benchmarks.md and the
 committed qualification manifest for the binary hash and complete results.
+
+
+Native lattice geometry now supplies signed cell volumes, reciprocal vectors,
+cube/boundary enumeration, complete skew-cell diffraction orders and Brillouin
+reduction. Material indices and outgoing normal wavevectors share the Rust
+branches used by the solvers. Typed Lattice/WaveVector values preserve owned
+metadata through basis selection, coordinate permutations and periodic expansion.
+Plane and cylindrical diffraction bases attach their lattice and Bloch metadata;
+expandlattice can infer it from those bases. Hypothesis checks reciprocal duality,
+integer-shell boundaries, skew diffraction completeness and metadata algebra.
+The 45 pinned upstream Lattice tests also pass through the new classes.
+The macOS suite passes 1,647 Python tests and 68 Rust tests after these changes.
+Linux qualification passes the same 1,647 Python and 68 Rust tests, strict
+lint/type/rustdoc checks and all 299 combined runtime gates plus 295 applicable
+forward-RSS gates. The four recorded internal-illumination cases retain their
+existing RSS exemption. The isolated Linux wheel passes Advect and optional
+HDF5 checks. The native hash and passing grid are recorded in
+`benchmarks/geometry-qualification.json`.

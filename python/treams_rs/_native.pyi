@@ -809,6 +809,16 @@ def kambe_record(
 def kambe_record_scalar(
     n: int, z: complex, eta: complex
 ) -> tuple[ComplexArray, KambeContext]: ...
+
+cell_volume: np.ufunc
+cell_reciprocal: np.ufunc
+refractive_indices: np.ufunc
+wave_vector_z: np.ufunc
+first_brillouin_1d: np.ufunc
+
+def lattice_cube(dim: int, n: int, edge: bool) -> NDArray[np.int64]: ...
+def diffraction_orders(b: RealArray, radius: float) -> NDArray[np.int64]: ...
+def first_brillouin(k: RealArray, b: RealArray, dim: int, n: int) -> RealArray: ...
 def cylindrical_translation_scalar(
     kz: float,
     mu: int,

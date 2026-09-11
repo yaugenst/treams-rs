@@ -9,6 +9,7 @@ import numpy as np
 
 from . import _native
 from ._core import CylindricalWaveBasis, SphericalWaveBasis
+from ._lattice import WaveVector, _geometry_inputs
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
@@ -17,10 +18,10 @@ type SumResult = complex | np.ndarray[tuple[int, ...], np.dtype[np.complex128]]
 
 
 def _geometry(
-    dim: int, a: ArrayLike, kpar: ArrayLike
+    dim: int, a: ArrayLike, kpar: ArrayLike, spherical: bool
 ) -> tuple[list[list[float]], list[float]]:
-    matrix = np.atleast_2d(np.asarray(a, dtype=np.float64))
-    bloch = np.atleast_1d(np.asarray(kpar, dtype=np.float64))
+    alignment = ("z" if spherical else "x") if dim == 1 else "xyz"[:dim]
+    matrix, bloch = _geometry_inputs(a, kpar, alignment)
     if matrix.shape != (dim, dim) or bloch.shape != (dim,):
         raise ValueError("lattice and Bloch vector must match the requested dimension")
     return matrix.tolist(), bloch.tolist()
@@ -37,7 +38,7 @@ def _sum(
     r: ArrayLike,
     eta: complex,
 ) -> SumResult:
-    matrix, bloch = _geometry(dim, a, kpar)
+    matrix, bloch = _geometry(dim, a, kpar, spherical)
     shift = np.asarray(r, dtype=np.float64)
     if shift.shape != (3 if spherical else 2,):
         raise ValueError(
@@ -199,8 +200,14 @@ def expansion_with_context(
         poltype == "parity" and wavenumbers[0] != wavenumbers[1]
     ):
         raise ValueError("invalid polarization type for embedding medium")
-    dim = np.atleast_1d(kpar).size
-    matrix, bloch = _geometry(dim, a, kpar)
+    components = np.atleast_1d(kpar)
+    dim = (
+        int(np.count_nonzero(~np.isnan(components)))
+        if isinstance(kpar, WaveVector)
+        else components.size
+    )
+    dim = min(dim, np.atleast_2d(a).shape[0] if np.ndim(a) != 1 else np.size(a))
+    matrix, bloch = _geometry(dim, a, kpar, isinstance(source, SphericalWaveBasis))
     pair = (complex(wavenumbers[0]), complex(wavenumbers[1]))
     if isinstance(destination, SphericalWaveBasis) and isinstance(
         source, SphericalWaveBasis
@@ -256,3 +263,27 @@ def expansion(
         poltype=poltype,
         eta=eta,
     )[0]
+
+
+volume = _native.cell_volume
+area = volume
+reciprocal = _native.cell_reciprocal
+
+
+def cube(d: int, n: int) -> NDArray[np.int64]:
+    """All integer points in [-n,n]^d in lexicographic order, for d=1,2,3."""
+    return _native.lattice_cube(d, n, False)
+
+
+def cubeedge(d: int, n: int) -> NDArray[np.int64]:
+    """Boundary points of [-n,n]^d, including the single origin when n=0."""
+    return _native.lattice_cube(d, n, True)
+
+
+def diffr_orders_circle(b: ArrayLike, rmax: float) -> NDArray[np.int64]:
+    """All reciprocal orders within radius rmax, with adjacent opposite pairs.
+
+    The enumeration covers skew lattices and preserves upstream ordering on
+    orthogonal cells. Negative radii return an empty (0,2) integer array.
+    """
+    return _native.diffraction_orders(np.asarray(b, dtype=np.float64), rmax)

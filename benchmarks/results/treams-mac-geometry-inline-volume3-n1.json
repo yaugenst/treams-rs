@@ -1,0 +1,150 @@
+{
+  "results": [
+    {
+      "backend": "treams",
+      "python": "3.13.12",
+      "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+      "numpy_version": "2.5.3",
+      "treams_version": "0.4.5",
+      "native_sha256": null,
+      "native_profile": null,
+      "workload": "geometry-volume3-forward",
+      "oracle": "treams public operation",
+      "ebcm_legacy": null,
+      "ewald_eta": null,
+      "samples": null,
+      "particles": 8,
+      "layers": null,
+      "channels": null,
+      "lmax": 3,
+      "dimension": 1,
+      "threads": 4,
+      "median_seconds": 4.746858299768064e-07,
+      "peak_rss_mib": 61.875,
+      "baseline_rss_mib": 61.875,
+      "samples_seconds": [
+        4.819983299239539e-07,
+        4.7366291997605e-07,
+        4.809812500025146e-07,
+        4.746858299768064e-07,
+        4.844495900033507e-07,
+        4.744087500148453e-07,
+        4.7179291999782437e-07
+      ],
+      "calls_per_timing_sample": 100000,
+      "forward_includes_result_destruction": true,
+      "forward_records_adjoint": false,
+      "backward_median_seconds": null,
+      "backward_samples_seconds": [],
+      "forward_and_backward_peak_rss_mib": null,
+      "blas": []
+    },
+    {
+      "backend": "rust",
+      "python": "3.13.12",
+      "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+      "numpy_version": "2.5.3",
+      "treams_version": "0.4.5",
+      "native_sha256": "8b0fcf469864045b4ecb5156ece6f08d13cd3d63d0ba85663084f3085a90e57a",
+      "native_profile": "release",
+      "workload": "geometry-volume3-forward",
+      "oracle": "treams public operation",
+      "ebcm_legacy": null,
+      "ewald_eta": null,
+      "samples": null,
+      "particles": 8,
+      "layers": null,
+      "channels": null,
+      "lmax": 3,
+      "dimension": 1,
+      "threads": 4,
+      "median_seconds": 5.553645800682717e-07,
+      "peak_rss_mib": 40.3125,
+      "baseline_rss_mib": 40.296875,
+      "samples_seconds": [
+        4.338191699935123e-07,
+        4.4551166996825484e-07,
+        1.1622254199755844e-06,
+        5.553645800682717e-07,
+        5.610050000541378e-07,
+        5.545412500214297e-07,
+        5.583608399319928e-07
+      ],
+      "calls_per_timing_sample": 100000,
+      "forward_includes_result_destruction": true,
+      "forward_records_adjoint": false,
+      "backward_median_seconds": null,
+      "backward_samples_seconds": [],
+      "forward_and_backward_peak_rss_mib": null,
+      "blas": []
+    }
+  ],
+  "timing_comparison": {
+    "method": "paired_alternating_process",
+    "calls_per_sample": {
+      "treams": 100000,
+      "rust": 100000
+    },
+    "pairs_seconds": [
+      {
+        "treams": 6.131937498867046e-07,
+        "rust": 9.329937500297091e-07
+      },
+      {
+        "rust": 6.580537499394268e-07,
+        "treams": 6.227675000263844e-07
+      },
+      {
+        "treams": 6.392450000566896e-07,
+        "rust": 6.753987500269432e-07
+      },
+      {
+        "rust": 6.275079199986067e-07,
+        "treams": 6.54578749963548e-07
+      },
+      {
+        "treams": 7.592470799863804e-07,
+        "rust": 7.822449998639058e-07
+      },
+      {
+        "rust": 7.862366699555423e-07,
+        "treams": 9.721100000024308e-07
+      },
+      {
+        "treams": 9.124945900111925e-07,
+        "rust": 8.45569999946747e-07
+      },
+      {
+        "rust": 2.2551483300048857e-06,
+        "treams": 8.449891599593684e-07
+      },
+      {
+        "treams": 8.285579200310167e-07,
+        "rust": 7.576300000073388e-07
+      },
+      {
+        "rust": 7.32197910110699e-07,
+        "treams": 7.475304100080393e-07
+      },
+      {
+        "treams": 7.955979100370314e-07,
+        "rust": 7.449825000367127e-07
+      },
+      {
+        "rust": 8.524779201252386e-07,
+        "treams": 9.800145799817982e-07
+      },
+      {
+        "treams": 9.504520799964667e-07,
+        "rust": 7.385491600143723e-07
+      },
+      {
+        "rust": 6.35679999977583e-07,
+        "treams": 6.245745900378097e-07
+      }
+    ],
+    "speedup": 1.0320402984359827,
+    "cpu_affinity": null
+  },
+  "speedup": 1.0320402984359827
+}

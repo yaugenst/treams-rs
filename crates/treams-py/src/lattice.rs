@@ -1,7 +1,7 @@
 //! Batched Ewald sums and their special functions.
 
 use num_complex::Complex64;
-use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray2, ndarray::Array2};
+use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2, ndarray::Array2};
 use pyo3::{exceptions::PyValueError, prelude::*};
 use rayon::prelude::*;
 use treams_core::{integrals, lattice};
@@ -259,7 +259,68 @@ fn lattice_derivatives(
     ))
 }
 
+#[pyfunction]
+fn lattice_cube(
+    py: Python<'_>,
+    dim: usize,
+    n: i64,
+    edge: bool,
+) -> PyResult<Bound<'_, PyArray2<i64>>> {
+    let values = py
+        .detach(move || treams_core::geometry::cube(dim, n, edge))
+        .map_err(error)?;
+    Ok(Array2::from_shape_vec((values.len() / dim, dim), values)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?
+        .into_pyarray(py))
+}
+#[pyfunction]
+fn diffraction_orders<'py>(
+    py: Python<'py>,
+    b: PyReadonlyArray2<'py, f64>,
+    radius: f64,
+) -> PyResult<Bound<'py, PyArray2<i64>>> {
+    let b = b.as_array();
+    if b.shape() != [2, 2] {
+        return Err(PyValueError::new_err(
+            "reciprocal lattice requires shape (2, 2)",
+        ));
+    }
+    let b = std::array::from_fn(|i| std::array::from_fn(|j| b[(i, j)]));
+    let values = py
+        .detach(move || treams_core::geometry::diffraction_orders(b, radius))
+        .map_err(error)?;
+    Ok(Array2::from_shape_vec((values.len() / 2, 2), values)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?
+        .into_pyarray(py))
+}
+#[pyfunction]
+fn first_brillouin<'py>(
+    py: Python<'py>,
+    k: PyReadonlyArray1<'py, f64>,
+    b: PyReadonlyArray2<'py, f64>,
+    dim: usize,
+    n: usize,
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let k = k.as_array();
+    let b = b.as_array();
+    if !(2..=3).contains(&dim) || k.len() != dim || b.shape() != [dim, dim] {
+        return Err(PyValueError::new_err(
+            "wavevector and lattice must match dimension",
+        ));
+    }
+    let k = std::array::from_fn(|i| if i < dim { k[i] } else { 0.0 });
+    let b = std::array::from_fn(|i| {
+        std::array::from_fn(|j| if i < dim && j < dim { b[(i, j)] } else { 0.0 })
+    });
+    let value = py
+        .detach(move || treams_core::geometry::first_brillouin(k, b, dim, n))
+        .map_err(error)?;
+    Ok(value[..dim].to_vec().into_pyarray(py))
+}
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(lattice_cube, m)?)?;
+    m.add_function(wrap_pyfunction!(diffraction_orders, m)?)?;
+    m.add_function(wrap_pyfunction!(first_brillouin, m)?)?;
     m.add_class::<PeriodicContext>()?;
     m.add_function(wrap_pyfunction!(incgamma, m)?)?;
     m.add_function(wrap_pyfunction!(intkambe, m)?)?;

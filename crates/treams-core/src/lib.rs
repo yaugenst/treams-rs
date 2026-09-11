@@ -10,6 +10,7 @@ pub mod cylinder;
 pub mod cylwaves;
 pub mod ebcm;
 pub mod fields;
+pub mod geometry;
 pub mod integrals;
 pub mod interaction;
 mod jet;
@@ -37,7 +38,7 @@ pub(crate) fn complex_sqrt(z: Complex) -> Complex {
     if !(1e-150..=1e150).contains(&scale) {
         return complex_sqrt(z / scale) * scale.sqrt();
     }
-    let dominant = ((z.norm() + z.re.abs()) * 0.5).sqrt();
+    let dominant = ((z.re.mul_add(z.re, z.im * z.im).sqrt() + z.re.abs()) * 0.5).sqrt();
     if z.re >= 0.0 {
         Complex::new(dominant, z.im / (2.0 * dominant))
     } else {

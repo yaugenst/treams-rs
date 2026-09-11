@@ -544,3 +544,16 @@ np.testing.assert_allclose(
     advect.grad(gamma_identity)(np.asarray(1.2 + 0.1j)), 0, atol=2e-12
 )
 print("Clean wheel: incomplete-gamma recurrence and native argument adjoint passed")
+
+cell = tr.Lattice([[1.7, 0.2], [0.0, 1.8]])
+np.testing.assert_allclose(
+    np.asarray(cell) @ cell.reciprocal.T, 2 * np.pi * np.eye(2), atol=2e-15
+)
+ports = tr.PlaneWaveBasisByComp.diffr_orders([0.1, 0.2], cell, 4)
+assert ports.lattice == cell
+assert ports.kpar == tr.WaveVector([0.1, 0.2], alignment="xy")
+np.testing.assert_array_equal(tr.lattice.cubeedge(3, 0), [[0, 0, 0]])
+np.testing.assert_allclose(
+    tr.misc.refractive_index(3 + 0.2j, 1.1, 0.1), tr.Material(3 + 0.2j, 1.1, 0.1).nmp
+)
+print("Clean wheel: reciprocal geometry, basis metadata and material branches passed")

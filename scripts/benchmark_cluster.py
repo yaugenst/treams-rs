@@ -40,6 +40,7 @@ def worker(
             cw,
             diff,
             lattice,
+            misc,
             pw,
             special,
             sw,
@@ -60,6 +61,62 @@ def worker(
         positions = np.column_stack(
             [np.arange(particles) * 0.8, np.zeros((particles, 2))]
         )
+
+        if workload.startswith("geometry-"):
+            name = workload.split("-")[1]
+            dim = 2 if name.endswith("2") else 3
+            sample = 1.2 if samples == 1 else np.linspace(0.7, 1.7, samples)
+            if name.startswith(("volume", "reciprocal")):
+                cell = np.eye(dim) * 1.3
+                cell[0, 1] = 0.2
+                geometry_args = (
+                    cell if samples == 1 else sample[:, None, None] * cell,
+                )
+                function_name = "volume" if name.startswith("volume") else "reciprocal"
+            elif name in ("cube", "cubeedge"):
+                function_name = name
+                geometry_args = (3, samples)
+            elif name == "diffr_orders_circle":
+                function_name = name
+                geometry_args = (np.diag([1.2, 0.8]), float(samples))
+            elif name in ("basischange", "pickmodes"):
+                function_name = name
+                labels = (
+                    np.arange(samples) // 4 + 1,
+                    np.arange(samples) % 2,
+                    np.arange(samples) % 2,
+                )
+                geometry_args = (labels, labels)
+            elif name.startswith("firstbrillouin"):
+                function_name = name
+                geometry_args = (
+                    (3.7, 1.2)
+                    if name.endswith("1d")
+                    else (
+                        np.array([0.4, 0.7, -0.2])[: int(name[-2])] * samples,
+                        np.eye(int(name[-2])) * 1.3,
+                    )
+                )
+            else:
+                function_name = name
+                geometry_args = (
+                    (sample + 0.2j, 1.0, 0.1)
+                    if name == "refractive_index"
+                    else (0.3, 0.4, sample + 0.1j)
+                )
+            lattice_geometry = name.startswith(("volume", "reciprocal")) or name in (
+                "cube",
+                "cubeedge",
+                "diffr_orders_circle",
+            )
+            if backend in ("rust", "check", "compare"):
+                geometry_function = getattr(
+                    lattice if lattice_geometry else misc, function_name
+                )
+            if backend in ("treams", "check", "compare"):
+                oracle_geometry_function = getattr(
+                    treams.lattice if lattice_geometry else treams.misc, function_name
+                )
 
         if workload.startswith("namespace-"):
             namespace_family, namespace_name = workload.split("-")[1].split(".")
@@ -433,6 +490,8 @@ def worker(
         )
 
         def rust():
+            if workload.startswith("geometry-"):
+                return geometry_function(*geometry_args)
             if workload.startswith("namespace-"):
                 return namespace_function(*namespace_args)
             if workload.startswith("polar-"):
@@ -605,6 +664,8 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload.startswith("geometry-"):
+                return oracle_geometry_function(*geometry_args)
             if workload.startswith("namespace-"):
                 return oracle_namespace_function(*namespace_args)
             if workload.startswith("polar-"):
@@ -997,6 +1058,7 @@ def worker(
                             "wave-",
                             "polar-",
                             "namespace-",
+                            "geometry-",
                         )
                     )
                     else particle_dimension
@@ -1099,6 +1161,20 @@ def main() -> None:
             "wigner-forward",
             "wigner-small-forward",
             "wigner3j-forward",
+            "geometry-volume2-forward",
+            "geometry-volume3-forward",
+            "geometry-reciprocal2-forward",
+            "geometry-reciprocal3-forward",
+            "geometry-cube-forward",
+            "geometry-cubeedge-forward",
+            "geometry-diffr_orders_circle-forward",
+            "geometry-refractive_index-forward",
+            "geometry-wave_vec_z-forward",
+            "geometry-basischange-forward",
+            "geometry-pickmodes-forward",
+            "geometry-firstbrillouin1d-forward",
+            "geometry-firstbrillouin2d-forward",
+            "geometry-firstbrillouin3d-forward",
             "incgamma-forward",
             "intkambe-forward",
             "incgamma",

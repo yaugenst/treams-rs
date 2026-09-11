@@ -885,3 +885,36 @@ The manifest records this completed case-boundary resume.
 
 The release passes 65 native tests, 1,611 Python tests, strict lint/type/rustdoc
 checks and isolated Linux wheel checks including Advect and optional HDF5.
+
+
+## Lattice geometry and material branches
+
+All 42 added geometry cases and the preceding 257 cases pass on the updated
+release build: 299 runtime gates and 295 applicable forward-RSS gates, with no
+threshold changes. Both backends used CPU cores 8-11 and four BLAS/Rayon threads.
+The smallest measured runtime margin is 1.005x for scalar cw.rotate; scalar
+comparisons remain sensitive to CPU noise. The largest applicable RSS ratio
+is 0.912. The unchanged four recorded illumination cases remain RSS-exempt.
+
+| Forward operation | 1 sample | 128 samples | 4,096 samples |
+| --- | ---: | ---: | ---: |
+| volume2 | 1.033x | 2.978x | 44.687x |
+| volume3 | 1.047x | 2.647x | 25.899x |
+| reciprocal2 | 1.026x | 6.004x | 8.677x |
+| reciprocal3 | 1.034x | 3.121x | 3.577x |
+| refractive_index | 3.213x | 3.466x | 1.955x |
+| wave_vec_z | 1.904x | 3.197x | 1.607x |
+
+Circular diffraction enumeration measures 7.915x, 64.034x and 256.860x at radius
+1, 4 and 16; tests separately establish complete enumeration in skew cells.
+The material and outgoing-normal-wavevector loops use serial SIMD-friendly
+arithmetic for these cheap elements. The shared square root uses FMA at ordinary
+scales and retains the scaled branch for extreme arguments. Cell determinants
+inline fixed 1D/2D/3D arithmetic; cube boundaries enumerate output points directly.
+
+The 42 geometry results are `geometry-<operation>-n<size>.json`; the 257
+regression rechecks have the `geometry-recheck-` prefix, preserving the previous
+coefficient qualification files. `benchmarks/geometry-qualification.json` records
+all 299 paths and their shared native binary hash. Mac diagnostic results retain
+their original filenames and platform metadata; they are not the Linux proof.
+The complete Linux suite and isolated wheel checks pass (68 Rust, 1,647 Python).

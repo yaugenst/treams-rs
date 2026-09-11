@@ -1,0 +1,147 @@
+{
+  "results": [
+    {
+      "backend": "treams",
+      "python": "3.13.12",
+      "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+      "numpy_version": "2.5.3",
+      "treams_version": "0.4.5",
+      "native_sha256": null,
+      "native_profile": null,
+      "workload": "geometry-refractive_index-forward",
+      "oracle": "treams public operation",
+      "ebcm_legacy": null,
+      "ewald_eta": null,
+      "samples": null,
+      "particles": 8,
+      "layers": null,
+      "channels": null,
+      "lmax": 3,
+      "dimension": 4096,
+      "threads": 4,
+      "median_seconds": 3.525179199641571e-05,
+      "peak_rss_mib": 61.90625,
+      "baseline_rss_mib": 61.90625,
+      "samples_seconds": [
+        3.525179199641571e-05,
+        3.666762499778997e-05,
+        3.666033298941329e-05,
+        3.7508749999688006e-05,
+        3.421758300100919e-05,
+        3.2657125004334374e-05,
+        3.4102375007933005e-05
+      ],
+      "calls_per_timing_sample": 1000,
+      "forward_includes_result_destruction": true,
+      "forward_records_adjoint": false,
+      "backward_median_seconds": null,
+      "backward_samples_seconds": [],
+      "forward_and_backward_peak_rss_mib": null,
+      "blas": []
+    },
+    {
+      "backend": "rust",
+      "python": "3.13.12",
+      "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+      "numpy_version": "2.5.3",
+      "treams_version": "0.4.5",
+      "native_sha256": "bbf92af32c16d1c61f9de5341fa2fd2d4b086b8fa5e4cabd5e630f80c8348491",
+      "native_profile": "release",
+      "workload": "geometry-refractive_index-forward",
+      "oracle": "treams public operation",
+      "ebcm_legacy": null,
+      "ewald_eta": null,
+      "samples": null,
+      "particles": 8,
+      "layers": null,
+      "channels": null,
+      "lmax": 3,
+      "dimension": 4096,
+      "threads": 4,
+      "median_seconds": 9.893675000057556e-05,
+      "peak_rss_mib": 41.265625,
+      "baseline_rss_mib": 40.0625,
+      "samples_seconds": [
+        9.127025000634603e-05,
+        9.919875000196043e-05,
+        0.00010169212499749846,
+        9.893675000057556e-05,
+        9.887158300261944e-05,
+        9.824662499886472e-05,
+        9.930354201060255e-05
+      ],
+      "calls_per_timing_sample": 1000,
+      "forward_includes_result_destruction": true,
+      "forward_records_adjoint": false,
+      "backward_median_seconds": null,
+      "backward_samples_seconds": [],
+      "forward_and_backward_peak_rss_mib": null,
+      "blas": []
+    }
+  ],
+  "timing_comparison": {
+    "method": "paired_alternating_process",
+    "calls_per_sample": 1000,
+    "pairs_seconds": [
+      {
+        "treams": 4.0275917010148984e-05,
+        "rust": 0.00010356466700613964
+      },
+      {
+        "rust": 9.937054199690465e-05,
+        "treams": 4.138220800086856e-05
+      },
+      {
+        "treams": 3.967033300432377e-05,
+        "rust": 0.00010047058301279321
+      },
+      {
+        "rust": 0.00010187487499206327,
+        "treams": 4.047983299824409e-05
+      },
+      {
+        "treams": 4.012333399441559e-05,
+        "rust": 9.89900839922484e-05
+      },
+      {
+        "rust": 0.00010291004199825693,
+        "treams": 4.016849999607075e-05
+      },
+      {
+        "treams": 3.9551542009576226e-05,
+        "rust": 0.00010517808298754971
+      },
+      {
+        "rust": 0.00010847841699433048,
+        "treams": 4.0967458000523035e-05
+      },
+      {
+        "treams": 3.5345750002306884e-05,
+        "rust": 8.38545409933431e-05
+      },
+      {
+        "rust": 9.262279199901968e-05,
+        "treams": 3.689175000181422e-05
+      },
+      {
+        "treams": 3.420045800157823e-05,
+        "rust": 7.955450000008568e-05
+      },
+      {
+        "rust": 8.368049999990035e-05,
+        "treams": 3.7829291992238724e-05
+      },
+      {
+        "treams": 3.5595792011008596e-05,
+        "rust": 8.08315829926869e-05
+      },
+      {
+        "rust": 9.276333299931139e-05,
+        "treams": 3.686200000811368e-05
+      }
+    ],
+    "speedup": 0.3978389156759278,
+    "cpu_affinity": null
+  },
+  "speedup": 0.3978389156759278
+}

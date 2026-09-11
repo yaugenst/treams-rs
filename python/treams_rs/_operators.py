@@ -15,6 +15,7 @@ from ._core import (
     PlaneWaveBasisByUnitVector,
     SphericalWaveBasis,
 )
+from ._lattice import Lattice, WaveVector, _geometry_inputs
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
@@ -513,8 +514,9 @@ def _periodic_channels(
     poltype: str,
 ) -> NDArray[np.complex128]:
     """Validate physical diffraction ports and return native incidence/emission blocks."""
-    vectors = np.atleast_2d(np.asarray(lattice, dtype=np.float64))
-    bloch = np.atleast_1d(np.asarray(kpar, dtype=np.float64))
+    vectors, bloch = _geometry_inputs(
+        lattice, kpar, "xy" if isinstance(source, SphericalWaveBasis) else "x"
+    )
     q = destination.components
     if isinstance(source, SphericalWaveBasis):
         if (
@@ -553,8 +555,8 @@ def _periodic_channels(
 
 
 def expandlattice(
-    lattice: ArrayLike,
-    kpar: ArrayLike,
+    lattice: ArrayLike | Lattice | None = None,
+    kpar: ArrayLike | WaveVector | None = None,
     *,
     basis: FieldBasis | tuple[FieldBasis, FieldBasis],
     k0: float,
@@ -570,6 +572,14 @@ def expandlattice(
     explicit origin pairs rather than an implicit matching-particle-index mask.
     """
     destination, source = basis if isinstance(basis, tuple) else (basis, basis)
+    lattice = (destination.lattice or source.lattice) if lattice is None else lattice
+    kpar = (
+        (source.kpar if source.kpar is not None else destination.kpar)
+        if kpar is None
+        else kpar
+    )
+    if lattice is None or kpar is None:
+        raise ValueError("periodic expansion requires a lattice and Bloch vector")
     medium = Material(material)
     if (
         not np.isfinite(k0)
@@ -601,8 +611,7 @@ def expandlattice(
     if isinstance(destination, CylindricalWaveBasis) and isinstance(
         source, SphericalWaveBasis
     ):
-        vectors = np.atleast_2d(np.asarray(lattice, dtype=np.float64))
-        bloch = np.atleast_1d(np.asarray(kpar, dtype=np.float64))
+        vectors, bloch = _geometry_inputs(lattice, kpar, "z")
         if vectors.shape != (1, 1) or bloch.shape != (1,):
             raise ValueError(
                 "spherical-to-cylindrical radiation requires a 1D z period and Bloch component"

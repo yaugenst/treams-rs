@@ -11,6 +11,9 @@ from typing import TYPE_CHECKING, Self, overload, override
 
 import numpy as np
 
+from . import _native
+from ._lattice import Lattice, WaveVector, _geometry_inputs
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Sequence
 
@@ -62,9 +65,7 @@ class Material:
 
     @property
     def nmp(self) -> NDArray[np.complex128]:
-        index = cmath.sqrt(self.epsilon * self.mu)
-        values = np.array([index - self.kappa, index + self.kappa], dtype=np.complex128)
-        return np.where(values.imag < 0, -values, values)
+        return _native.refractive_indices(self.epsilon, self.mu, self.kappa)
 
     @property
     def impedance(self) -> complex:
@@ -85,12 +86,9 @@ class Material:
         self, k0: float, kx: ArrayLike, ky: ArrayLike, pol: ArrayLike = (0, 1)
     ) -> NDArray[np.complex128]:
         """Axial wavevectors on the outgoing branch (nonnegative imaginary part)."""
-        value = np.sqrt(
-            self.ks(k0)[np.asarray(pol, dtype=np.int64)] ** 2
-            - np.asarray(kx) ** 2
-            - np.asarray(ky) ** 2
+        return _native.wave_vector_z(
+            kx, ky, self.ks(k0)[np.asarray(pol, dtype=np.int64)]
         )
-        return np.where(value.imag < 0, -value, value)
 
 
 type MaterialLike = Material | complex | tuple[complex, ...] | list[complex]
@@ -124,6 +122,8 @@ type _Selection = (
 class _Basis[M: tuple[object, ...]]:
     """Ordered mode labels; selections preserve their physical metadata."""
 
+    lattice: Lattice | None = None
+    kpar: WaveVector | None = None
     modes: tuple[M, ...]
     _labels: tuple[str, ...]
     _keys: str
@@ -280,6 +280,7 @@ class PlaneWaveBasisByUnitVector(_Basis[tuple[complex, complex, complex, int]]):
             [mode[:3] for mode in modes], dtype=np.complex128
         ).reshape(-1, 3)
         result.directions.flags.writeable = False
+        result.lattice, result.kpar = self.lattice, self.kpar
         return result
 
     @property
@@ -327,7 +328,12 @@ class PlaneWaveBasisByUnitVector(_Basis[tuple[complex, complex, complex, int]]):
             raise ValueError("number of permutations must be integer")
         n = int(n)
         vectors = np.roll(self.directions, n % 3, axis=1)
-        return type(self)((*v, int(p)) for v, p in zip(vectors, self.pol, strict=True))
+        result = type(self)(
+            (*v, int(p)) for v, p in zip(vectors, self.pol, strict=True)
+        )
+        result.lattice = self.lattice.permute(n) if self.lattice is not None else None
+        result.kpar = self.kpar.permute(n) if self.kpar is not None else None
+        return result
 
     def bycomp(
         self, k0: float, alignment: str = "xy", material: MaterialLike = 1
@@ -338,13 +344,15 @@ class PlaneWaveBasisByUnitVector(_Basis[tuple[complex, complex, complex, int]]):
         q = np.real_if_close(np.column_stack(self.kvecs(k0, material))[:, axes])
         if np.iscomplexobj(q):
             raise ValueError("component bases require real transverse wavevectors")
-        return PlaneWaveBasisByComp(
+        result = PlaneWaveBasisByComp(
             (
                 (float(v[0]), float(v[1]), int(p))
                 for v, p in zip(q, self.pol, strict=True)
             ),
             alignment,
         )
+        result.lattice, result.kpar = self.lattice, self.kpar
+        return result
 
 
 class PlaneWaveBasisByComp(_Basis[tuple[float, float, int]]):
@@ -372,7 +380,9 @@ class PlaneWaveBasisByComp(_Basis[tuple[float, float, int]]):
 
     @override
     def _from_modes(self, modes: tuple[tuple[float, float, int], ...]) -> Self:
-        return type(self)(modes, self.alignment)
+        result = type(self)(modes, self.alignment)
+        result.lattice, result.kpar = self.lattice, self.kpar
+        return result
 
     @override
     def __eq__(self, other: object) -> bool:
@@ -402,15 +412,24 @@ class PlaneWaveBasisByComp(_Basis[tuple[float, float, int]]):
 
     @classmethod
     def diffr_orders(
-        cls, kpar: ArrayLike, lattice: ArrayLike, bmax: float, *, alignment: str = "xy"
+        cls,
+        kpar: ArrayLike,
+        lattice: ArrayLike,
+        bmax: float,
+        *,
+        alignment: str | None = None,
     ) -> PlaneWaveBasisByComp:
         """Both polarizations of all reciprocal vectors with length <= bmax.
 
         The cutoff applies before adding the Bloch vector. Opposite diffraction
         orders are adjacent, following treams ordering for rectangular lattices.
         """
-        a = np.asarray(lattice, dtype=np.float64)
-        q = np.asarray(kpar, dtype=np.float64)
+        cell = (
+            lattice
+            if isinstance(lattice, Lattice) and alignment in (None, lattice.alignment)
+            else Lattice(lattice, alignment)
+        )
+        a, q = _geometry_inputs(cell, kpar, cell.alignment)
         if (
             a.shape != (2, 2)
             or q.shape != (2,)
@@ -422,19 +441,11 @@ class PlaneWaveBasisByComp(_Basis[tuple[float, float, int]]):
             raise ValueError(
                 "require a finite 2D lattice, Bloch vector and nonnegative cutoff"
             )
-        reciprocal = 2 * np.pi * np.linalg.inv(a).T
-        # |G.a_i| <= bmax |a_i| bounds every integer coordinate, also for skew cells.
-        bounds = np.ceil(bmax * np.linalg.norm(a, axis=1) / (2 * np.pi)).astype(int)
-        orders = [(0, 0)]
-        for m in range(int(bounds[0]) + 1):
-            ns = [*range(int(bounds[1]) + 1), *range(-1, -int(bounds[1]) - 1, -1)]
-            for n in ns:
-                if m == 0 and n <= 0:
-                    continue
-                vector = np.array([m, n]) @ reciprocal
-                if np.linalg.norm(vector) <= bmax:
-                    orders.extend([(m, n), (-m, -n)])
-        return cls.default(q + np.asarray(orders) @ reciprocal, alignment)
+        reciprocal = cell.reciprocal
+        orders = _native.diffraction_orders(reciprocal, bmax)
+        result = cls.default(q + orders @ reciprocal, cell.alignment)
+        result.lattice, result.kpar = cell, WaveVector(q, cell.alignment)
+        return result
 
     @property
     def normal_axis(self) -> int:
@@ -483,9 +494,12 @@ class PlaneWaveBasisByComp(_Basis[tuple[float, float, int]]):
             raise ValueError("number of permutations must be integer")
         n = int(n)
         alignments = ("xy", "yz", "zx")
-        return type(self)(
+        result = type(self)(
             self.modes, alignments[(alignments.index(self.alignment) + n) % 3]
         )
+        result.lattice = self.lattice.permute(n) if self.lattice is not None else None
+        result.kpar = self.kpar.permute(n) if self.kpar is not None else None
+        return result
 
     @cached_property
     def pol(self) -> NDArray[np.int64]:
@@ -512,9 +526,11 @@ class PlaneWaveBasisByComp(_Basis[tuple[float, float, int]]):
         self, k0: float, material: MaterialLike = 1, modetype: str = "up"
     ) -> PlaneWaveBasisByUnitVector:
         vectors = np.column_stack(self.kvecs(k0, material, modetype))
-        return PlaneWaveBasisByUnitVector(
+        result = PlaneWaveBasisByUnitVector(
             (*v, int(p)) for v, p in zip(vectors, self.pol, strict=True)
         )
+        result.lattice, result.kpar = self.lattice, self.kpar
+        return result
 
 
 class _WaveBasis[M: tuple[int, float, int, int]](_Basis[M]):
@@ -538,7 +554,9 @@ class _WaveBasis[M: tuple[int, float, int, int]](_Basis[M]):
 
     @override
     def _from_modes(self, modes: tuple[M, ...]) -> Self:
-        return type(self)(modes, self.positions)
+        result = type(self)(modes, self.positions)
+        result.lattice, result.kpar = self.lattice, self.kpar
+        return result
 
     @override
     def __eq__(self, other: object) -> bool:
@@ -735,12 +753,14 @@ class CylindricalWaveBasis(_WaveBasis[CylindricalMode]):
         cls,
         kz: float,
         mmax: int,
-        lattice: float,
+        lattice: float | Lattice,
         bmax: float,
         nmax: int = 1,
         positions: ArrayLike | None = None,
     ) -> CylindricalWaveBasis:
         """Axial diffraction orders with reciprocal shifts bounded by bmax."""
+        cell = Lattice(lattice, "z")
+        lattice = cell.volume
         if (
             not math.isfinite(lattice)
             or lattice == 0
@@ -750,9 +770,11 @@ class CylindricalWaveBasis(_WaveBasis[CylindricalMode]):
             raise ValueError("require a finite nonzero period and nonnegative cutoff")
         reciprocal = 2 * np.pi / lattice
         count = math.floor(bmax / abs(reciprocal))
-        return cls.default(
+        result = cls.default(
             kz + np.arange(-count, count + 1) * reciprocal, mmax, nmax, positions
         )
+        result.lattice, result.kpar = cell, WaveVector(kz)
+        return result
 
     @property
     def kz(self) -> NDArray[np.float64]:

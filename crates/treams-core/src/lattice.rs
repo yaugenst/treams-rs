@@ -88,10 +88,11 @@ impl Lattice {
                 direct[(i, j)] = vectors[i][j];
             }
         }
-        let inverse = direct
-            .try_inverse()
-            .ok_or_else(|| Error::InvalidInput("lattice vectors must be independent".into()))?;
-        let reciprocal = 2.0 * PI * inverse.transpose();
+        let reciprocal = crate::geometry::reciprocal(
+            std::array::from_fn(|i| std::array::from_fn(|j| direct[(i, j)])),
+            dim,
+        )?;
+        let reciprocal = Matrix3::from_fn(|i, j| reciprocal[i][j]);
         let measure = direct.determinant().abs();
         if !measure.is_finite() || reciprocal.iter().any(|x| !x.is_finite()) {
             return Err(Error::InvalidInput(
