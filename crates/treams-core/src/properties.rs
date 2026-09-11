@@ -20,6 +20,28 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    fn local_block_adjoint_matches_dense(x in -0.1_f64..0.1) {
+        let a=DMatrix::from_fn(2,2,|i,j| Complex::new(if i==j {0.2} else {x}, if i<j {0.03} else {-0.04}));
+        let b=DMatrix::from_fn(3,3,|i,j| Complex::new(if i==j {0.3} else {-0.01}, if i<j {x} else {0.02}));
+        let mut dense=DMatrix::zeros(5,5);
+        dense.view_mut((0,0),(2,2)).copy_from(&a);
+        dense.view_mut((2,2),(3,3)).copy_from(&b);
+        let coupling=DMatrix::from_fn(5,5,|i,j| Complex::new(if i<j {0.1} else {x},0.02));
+        let sparse=interaction::forward_blocks(vec![a,b],coupling.clone()).unwrap();
+        let dense=interaction::forward(dense,coupling).unwrap();
+        prop_assert!((&sparse.value-&dense.value).norm()<1e-14);
+        let g=DMatrix::from_fn(5,5,|i,j| Complex::new(if i<j {0.3} else {-0.1},0.2));
+        let (blocks,gc)=sparse.pullback_blocks(&g).unwrap();
+        let (gd,expected_gc)=dense.pullback(&g).unwrap();
+        prop_assert!((gc-expected_gc).norm()<1e-14);
+        let mut offset=0;
+        for block in blocks {
+            prop_assert!((&block-gd.view((offset,offset),block.shape())).norm()<1e-14);
+            offset+=block.nrows();
+        }
+    }
+
+    #[test]
     fn chirality_interval_additivity_and_scale_adjoint(k in 0.8_f64..2.0, stop in 0.1_f64..1.0) {
         let ks=vec![Complex::new(k,0.1)];
         let normal=vec![Complex::new(k*0.9,0.12)];

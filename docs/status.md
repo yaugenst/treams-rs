@@ -25,7 +25,7 @@ gauge singularity; both values and derivatives use that limit.
 | Sphere coefficients | Multilayer, lossy, magnetic, chiral Mie; all continuous input VJPs | Extreme-layer-conditioning analysis |
 | Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks; regular cylindrical-to-spherical and periodic spherical-to-cylindrical conversion with native pullbacks; explicit expandlattice dispatch | Remaining low-level wave-family API coverage |
 | Multipole fields | Spherical/cylindrical Cartesian waves and analytic axis limits; weighted fields and full field operators with native position/wavenumber VJPs and linear residuals; electric, magnetic, displacement, flux and Riemann-Silberstein operators; Advect magnetic and G/F samples; native weighted/full plane fields and complex-wavevector VJPs | Cylindrical axial-label derivatives and upstream operator-attribute machinery |
-| Finite scattering | Dense solve and factorization-reusing adjoint; optimized sphere clusters; heterogeneous local matrices via public API | Native end-to-end heterogeneous-cluster parameter context |
+| Finite scattering | Dense solve and factorization-reusing adjoint; optimized sphere clusters; heterogeneous spherical local matrices with native local-block, position and medium-wavenumber pullbacks | Cylindrical heterogeneous-cluster context |
 | Python interface | Material, spherical/cylindrical bases, TMatrix.sphere, TMatrixC.cylinder, clusters, interaction.solve, changepoltype, expand, xs/xw and averaged cross sections; explicit spherical/cylindrical sources with weighted E/H/D/B/G/F fields and direct T-matrix illumination | Full upstream ndarray annotation machinery is not reproduced; explicit .array is used |
 | Differentiation | Opaque one-use native contexts in coeffs and diff; arbitrary complex output cotangents; Advect adapters for spherical/cylindrical T-matrices, clusters, interactions, expansions, fields and sphere/cylinder coefficients | Higher derivatives and other framework adapters |
 | Testing | Native proptest invariants and adjoint identities; Hypothesis physical invariants; treams/SciPy reference comparisons; complete Python workflows | Expand qualification with every ported subsystem |
@@ -63,7 +63,15 @@ The optimized `diff.cluster` is restricted to non-overlapping homogeneous,
 nonmagnetic spheres in vacuum with a common multipole cutoff. Its pullback covers
 radii, positions, complex sphere permittivities and vacuum wavenumber. The public
 `TMatrix.cluster` accepts general local spherical T-matrices with distinct cutoffs
-and a common, possibly chiral, embedding material.
+and a common, possibly chiral, embedding material. Its interaction solve now uses
+native block storage, avoiding multiplication of zero off-diagonal local blocks.
+`diff.particle_cluster` and `advect.particle_cluster` also accept arbitrary local
+spherical matrices with distinct cutoffs or mode subsets. They differentiate each
+local block, every position and both complex embedding wavenumbers. Complete
+Advect tests compose different sphere cutoffs with radius, epsilon, mu, kappa,
+frequency and position gradients. The caller ensures particle enclosing surfaces
+do not overlap. Native reverse contracts only the required local diagonal blocks,
+reuses the LU, and retains one coupling matrix rather than a second expansion copy.
 
 `spherical_wave` and `cylindrical_wave` return an explicit `MultipoleWave` with
 owned amplitudes, physical metadata, expansion and weighted E/H/D/B/G/F samples.

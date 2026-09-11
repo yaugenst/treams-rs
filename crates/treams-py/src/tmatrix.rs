@@ -322,7 +322,88 @@ fn spherical_wave(
     Ok((result.value, result.position, result.k))
 }
 
+#[pyclass]
+#[derive(Debug)]
+struct ParticleClusterContext {
+    residual: Option<tmatrix::ParticleClusterResidual>,
+}
+
+type ParticleClusterGradient<'py> = (
+    Vec<Bound<'py, PyArray2<Complex>>>,
+    Bound<'py, PyArray2<f64>>,
+    Bound<'py, PyArray1<Complex>>,
+);
+
+#[pymethods]
+impl ParticleClusterContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'py, Complex>,
+    ) -> PyResult<ParticleClusterGradient<'py>> {
+        let g = from_array(cotangent)?;
+        let residual = self
+            .residual
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        if g.shape() != residual.value().shape() {
+            return Err(PyValueError::new_err(
+                "cotangent must match the cluster matrix shape",
+            ));
+        }
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let gradient = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        let local = gradient
+            .local
+            .into_iter()
+            .map(|value| {
+                Array2::from_shape_vec((value.ncols(), value.nrows()), Vec::from(value.data))
+                    .map(|a| a.reversed_axes().into_pyarray(py))
+                    .map_err(|e| PyValueError::new_err(e.to_string()))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok((
+            local,
+            Array2::from_shape_fn((gradient.positions.len(), 3), |(i, j)| {
+                gradient.positions[i][j]
+            })
+            .into_pyarray(py),
+            gradient.ks.to_vec().into_pyarray(py),
+        ))
+    }
+}
+
+#[pyfunction]
+fn particle_cluster<'py>(
+    py: Python<'py>,
+    local: Vec<PyReadonlyArray2<'py, Complex>>,
+    modes: Vec<(usize, i32, i32, u8)>,
+    positions: Vec<[f64; 3]>,
+    ks: [Complex; 2],
+    helicity: bool,
+) -> PyResult<(Bound<'py, PyArray2<Complex>>, ParticleClusterContext)> {
+    let local = local
+        .into_iter()
+        .map(from_array)
+        .collect::<PyResult<Vec<_>>>()?;
+    let basis = crate::basis::make_basis(modes, positions);
+    let residual = py
+        .detach(move || tmatrix::particle_cluster(local, basis, ks, helicity))
+        .map_err(error)?;
+    Ok((
+        matrix(py, residual.value()),
+        ParticleClusterContext {
+            residual: Some(residual),
+        },
+    ))
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<ParticleClusterContext>()?;
+    m.add_function(wrap_pyfunction!(particle_cluster, m)?)?;
     m.add_class::<MetricContext>()?;
     m.add_function(wrap_pyfunction!(tmatrix_metric, m)?)?;
     m.add_class::<SphereContext>()?;

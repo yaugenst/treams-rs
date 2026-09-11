@@ -467,3 +467,37 @@ Reverse covers both real transverse components, complex normal components and
 interval endpoints; the residual stores only input geometry. Large mode sets use
 Rayon. Raw results: `benchmarks/results/oriented-chirality-l{64,512}.json`.
 Reproduce with `--workload oriented-chirality --particles 1 --lmax 512 --threads 4`.
+
+## Heterogeneous particle clusters and block adjoints
+
+Spherical particles with alternating cutoffs 3 and 4, radii 0.15–0.25,
+permittivity 4+0.1j, vacuum wavenumber 1.3, and spacing 0.8. Local particle
+construction is outside both timings. Both solvers return the complete interacting
+matrix; full agreement is checked before timing. Four matched threads, release,
+seven batched samples including result destruction.
+
+| Particles | Modes | Path | treams ms | Rust ms | Speedup | Rust reverse ms | treams / Rust forward peak MiB |
+| ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 4 | 156 | Native block boundary | 35.43 | 3.24 | 10.95x | 0.91 | 71.3 / 44.0 |
+| 16 | 624 | Native block boundary | 734.82 | 17.51 | 41.96x | 22.74 | 109.2 / 68.5 |
+| 4 | 156 | Public cluster + solve | 35.67 | 3.97 | 8.99x | — | 71.7 / 45.1 |
+| 16 | 624 | Public cluster + solve | 737.35 | 23.76 | 31.03x | — | 107.9 / 86.3 |
+
+The native boundary accepts separate local arrays, preserving their block structure
+without a dense local matrix. The public `TMatrix.cluster(...).interaction.solve()`
+retains its explicit dense array semantics but routes the solve through this block
+boundary. Reverse returns only local diagonal-block gradients, plus every position
+and both embedding-wavenumber cotangents. It avoids a dense local gradient whose
+off-diagonal entries would be discarded. The 624-mode native process peaks at
+107.1 MiB through reverse.
+
+The same adjoint change was rechecked on homogeneous sphere clusters with lmax=3.
+At 240 modes the full forward takes 2.48 ms versus 90.32 ms upstream (36.42x),
+reverse 2.34 ms and forward/through-reverse RSS 46.1/50.9 MiB. At 960 modes it
+takes 37.50 ms versus 1678.25 ms (44.75x), reverse 63.31 ms and RSS 102.6/177.5 MiB.
+Earlier single-call measurements are not method-identical to these batched results.
+
+Raw results: `particle-cluster{-public,}-n{4,16}-l3.json` and
+`block-adjoint-cluster-n{8,32}-l3.json` under `benchmarks/results`.
+Use `--workload particle-cluster` or `--workload particle-cluster-public` with
+`--particles 16 --lmax 3 --threads 4` to reproduce the heterogeneous cases.

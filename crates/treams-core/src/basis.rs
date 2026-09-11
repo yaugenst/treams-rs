@@ -299,7 +299,9 @@ pub struct TranslationGradient {
 impl TranslationResidual {
     /// Contract the expansion cotangent under the real Hermitian pairing.
     pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<TranslationGradient> {
-        if cotangent.shape() != self.value.shape() || cotangent.iter().any(|&z| !finite(z)) {
+        if cotangent.shape() != (self.destination.modes.len(), self.source.modes.len())
+            || cotangent.iter().any(|&z| !finite(z))
+        {
             return Err(Error::InvalidInput("invalid expansion cotangent".into()));
         }
         let mut result = TranslationGradient {

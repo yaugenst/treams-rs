@@ -10,6 +10,8 @@ from . import _native
 from ._core import CylindricalWaveBasis, SphericalWaveBasis
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from numpy.typing import ArrayLike, NDArray
 
     from .ebcm import Modes
@@ -281,6 +283,43 @@ def cluster(
         np.ascontiguousarray(radii, dtype=np.float64),
         np.ascontiguousarray(epsilon, dtype=np.complex128),
         np.ascontiguousarray(positions, dtype=np.float64),
+    )
+
+
+def particle_cluster(
+    local: Sequence[ArrayLike],
+    positions: ArrayLike,
+    ks: ArrayLike,
+    *,
+    bases: Sequence[SphericalWaveBasis],
+    poltype: str = "helicity",
+) -> tuple[NDArray[np.complex128], _native.ParticleClusterContext]:
+    """Heterogeneous particles; VJP returns (local matrices, positions, ks).
+
+    Local bases can have different cutoffs and mode subsets. They must each use
+    one origin. Particles must have non-overlapping enclosing surfaces.
+    """
+    if len(local) != len(bases) or not bases:
+        raise ValueError("one local matrix and basis required per particle")
+    if poltype not in ("helicity", "parity"):
+        raise ValueError("invalid polarization type")
+    modes: list[tuple[int, int, int, int]] = []
+    arrays = []
+    for particle, (value, basis) in enumerate(zip(local, bases, strict=True)):
+        if not isinstance(basis, SphericalWaveBasis) or not basis.isglobal:
+            raise ValueError("local particles require global spherical bases")
+        array = np.asarray(value, dtype=np.complex128)
+        if array.shape != (len(basis), len(basis)):
+            raise ValueError("local matrix shape must match its basis")
+        arrays.append(array)
+        modes.extend((particle, degree, order, pol) for _, degree, order, pol in basis)
+    km, kp = np.asarray(ks, dtype=np.complex128)
+    return _native.particle_cluster(
+        arrays,
+        modes,
+        np.asarray(positions, dtype=np.float64).tolist(),
+        (complex(km), complex(kp)),
+        poltype == "helicity",
     )
 
 

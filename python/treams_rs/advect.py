@@ -16,7 +16,7 @@ from . import coeffs, diff, lattice
 from ._operators import _rs_weights
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from numpy.typing import ArrayLike, NDArray
 
@@ -141,6 +141,34 @@ def cluster(
         return value, context.pullback
 
     return _call((radii, positions, epsilon, k0), forward)
+
+
+def particle_cluster(
+    local: Sequence[ArrayLike],
+    positions: ArrayLike,
+    ks: ArrayLike,
+    *,
+    bases: Sequence[SphericalWaveBasis],
+    poltype: str = "helicity",
+) -> NDArray[np.complex128]:
+    """Heterogeneous local matrices with native geometry and embedding adjoints."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.particle_cluster(
+            values[2:],
+            values[0],
+            values[1],
+            bases=bases,
+            poltype=poltype,
+        )
+
+        def pullback(g: NDArray[np.complex128]) -> _Values:
+            local, positions, ks = context.pullback(g)
+            return (positions, ks, *local)
+
+        return value, pullback
+
+    return _call((positions, ks, *local), forward)
 
 
 def interaction(local: ArrayLike, coupling: ArrayLike) -> NDArray[np.complex128]:

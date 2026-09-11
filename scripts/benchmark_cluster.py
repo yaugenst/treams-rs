@@ -79,6 +79,24 @@ def worker(
                 oracle_lower = treams.SMatrices(lower, basis=oracle_basis, k0=1.3)
                 oracle_upper = treams.SMatrices(upper, basis=oracle_basis, k0=1.3)
 
+        if workload in ("particle-cluster", "particle-cluster-public"):
+            degrees = [order + i % 2 for i in range(particles)]
+            particle_dimension = sum(2 * degree * (degree + 2) for degree in degrees)
+            if backend in ("rust", "check"):
+                from treams_rs import TMatrix
+
+                local_tmats = [
+                    TMatrix.sphere(degree, 1.3, radius, [eps, 1])
+                    for degree, radius, eps in zip(degrees, radii, epsilon, strict=True)
+                ]
+                local_bases = [tm.basis for tm in local_tmats]
+                local_arrays = [tm.array for tm in local_tmats]
+            if backend in ("treams", "check"):
+                oracle_tmats = [
+                    treams.TMatrix.sphere(degree, 1.3, radius, [eps, 1])
+                    for degree, radius, eps in zip(degrees, radii, epsilon, strict=True)
+                ]
+
         if workload == "ebcm":
             if particles != 1:
                 raise ValueError("EBCM benchmark uses one surface")
@@ -269,6 +287,14 @@ def worker(
         eta = 0.7 if workload == "cylindrical-array" else 0
 
         def rust():
+            if workload == "particle-cluster-public":
+                return TMatrix.cluster(
+                    local_tmats, positions
+                ).interaction.solve().array, None
+            if workload == "particle-cluster":
+                return diff.particle_cluster(
+                    local_arrays, positions, [1.3, 1.3], bases=local_bases
+                )
             if workload == "oriented-chirality":
                 return diff.oriented_chirality(
                     vectors[:, :2].real,
@@ -366,6 +392,10 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload in ("particle-cluster", "particle-cluster-public"):
+                return treams.TMatrix.cluster(
+                    oracle_tmats, positions
+                ).interaction.solve()
             if workload == "oriented-chirality":
                 q0, q1, normal = oracle_vectors.T
                 up = treams.special.vpw_A(normal, q0, q1, 0, 0, 0, oracle_basis.pol)
@@ -539,7 +569,10 @@ def worker(
             times.append((time.perf_counter() - start) / batch)
         peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
         backward_times = []
-        if backend == "rust" and workload != "internal-field-forward":
+        if backend == "rust" and workload not in (
+            "internal-field-forward",
+            "particle-cluster-public",
+        ):
             sample_total = 0.0
             for iteration in range((repeats + 1) * batch):
                 value, context = (
@@ -630,7 +663,9 @@ def worker(
                     "layers": particles if workload == "slab" else None,
                     "channels": samples if workload == "slab" else None,
                     "lmax": order,
-                    "dimension": 2 * samples
+                    "dimension": particle_dimension
+                    if workload in ("particle-cluster", "particle-cluster-public")
+                    else 2 * samples
                     if workload == "slab"
                     else 2 * particles * order
                     if workload in ("internal-field", "internal-field-forward")
@@ -680,6 +715,8 @@ def main() -> None:
         "--workload",
         choices=[
             "cluster",
+            "particle-cluster",
+            "particle-cluster-public",
             "slab",
             "field",
             "internal-field",

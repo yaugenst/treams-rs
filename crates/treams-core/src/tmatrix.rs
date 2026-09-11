@@ -297,6 +297,95 @@ impl SphereResidual {
     }
 }
 
+/// Heterogeneous spherical-particle solve with local matrices kept as separate blocks.
+#[derive(Debug)]
+pub struct ParticleClusterResidual {
+    expansion: crate::basis::TranslationResidual,
+    interaction: InteractionResidual,
+}
+
+/// Cotangents of arbitrary particle matrices and their common embedding geometry.
+#[derive(Debug)]
+pub struct ParticleClusterGradient {
+    /// One matrix cotangent per particle, in input order.
+    pub local: Vec<DMatrix<Complex>>,
+    /// Cartesian particle-position cotangents.
+    pub positions: Vec<[f64; 3]>,
+    /// Complex negative/positive-helicity embedding-wavenumber cotangents.
+    pub ks: [Complex; 2],
+}
+
+/// Couple heterogeneous local spherical matrices in a common embedding medium.
+///
+/// Basis modes must be grouped in particle order, matching the local blocks.
+/// The caller ensures the particles' enclosing surfaces do not overlap.
+pub fn particle_cluster(
+    local: Vec<DMatrix<Complex>>,
+    basis: crate::basis::Basis,
+    ks: [Complex; 2],
+    helicity: bool,
+) -> Result<ParticleClusterResidual> {
+    basis.validate()?;
+    let mut offset = 0;
+    if local.len() != basis.positions.len()
+        || local.iter().map(DMatrix::nrows).sum::<usize>() != basis.modes.len()
+    {
+        return Err(Error::InvalidInput(
+            "one local matrix and mode block required per position".into(),
+        ));
+    }
+    for (i, block) in local.iter().enumerate() {
+        let end = offset + block.nrows();
+        if basis.modes[offset..end].iter().any(|&(p, _)| p != i)
+            || basis.positions[..i].contains(&basis.positions[i])
+        {
+            return Err(Error::InvalidInput(
+                "particle modes must be grouped at distinct origins".into(),
+            ));
+        }
+        offset = end;
+    }
+    let mut expansion = crate::basis::translation(
+        basis.clone(),
+        basis,
+        ks,
+        helicity,
+        crate::special::Radial::Outgoing,
+    )?;
+    // The solve owns the only coupling matrix; its adjoint needs just the geometry.
+    let coupling = std::mem::take(&mut expansion.value);
+    let interaction = interaction::forward_blocks(local, coupling)?;
+    Ok(ParticleClusterResidual {
+        expansion,
+        interaction,
+    })
+}
+
+impl ParticleClusterResidual {
+    /// Interacting response in the particles' local multipole coordinates.
+    #[must_use]
+    pub fn value(&self) -> &DMatrix<Complex> {
+        &self.interaction.value
+    }
+
+    /// Differentiate local matrices, all pair displacements and both wavenumbers.
+    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<ParticleClusterGradient> {
+        let (local, coupling) = self.interaction.pullback_blocks(cotangent)?;
+        let geometry = self.expansion.pullback(&coupling)?;
+        let positions = geometry
+            .destination
+            .into_iter()
+            .zip(geometry.source)
+            .map(|(a, b)| std::array::from_fn(|i| a[i] + b[i]))
+            .collect();
+        Ok(ParticleClusterGradient {
+            local,
+            positions,
+            ks: geometry.ks,
+        })
+    }
+}
+
 /// Retained solve for non-overlapping homogeneous spheres in vacuum.
 #[derive(Clone, Debug)]
 pub struct ClusterResidual {
@@ -416,7 +505,7 @@ impl ClusterResidual {
 
     /// Complete native cluster pullback, including analytic position derivatives.
     pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<ClusterGradient> {
-        let (local, coupling) = self.interaction.pullback(cotangent)?;
+        let (local, coupling) = self.interaction.pullback_blocks(cotangent)?;
         let dimension = self.modes.len();
         let n = self.spheres.len();
         let mut result = ClusterGradient {
@@ -426,11 +515,7 @@ impl ClusterResidual {
             k0: 0.0,
         };
         for (i, sphere) in self.spheres.into_iter().enumerate() {
-            let gradient = sphere.pullback(
-                &local
-                    .view((i * dimension, i * dimension), (dimension, dimension))
-                    .into_owned(),
-            )?;
+            let gradient = sphere.pullback(&local[i])?;
             result.radii[i] = gradient.radii[0];
             result.epsilon[i] = gradient.materials.epsilon[0];
             result.k0 += gradient.k0;

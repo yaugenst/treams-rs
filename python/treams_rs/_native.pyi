@@ -154,6 +154,19 @@ class SolveContext:
         self, cotangent: ComplexArray
     ) -> tuple[ComplexArray, ComplexArray]: ...
 
+class ParticleClusterContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[list[ComplexArray], RealArray, ComplexArray]: ...
+
+def particle_cluster(
+    local: list[ComplexArray],
+    modes: list[tuple[int, int, int, int]],
+    positions: list[list[float]],
+    ks: tuple[complex, complex],
+    helicity: bool,
+) -> tuple[ComplexArray, ParticleClusterContext]: ...
+
 class ChiralityContext:
     def pullback(
         self, cotangent: NDArray[np.complex128]

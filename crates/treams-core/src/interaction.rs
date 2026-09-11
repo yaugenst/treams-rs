@@ -216,6 +216,46 @@ impl InteractionResidual {
         self,
         cotangent: &DMatrix<Complex>,
     ) -> Result<(DMatrix<Complex>, DMatrix<Complex>)> {
+        self.pullback_with(cotangent, product_adjoint_right)
+    }
+
+    /// Return only the local diagonal-block cotangents of a block-diagonal input.
+    pub fn pullback_blocks(
+        self,
+        cotangent: &DMatrix<Complex>,
+    ) -> Result<(Vec<DMatrix<Complex>>, DMatrix<Complex>)> {
+        let LocalMatrix::Blocks(blocks) = &self.local else {
+            return Err(Error::InvalidInput(
+                "solve was not constructed from local blocks".into(),
+            ));
+        };
+        let sizes: Vec<_> = blocks.iter().map(DMatrix::nrows).collect();
+        self.pullback_with(cotangent, |adjoint, response| {
+            let mut offset = 0;
+            sizes
+                .into_iter()
+                .map(|n| {
+                    let mut block = DMatrix::zeros(n, n);
+                    matmul(
+                        view_mut(&mut block),
+                        Accum::Replace,
+                        view(adjoint).subrows(offset, n),
+                        view(response).subrows(offset, n).adjoint(),
+                        Complex::new(1.0, 0.0),
+                        faer::get_global_parallelism(),
+                    );
+                    offset += n;
+                    block
+                })
+                .collect()
+        })
+    }
+
+    fn pullback_with<T>(
+        self,
+        cotangent: &DMatrix<Complex>,
+        local_gradient: impl FnOnce(&DMatrix<Complex>, &DMatrix<Complex>) -> T,
+    ) -> Result<(T, DMatrix<Complex>)> {
         if cotangent.shape() != self.value.shape() || cotangent.iter().any(|z| !finite(*z)) {
             return Err(Error::InvalidInput(
                 "invalid interacting-matrix cotangent".into(),
@@ -225,8 +265,9 @@ impl InteractionResidual {
         self.lu.solve_adjoint_in_place(view_mut(&mut adjoint));
         let mut response = product(&self.coupling, &self.value);
         response.set_diagonal(&(response.diagonal().add_scalar(Complex::new(1.0, 0.0))));
-        let local = product(&adjoint, &response.adjoint());
-        let coupling = product(&self.local.apply(&adjoint, true), &self.value.adjoint());
+        let local = local_gradient(&adjoint, &response);
+        drop(response);
+        let coupling = product_adjoint_right(&self.local.apply(&adjoint, true), &self.value);
         Ok((local, coupling))
     }
 }

@@ -60,6 +60,7 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
             raise ValueError("invalid polarization type for embedding medium")
         self.poltype = poltype
         self.array.flags.writeable = False
+        self._cluster_sizes: tuple[int, ...] | None = None
 
     def _default_basis(self, dimension: int) -> B:
         raise NotImplementedError
@@ -133,13 +134,15 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
                 (particle, degree, order, pol) for _, degree, order, pol in tm.basis
             )
             offset = end
-        return cls(
+        result = cls(
             value,
             k0=first.k0,
             material=first.material,
             poltype=first.poltype,
             basis=type(first.basis)(modes, positions),
         )
+        result._cluster_sizes = tuple(len(tm) for tm in tmats)
+        return result
 
     @property
     def interaction(self) -> _Interaction[Self]:
@@ -257,7 +260,26 @@ class _Interaction[M: _TMatrix[Any]]:
 
     def solve(self) -> M:
         tm = self.matrix
-        result, _ = diff.interaction(tm.array, self._coupling())
+        if tm._cluster_sizes is not None and isinstance(tm.basis, SphericalWaveBasis):
+            local = []
+            bases = []
+            offset = 0
+            for size in tm._cluster_sizes:
+                end = offset + size
+                local.append(tm.array[offset:end, offset:end])
+                bases.append(
+                    SphericalWaveBasis(mode[1:] for mode in tm.basis.modes[offset:end])
+                )
+                offset = end
+            result, _ = diff.particle_cluster(
+                local,
+                tm.basis.positions,
+                tm.ks,
+                bases=bases,
+                poltype=tm.poltype,
+            )
+        else:
+            result, _ = diff.interaction(tm.array, self._coupling())
         return type(tm)(
             result, k0=tm.k0, basis=tm.basis, material=tm.material, poltype=tm.poltype
         )
