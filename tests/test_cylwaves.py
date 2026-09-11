@@ -190,5 +190,6 @@ def test_cylindrical_basis_and_matrix_family_contract():
     cylinder = tr.TMatrixC.cylinder([0.0], 1, 1.2, 0.2, [3.0, 1.0])
     with pytest.raises(ValueError, match="cluster"):
         tr.TMatrix.cluster([sphere, cylinder], [[0, 0, 0], [1, 0, 0]])
-    with pytest.raises(ValueError, match="distinct"):
-        tr.CylindricalWaveBasis.default([0.2, 0.2], 1)
+    assert tr.CylindricalWaveBasis.default(
+        [0.2, 0.2], 1
+    ) == tr.CylindricalWaveBasis.default([0.2], 1)

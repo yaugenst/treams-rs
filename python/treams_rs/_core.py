@@ -6,7 +6,8 @@ import cmath
 import math
 from dataclasses import dataclass
 from functools import cached_property
-from typing import TYPE_CHECKING
+from types import EllipsisType
+from typing import TYPE_CHECKING, Self, overload, override
 
 import numpy as np
 
@@ -110,15 +111,94 @@ def _unit_vectors(vectors: ArrayLike) -> NDArray[np.complex128]:
     return scaled / norm[:, None]
 
 
-class PlaneWaveBasisByUnitVector:
+type _Selection = (
+    slice
+    | Sequence[int]
+    | Sequence[bool]
+    | NDArray[np.integer]
+    | NDArray[np.bool_]
+    | EllipsisType
+)
+
+
+class _Basis[M: tuple[object, ...]]:
+    """Ordered mode labels; selections preserve their physical metadata."""
+
+    modes: tuple[M, ...]
+    _labels: tuple[str, ...]
+    _keys: str
+
+    def __len__(self) -> int:
+        return len(self.modes)
+
+    def __iter__(self) -> Iterator[M]:
+        return iter(self.modes)
+
+    def __getattr__(self, key: str) -> tuple[NDArray[np.generic], ...]:
+        labels = dict(zip(self._keys, self._labels, strict=True))
+        try:
+            return tuple(getattr(self, labels[part]) for part in key)
+        except KeyError:
+            raise AttributeError(
+                f"{type(self).__name__!s} has no attribute {key!r}"
+            ) from None
+
+    def __contains__(self, mode: object) -> bool:
+        return mode in self.modes
+
+    def index(self, mode: M, start: int = 0, stop: int | None = None) -> int:
+        return self.modes.index(mode, start, len(self) if stop is None else stop)
+
+    def count(self, mode: M) -> int:
+        return self.modes.count(mode)
+
+    @overload
+    def __getitem__(self, key: int | np.integer) -> M: ...
+    @overload
+    def __getitem__(self, key: tuple[()]) -> tuple[NDArray[np.generic], ...]: ...
+    @overload
+    def __getitem__(self, key: _Selection) -> Self: ...
+
+    def __getitem__(
+        self, key: int | np.integer | tuple[()] | _Selection
+    ) -> M | tuple[NDArray[np.generic], ...] | Self:
+        if isinstance(key, (int, np.integer)):
+            return self.modes[int(key)]
+        if isinstance(key, tuple) and not key:
+            return tuple(getattr(self, label) for label in self._labels)
+        selected = np.arange(len(self))[key]
+        if selected.ndim != 1:
+            raise IndexError("basis selections must be one-dimensional")
+        indices = np.fromiter(dict.fromkeys(selected.tolist()), dtype=np.intp)
+        return self._select(indices)
+
+    def _select(self, indices: NDArray[np.intp]) -> Self:
+        raise NotImplementedError
+
+    def __eq__(self, other: object) -> bool:
+        return (
+            isinstance(other, _Basis)
+            and type(other) is type(self)
+            and self.modes == other.modes
+        )
+
+
+class PlaneWaveBasisByUnitVector(_Basis[tuple[complex, complex, complex, int]]):
     """Full complex directions satisfying q.q=1, followed by polarization 0 or 1."""
 
     isglobal = True
+    _labels = ("qx", "qy", "qz", "pol")
+    _keys = "xyzs"
 
     def __init__(self, modes: Iterable[Sequence[complex]]):
-        values = np.asarray(list(modes), dtype=np.complex128)
-        if values.ndim != 2 or values.shape[1] != 4 or not len(values):
-            raise ValueError("plane modes require nonempty (qx, qy, qz, pol) rows")
+        rows = list(dict.fromkeys(tuple(row) for row in modes))
+        values = (
+            np.asarray(rows, dtype=np.complex128)
+            if rows
+            else np.empty((0, 4), dtype=np.complex128)
+        )
+        if values.ndim != 2 or values.shape[1] != 4:
+            raise ValueError("plane modes require (qx, qy, qz, pol) rows")
         if not np.all((values[:, 3] == 0) | (values[:, 3] == 1)):
             raise ValueError("polarizations must be 0 or 1")
         self.directions = _unit_vectors(values[:, :3])
@@ -128,13 +208,17 @@ class PlaneWaveBasisByUnitVector:
             for q, pol in zip(self.directions, values[:, 3], strict=True)
         )
         if len(set(self.modes)) != len(self.modes):
-            raise ValueError("basis must contain distinct modes")
+            raise ValueError(
+                "basis must contain distinct normalized directions and polarizations"
+            )
 
-    def __len__(self) -> int:
-        return len(self.modes)
-
-    def __iter__(self) -> Iterator[tuple[complex, complex, complex, int]]:
-        return iter(self.modes)
+    @override
+    def _select(self, indices: NDArray[np.intp]) -> Self:
+        result = type(self).__new__(type(self))
+        result.modes = tuple(self.modes[i] for i in indices)
+        result.directions = self.directions[indices]
+        result.directions.flags.writeable = False
+        return result
 
     @property
     def qx(self) -> NDArray[np.complex128]:
@@ -201,10 +285,12 @@ class PlaneWaveBasisByUnitVector:
         )
 
 
-class PlaneWaveBasisByComp:
+class PlaneWaveBasisByComp(_Basis[tuple[float, float, int]]):
     """Plane modes (k1, k2, pol), aligned with xy, yz or zx."""
 
     isglobal = True
+    _labels = ("_k1", "_k2", "pol")
+    _keys = "xys"
 
     def __init__(self, modes: Iterable[Sequence[float]], alignment: str = "xy"):
         if alignment not in ("xy", "yz", "zx"):
@@ -220,15 +306,27 @@ class PlaneWaveBasisByComp:
                     "plane components must be finite and polarization 0 or 1"
                 )
             values.append((float(kx), float(ky), int(pol)))
-        if not values or len(set(values)) != len(values):
-            raise ValueError("basis must contain distinct nonempty modes")
-        self.modes: tuple[tuple[float, float, int], ...] = tuple(values)
+        self.modes: tuple[tuple[float, float, int], ...] = tuple(dict.fromkeys(values))
 
-    def __len__(self) -> int:
-        return len(self.modes)
+    @override
+    def _select(self, indices: NDArray[np.intp]) -> Self:
+        return type(self)((self.modes[i] for i in indices), self.alignment)
 
-    def __iter__(self) -> Iterator[tuple[float, float, int]]:
-        return iter(self.modes)
+    @override
+    def __eq__(self, other: object) -> bool:
+        return (
+            isinstance(other, PlaneWaveBasisByComp)
+            and self.alignment == other.alignment
+            and super().__eq__(other)
+        )
+
+    @property
+    def _k1(self) -> NDArray[np.float64]:
+        return self.components[:, 0]
+
+    @property
+    def _k2(self) -> NDArray[np.float64]:
+        return self.components[:, 1]
 
     @classmethod
     def default(cls, kpars: ArrayLike, alignment: str = "xy") -> PlaneWaveBasisByComp:
@@ -281,10 +379,14 @@ class PlaneWaveBasisByComp:
         """Cartesian axis normal to the stored component plane."""
         return {"xy": 2, "yz": 0, "zx": 1}[self.alignment]
 
-    @property
+    @cached_property
     def components(self) -> NDArray[np.float64]:
         """The two real stored components, in alignment order."""
-        return np.array([(m[0], m[1]) for m in self.modes])
+        result = np.array([(m[0], m[1]) for m in self.modes], dtype=np.float64).reshape(
+            -1, 2
+        )
+        result.flags.writeable = False
+        return result
 
     def _component(self, axis: str) -> NDArray[np.float64] | None:
         return (
@@ -325,7 +427,7 @@ class PlaneWaveBasisByComp:
 
     @cached_property
     def pol(self) -> NDArray[np.int64]:
-        result = np.array([m[2] for m in self.modes])
+        result = np.array([m[2] for m in self.modes], dtype=np.int64)
         result.flags.writeable = False
         return result
 
@@ -353,28 +455,36 @@ class PlaneWaveBasisByComp:
         )
 
 
-class _WaveBasis[M: tuple[int, float, int, int]]:
+class _WaveBasis[M: tuple[int, float, int, int]](_Basis[M]):
     def __init__(self, modes: Sequence[M], positions: ArrayLike):
-        if not modes or len(set(modes)) != len(modes):
-            raise ValueError("basis must contain distinct modes")
-        self.modes: tuple[M, ...] = tuple(modes)
+        self.modes = tuple(dict.fromkeys(modes))
         self.positions: NDArray[np.float64] = np.array(
-            positions, dtype=np.float64, copy=True
+            ((0, 0, 0),) if positions is None else positions,
+            dtype=np.float64,
+            copy=True,
         )
+        if self.positions.ndim == 1:
+            self.positions = self.positions[None, :]
         if (
             self.positions.ndim != 2
             or self.positions.shape[1] != 3
             or not np.isfinite(self.positions).all()
-            or max(p for p, *_ in modes) >= len(self.positions)
+            or max((p for p, *_ in modes), default=-1) >= len(self.positions)
         ):
             raise ValueError("invalid basis positions")
         self.positions.flags.writeable = False
 
-    def __len__(self) -> int:
-        return len(self.modes)
+    @override
+    def _select(self, indices: NDArray[np.intp]) -> Self:
+        return type(self)([self.modes[i] for i in indices], self.positions)
 
-    def __iter__(self) -> Iterator[M]:
-        return iter(self.modes)
+    @override
+    def __eq__(self, other: object) -> bool:
+        return (
+            isinstance(other, _WaveBasis)
+            and np.array_equal(self.positions, other.positions)
+            and super().__eq__(other)
+        )
 
     @property
     def pidx(self) -> NDArray[np.int64]:
@@ -392,11 +502,14 @@ class _WaveBasis[M: tuple[int, float, int, int]]:
 
     @property
     def isglobal(self) -> bool:
-        return len({mode[0] for mode in self.modes}) == 1
+        return len({mode[0] for mode in self.modes}) <= 1
 
 
 class SphericalWaveBasis(_WaveBasis[Mode]):
     """Modes (particle, l, m, pol), with positive helicity first by default."""
+
+    _labels = ("pidx", "l", "m", "pol")
+    _keys = "plms"
 
     def __init__(
         self, modes: Iterable[Sequence[float]], positions: ArrayLike = ((0, 0, 0),)
@@ -421,13 +534,19 @@ class SphericalWaveBasis(_WaveBasis[Mode]):
         super().__init__(values, positions)
 
     @staticmethod
-    def defaultdim(lmax: int) -> int:
-        return 2 * lmax * (lmax + 2)
+    def defaultdim(lmax: int, nmax: int = 1) -> int:
+        if lmax < 0 or nmax < 0:
+            raise ValueError("degree and particle count must be nonnegative")
+        return 2 * lmax * (lmax + 2) * nmax
 
     @staticmethod
-    def defaultlmax(dim: int) -> int:
-        order = math.isqrt(dim // 2 + 1) - 1
-        if order < 1 or SphericalWaveBasis.defaultdim(order) != dim:
+    def defaultlmax(dim: int, nmax: int = 1) -> int:
+        if dim < 0 or nmax < 1:
+            raise ValueError(
+                "require nonnegative dimension and positive particle count"
+            )
+        order = math.isqrt(dim // (2 * nmax) + 1) - 1
+        if SphericalWaveBasis.defaultdim(order, nmax) != dim:
             raise ValueError("dimension does not define a complete spherical basis")
         return order
 
@@ -435,14 +554,40 @@ class SphericalWaveBasis(_WaveBasis[Mode]):
     def default(
         cls, lmax: int, nmax: int = 1, positions: ArrayLike | None = None
     ) -> SphericalWaveBasis:
-        if not 1 <= lmax <= 128 or nmax < 1:
-            raise ValueError("require 1 <= lmax <= 128 and nmax >= 1")
+        if not 0 <= lmax <= 128 or nmax < 1:
+            raise ValueError("require 0 <= lmax <= 128 and nmax >= 1")
         return cls(
             (
                 (p, degree, order, pol)
                 for p in range(nmax)
                 for degree in range(1, lmax + 1)
                 for order in range(-degree, degree + 1)
+                for pol in (1, 0)
+            ),
+            np.zeros((nmax, 3)) if positions is None else positions,
+        )
+
+    @classmethod
+    def ebcm(
+        cls,
+        lmax: int,
+        nmax: int = 1,
+        mmax: int = -1,
+        positions: ArrayLike | None = None,
+    ) -> Self:
+        """Order modes by particle, azimuthal order, degree and polarization."""
+        if mmax == -1:
+            mmax = lmax
+        if not 0 <= mmax <= lmax <= 128 or nmax < 1:
+            raise ValueError(
+                "require 0 <= mmax <= lmax <= 128 and positive particle count"
+            )
+        return cls(
+            (
+                (p, degree, order, pol)
+                for p in range(nmax)
+                for order in range(-mmax, mmax + 1)
+                for degree in range(max(1, abs(order)), lmax + 1)
                 for pol in (1, 0)
             ),
             np.zeros((nmax, 3)) if positions is None else positions,
@@ -462,6 +607,9 @@ type CylindricalMode = tuple[int, float, int, int]
 
 class CylindricalWaveBasis(_WaveBasis[CylindricalMode]):
     """Modes (particle, kz, m, pol), with fixed real axial mode labels."""
+
+    _labels = ("pidx", "kz", "m", "pol")
+    _keys = "pzms"
 
     def __init__(
         self, modes: Iterable[Sequence[float]], positions: ArrayLike = ((0, 0, 0),)

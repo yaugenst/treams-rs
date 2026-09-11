@@ -447,3 +447,17 @@ position gradients. Coordinate scaling also scales cylindrical axial labels.
 Derivatives hold the selected outgoing radial branch fixed; symmetric perturbations
 from a lossless medium into gain can cross that branch and are not a valid local
 gradient oracle. Complete material tests use a strictly passive embedding medium.
+
+
+Basis objects now support integer access, slices, one-dimensional integer/mask
+selections, ellipsis, column tuples, membership/index/count and ordered equality.
+Selections keep expansion origins and plane alignment. Unit-vector selections
+preserve their already-normalized bits. Empty selections are representable metadata;
+numerical kernels still require their documented nonempty bases. Repeated labels
+are deduplicated in input order, matching the upstream ordered-set construction.
+Component arrays are cached read-only views of immutable labels.
+Spherical default-dimension helpers accept multiple particles and degree zero;
+`SphericalWaveBasis.ebcm` supplies azimuthal-block ordering and optional m cutoff.
+Hypothesis checks field-column reconstruction for all four families and dimension
+inversion; direct checks cover EBCM integral permutations and upstream's plane-
+alignment slicing defect. Full basis set algebra remains to be exposed.
