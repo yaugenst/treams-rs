@@ -5,6 +5,16 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 
 Known reference defects and accuracy limits are indexed in [upstream findings](upstream-findings.md).
 
+`chirality_density` returns up/down/coherent-cross forms for 2 Re(E* . i Z H)
+averaged over an interval along z, for xy plane bases. It fixes upstream's
+attenuation average, shifted observation plane and missing coherent cross phase.
+The cross form can be complex and contracts as Re(down* X up).
+`diff.chirality_density` and `advect.chirality_density` use compact (3, modes)
+coefficients before polarization weighting; their native contexts retain only
+full/normal wavenumbers and interval endpoints. They are checked against direct
+Cartesian E/H quadrature in lossy/chiral and evanescent cases. Other alignments
+need their actual polarization vectors in the forms and are explicitly unsupported.
+
 | Subsystem | Implemented and checked | Remaining |
 | --- | --- | --- |
 | Project | Cargo/PyO3/maturin/uv, lockfiles, just, Ruff, strict Pyrefly, Clippy, pre-commit; hosted Linux CI passing on Python 3.12 and 3.13 | Broader packaged-platform qualification |
@@ -22,7 +32,7 @@ Known reference defects and accuracy limits are indexed in [upstream findings](u
 | Planar layers | Native chiral Fresnel coefficients and propagation; one-LU S-matrix composition with reused-factor adjoint; interfaces, multilayer slabs, stacking/doubling, polarization conversion, power-flux transmittance/reflectance and internal fields between adjacent stacks | Full SMatrix annotation API |
 | Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D; periodic coupling and solves; spherical 2D and cylindrical 1D particle-to-plane channels and S matrices; complete native pullbacks and Advect reflectance gradients; direct-sum, reference, energy, Bloch/split/scale invariants | Broader combined particle/layer workflows |
 | Bloch bands | Native periodic transfer matrices, complex right eigensystems, Bloch wavenumbers/vectors; native S-matrix, period and eigenvector adjoints; complete Advect multilayer bands | Wider conditioning and branch-crossing qualification; individual degenerate modes have no derivative |
-| Global observables | Native TMatrix cd/db/chi with matrix and CD embedding-wavenumber pullbacks; thin SVD and singular-value VJP; complete Advect chiral-sphere gradients | SMatrix circular dichroism and chirality-density operators |
+| Global observables | Native TMatrix cd/db/chi with matrix and CD embedding-wavenumber pullbacks; thin SVD and singular-value VJP; complete Advect chiral-sphere gradients; xy plane chirality-density forms with native wavenumber and interval adjoints | SMatrix circular dichroism; oriented-plane chirality forms |
 | Axisymmetric EBCM | Native sampled-surface regular/outgoing Q integrals and radius, slope, complex-wavenumber and impedance pullbacks; callable-surface convenience; complete Advect deformed-particle solve | Wider shape/order conditioning and quadrature qualification |
 | Remaining public API | Not implemented | Field-operator conveniences, I/O and remaining observables |
 

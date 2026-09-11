@@ -149,6 +149,8 @@ fn smatrix_add<'py>(
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<ChiralityContext>()?;
+    module.add_function(wrap_pyfunction!(chirality_density, module)?)?;
     module.add_class::<IlluminationContext>()?;
     module.add_class::<SMatrixPeriodicContext>()?;
     module.add_class::<BandContext>()?;
@@ -168,6 +170,68 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(interface, module)?)?;
     module.add_function(wrap_pyfunction!(propagation, module)?)?;
     Ok(())
+}
+
+#[pyclass]
+#[derive(Debug)]
+struct ChiralityContext {
+    residual: Option<smatrix::ChiralityResidual>,
+}
+
+type ChiralityGradient<'py> = (
+    Bound<'py, PyArray1<Complex>>,
+    Bound<'py, PyArray1<Complex>>,
+    Bound<'py, PyArray1<f64>>,
+);
+
+#[pymethods]
+impl ChiralityContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'py, Complex>,
+    ) -> PyResult<ChiralityGradient<'py>> {
+        let g = crate::tmatrix::from_array(cotangent)?;
+        let residual = self
+            .residual
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        if g.shape() != residual.shape() {
+            return Err(PyValueError::new_err(
+                "chirality cotangent shape must match output",
+            ));
+        }
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let gradient = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        Ok((
+            gradient.ks.into_pyarray(py),
+            gradient.normal.into_pyarray(py),
+            gradient.interval.to_vec().into_pyarray(py),
+        ))
+    }
+}
+
+#[pyfunction]
+fn chirality_density<'py>(
+    py: Python<'py>,
+    ks: PyReadonlyArray1<'py, Complex>,
+    normal: PyReadonlyArray1<'py, Complex>,
+    interval: [f64; 2],
+) -> PyResult<(Bound<'py, PyArray2<Complex>>, ChiralityContext)> {
+    let ks = ks.as_array().to_vec();
+    let normal = normal.as_array().to_vec();
+    let (value, residual) = py
+        .detach(move || smatrix::chirality_density(ks, normal, interval))
+        .map_err(error)?;
+    Ok((
+        crate::tmatrix::matrix(py, &value),
+        ChiralityContext {
+            residual: Some(residual),
+        },
+    ))
 }
 
 #[pyclass]

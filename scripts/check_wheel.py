@@ -305,3 +305,22 @@ np.testing.assert_allclose(
     rtol=1e-12,
 )
 print("Clean wheel: EBCM zero contrast and native surface-scale adjoint passed")
+
+np.testing.assert_allclose(
+    tr.chirality_density(plane, 2.1, z=(0, 1))[0],
+    np.diag(2 * (2 * plane.pol - 1)),
+    atol=1e-12,
+)
+
+
+def density_scale(scale):
+    value = ad.chirality_density(
+        scale * np.array([1.3 + 0.1j]),
+        scale * np.array([1.1 + 0.2j]),
+        np.array([-0.2, 0.7]) / scale,
+    )
+    return anp.real(anp.sum(value))
+
+
+np.testing.assert_allclose(advect.grad(density_scale)(np.array(1.0)), 0, atol=1e-12)
+print("Clean wheel: interval chirality density and native scaling adjoint passed")

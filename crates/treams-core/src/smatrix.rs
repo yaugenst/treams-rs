@@ -14,6 +14,132 @@ use crate::{
 /// Blocks ordered as transmission up, reflection up, reflection down, transmission down.
 pub type Blocks = [DMatrix<Complex>; 4];
 
+/// Geometry for compact, transversely averaged chirality forms.
+#[derive(Debug)]
+pub struct ChiralityResidual {
+    ks: Vec<Complex>,
+    normal: Vec<Complex>,
+    interval: [f64; 2],
+}
+
+/// Complex full/normal wavenumber and real interval-endpoint cotangents.
+#[derive(Debug)]
+pub struct ChiralityGradient {
+    /// Full wavenumbers.
+    pub ks: Vec<Complex>,
+    /// Normal wavenumbers.
+    pub normal: Vec<Complex>,
+    /// Start and end of the averaging interval.
+    pub interval: [f64; 2],
+}
+
+fn mean_exp<const N: usize>(slope: Jet<N>, interval: [Jet<N>; 2]) -> Jet<N> {
+    let width = slope * (interval[1] - interval[0]);
+    if width.value.norm() < 0.1 {
+        let square = (width * 0.5).powi(2);
+        let mut term = Jet::constant(1.0);
+        let mut sum = term;
+        for j in 1..=6 {
+            term *= square / f64::from(2 * j * (2 * j + 1));
+            sum += term;
+        }
+        (slope * (interval[0] + interval[1]) * 0.5).exp() * sum
+    } else {
+        ((slope * interval[1]).exp() - (slope * interval[0]).exp()) / width
+    }
+}
+
+fn chirality_mode<const N: usize>(k: Complex, normal: Complex, z: [f64; 2]) -> [Jet<N>; 3] {
+    let scale = k.norm();
+    let kr = Jet::variable(k.re, 0) / scale;
+    let ki = Jet::variable(k.im, 1) / scale;
+    let nr = Jet::variable(normal.re, 2);
+    let ni = Jet::variable(normal.im, 3);
+    let z = [Jet::variable(z[0], 4), Jet::variable(z[1], 5)];
+    let denominator = kr.powi(2) + ki.powi(2);
+    let same = 2.0 * (kr.powi(2) + (ni / scale).powi(2)) / denominator;
+    let cross = 2.0 * (kr.powi(2) - (nr / scale).powi(2)) / denominator;
+    [
+        same * mean_exp(-2.0 * ni, z),
+        same * mean_exp(2.0 * ni, z),
+        2.0 * cross * mean_exp(2.0 * Complex::i() * nr, z),
+    ]
+}
+
+/// Up, down and coherent cross coefficients, shape (3, modes), before polarization.
+///
+/// The density is 2 Re(E* . i Z H). The cross form contracts as Re(d* X u).
+/// Real transverse wavevectors in an xy basis are assumed; full/normal k vary.
+pub fn chirality_density(
+    ks: Vec<Complex>,
+    normal: Vec<Complex>,
+    interval: [f64; 2],
+) -> Result<(DMatrix<Complex>, ChiralityResidual)> {
+    if ks.is_empty()
+        || normal.len() != ks.len()
+        || ks.iter().any(|&k| !finite(k) || k == Complex::default())
+        || normal.iter().any(|&k| !finite(k))
+        || interval.iter().any(|z| !z.is_finite())
+    {
+        return Err(Error::InvalidInput(
+            "chirality requires matching finite wavenumbers, nonzero full k and finite interval"
+                .into(),
+        ));
+    }
+    let mut value = DMatrix::zeros(3, ks.len());
+    for (j, (&k, &n)) in ks.iter().zip(&normal).enumerate() {
+        for (i, coefficient) in chirality_mode::<0>(k, n, interval).iter().enumerate() {
+            value[(i, j)] = coefficient.value;
+        }
+    }
+    if value.iter().any(|&v| !finite(v)) {
+        return Err(Error::InvalidInput("chirality density overflow".into()));
+    }
+    Ok((
+        value,
+        ChiralityResidual {
+            ks,
+            normal,
+            interval,
+        },
+    ))
+}
+
+impl ChiralityResidual {
+    /// Compact output dimensions.
+    #[must_use]
+    pub fn shape(&self) -> (usize, usize) {
+        (3, self.ks.len())
+    }
+
+    /// Recompute six local derivatives per mode; no dense Jacobian is retained.
+    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<ChiralityGradient> {
+        if cotangent.shape() != self.shape() || cotangent.iter().any(|&g| !finite(g)) {
+            return Err(Error::InvalidInput("invalid chirality cotangent".into()));
+        }
+        let mut gradient = ChiralityGradient {
+            ks: Vec::with_capacity(self.ks.len()),
+            normal: Vec::with_capacity(self.ks.len()),
+            interval: [0.0; 2],
+        };
+        for (j, (&k, &n)) in self.ks.iter().zip(&self.normal).enumerate() {
+            let coefficients = chirality_mode::<6>(k, n, self.interval);
+            let g: [f64; 6] = std::array::from_fn(|p| {
+                coefficients
+                    .iter()
+                    .enumerate()
+                    .map(|(i, c)| (cotangent[(i, j)].conj() * c.derivative[p]).re)
+                    .sum()
+            });
+            gradient.ks.push(Complex::new(g[0], g[1]));
+            gradient.normal.push(Complex::new(g[2], g[3]));
+            gradient.interval[0] += g[4];
+            gradient.interval[1] += g[5];
+        }
+        Ok(gradient)
+    }
+}
+
 /// Internal-field solve for specified incident amplitudes, retaining one LU.
 #[derive(Debug)]
 pub struct IlluminationResidual {

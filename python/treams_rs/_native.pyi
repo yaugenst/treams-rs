@@ -154,6 +154,17 @@ class SolveContext:
         self, cotangent: ComplexArray
     ) -> tuple[ComplexArray, ComplexArray]: ...
 
+class ChiralityContext:
+    def pullback(
+        self, cotangent: NDArray[np.complex128]
+    ) -> tuple[NDArray[np.complex128], NDArray[np.complex128], NDArray[np.float64]]: ...
+
+def chirality_density(
+    ks: NDArray[np.complex128],
+    normal: NDArray[np.complex128],
+    interval: tuple[float, float],
+) -> tuple[NDArray[np.complex128], ChiralityContext]: ...
+
 class EigenContext:
     def pullback(
         self, eigenvalues: ComplexArray, eigenvectors: ComplexArray

@@ -15,6 +15,23 @@ if TYPE_CHECKING:
     from .ebcm import Modes
 
 
+def chirality_density(
+    ks: ArrayLike, normal: ArrayLike, z: ArrayLike = (0.0, 0.0)
+) -> tuple[NDArray[np.complex128], _native.ChiralityContext]:
+    """Compact (3, modes) up/down/cross density coefficients and native pullback.
+
+    Multiply by helicity signs, or pair opposite parity modes, to form operators.
+    The cross form contracts as Re(down.conj() @ cross @ up).
+    Real transverse wavevectors in an xy basis are assumed; ks, normal and z vary.
+    """
+    start, stop = np.asarray(z, dtype=np.float64)
+    return _native.chirality_density(
+        np.ascontiguousarray(ks, dtype=np.complex128),
+        np.ascontiguousarray(normal, dtype=np.complex128),
+        (float(start), float(stop)),
+    )
+
+
 def ebcm_qmat(
     radii: ArrayLike,
     slopes: ArrayLike,

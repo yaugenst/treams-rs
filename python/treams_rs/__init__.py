@@ -20,7 +20,7 @@ from ._operators import (
     rotate,
 )
 from ._plane import PlaneWave, plane_wave, plane_wave_angle
-from ._smatrix import SMatrices, poynting_avg_z
+from ._smatrix import SMatrices, chirality_density, poynting_avg_z
 from ._tmatrix import TMatrix, TMatrixC
 
 __all__ = [
@@ -34,6 +34,7 @@ __all__ = [
     "TMatrix",
     "TMatrixC",
     "bfield",
+    "chirality_density",
     "coeffs",
     "dfield",
     "diff",

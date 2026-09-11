@@ -459,6 +459,42 @@ def _power_forms(
     return result
 
 
+def chirality_density(
+    basis: PlaneWaveBasisByComp,
+    k0: float,
+    material: MaterialLike = 1,
+    poltype: str = "helicity",
+    z: ArrayLike = (0.0, 0.0),
+) -> tuple[NDArray[np.complex128], NDArray[np.complex128], NDArray[np.complex128]]:
+    """Up/down/coherent-cross forms of 2 Re(E* . i Z H), averaged over z.
+
+    Requires an xy-aligned basis. Equal endpoints evaluate at that z plane.
+    For amplitudes u,d the density is
+    Re(u* U u + d* D d + d* X u). X can be complex for a shifted interval.
+    This corrects upstream's attenuation average and discarded cross phase.
+    """
+    if basis.alignment != "xy":
+        raise ValueError("chirality forms require xy-aligned plane bases")
+    medium = Material(material)
+    values, _ = diff.chirality_density(
+        medium.ks(k0)[basis.pol],
+        basis.kvecs(k0, medium)[basis.normal_axis],
+        z,
+    )
+    if poltype == "helicity":
+        values = values * (2 * basis.pol - 1)
+        up, down, cross = (np.diag(row) for row in values)
+        return up, down, cross
+    if poltype == "parity" and not medium.ischiral:
+        same = np.all(
+            basis.components[:, None, :] == basis.components[None, :, :], axis=-1
+        )
+        paired = same & (basis.pol[:, None] != basis.pol)
+        up, down, cross = (paired * row for row in values)
+        return up, down, cross
+    raise ValueError("invalid polarization type for the medium")
+
+
 def poynting_avg_z(
     basis: PlaneWaveBasisByComp,
     k0: float,

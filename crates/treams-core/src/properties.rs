@@ -20,6 +20,22 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    fn chirality_interval_additivity_and_scale_adjoint(k in 0.8_f64..2.0, stop in 0.1_f64..1.0) {
+        let ks=vec![Complex::new(k,0.1)];
+        let normal=vec![Complex::new(k*0.9,0.12)];
+        let z=[-0.2,stop];
+        let (value,residual)=crate::smatrix::chirality_density(ks.clone(),normal.clone(),z).unwrap();
+        let left=crate::smatrix::chirality_density(ks.clone(),normal.clone(),[-0.2,0.0]).unwrap().0;
+        let right=crate::smatrix::chirality_density(ks.clone(),normal.clone(),[0.0,stop]).unwrap().0;
+        prop_assert!((&value*Complex::new(stop+0.2,0.0)-left*Complex::new(0.2,0.0)-right*Complex::new(stop,0.0)).norm()<1e-12);
+        let g=DMatrix::from_element(3,1,Complex::new(0.3,0.2));
+        let gradient=residual.pullback(&g).unwrap();
+        let scale=gradient.ks.iter().zip(ks).chain(gradient.normal.iter().zip(normal)).map(|(g,k)|(g.conj()*k).re).sum::<f64>()
+            -gradient.interval.iter().zip(z).map(|(a,b)|a*b).sum::<f64>();
+        prop_assert!(scale.abs()<1e-12);
+    }
+
+    #[test]
     fn ebcm_surface_scaling_adjoint(deformation in -0.2_f64..0.2) {
         use crate::ebcm::{Surface, qmat};
         let modes = vec![Mode {l:1,m:0,pol:0}, Mode {l:1,m:0,pol:1}, Mode {l:2,m:1,pol:0}];

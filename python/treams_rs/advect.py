@@ -70,6 +70,18 @@ def _call(values: _Values, forward: _Forward) -> NDArray[np.complex128]:
     )
 
 
+def chirality_density(
+    ks: ArrayLike, normal: ArrayLike, z: ArrayLike = (0.0, 0.0)
+) -> NDArray[np.complex128]:
+    """Compact up/down/cross chirality coefficients, with native k/normal/z VJP."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.chirality_density(*values)
+        return value, context.pullback
+
+    return _call((ks, normal, z), forward)
+
+
 def sphere(
     lmax: int,
     k0: ArrayLike,
