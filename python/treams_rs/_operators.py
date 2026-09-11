@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from . import diff
-from ._core import Material, PlaneWaveBasisByComp, SphericalWaveBasis
+from ._core import (
+    Material,
+    PlaneWaveBasisByComp,
+    PlaneWaveBasisByUnitVector,
+    SphericalWaveBasis,
+)
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
@@ -15,7 +20,7 @@ if TYPE_CHECKING:
     from ._core import CylindricalWaveBasis, MaterialLike
 
     type Basis = SphericalWaveBasis | CylindricalWaveBasis
-    type FieldBasis = Basis | PlaneWaveBasisByComp
+    type FieldBasis = Basis | PlaneWaveBasisByComp | PlaneWaveBasisByUnitVector
 
 
 def rotate(
@@ -39,7 +44,7 @@ def expand(
     A basis pair is (destination, source). All explicit origin pairs are included.
     """
     destination, source = basis if isinstance(basis, tuple) else (basis, basis)
-    if isinstance(source, PlaneWaveBasisByComp):
+    if isinstance(source, (PlaneWaveBasisByComp, PlaneWaveBasisByUnitVector)):
         if not isinstance(destination, SphericalWaveBasis):
             raise ValueError(
                 "plane expansion currently requires a spherical destination"
@@ -54,7 +59,9 @@ def expand(
             if modetype is None
             else (modetype if isinstance(modetype, tuple) else ("regular", modetype))
         )
-        if types[0] != "regular" or types[1] not in ("up", "down"):
+        if types[0] != "regular" or (
+            isinstance(source, PlaneWaveBasisByComp) and types[1] not in ("up", "down")
+        ):
             raise ValueError(
                 "plane waves expand into regular multipoles from up/down modes"
             )
@@ -65,7 +72,7 @@ def expand(
             poltype=poltype,
             fixed_vectors=True,
         )[0]
-    if isinstance(destination, PlaneWaveBasisByComp):
+    if isinstance(destination, (PlaneWaveBasisByComp, PlaneWaveBasisByUnitVector)):
         raise ValueError(
             "multipole-to-plane expansion requires a periodic radiation operator"
         )
@@ -110,9 +117,11 @@ def _field(
         raise ValueError(
             "require Cartesian field points (..., 3) and positive finite k0"
         )
-    plane = isinstance(basis, PlaneWaveBasisByComp)
+    plane = isinstance(basis, (PlaneWaveBasisByComp, PlaneWaveBasisByUnitVector))
     modetype = ("up" if plane else "regular") if modetype is None else modetype
-    if modetype not in (("up", "down") if plane else ("regular", "singular")):
+    if not isinstance(basis, PlaneWaveBasisByUnitVector) and modetype not in (
+        ("up", "down") if plane else ("regular", "singular")
+    ):
         raise ValueError("invalid field mode type for this basis")
     if poltype not in ("helicity", "parity") or (
         poltype == "parity" and medium.ischiral
@@ -124,12 +133,15 @@ def _field(
         if poltype == "helicity":
             weights *= 2 * basis.pol - 1
         else:
-            modes = [(*mode[:-1], 1 - mode[-1]) for mode in basis.modes]
-            basis = (
-                type(basis)(modes)
-                if isinstance(basis, PlaneWaveBasisByComp)
-                else type(basis)(modes, basis.positions)
-            )
+            if isinstance(basis, PlaneWaveBasisByUnitVector):
+                basis = type(basis)([(*mode[:3], 1 - mode[3]) for mode in basis.modes])
+            else:
+                modes = [(*mode[:-1], 1 - mode[-1]) for mode in basis.modes]
+                basis = (
+                    type(basis)(modes, basis.alignment)
+                    if isinstance(basis, PlaneWaveBasisByComp)
+                    else type(basis)(modes, basis.positions)
+                )
     if kind == "D":
         weights *= (
             medium.nmp[basis.pol] / medium.impedance
@@ -142,7 +154,7 @@ def _field(
             if poltype == "helicity"
             else medium.mu
         )
-    if isinstance(basis, PlaneWaveBasisByComp):
+    if isinstance(basis, (PlaneWaveBasisByComp, PlaneWaveBasisByUnitVector)):
         value, _ = diff.plane_field(
             None,
             points.reshape(-1, 3),

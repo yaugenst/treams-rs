@@ -5,6 +5,7 @@ from ._core import (
     CylindricalWaveBasis,
     Material,
     PlaneWaveBasisByComp,
+    PlaneWaveBasisByUnitVector,
     SphericalWaveBasis,
 )
 from ._operators import bfield, dfield, efield, expand, hfield, rotate
@@ -17,6 +18,7 @@ __all__ = [
     "Material",
     "PlaneWave",
     "PlaneWaveBasisByComp",
+    "PlaneWaveBasisByUnitVector",
     "SMatrices",
     "SphericalWaveBasis",
     "TMatrix",

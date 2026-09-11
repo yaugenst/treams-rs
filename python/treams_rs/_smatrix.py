@@ -34,6 +34,8 @@ class SMatrices:
         material: MaterialLike | tuple[MaterialLike, MaterialLike] = 1,
         poltype: str = "helicity",
     ):
+        if basis.alignment != "xy":
+            raise ValueError("S matrices currently require xy-aligned plane bases")
         self.array: NDArray[np.complex128] = np.array(
             smats, dtype=np.complex128, copy=True
         )
@@ -123,7 +125,7 @@ class SMatrices:
         bloch = np.asarray(kpar, dtype=np.float64)
         if vectors.shape != (2, 2) or bloch.shape != (2,):
             raise ValueError("array radiation requires a 2D lattice and Bloch vector")
-        q = np.column_stack([basis.kx, basis.ky])
+        q = basis.components
         orders = (q - bloch) @ vectors.T / (2 * np.pi)
         if not np.allclose(orders, np.round(orders), atol=1e-10, rtol=0):
             raise ValueError(
@@ -231,9 +233,8 @@ class SMatrices:
         )
         if poltype == self.poltype:
             return self
-        same = (self.basis.kx[:, None] == self.basis.kx) & (
-            self.basis.ky[:, None] == self.basis.ky
-        )
+        q = self.basis.components
+        same = np.all(q[:, None, :] == q[None, :, :], axis=-1)
         if not np.all(same.sum(axis=0) == 2):
             raise ValueError(
                 "polarization conversion requires both polarizations per direction"
@@ -329,6 +330,8 @@ def poynting_avg_z(
     poltype: str = "helicity",
 ) -> tuple[NDArray[np.complex128], NDArray[np.complex128]]:
     """Same- and opposite-direction time-averaged axial power-flux forms."""
+    if basis.alignment != "xy":
+        raise ValueError("axial power forms currently require xy-aligned plane bases")
     medium = Material(material)
     kx, ky, kz = basis.kvecs(k0, medium)
     gamma = kz / (medium.ks(k0)[basis.pol] * medium.impedance)

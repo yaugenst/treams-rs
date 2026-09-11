@@ -16,8 +16,8 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 | Testing | Native proptest invariants and adjoint identities; Hypothesis physical invariants; treams/SciPy reference comparisons; complete Python workflows | Expand qualification with every ported subsystem |
 | Performance | Cached angular plans and radial tables, faer LU and matmul, block-diagonal local storage, Rayon coupling assembly | See measured scope and limitations in benchmarks.md |
 | Cylindrical scattering | Complex J/H and derivatives; multilayer chiral coefficients and complete T-matrix with all parameter VJPs; cylindrical bases, translations, clusters, electric fields and cross widths; regular spherical conversion | Periodic conversion to plane waves |
-| Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections; xy-component plane-wave bases, diffraction orders, native Cartesian fields and slab illumination | General basis alignments and cylindrical plane-expansion VJPs |
-| Planar layers | Native chiral Fresnel coefficients and propagation; one-LU S-matrix composition with reused-factor adjoint; interfaces, multilayer slabs, stacking/doubling, polarization conversion and power-flux transmittance/reflectance | Internal-field convenience; full SMatrix annotation API |
+| Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections; full unit-vector and xy/yz/zx component plane bases, diffraction orders, native Cartesian fields and slab illumination | Cylindrical plane-expansion VJPs |
+| Planar layers | Native chiral Fresnel coefficients and propagation; one-LU S-matrix composition with reused-factor adjoint; interfaces, multilayer slabs, stacking/doubling, polarization conversion and power-flux transmittance/reflectance | Oriented interfaces, internal-field convenience; full SMatrix annotation API |
 | Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D; periodic coupling and solves; spherical 2D particle-to-plane channels and S matrices; complete native pullbacks and Advect reflectance gradients; direct-sum, reference, energy, Bloch/split/scale invariants | Cylindrical radiation channels; broader combined particle/layer workflows |
 | Remaining public API | Not implemented | Field-operator conveniences, EBCM, band calculations, I/O and remaining observables |
 
@@ -76,8 +76,9 @@ four-block arrays. Material-to-wavevector arithmetic can be composed in Advect,
 as checked by complete slab gradients. The metadata-bearing SMatrices convenience
 class itself accepts ordinary arrays rather than tracked parameters.
 
-The new plane-wave basis fixes the transverse plane to xy. Slab power calculations
-accept one incident amplitude vector or PlaneWave object per direction. Arrays are
+Component plane bases support xy, yz and zx alignments for fields and illumination.
+Slab S matrices and their power forms currently require xy alignment and accept one
+incident amplitude vector or PlaneWave object per direction. Arrays are
 explicit rather than inheriting upstream's ndarray metadata. Fresnel's low-level
 API currently evaluates one (two-media, two-helicity) interface at a time.
 
@@ -153,3 +154,13 @@ flips that branch. For example, k=(0.2+i, 0.1+0.3i, 1.3-0.8i) reconstructs to
 about 1e-13 absolute error, whereas upstream coefficients err by about 1.25 on the
 same samples. Tests cover both polarizations, helicity/parity and native adjoint
 scale identities. Fixed-vector mode enables origin gradients at axial incidence.
+
+`PlaneWaveBasisByUnitVector` provides complete complex directions with stable
+algebraic normalization. `PlaneWaveBasisByComp` supports xy, yz and zx alignments;
+`kvecs` is the shared source of truth for the missing component, including evanescent
+waves and up/down propagation. `byunitvector`, `bycomp` and cyclic `permute` are
+reference- and round-trip checked. The E/H/D/B operators, spherical illumination
+and `PlaneWave.expand` accept these bases. Plane-wave directions remain unchanged
+under input scales from 1e-300 to 1e300. These Python metadata conveniences compose
+the previously checked native operations; tracked parameters use the explicit
+Advect boundaries. Arbitrarily oriented slab interfaces are still pending.

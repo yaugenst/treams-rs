@@ -12,7 +12,9 @@ from ._core import (
     Material,
     MaterialLike,
     PlaneWaveBasisByComp,
+    PlaneWaveBasisByUnitVector,
     SphericalWaveBasis,
+    _unit_vectors,
 )
 
 if TYPE_CHECKING:
@@ -34,10 +36,9 @@ class PlaneWave:
         vector = np.asarray(kvec, dtype=np.complex128)
         if vector.shape != (3,) or not np.isfinite(vector).all():
             raise ValueError("kvec must contain three finite components")
-        norm = np.sqrt(np.sum(vector**2))
-        if norm == 0 or not np.isfinite(k0) or k0 <= 0:
-            raise ValueError("require nonzero wavevector norm and positive k0")
-        self.direction = vector / norm
+        if not np.isfinite(k0) or k0 <= 0:
+            raise ValueError("require positive finite k0")
+        self.direction = _unit_vectors(vector[None, :])[0]
         self.direction.flags.writeable = False
         self.k0 = float(k0)
         self.material = Material(material)
@@ -112,18 +113,44 @@ class PlaneWave:
         return value.reshape(points.shape)
 
     def expand(
-        self, basis: SphericalWaveBasis | CylindricalWaveBasis | PlaneWaveBasisByComp
+        self,
+        basis: SphericalWaveBasis
+        | CylindricalWaveBasis
+        | PlaneWaveBasisByComp
+        | PlaneWaveBasisByUnitVector,
     ) -> NDArray[np.complex128]:
         """Regular multipole amplitudes at the supplied basis origins."""
         values = np.zeros(len(basis), dtype=np.complex128)
+        if isinstance(basis, PlaneWaveBasisByUnitVector):
+            for pol in (0, 1):
+                if self.amplitudes[pol] == 0:
+                    continue
+                matching = (basis.pol == pol) & np.all(
+                    np.isclose(
+                        basis.directions, self.direction, rtol=1e-13, atol=1e-14
+                    ),
+                    axis=1,
+                )
+                if np.count_nonzero(matching) != 1:
+                    raise ValueError(
+                        "plane-wave illumination requires exactly one matching basis mode"
+                    )
+                values[matching] = self.amplitudes[pol]
+            return values
         if isinstance(basis, PlaneWaveBasisByComp):
             for pol in (0, 1):
                 if self.amplitudes[pol] == 0:
                     continue
-                matching = (
-                    (basis.pol == pol)
-                    & np.isclose(basis.kx, self.kvecs[pol, 0], rtol=1e-13, atol=1e-14)
-                    & np.isclose(basis.ky, self.kvecs[pol, 1], rtol=1e-13, atol=1e-14)
+                matching = (basis.pol == pol) & np.all(
+                    np.isclose(
+                        basis.components,
+                        self.kvecs[
+                            pol, ["xyz".index(axis) for axis in basis.alignment]
+                        ],
+                        rtol=1e-13,
+                        atol=1e-14,
+                    ),
+                    axis=1,
                 )
                 if np.count_nonzero(matching) != 1:
                     raise ValueError(
