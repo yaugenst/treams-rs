@@ -81,7 +81,7 @@ def worker(
                 basis = SphericalWaveBasis.default(order, particles, positions)
                 ports = PlaneWaveBasisByComp.default(q)
 
-        if workload in ("field", "cylindrical-field"):
+        if workload in ("field", "cylindrical-field", "field-operator"):
             points = np.column_stack(
                 [
                     np.linspace(0.1, particles * 0.8 + 0.2, samples),
@@ -116,6 +116,8 @@ def worker(
         def rust():
             if workload == "rotation":
                 return diff.rotation([0.2, 0.7, -0.3], basis)
+            if workload == "field-operator":
+                return diff.field_operator(points, basis, [1.3, 1.3], singular=True)
             if workload in ("field", "cylindrical-field"):
                 return diff.field(amplitudes, points, basis, [1.3, 1.3], singular=True)
             if workload in ("periodic", "array"):
@@ -151,18 +153,18 @@ def worker(
         def upstream():
             if workload == "rotation":
                 return treams.rotate(0.2, 0.7, -0.3, basis=oracle_basis)
-            if workload in ("field", "cylindrical-field"):
-                return (
-                    np.asarray(
-                        treams.efield(
-                            points,
-                            basis=oracle_basis,
-                            k0=1.3,
-                            modetype="singular",
-                            poltype="helicity",
-                        )
+            if workload in ("field", "cylindrical-field", "field-operator"):
+                operator = np.asarray(
+                    treams.efield(
+                        points,
+                        basis=oracle_basis,
+                        k0=1.3,
+                        modetype="singular",
+                        poltype="helicity",
                     )
-                    @ amplitudes
+                )
+                return (
+                    operator if workload == "field-operator" else operator @ amplitudes
                 )
             spheres = [
                 treams.TMatrix.sphere(order, 1.3, r, [e, 1])
@@ -254,7 +256,7 @@ def worker(
                     else None,
                     "workload": workload,
                     "samples": samples
-                    if workload in ("field", "cylindrical-field")
+                    if workload in ("field", "cylindrical-field", "field-operator")
                     else None,
                     "particles": particles,
                     "lmax": order,
@@ -290,6 +292,7 @@ def main() -> None:
             "cluster",
             "field",
             "cylindrical-field",
+            "field-operator",
             "periodic",
             "array",
             "rotation",

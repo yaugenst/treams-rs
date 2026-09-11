@@ -124,3 +124,9 @@ Local multipole rotations use `tr.rotate(phi, theta, psi, basis=basis)` or
 `matrix.rotate(phi, theta, psi)`. `ad.rotation(angles, destination=basis)`
 differentiates all three spherical Euler angles. Cylindrical bases permit only
 rotation around their fixed axis (`theta=0`). Basis origins are not displaced.
+
+`tr.efield`, `tr.hfield`, `tr.dfield` and `tr.bfield` return full Cartesian
+field-operator arrays for spherical or cylindrical bases. Their shape is
+`(..., 3, modes)`, so `tr.efield(points, basis=basis, k0=k0) @ coefficients`
+gives electric samples. Use `ad.field_operator` for operator derivatives or the
+lower-memory `ad.field`/`ad.hfield` when only weighted field samples are needed.

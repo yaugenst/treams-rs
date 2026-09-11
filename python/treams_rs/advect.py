@@ -251,6 +251,30 @@ def rotation(
     return _call((angles,), forward)
 
 
+def field_operator(
+    points: ArrayLike,
+    origins: ArrayLike,
+    ks: ArrayLike,
+    *,
+    basis: SphericalWaveBasis | CylindricalWaveBasis,
+    poltype: str = "helicity",
+    singular: bool = False,
+) -> NDArray[np.complex128]:
+    """Full field matrix with native geometry/wavenumber derivatives."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.field_operator(
+            values[0],
+            type(basis)(basis.modes, values[1]),
+            values[2],
+            poltype=poltype,
+            singular=singular,
+        )
+        return value, context.pullback
+
+    return _call((points, origins, ks), forward)
+
+
 def field(
     coefficients: ArrayLike,
     points: ArrayLike,
@@ -276,6 +300,37 @@ def field(
         return value, context.pullback
 
     return _call((coefficients, points, origins, ks), forward)
+
+
+def hfield(
+    coefficients: ArrayLike,
+    points: ArrayLike,
+    origins: ArrayLike,
+    ks: ArrayLike,
+    impedance: ArrayLike,
+    *,
+    basis: SphericalWaveBasis | CylindricalWaveBasis,
+    poltype: str = "helicity",
+    singular: bool = False,
+) -> NDArray[np.complex128]:
+    """Magnetic samples, including impedance derivatives through the linear weights."""
+    weights = 2 * basis.pol - 1 if poltype == "helicity" else 1
+    if poltype == "parity":
+        basis = type(basis)(
+            [(*mode[:3], 1 - mode[3]) for mode in basis.modes], basis.positions
+        )
+    coefficients = (
+        -1j * ad.numpy.asarray(coefficients) * weights / ad.numpy.asarray(impedance)
+    )
+    return field(
+        coefficients,
+        points,
+        origins,
+        ks,
+        basis=basis,
+        poltype=poltype,
+        singular=singular,
+    )
 
 
 def expansion(

@@ -202,6 +202,30 @@ def rotation(
     raise ValueError("rotation bases must belong to the same wave family")
 
 
+def field_operator(
+    points: ArrayLike,
+    basis: SphericalWaveBasis | CylindricalWaveBasis,
+    ks: ArrayLike,
+    *,
+    poltype: str = "helicity",
+    singular: bool = False,
+) -> tuple[NDArray[np.complex128], _native.FieldOperatorContext]:
+    """Field matrix (samples, 3, modes); VJP returns (points, origins, ks)."""
+    values = np.asarray(ks, dtype=np.complex128)
+    if values.shape != (2,) or poltype not in ("helicity", "parity"):
+        raise ValueError("require two medium wavenumbers and a valid polarization type")
+    args = (
+        basis.positions.tolist(),
+        np.ascontiguousarray(points, dtype=np.float64),
+        (complex(values[0]), complex(values[1])),
+        poltype == "helicity",
+        singular,
+    )
+    if isinstance(basis, CylindricalWaveBasis):
+        return _native.cylindrical_field_operator(list(basis.modes), *args)
+    return _native.field_operator(list(basis.modes), *args)
+
+
 def field(
     coefficients: ArrayLike,
     points: ArrayLike,

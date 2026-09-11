@@ -7,6 +7,27 @@ type RealArray = NDArray[np.float64]
 class RotationContext:
     def pullback(self, cotangent: ComplexArray) -> list[float]: ...
 
+class FieldOperatorContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[RealArray, RealArray, ComplexArray]: ...
+
+def field_operator(
+    modes: list[tuple[int, int, int, int]],
+    origins: list[list[float]],
+    points: RealArray,
+    ks: tuple[complex, complex],
+    helicity: bool,
+    outgoing: bool,
+) -> tuple[ComplexArray, FieldOperatorContext]: ...
+def cylindrical_field_operator(
+    modes: list[tuple[int, float, int, int]],
+    origins: list[list[float]],
+    points: RealArray,
+    ks: tuple[complex, complex],
+    helicity: bool,
+    outgoing: bool,
+) -> tuple[ComplexArray, FieldOperatorContext]: ...
 def rotation(
     to: list[tuple[int, int, int, int]],
     source: list[tuple[int, int, int, int]],

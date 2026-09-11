@@ -52,3 +52,29 @@ np.testing.assert_allclose(
     gradient, (reflectance(0.2 + h) - reflectance(0.2 - h)) / (2 * h), rtol=1e-7
 )
 print("Clean wheel: periodic power conservation and complete Advect gradient passed")
+
+cb = tr.CylindricalWaveBasis.default([0.2], 1)
+points = np.array([[0.8, 0.3, 0.1]])
+coefficients = np.ones(len(cb), complex)
+electric = tr.efield(points, basis=cb, k0=1.3)
+np.testing.assert_allclose(
+    electric @ coefficients,
+    tr.diff.field(coefficients, points, cb, [1.3, 1.3])[0],
+    rtol=1e-12,
+    atol=1e-12,
+)
+
+
+def magnetic_energy(impedance):
+    value = ad.hfield(
+        coefficients, points, cb.positions, [1.3, 1.3], impedance, basis=cb
+    )
+    return anp.sum(anp.real(value * anp.conj(value)))
+
+
+np.testing.assert_allclose(
+    advect.grad(magnetic_energy)(np.array(0.8)),
+    -2 * magnetic_energy(0.8) / 0.8,
+    rtol=1e-12,
+)
+print("Clean wheel: cylindrical field operator and magnetic impedance gradient passed")

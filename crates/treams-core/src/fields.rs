@@ -309,14 +309,49 @@ fn spherical_wave_impl<const DERIVATIVES: bool>(
 /// Storage is linear in sample and mode count; no sample-by-mode Jacobian is retained.
 #[derive(Debug)]
 pub struct FieldResidual {
-    basis: FieldBasis,
+    geometry: FieldGeometry,
     coefficients: Vec<Complex>,
+    /// Electric field at each Cartesian sample.
+    pub value: Vec<[Complex; 3]>,
+}
+
+#[derive(Debug)]
+struct FieldGeometry {
+    basis: FieldBasis,
     points: Vec<[f64; 3]>,
     ks: [Complex; 2],
     helicity: bool,
     radial: Radial,
-    /// Electric field at each Cartesian sample.
-    pub value: Vec<[Complex; 3]>,
+}
+impl FieldGeometry {
+    fn new(
+        basis: FieldBasis,
+        points: Vec<[f64; 3]>,
+        ks: [Complex; 2],
+        helicity: bool,
+        radial: Radial,
+    ) -> Result<Self> {
+        basis.validate()?;
+        if points.iter().flatten().any(|v| !v.is_finite())
+            || ks.iter().any(|&v| !finite(v) || v == Complex::default())
+            || (!helicity && ks[0] != ks[1])
+        {
+            return Err(Error::InvalidInput("require finite field points and nonzero wavenumbers; parity requires an achiral medium".into()));
+        }
+        Ok(Self {
+            basis,
+            points,
+            ks,
+            helicity,
+            radial,
+        })
+    }
+    fn wave<const DERIVATIVES: bool>(&self, i: usize, point: [f64; 3]) -> Result<VectorWave> {
+        let (particle, pol) = self.basis.origin_pol(i);
+        let position = std::array::from_fn(|a| point[a] - self.basis.origins()[particle][a]);
+        self.basis
+            .wave::<DERIVATIVES>(i, self.ks[pol], position, self.helicity, self.radial)
+    }
 }
 
 /// Field cotangents under the real Hermitian pairing.
@@ -343,23 +378,19 @@ pub fn field(
 ) -> Result<FieldResidual> {
     use rayon::prelude::*;
     let basis = basis.into();
-    basis.validate()?;
-    if coefficients.len() != basis.len()
-        || coefficients.iter().any(|&v| !finite(v))
-        || points.iter().flatten().any(|v| !v.is_finite())
-        || ks.iter().any(|&v| !finite(v) || v.norm_sqr() == 0.0)
-        || (!helicity && ks[0] != ks[1])
-    {
-        return Err(Error::InvalidInput("require one finite coefficient per mode, finite points and nonzero wavenumbers; parity requires an achiral medium".into()));
+    if coefficients.len() != basis.len() || coefficients.iter().any(|&v| !finite(v)) {
+        return Err(Error::InvalidInput(
+            "require one finite field coefficient per mode".into(),
+        ));
     }
-    let value = points
+    let geometry = FieldGeometry::new(basis, points, ks, helicity, radial)?;
+    let value = geometry
+        .points
         .par_iter()
         .map(|point| {
             let mut value = [Complex::default(); 3];
             for (i, &amplitude) in coefficients.iter().enumerate() {
-                let (particle, pol) = basis.origin_pol(i);
-                let position = std::array::from_fn(|a| point[a] - basis.origins()[particle][a]);
-                let wave = basis.wave::<false>(i, ks[pol], position, helicity, radial)?;
+                let wave = geometry.wave::<false>(i, *point)?;
                 for (v, f) in value.iter_mut().zip(wave.value) {
                     *v += amplitude * f;
                 }
@@ -368,12 +399,8 @@ pub fn field(
         })
         .collect::<Result<Vec<_>>>()?;
     Ok(FieldResidual {
-        basis,
+        geometry,
         coefficients,
-        points,
-        ks,
-        helicity,
-        radial,
         value,
     })
 }
@@ -381,13 +408,26 @@ pub fn field(
 impl FieldResidual {
     /// Contract analytic field derivatives without storing a dense Jacobian.
     pub fn pullback(self, cotangent: &[[Complex; 3]]) -> Result<FieldGradient> {
-        use rayon::prelude::*;
-        if cotangent.len() != self.points.len() || cotangent.iter().flatten().any(|&v| !finite(v)) {
+        if cotangent.len() != self.geometry.points.len()
+            || cotangent.iter().flatten().any(|&v| !finite(v))
+        {
             return Err(Error::InvalidInput("invalid field cotangent".into()));
         }
+        self.geometry
+            .pullback(Some(&self.coefficients), |sample, _| cotangent[sample])
+    }
+}
+
+impl FieldGeometry {
+    fn pullback(
+        &self,
+        coefficients: Option<&[Complex]>,
+        cotangent: impl Fn(usize, usize) -> [Complex; 3] + Sync,
+    ) -> Result<FieldGradient> {
+        use rayon::prelude::*;
         let mut points = vec![[0.0; 3]; self.points.len()];
         let zero = || FieldGradient {
-            coefficients: vec![Complex::default(); self.coefficients.len()],
+            coefficients: vec![Complex::default(); coefficients.map_or(0, <[Complex]>::len)],
             points: Vec::new(),
             origins: vec![[0.0; 3]; self.basis.origins().len()],
             ks: [Complex::default(); 2],
@@ -395,22 +435,17 @@ impl FieldResidual {
         let mut result = points
             .par_iter_mut()
             .zip(self.points.par_iter())
-            .zip(cotangent.par_iter())
-            .try_fold(zero, |mut sum, ((point_gradient, point), g)| {
+            .enumerate()
+            .try_fold(zero, |mut sum, (sample, (point_gradient, point))| {
                 for i in 0..self.basis.len() {
                     let (particle, pol) = self.basis.origin_pol(i);
-                    let position =
-                        std::array::from_fn(|a| point[a] - self.basis.origins()[particle][a]);
-                    let wave = self.basis.wave::<true>(
-                        i,
-                        self.ks[pol],
-                        position,
-                        self.helicity,
-                        self.radial,
-                    )?;
-                    let amplitude = self.coefficients[i];
+                    let wave = self.wave::<true>(i, *point)?;
+                    let amplitude = coefficients.map_or(Complex::new(1.0, 0.0), |c| c[i]);
+                    let g = cotangent(sample, i);
                     for (component, &cot) in g.iter().enumerate() {
-                        sum.coefficients[i] += wave.value[component].conj() * cot;
+                        if coefficients.is_some() {
+                            sum.coefficients[i] += wave.value[component].conj() * cot;
+                        }
                         sum.ks[pol] += (amplitude * wave.k[component]).conj() * cot;
                         for (axis, point_derivative) in point_gradient.iter_mut().enumerate() {
                             let derivative =
@@ -441,5 +476,58 @@ impl FieldResidual {
             })?;
         result.points = points;
         Ok(result)
+    }
+}
+
+/// Linear-storage residual of a full field evaluation matrix.
+#[derive(Debug)]
+pub struct OperatorResidual {
+    geometry: FieldGeometry,
+}
+
+/// Matrix mapping multipole amplitudes to Cartesian samples. Rows pack (sample, component).
+/// The returned context retains geometry only, without the output or any derivative matrix.
+pub fn operator(
+    basis: impl Into<FieldBasis>,
+    points: Vec<[f64; 3]>,
+    ks: [Complex; 2],
+    helicity: bool,
+    radial: Radial,
+) -> Result<(nalgebra::DMatrix<Complex>, OperatorResidual)> {
+    use rayon::prelude::*;
+    let geometry = FieldGeometry::new(basis.into(), points, ks, helicity, radial)?;
+    let n = geometry.points.len();
+    let mut value = nalgebra::DMatrix::zeros(3 * n, geometry.basis.len());
+    if n > 0 {
+        value
+            .as_mut_slice()
+            .par_chunks_mut(3 * n)
+            .enumerate()
+            .try_for_each(|(i, column)| -> Result<()> {
+                for (sample, &point) in geometry.points.iter().enumerate() {
+                    let wave = geometry.wave::<false>(i, point)?;
+                    column[3 * sample..3 * sample + 3].copy_from_slice(&wave.value);
+                }
+                Ok(())
+            })?;
+    }
+    Ok((value, OperatorResidual { geometry }))
+}
+impl OperatorResidual {
+    /// Flattened operator shape (three times samples, modes).
+    #[must_use]
+    pub fn shape(&self) -> (usize, usize) {
+        (3 * self.geometry.points.len(), self.geometry.basis.len())
+    }
+    /// Sample, origin and wavenumber gradients; the coefficient gradient is empty.
+    pub fn pullback(self, cotangent: &nalgebra::DMatrix<Complex>) -> Result<FieldGradient> {
+        if cotangent.shape() != self.shape() || cotangent.iter().any(|&g| !finite(g)) {
+            return Err(Error::InvalidInput(
+                "invalid field operator cotangent".into(),
+            ));
+        }
+        self.geometry.pullback(None, |sample, mode| {
+            std::array::from_fn(|i| cotangent[(3 * sample + i, mode)])
+        })
     }
 }

@@ -20,6 +20,26 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    #[allow(clippy::indexing_slicing)] // Fixed Cartesian samples and six dipole modes.
+    fn field_operator_amplitude_contraction(values in prop::collection::vec(-0.5_f64..0.5,12)) {
+        let basis=crate::basis::Basis{modes:(-1..=1).flat_map(|m|(0..2).map(move|pol|(0,Mode{l:1,m,pol}))).collect(),positions:vec![[0.1,0.2,0.3]]};
+        let coefficients:Vec<_>=values.as_chunks::<2>().0.iter().map(|&[re,im]|Complex::new(re,im)).collect();
+        let points=vec![[0.7,0.5,0.3],[0.8,-0.3,0.2]];
+        let ks=[Complex::new(1.2,0.1);2];
+        let (matrix,operator)=crate::fields::operator(basis.clone(),points.clone(),ks,true,Radial::Outgoing).unwrap();
+        let field=crate::fields::field(basis,coefficients.clone(),points,ks,true,Radial::Outgoing).unwrap();
+        let contracted=&matrix*nalgebra::DVector::from_vec(coefficients.clone());
+        for (a,b) in contracted.iter().zip(field.value.iter().flatten()) {prop_assert!((*a-b).norm()<1e-12);}
+        let g=vec![[Complex::new(0.2,0.1);3];2];
+        let full_g=DMatrix::from_fn(6,6,|i,j|g[i/3][i%3]*coefficients[j].conj());
+        let a=operator.pullback(&full_g).unwrap();
+        let b=field.pullback(&g).unwrap();
+        prop_assert!(a.coefficients.is_empty());
+        for (a,b) in a.points.iter().flatten().chain(a.origins.iter().flatten()).zip(b.points.iter().flatten().chain(b.origins.iter().flatten())) {prop_assert!((a-b).abs()<1e-12);}
+        for (a,b) in a.ks.iter().zip(b.ks) {prop_assert!((*a-b).norm()<1e-12);}
+    }
+
+    #[test]
     #[allow(clippy::indexing_slicing)] // Fixed triples of Euler angles.
     fn rotation_group_and_adjoint(l in 1_i32..8, theta in -6.0_f64..6.0, phi in -3.0_f64..3.0, psi in -3.0_f64..3.0) {
         let basis=crate::basis::Basis{modes:(-l..=l).map(|m|(0,Mode{l,m,pol:1})).collect(),positions:vec![[0.0;3]]};

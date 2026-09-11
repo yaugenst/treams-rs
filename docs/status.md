@@ -9,7 +9,7 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 | Spherical functions | Complex regular/outgoing radial values and first two derivatives; Legendre functions; Wigner 3j; Cartesian harmonics | Wider extreme-argument/order qualification; full special namespace |
 | Sphere coefficients | Multilayer, lossy, magnetic, chiral Mie; all continuous input VJPs | Extreme-layer-conditioning analysis |
 | Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks | Conversions between wave families; plane-wave basis rotations |
-| Multipole fields | Spherical and cylindrical Cartesian regular/outgoing vector waves; analytic axis limits, position and complex-wavenumber derivatives; batched fields with native VJPs and linear residual storage; Maxwell and reference checks | Magnetic fields, cylindrical axial-label derivatives and upstream field-operator convenience API |
+| Multipole fields | Spherical/cylindrical Cartesian waves and analytic axis limits; weighted fields and full field operators with native position/wavenumber VJPs and linear residuals; electric, magnetic, displacement and flux operators; Advect magnetic samples including impedance gradients | Plane-wave and Riemann-Silberstein fields, cylindrical axial-label derivatives and upstream operator-attribute machinery |
 | Finite scattering | Dense solve and factorization-reusing adjoint; optimized sphere clusters; heterogeneous local matrices via public API | Native end-to-end heterogeneous-cluster parameter context |
 | Python interface | Material, spherical/cylindrical bases, TMatrix.sphere, TMatrixC.cylinder, clusters, interaction.solve, changepoltype, expand, xs/xw and averaged cross sections | Full upstream ndarray annotation machinery is not reproduced; explicit .array is used |
 | Differentiation | Opaque one-use native contexts in coeffs and diff; arbitrary complex output cotangents; Advect adapters for spherical/cylindrical T-matrices, clusters, interactions, expansions, fields and sphere/cylinder coefficients | Higher derivatives and other framework adapters |
@@ -106,3 +106,13 @@ cancellation. The reverse pass uses angular generators without retaining three
 full output Jacobians. Tests check reference values, arbitrary rectangular basis
 subsets, inverse/composition identities, angle pullbacks, unitarity through degree
 60 and first-order terms at angles down to 1e-100.
+
+The public `efield`, `hfield`, `dfield` and `bfield` functions return explicit
+Cartesian operator arrays with shape (..., 3, modes) for either multipole family.
+Their conventions match treams in lossy, magnetic and chiral media. The native
+`diff.field_operator` pullback covers points, origins and complex wavenumbers,
+retaining geometry only; `advect.field_operator` composes the same boundary.
+`advect.hfield` uses the weighted native field path, composing the elementary
+polarization/impedance scaling in Advect. The metadata-bearing convenience
+functions themselves accept ordinary arrays. Prefer weighted `diff.field` or
+`advect.field`/`hfield` when the full sample-by-mode operator is not needed.

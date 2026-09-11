@@ -64,6 +64,16 @@ The shared spherical/cylindrical field path was rechecked on the same spherical
 workload: 40.64 ms forward, 71.11 ms reverse, 41.28 MiB peak RSS. Forward remained
 20.24x faster than treams (`shared-fields-n4-l3-p2048-t4.json`).
 
+With the full operator API, the same 120-mode/2,048-sample/four-thread workload
+returns the entire (2048, 3, 120) array in 45.47 ms versus 856.08 ms for treams
+(18.83x). Its reverse takes 75.11 ms. Forward peak RSS is 64.20 versus 97.68 MiB;
+the returned operator and transient array transfer account for more memory than
+weighted evaluation. The reverse context itself retains only geometry. The
+weighted path after this shared implementation remains 41.86 ms forward,
+70.65 ms reverse, and 41.63 MiB peak RSS (19.60x faster than treams).
+Raw results: `field-operator-n4-l3-p2048-t4.json` and
+`field-geometry-n4-l3-p2048-t4.json`; use `--workload field-operator` to reproduce.
+
 The cylindrical workload uses four origins, orders -3 through 3, axial labels
 0.2 and -0.3 and both helicities (112 modes), with the same 2,048 points and four
 threads. It measures 47.57 ms forward versus treams' 502.92 ms (10.57x), 64.24 ms
