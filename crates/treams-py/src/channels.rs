@@ -12,12 +12,39 @@ use treams_core::{
     channels::{self, ChannelsResidual},
 };
 
-use crate::{basis::make_basis, error};
+use crate::{
+    basis::{make_basis, make_cyl_basis},
+    error,
+};
+
+#[derive(Debug)]
+enum Residual {
+    Spherical(ChannelsResidual),
+    Cylindrical(channels::CylChannelsResidual),
+}
+impl Residual {
+    fn value(&self) -> &DMatrix<Complex> {
+        match self {
+            Self::Spherical(r) => &r.value,
+            Self::Cylindrical(r) => &r.value,
+        }
+    }
+    fn pullback(
+        self,
+        g: &DMatrix<Complex>,
+        fixed_q: bool,
+    ) -> treams_core::Result<channels::ChannelGradient> {
+        match self {
+            Self::Spherical(r) => r.pullback(g, fixed_q),
+            Self::Cylindrical(r) => r.pullback(g, fixed_q),
+        }
+    }
+}
 
 #[pyclass]
 #[derive(Debug)]
 struct ChannelsContext {
-    residual: Option<ChannelsResidual>,
+    residual: Option<Residual>,
     fixed_q: bool,
 }
 
@@ -39,8 +66,8 @@ impl ChannelsContext {
             .residual
             .as_ref()
             .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let d = residual.value.nrows() / 4;
-        let c = residual.value.ncols();
+        let d = residual.value().nrows() / 4;
+        let c = residual.value().ncols();
         if a.shape() != [2, 2, d, c] || a.iter().any(|z| !z.re.is_finite() || !z.im.is_finite()) {
             return Err(PyValueError::new_err(
                 "invalid channel cotangent shape or values",
@@ -81,23 +108,51 @@ fn spherical_channels(
     let residual = py
         .detach(move || channels::spherical(basis, ks, q, polarizations, area, helicity))
         .map_err(error)?;
-    let d = residual.value.nrows() / 4;
-    let c = residual.value.ncols();
+    Ok(finish(py, Residual::Spherical(residual), fixed_q))
+}
+
+fn finish(
+    py: Python<'_>,
+    residual: Residual,
+    fixed_q: bool,
+) -> (Bound<'_, PyArray4<Complex>>, ChannelsContext) {
+    let d = residual.value().nrows() / 4;
+    let c = residual.value().ncols();
     let value = Array4::from_shape_fn((2, 2, d, c), |(kind, side, i, j)| {
-        residual.value[((kind * 2 + side) * d + i, j)]
+        residual.value()[((kind * 2 + side) * d + i, j)]
     })
     .into_pyarray(py);
-    Ok((
+    (
         value,
         ChannelsContext {
             residual: Some(residual),
             fixed_q,
         },
-    ))
+    )
+}
+
+#[pyfunction]
+fn cylindrical_channels(
+    py: Python<'_>,
+    modes: Vec<(usize, f64, i32, u8)>,
+    positions: Vec<[f64; 3]>,
+    ks: [Complex; 2],
+    q: Vec<[f64; 2]>,
+    polarizations: Vec<u8>,
+    period: f64,
+    helicity: bool,
+    fixed_q: bool,
+) -> PyResult<(Bound<'_, PyArray4<Complex>>, ChannelsContext)> {
+    let basis = make_cyl_basis(modes, positions);
+    let residual = py
+        .detach(move || channels::cylindrical(basis, ks, q, polarizations, period, helicity))
+        .map_err(error)?;
+    Ok(finish(py, Residual::Cylindrical(residual), fixed_q))
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<ChannelsContext>()?;
+    module.add_function(wrap_pyfunction!(cylindrical_channels, module)?)?;
     module.add_function(wrap_pyfunction!(spherical_channels, module)?)?;
     Ok(())
 }

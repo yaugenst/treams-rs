@@ -7,7 +7,14 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from . import coeffs, diff
-from ._core import Material, MaterialLike, PlaneWaveBasisByComp, SphericalWaveBasis
+from ._core import (
+    CylindricalWaveBasis,
+    Material,
+    MaterialLike,
+    PlaneWaveBasisByComp,
+    SphericalWaveBasis,
+)
+from ._operators import efield, hfield
 from ._plane import PlaneWave
 
 if TYPE_CHECKING:
@@ -15,13 +22,14 @@ if TYPE_CHECKING:
 
     from numpy.typing import ArrayLike, NDArray
 
-    from ._tmatrix import TMatrix
+    from ._tmatrix import TMatrix, TMatrixC
 
 
 class SMatrices:
     """Four scattering blocks indexed by outgoing and incoming up/down direction.
 
-    ``material`` is ordered (above, below); interface/slab inputs run bottom to top.
+    ``material`` is ordered (positive side, negative side) along the basis normal.
+    Interface/slab inputs run from the negative side to the positive side.
     Arrays have shape (2, 2, n, n). Use ``.array`` for arbitrary array operations.
     """
 
@@ -34,8 +42,6 @@ class SMatrices:
         material: MaterialLike | tuple[MaterialLike, MaterialLike] = 1,
         poltype: str = "helicity",
     ):
-        if basis.alignment != "xy":
-            raise ValueError("S matrices currently require xy-aligned plane bases")
         self.array: NDArray[np.complex128] = np.array(
             smats, dtype=np.complex128, copy=True
         )
@@ -85,6 +91,10 @@ class SMatrices:
         materials: Sequence[MaterialLike],
         poltype: str = "helicity",
     ) -> SMatrices:
+        if basis.alignment != "xy":
+            raise ValueError(
+                "planar interfaces currently require xy-aligned plane bases"
+            )
         if len(materials) != 2:
             raise ValueError("an interface requires two materials, below then above")
         below, above = (Material(m) for m in materials)
@@ -107,40 +117,68 @@ class SMatrices:
     @classmethod
     def from_array(
         cls,
-        tm: TMatrix,
+        tm: TMatrix | TMatrixC,
         basis: PlaneWaveBasisByComp,
         *,
         lattice: ArrayLike,
         kpar: ArrayLike,
         eta: complex = 0,
     ) -> SMatrices:
-        """Solve one uncoupled spherical unit cell and radiate into plane-wave ports.
+        """Solve an uncoupled unit cell and radiate into matching plane-wave ports.
 
-        Lattice and Bloch vector are explicit. The input T matrix describes one
-        uncoupled unit cell; this constructor solves its periodic interaction.
+        Spherical arrays use a 2D xy cell. Cylindrical arrays use a 1D period along
+        x and zx-aligned ports, radiating toward positive/negative y.
         """
-        if not isinstance(tm.basis, SphericalWaveBasis):
-            raise ValueError("array radiation currently requires spherical multipoles")
-        vectors = np.asarray(lattice, dtype=np.float64)
-        bloch = np.asarray(kpar, dtype=np.float64)
-        if vectors.shape != (2, 2) or bloch.shape != (2,):
-            raise ValueError("array radiation requires a 2D lattice and Bloch vector")
+        vectors = np.atleast_2d(np.asarray(lattice, dtype=np.float64))
+        bloch = np.atleast_1d(np.asarray(kpar, dtype=np.float64))
         q = basis.components
-        orders = (q - bloch) @ vectors.T / (2 * np.pi)
+        if isinstance(tm.basis, SphericalWaveBasis):
+            if (
+                vectors.shape != (2, 2)
+                or bloch.shape != (2,)
+                or basis.alignment != "xy"
+            ):
+                raise ValueError(
+                    "spherical arrays require a 2D xy lattice, Bloch vector and plane basis"
+                )
+            orders = (q - bloch) @ vectors.T / (2 * np.pi)
+        elif isinstance(tm.basis, CylindricalWaveBasis):
+            if (
+                vectors.shape != (1, 1)
+                or bloch.shape != (1,)
+                or basis.alignment != "zx"
+            ):
+                raise ValueError(
+                    "cylindrical arrays require a 1D x period, Bloch vector and zx plane basis"
+                )
+            orders = (q[:, 1] - bloch[0]) * vectors[0, 0] / (2 * np.pi)
+        else:
+            raise ValueError("array radiation requires a multipole basis")
         if not np.allclose(orders, np.round(orders), atol=1e-10, rtol=0):
             raise ValueError(
                 "plane-wave channels must match the lattice diffraction orders"
             )
         response = tm.latticeinteraction.solve(vectors, bloch, eta=eta)
-        channels, _ = diff.spherical_channels(
-            tm.basis,
-            tm.ks,
-            q,
-            basis.pol,
-            float(abs(np.linalg.det(vectors))),
-            poltype=tm.poltype,
-            fixed_q=True,
-        )
+        if isinstance(tm.basis, SphericalWaveBasis):
+            channels, _ = diff.spherical_channels(
+                tm.basis,
+                tm.ks,
+                q,
+                basis.pol,
+                float(abs(np.linalg.det(vectors))),
+                poltype=tm.poltype,
+                fixed_q=True,
+            )
+        else:
+            channels, _ = diff.cylindrical_channels(
+                tm.basis,
+                tm.ks,
+                q,
+                basis.pol,
+                float(abs(vectors[0, 0])),
+                poltype=tm.poltype,
+                fixed_q=True,
+            )
         value, _ = diff.smatrix_from_array(response, channels)
         return cls(
             value, basis=basis, k0=tm.k0, material=tm.material, poltype=tm.poltype
@@ -155,11 +193,15 @@ class SMatrices:
         material: MaterialLike = 1,
         poltype: str = "helicity",
     ) -> SMatrices:
+        axis = basis.normal_axis
         distance = np.asarray(r, dtype=np.float64)
         if distance.ndim == 0:
-            distance = np.array([0, 0, float(distance)])
-        vectors = np.stack(basis.kvecs(k0, material), axis=-1)
-        value, _ = diff.propagation(vectors, distance)
+            distance = np.eye(3)[axis] * float(distance)
+        if distance.shape != (3,):
+            raise ValueError("propagation requires a scalar or Cartesian displacement")
+        axes = [(axis + 1) % 3, (axis + 2) % 3, axis]
+        vectors = np.column_stack(basis.kvecs(k0, material))
+        value, _ = diff.propagation(vectors[:, axes], distance[axes])
         return cls(
             value, basis=basis, k0=k0, material=Material(material), poltype=poltype
         )
@@ -169,6 +211,7 @@ class SMatrices:
             self.k0 != upper.k0
             or self.poltype != upper.poltype
             or self.basis.modes != upper.basis.modes
+            or self.basis.alignment != upper.basis.alignment
             or self.material[0] != upper.material[1]
         ):
             raise ValueError(
@@ -258,7 +301,7 @@ class SMatrices:
                 illu.material != medium
                 or illu.k0 != self.k0
                 or illu.poltype != self.poltype
-                or _direction(illu, None) != modetype
+                or _direction(illu, None, self.basis.normal_axis) != modetype
             ):
                 raise ValueError(
                     "illumination must match incident medium, k0, polarization and direction"
@@ -273,7 +316,7 @@ class SMatrices:
         *,
         modetype: str | None = None,
     ) -> tuple[NDArray[np.complex128], NDArray[np.complex128]]:
-        modetype = _direction(illu, modetype)
+        modetype = _direction(illu, modetype, self.basis.normal_axis)
         first = self._incident(illu, modetype)
         second = (
             np.zeros_like(first)
@@ -295,32 +338,94 @@ class SMatrices:
     def tr(
         self, illu: ArrayLike | PlaneWave, *, modetype: str | None = None
     ) -> tuple[float, float]:
-        modetype = _direction(illu, modetype)
-        trans, refl = self.illuminate(illu, modetype=modetype)
-        materials = self.material
-        if modetype == "down":
-            trans, refl, materials = refl, trans, materials[::-1]
-        a, _ = poynting_avg_z(self.basis, self.k0, materials[0], self.poltype)
-        b, cross = poynting_avg_z(self.basis, self.k0, materials[1], self.poltype)
+        modetype = _direction(illu, modetype, self.basis.normal_axis)
+        outgoing = self.illuminate(illu, modetype=modetype)
+        transmission = 0 if modetype == "up" else 1
+        reflection = 1 - transmission
+        sign = 1 if modetype == "up" else -1
+        trans, refl = outgoing[transmission], outgoing[reflection]
+        source = _power_forms(
+            self.basis, self.k0, self.material[reflection], self.poltype
+        )
+        target = (
+            source
+            if self.material[0] == self.material[1]
+            else _power_forms(
+                self.basis, self.k0, self.material[transmission], self.poltype
+            )
+        )
         incident = self._incident(illu, modetype)
-        flux = (
-            np.vdot(incident, b @ incident).real
-            + (np.vdot(refl, cross @ incident) - np.vdot(incident, cross @ refl)).real
+        flux = sign * (
+            np.vdot(incident, source[transmission, transmission] @ incident).real
+            + 2 * np.vdot(incident, source[transmission, reflection] @ refl).real
         )
         if flux <= 0:
             raise ValueError("transmittance requires positive incident power flux")
-        return float(np.vdot(trans, a @ trans).real / flux), float(
-            np.vdot(refl, b @ refl).real / flux
+        return float(
+            sign
+            * np.vdot(trans, target[transmission, transmission] @ trans).real
+            / flux
+        ), float(
+            -sign * np.vdot(refl, source[reflection, reflection] @ refl).real / flux
         )
 
 
-def _direction(illu: ArrayLike | PlaneWave, modetype: str | None) -> str:
+def _direction(illu: ArrayLike | PlaneWave, modetype: str | None, axis: int = 2) -> str:
     if modetype is None:
-        kz = illu.kvecs[0, 2] if isinstance(illu, PlaneWave) else 1 + 0j
+        kz = illu.kvecs[0, axis] if isinstance(illu, PlaneWave) else 1 + 0j
         return "down" if kz.imag < 0 or (kz.imag == 0 and kz.real < 0) else "up"
     if modetype not in ("up", "down"):
         raise ValueError("modetype must be up or down")
     return modetype
+
+
+def _power_forms(
+    basis: PlaneWaveBasisByComp, k0: float, material: MaterialLike, poltype: str
+) -> NDArray[np.complex128]:
+    """Hermitian up/down power blocks from Cartesian E cross H*, averaged in the cell."""
+    electric = np.stack(
+        [
+            efield(
+                [0, 0, 0],
+                basis=basis,
+                k0=k0,
+                material=material,
+                modetype=side,
+                poltype=poltype,
+            )
+            for side in ("up", "down")
+        ]
+    )
+    magnetic = np.stack(
+        [
+            hfield(
+                [0, 0, 0],
+                basis=basis,
+                k0=k0,
+                material=material,
+                modetype=side,
+                poltype=poltype,
+            )
+            for side in ("up", "down")
+        ]
+    )
+    a, b = (basis.normal_axis + 1) % 3, (basis.normal_axis + 2) % 3
+    q = basis.components
+    same = np.all(q[:, None, :] == q[None, :, :], axis=-1)
+    result = np.empty((2, 2, len(basis), len(basis)), complex)
+    for i in range(2):
+        for j in range(2):
+            result[i, j] = (
+                0.25
+                * same
+                * (
+                    magnetic[i, b].conj()[:, None] * electric[j, a]
+                    - magnetic[i, a].conj()[:, None] * electric[j, b]
+                    + electric[i, a].conj()[:, None] * magnetic[j, b]
+                    - electric[i, b].conj()[:, None] * magnetic[j, a]
+                )
+            )
+    return result
 
 
 def poynting_avg_z(

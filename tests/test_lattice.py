@@ -324,7 +324,8 @@ def test_all_continuous_lattice_derivatives(spherical, dim, l, m, origin):
 @pytest.mark.parametrize(
     "spherical,dim", [(True, 1), (True, 2), (True, 3), (False, 1), (False, 2)]
 )
-def test_periodic_matrix_pullback(spherical, dim):
+@pytest.mark.parametrize("equal_wavenumbers", [False, True])
+def test_periodic_matrix_pullback(spherical, dim, equal_wavenumbers):
     from treams_rs import CylindricalWaveBasis, SphericalWaveBasis, lattice
 
     basis = (
@@ -334,7 +335,7 @@ def test_periodic_matrix_pullback(spherical, dim):
     )
     destination = type(basis)(basis.modes, [[0.21, 0.12, 0.15]])
     source = type(basis)(basis.modes, [[0, 0, 0]])
-    ks = np.array([2.0 + 0.1j, 2.1 + 0.1j])
+    ks = np.array([2.0 + 0.1j, (2.0 if equal_wavenumbers else 2.1) + 0.1j])
     q = np.linspace(0.1, 0.2, dim)
     a = np.diag([1.6] * dim)
     value, context = lattice.expansion_with_context(
@@ -475,3 +476,17 @@ def test_coincident_origin_regular_image_derivative(spherical, dim, m):
             rtol=2e-7,
             atol=2e-9,
         )
+
+
+def test_large_cylindrical_cell_ewald_split_invariance():
+    # Upstream's automatic split loses 0.00676 at this order/displacement.
+    # The converged reference and our automatic split agree independently.
+    import treams_rs as tr
+
+    k = np.sqrt(1.3**2 - 0.2**2)
+    automatic = tr.lattice.lsumcw(1, -6, k, 0.1, 7.2, [0.8, 0])
+    expected = oracle.lsumcw1d(-6, k, 0.1, 7.2, 0.8, 0.7)
+    for eta in (0.4, 0.7, 1.0):
+        actual = tr.lattice.lsumcw(1, -6, k, 0.1, 7.2, [0.8, 0], eta=eta)
+        assert_allclose(actual, expected, rtol=1e-12, atol=1e-10)
+        assert_allclose(actual, automatic, rtol=1e-12, atol=1e-10)

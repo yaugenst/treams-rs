@@ -158,6 +158,25 @@ def worker(
                     else treams.SphericalWaveBasis.default(order, particles, positions)
                 )
 
+        if workload == "cylindrical-array":
+            vectors = np.array([[particles * 0.8]])
+            bloch = np.array([0.1])
+            q = np.column_stack(
+                [
+                    np.full(5, 0.2),
+                    bloch[0] + np.array([0, 1, -1, 2, -2]) * 2 * np.pi / vectors[0, 0],
+                ]
+            )
+            if backend in ("rust", "check"):
+                basis = CylindricalWaveBasis.default([0.2], order, particles, positions)
+                ports = PlaneWaveBasisByComp.default(q, "zx")
+            if backend in ("treams", "check"):
+                oracle_ports = treams.PlaneWaveBasisByComp.default(q, "zx")
+
+        # The reference cylinder sum loses accuracy for larger cells at eta=0.
+        # Use the same converged split for both implementations.
+        eta = 0.7 if workload == "cylindrical-array" else 0
+
         def rust():
             if workload == "plane-expansion":
                 return diff.plane_expansion(basis, vectors, source_basis.pol)
@@ -176,31 +195,44 @@ def worker(
                 return diff.field_operator(points, basis, [1.3, 1.3], singular=True)
             if workload in ("field", "cylindrical-field"):
                 return diff.field(amplitudes, points, basis, [1.3, 1.3], singular=True)
-            if workload in ("periodic", "array"):
+            if workload in ("periodic", "array", "cylindrical-array"):
                 dimension = len(basis)
                 local = np.zeros((dimension, dimension), dtype=complex)
                 contexts = []
                 block = dimension // particles
                 for index, (radius, eps) in enumerate(zip(radii, epsilon, strict=True)):
-                    value, context = diff.sphere(order, 1.3, [radius], [eps, 1])
+                    value, context = (
+                        diff.cylinder([0.2], order, 1.3, [radius], [eps, 1])
+                        if workload == "cylindrical-array"
+                        else diff.sphere(order, 1.3, [radius], [eps, 1])
+                    )
                     contexts.append(context)
                     local[
                         index * block : (index + 1) * block,
                         index * block : (index + 1) * block,
                     ] = value
                 coupling, coupling_context = lattice.expansion_with_context(
-                    basis, basis, [1.3, 1.3], vectors, bloch
+                    basis, basis, [1.3, 1.3], vectors, bloch, eta=eta
                 )
                 value, context = diff.interaction(local, coupling)
                 residual = (contexts, coupling_context, context)
-                if workload == "array":
-                    channels, channel_context = diff.spherical_channels(
-                        basis,
-                        [1.3, 1.3],
-                        np.column_stack([ports.kx, ports.ky]),
-                        ports.pol,
-                        float(abs(np.linalg.det(vectors))),
-                    )
+                if workload in ("array", "cylindrical-array"):
+                    if workload == "cylindrical-array":
+                        channels, channel_context = diff.cylindrical_channels(
+                            basis,
+                            [1.3, 1.3],
+                            ports.components,
+                            ports.pol,
+                            float(vectors[0, 0]),
+                        )
+                    else:
+                        channels, channel_context = diff.spherical_channels(
+                            basis,
+                            [1.3, 1.3],
+                            ports.components,
+                            ports.pol,
+                            float(abs(np.linalg.det(vectors))),
+                        )
                     value, radiation_context = diff.smatrix_from_array(value, channels)
                     residual += (channel_context, radiation_context)
                 return value, residual
@@ -232,6 +264,46 @@ def worker(
                 )
                 return (
                     operator if workload == "field-operator" else operator @ amplitudes
+                )
+            if workload == "cylindrical-array":
+                cylinders = [
+                    treams.TMatrixC.cylinder([0.2], order, 1.3, [r], [e, 1])
+                    for r, e in zip(radii, epsilon, strict=True)
+                ]
+                cluster = treams.TMatrixC.cluster(cylinders, positions)
+                response = np.asarray(
+                    cluster.latticeinteraction.solve(vectors, bloch, eta=eta)
+                )
+                incoming = []
+                outgoing = []
+                for side in ("up", "down"):
+                    incoming.append(
+                        np.asarray(
+                            treams.expand(
+                                (cluster.basis, oracle_ports), ("regular", side), k0=1.3
+                            )
+                        )
+                    )
+                    outgoing.append(
+                        np.asarray(
+                            treams.expandlattice(
+                                vectors,
+                                bloch,
+                                basis=(oracle_ports, cluster.basis),
+                                modetype=side,
+                                k0=1.3,
+                            )
+                        )
+                    )
+                return np.array(
+                    [
+                        [
+                            outgoing[i] @ response @ incoming[j]
+                            + (np.eye(len(oracle_ports)) if i == j else 0)
+                            for j in range(2)
+                        ]
+                        for i in range(2)
+                    ]
                 )
             spheres = [
                 treams.TMatrix.sphere(order, 1.3, r, [e, 1])
@@ -275,9 +347,9 @@ def worker(
                 value, context = rust()
                 cotangent = np.full_like(value, (1 + 0.3j) / value.size)
                 start = time.perf_counter()
-                if workload in ("periodic", "array"):
-                    sphere_contexts, coupling_context, solve_context = context[:3]
-                    if workload == "array":
+                if workload in ("periodic", "array", "cylindrical-array"):
+                    particle_contexts, coupling_context, solve_context = context[:3]
+                    if workload in ("array", "cylindrical-array"):
                         channel_context, radiation_context = context[3:]
                         cotangent, channels_gradient = radiation_context.pullback(
                             cotangent
@@ -288,16 +360,16 @@ def worker(
                     )
                     coupling_result = coupling_context.pullback(coupling_gradient)
                     block = len(basis) // particles
-                    sphere_results = [
+                    particle_results = [
                         item.pullback(
                             local_gradient[
                                 i * block : (i + 1) * block,
                                 i * block : (i + 1) * block,
                             ].copy()
                         )
-                        for i, item in enumerate(sphere_contexts)
+                        for i, item in enumerate(particle_contexts)
                     ]
-                    del coupling_result, sphere_results
+                    del coupling_result, particle_results
                 else:
                     context.pullback(cotangent)
                 elapsed = time.perf_counter() - start
@@ -322,9 +394,20 @@ def worker(
                     if backend == "rust"
                     else None,
                     "workload": workload,
+                    "ewald_eta": eta
+                    if workload in ("periodic", "array", "cylindrical-array")
+                    else None,
                     "samples": samples
                     if workload
-                    in ("field", "cylindrical-field", "field-operator", "conversion")
+                    in (
+                        "field",
+                        "cylindrical-field",
+                        "field-operator",
+                        "conversion",
+                        "plane-field",
+                        "plane-operator",
+                        "plane-expansion",
+                    )
                     else None,
                     "particles": particles,
                     "lmax": order,
@@ -334,6 +417,8 @@ def worker(
                         if workload in ("plane-field", "plane-operator")
                         else 4 * (2 * order + 1)
                         if workload == "cylindrical-field"
+                        else 2 * (2 * order + 1)
+                        if workload == "cylindrical-array"
                         else 2 * order * (order + 2)
                     ),
                     "threads": threads,
@@ -370,6 +455,7 @@ def main() -> None:
             "plane-field",
             "plane-operator",
             "plane-expansion",
+            "cylindrical-array",
         ],
         default="cluster",
     )

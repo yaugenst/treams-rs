@@ -240,3 +240,62 @@ def test_plane_wave_slab_illumination(direction, poltype):
     assert_allclose(
         slab.illuminate(wave), slab.illuminate(array, modetype=mode), rtol=1e-13
     )
+
+
+@pytest.mark.parametrize("alignment", ["xy", "yz", "zx"])
+@pytest.mark.parametrize("poltype", ["helicity", "parity"])
+@pytest.mark.parametrize("material", [1, (2 + 0.2j, 1.1)])
+def test_oriented_power_is_cartesian_poynting(alignment, poltype, material):
+    from treams_rs import efield, hfield
+    from treams_rs._smatrix import _power_forms
+
+    # Equal transverse wavevectors let a direct field evaluation check all
+    # polarization and counterpropagating interference terms independently.
+    basis = PlaneWaveBasisByComp.default([[0.2, 0.3]], alignment)
+    amplitudes = np.array([[0.3 + 0.2j, -0.4j], [0.1j, 0.7]])
+    forms = _power_forms(basis, 1.3, material, poltype)
+    electric = sum(
+        efield(
+            [0, 0, 0],
+            basis=basis,
+            k0=1.3,
+            material=material,
+            poltype=poltype,
+            modetype=side,
+        )
+        @ amplitudes[i]
+        for i, side in enumerate(("up", "down"))
+    )
+    magnetic = sum(
+        hfield(
+            [0, 0, 0],
+            basis=basis,
+            k0=1.3,
+            material=material,
+            poltype=poltype,
+            modetype=side,
+        )
+        @ amplitudes[i]
+        for i, side in enumerate(("up", "down"))
+    )
+    expected = 0.5 * np.cross(electric, magnetic.conj()).real[basis.normal_axis]
+    actual = sum(
+        np.vdot(amplitudes[i], forms[i, j] @ amplitudes[j])
+        for i in range(2)
+        for j in range(2)
+    )
+    assert_allclose(actual, expected, atol=2e-14)
+
+
+@pytest.mark.parametrize("alignment", ["xy", "yz", "zx"])
+def test_oriented_propagation_phase_and_power(alignment):
+    basis = PlaneWaveBasisByComp.default([[0.2, 0.3]], alignment)
+    layer = SMatrices.propagation(0.4, basis, 1.3)
+    expected = np.exp(0.4j * np.sqrt(1.3**2 - 0.2**2 - 0.3**2)) * np.eye(2)
+    assert_allclose(layer[0, 0], expected, atol=1e-14)
+    assert_allclose(layer[1, 1], expected, atol=1e-14)
+    for side in ("up", "down"):
+        assert_allclose(layer.tr([0.3 + 0.1j, 0.4], modetype=side), [1, 0], atol=1e-14)
+    assert_allclose(
+        layer.double().array, SMatrices.propagation(0.8, basis, 1.3).array, atol=1e-14
+    )

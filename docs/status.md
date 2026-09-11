@@ -15,10 +15,10 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 | Differentiation | Opaque one-use native contexts in coeffs and diff; arbitrary complex output cotangents; Advect adapters for spherical/cylindrical T-matrices, clusters, interactions, expansions, fields and sphere/cylinder coefficients | Higher derivatives and other framework adapters |
 | Testing | Native proptest invariants and adjoint identities; Hypothesis physical invariants; treams/SciPy reference comparisons; complete Python workflows | Expand qualification with every ported subsystem |
 | Performance | Cached angular plans and radial tables, faer LU and matmul, block-diagonal local storage, Rayon coupling assembly | See measured scope and limitations in benchmarks.md |
-| Cylindrical scattering | Complex J/H and derivatives; multilayer chiral coefficients and complete T-matrix with all parameter VJPs; cylindrical bases, translations, clusters, electric fields and cross widths; regular spherical conversion | Periodic conversion to plane waves |
+| Cylindrical scattering | Complex J/H and derivatives; multilayer chiral coefficients and complete T-matrix with all parameter VJPs; cylindrical bases, translations, clusters, electric fields and cross widths; regular spherical conversion; periodic plane-wave radiation and adjoints | Broader cutoff qualification |
 | Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections; full unit-vector and xy/yz/zx component plane bases, diffraction orders, native Cartesian fields and slab illumination | Cylindrical plane-expansion VJPs |
 | Planar layers | Native chiral Fresnel coefficients and propagation; one-LU S-matrix composition with reused-factor adjoint; interfaces, multilayer slabs, stacking/doubling, polarization conversion and power-flux transmittance/reflectance | Oriented interfaces, internal-field convenience; full SMatrix annotation API |
-| Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D; periodic coupling and solves; spherical 2D particle-to-plane channels and S matrices; complete native pullbacks and Advect reflectance gradients; direct-sum, reference, energy, Bloch/split/scale invariants | Cylindrical radiation channels; broader combined particle/layer workflows |
+| Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D; periodic coupling and solves; spherical 2D and cylindrical 1D particle-to-plane channels and S matrices; complete native pullbacks and Advect reflectance gradients; direct-sum, reference, energy, Bloch/split/scale invariants | Broader combined particle/layer workflows |
 | Remaining public API | Not implemented | Field-operator conveniences, EBCM, band calculations, I/O and remaining observables |
 
 The optimized `diff.cluster` is restricted to non-overlapping homogeneous,
@@ -77,13 +77,15 @@ as checked by complete slab gradients. The metadata-bearing SMatrices convenienc
 class itself accepts ordinary arrays rather than tracked parameters.
 
 Component plane bases support xy, yz and zx alignments for fields and illumination.
-Slab S matrices and their power forms currently require xy alignment and accept one
-incident amplitude vector or PlaneWave object per direction. Arrays are
+Fresnel interfaces currently require xy alignment. Propagation, composition,
+illumination and Cartesian power-flux calculations support all three alignments,
+with one incident amplitude vector or PlaneWave object per direction. Arrays are
 explicit rather than inheriting upstream's ndarray metadata. Fresnel's low-level
 API currently evaluates one (two-media, two-helicity) interface at a time.
 
 `SMatrices.from_array(tm, basis, lattice=..., kpar=...)` accepts an uncoupled
-spherical unit cell and solves its periodic interaction before radiating. This
+spherical 2D xy or cylindrical 1D x unit cell and solves its periodic interaction
+before radiating. Cylindrical ports use zx alignment, with up/down along y. This
 explicit constructor differs from upstream's annotated, already-interacting
 T-matrix input. The native `spherical_channels` and `smatrix_from_array` boundaries
 support arbitrary complex cotangents. Advect tests differentiate reflected power
@@ -137,13 +139,13 @@ and differentiated once per mode. At exactly axial propagation the upstream
 polarization gauge has no direction derivative: `fixed_vectors=True` treats the
 vectors as constants while enabling amplitude and point derivatives.
 
-The root E/H/D/B field operators accept xy-component plane bases and up/down
+The root E/H/D/B field operators accept all component and unit-vector plane bases and up/down
 propagation. `PlaneWave.efield` uses the weighted native kernel. All field
 operators now transfer owned Rust buffers to NumPy without copying; their strides
 need not be C-contiguous. Cotangent checks cover contiguous, permuted and reversed
 views, and malformed cotangents leave the one-use residual available for retry.
 
-`expand` also maps xy-component plane bases into regular spherical bases.
+`expand` also maps component and unit-vector plane bases into regular spherical bases.
 `diff.plane_expansion` and `advect.plane_expansion` expose arbitrary complex plane
 wavevectors and native origin/vector pullbacks. A complete Advect test includes
 incidence angles, frequency, sphere radius and position through illumination,
@@ -164,3 +166,13 @@ and `PlaneWave.expand` accept these bases. Plane-wave directions remain unchange
 under input scales from 1e-300 to 1e300. These Python metadata conveniences compose
 the previously checked native operations; tracked parameters use the explicit
 Advect boundaries. Arbitrarily oriented slab interfaces are still pending.
+
+Cylindrical radiation channels have native origin, complex-wavenumber, transverse
+wavevector and period pullbacks. Axial wavenumbers remain fixed mode labels; exact
+label matching selects each channel. Advect tests differentiate complete periodic
+cylinder reflectance through radius, frequency, period, Bloch vector and origins.
+Independent image-field reconstruction and lossless power conservation cover both
+sides and polarization conventions. Equal medium wavenumbers share cylindrical
+Ewald evaluation without merging their separate wavenumber gradients. A large-cell
+regression checks split independence against a converged reference; upstream's
+automatic split loses accuracy for that case.

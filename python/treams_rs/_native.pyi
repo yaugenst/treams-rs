@@ -360,3 +360,13 @@ def plane_expansion(
     helicity: bool,
     fixed_vectors: bool,
 ) -> tuple[ComplexArray, PlaneExpansionContext]: ...
+def cylindrical_channels(
+    modes: list[tuple[int, float, int, int]],
+    positions: list[list[float]],
+    ks: list[complex],
+    q: list[list[float]],
+    polarizations: list[int],
+    period: float,
+    helicity: bool,
+    fixed_q: bool,
+) -> tuple[ComplexArray, ChannelsContext]: ...

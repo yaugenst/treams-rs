@@ -486,3 +486,36 @@ def plane_expansion(
         return value, pullback
 
     return _call((origins,) if fixed_vectors else (origins, vectors), forward)
+
+
+def cylindrical_channels(
+    origins: ArrayLike,
+    ks: ArrayLike,
+    kx: ArrayLike,
+    period: ArrayLike,
+    *,
+    basis: CylindricalWaveBasis,
+    kz_labels: ArrayLike,
+    polarizations: ArrayLike,
+    poltype: str = "helicity",
+) -> NDArray[np.complex128]:
+    """Differentiable cylindrical radiation, holding axial mode labels fixed."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        q = np.column_stack([kz_labels, values[2]])
+        value, context = diff.cylindrical_channels(
+            type(basis)(basis.modes, values[0]),
+            values[1],
+            q,
+            polarizations,
+            float(np.asarray(values[3])),
+            poltype=poltype,
+        )
+
+        def pullback(g: NDArray[np.complex128]) -> _Values:
+            go, gk, gq, ga = context.pullback(g)
+            return go, gk, gq[:, 1], np.asarray(ga)
+
+        return value, pullback
+
+    return _call((origins, ks, kx, period), forward)

@@ -281,6 +281,7 @@ pub fn periodic(
             "finite nonzero medium wavenumbers required".into(),
         ));
     }
+    let shared = ks[0] == ks[1];
     let mut indices = HashMap::new();
     let mut requests = Vec::new();
     let mut entries = Vec::new();
@@ -289,7 +290,13 @@ pub fn periodic(
             if to.kz != from.kz || to.pol != from.pol {
                 continue;
             }
-            let key = (p, q, from.kz.to_bits(), from.pol, from.m - to.m);
+            let key = (
+                p,
+                q,
+                from.kz.to_bits(),
+                if shared { 0 } else { from.pol },
+                from.m - to.m,
+            );
             let next = requests.len();
             let index = *indices.entry(key).or_insert_with(|| {
                 requests.push(key);
@@ -362,14 +369,20 @@ impl PeriodicResidual {
             .enumerate()
             .map(|(i, &key)| (key, i))
             .collect();
-        let mut g = vec![Complex::default(); self.requests.len()];
+        let shared = self.ks[0] == self.ks[1];
+        let mut g = vec![[Complex::default(); 2]; self.requests.len()];
         for (j, &(q, from)) in self.source.modes.iter().enumerate() {
             for (i, &(p, to)) in self.destination.modes.iter().enumerate() {
                 if to.kz != from.kz || to.pol != from.pol {
                     continue;
                 }
-                g[indices[&(p, q, from.kz.to_bits(), from.pol, from.m - to.m)]] +=
-                    cotangent[(i, j)];
+                g[indices[&(
+                    p,
+                    q,
+                    from.kz.to_bits(),
+                    if shared { 0 } else { from.pol },
+                    from.m - to.m,
+                )]][usize::from(from.pol)] += cotangent[(i, j)];
             }
         }
         let gradients = self
@@ -394,15 +407,18 @@ impl PeriodicResidual {
                     [r[0], r[1], 0.0],
                     self.eta,
                 )?;
-                let scalar_g = g * phase.conj();
+                // Equal wavenumbers share the Ewald jet, but keep independent k cotangents.
+                let total: Complex = g.iter().sum();
+                let scalar_g = total * phase.conj();
+                let spectral = g.map(|g| (jet.k * k / krho).conj() * g * phase.conj());
                 let mut gradient = crate::lattice::Gradient {
-                    k: (jet.k * k / krho).conj() * scalar_g,
+                    k: Complex::default(),
                     position: jet.position.map(|d| (scalar_g.conj() * d).re),
                     bloch: jet.bloch.map(|d| (scalar_g.conj() * d).re),
                     vectors: jet.vectors.map(|row| row.map(|d| (scalar_g.conj() * d).re)),
                 };
-                gradient.position[2] = (g.conj() * (-Complex::i() * kz) * phase * jet.value).re;
-                Ok((p, q, pol, gradient))
+                gradient.position[2] = (total.conj() * (-Complex::i() * kz) * phase * jet.value).re;
+                Ok((p, q, spectral, gradient))
             })
             .collect::<Result<Vec<_>>>()?;
         let mut result = crate::basis::PeriodicGradient::new(
@@ -410,9 +426,11 @@ impl PeriodicResidual {
             self.source.positions.len(),
             self.lattice.dimension(),
         );
-        for (p, q, pol, g) in gradients {
+        for (p, q, spectral, g) in gradients {
             result.lattice(&g);
-            result.expansion.ks[usize::from(pol)] += g.k;
+            for (g, k) in result.expansion.ks.iter_mut().zip(spectral) {
+                *g += k;
+            }
             for (axis, value) in g.position.into_iter().enumerate() {
                 result.expansion.destination[p][axis] -= value;
                 result.expansion.source[q][axis] += value;

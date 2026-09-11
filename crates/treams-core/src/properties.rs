@@ -20,6 +20,26 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    fn cylindrical_channels_scale_and_period_adjoint(k in 1.0_f64..2.0, period in 1.3_f64..2.2, x in -0.3_f64..0.3) {
+        let basis=crate::cylwaves::Basis{modes:(-3..=3).flat_map(|m|(0..2).map(move|pol|(0,crate::cylwaves::Mode{kz:0.0,m,pol}))).collect(),positions:vec![[x,0.1,0.2]]};
+        let q=vec![[0.0,0.2],[0.0,2.5]];
+        let ks=[Complex::new(k,0.1);2];
+        let forward=crate::channels::cylindrical(basis.clone(),ks,q.clone(),vec![0,1],period,true).unwrap();
+        let g=DMatrix::from_element(forward.value.nrows(),2,Complex::new(0.2,0.1));
+        let d=basis.modes.len();
+        let emitted=g.rows(2*d,2*d).dotc(&forward.value.rows(2*d,2*d)).re;
+        let scaled=crate::cylwaves::Basis{positions:basis.positions.iter().map(|p|p.map(|x|x*1.7)).collect(),..basis.clone()};
+        let other=crate::channels::cylindrical(scaled,ks.map(|k|k/1.7),q.iter().map(|q|q.map(|v|v/1.7)).collect(),vec![0,1],period*1.7,true).unwrap();
+        prop_assert!((&forward.value-other.value).norm()<1e-10);
+        let gradient=forward.pullback(&g,false).unwrap();
+        prop_assert!((gradient.area*period+emitted).abs()<1e-10);
+        let spatial:f64=gradient.positions.iter().flatten().zip(basis.positions.iter().flatten()).map(|(g,p)|g*p).sum();
+        let spectral:f64=gradient.ks.iter().zip(ks).map(|(g,k)|(g.conj()*k).re).sum();
+        let transverse:f64=gradient.q.iter().flatten().zip(q.iter().flatten()).map(|(g,q)|g*q).sum();
+        prop_assert!((spatial-spectral-transverse+period*gradient.area).abs()<1e-10);
+    }
+
+    #[test]
     fn plane_expansion_scale_adjoint(kx in 0.1_f64..0.7, kz in -1.0_f64..1.0, x in -0.3_f64..0.3, helicity in any::<bool>(), complex_transverse in any::<bool>()) {
         let basis=crate::basis::Basis{modes:(1..=4).flat_map(|l|(-l..=l).flat_map(move|m|(0..2).map(move|pol|(0,Mode{l,m,pol})))).collect(),positions:vec![[x,0.1,0.2]]};
         let vector=if complex_transverse {[Complex::new(kx,1.0),Complex::new(0.2,0.3),Complex::new(1.3,-0.8)]}else{[Complex::new(kx,0.0),Complex::new(0.2,0.0),Complex::new(kz,0.1)]};

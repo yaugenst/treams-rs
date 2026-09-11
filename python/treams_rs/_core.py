@@ -262,6 +262,11 @@ class PlaneWaveBasisByComp:
         return cls.default(q + np.asarray(orders) @ reciprocal, alignment)
 
     @property
+    def normal_axis(self) -> int:
+        """Cartesian axis normal to the stored component plane."""
+        return {"xy": 2, "yz": 0, "zx": 1}[self.alignment]
+
+    @property
     def components(self) -> NDArray[np.float64]:
         """The two real stored components, in alignment order."""
         return np.array([(m[0], m[1]) for m in self.modes])

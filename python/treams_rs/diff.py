@@ -357,3 +357,36 @@ def plane_expansion(
         poltype == "helicity",
         fixed_vectors,
     )
+
+
+def cylindrical_channels(
+    basis: CylindricalWaveBasis,
+    ks: ArrayLike,
+    q: ArrayLike,
+    polarizations: ArrayLike,
+    period: float,
+    *,
+    poltype: str = "helicity",
+    fixed_q: bool = False,
+) -> tuple[NDArray[np.complex128], _native.ChannelsContext]:
+    """Cylindrical incidence/emission channels for a periodic array along x.
+
+    q=(kz,kx) identifies zx-aligned plane modes; up/down refers to +/-y.
+    Pullback returns (origins, ks, q, period). Axial kz labels are fixed, so
+    q[:,0] cotangents are zero. fixed_q also holds kx constant.
+    """
+    if poltype not in ("helicity", "parity"):
+        raise ValueError("invalid polarization type")
+    pols = np.asarray(polarizations)
+    if not np.all((pols == 0) | (pols == 1)):
+        raise ValueError("polarizations must be 0 or 1")
+    return _native.cylindrical_channels(
+        list(basis.modes),
+        basis.positions.tolist(),
+        np.asarray(ks, dtype=np.complex128).tolist(),
+        np.asarray(q, dtype=np.float64).tolist(),
+        pols.astype(np.int64).tolist(),
+        period,
+        poltype == "helicity",
+        fixed_q,
+    )

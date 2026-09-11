@@ -110,6 +110,31 @@ pub struct ChannelsResidual {
     pub value: DMatrix<Complex>,
 }
 
+fn validate_channels(
+    ks: [Complex; 2],
+    q: &[[f64; 2]],
+    polarizations: &[u8],
+    area: f64,
+    helicity: bool,
+) -> Result<()> {
+    if q.is_empty()
+        || q.len() != polarizations.len()
+        || q.iter().flatten().any(|v| !v.is_finite())
+        || polarizations.iter().any(|&p| p > 1)
+        || ks.iter().any(|&k| !finite(k) || k == Complex::default())
+        || !area.is_finite()
+        || area <= 0.0
+    {
+        return Err(Error::InvalidInput("channels require finite transverse vectors, polarizations 0/1, nonzero wavenumbers and positive unit-cell measure".into()));
+    }
+    if !helicity && ks[0] != ks[1] {
+        return Err(Error::InvalidInput(
+            "parity channels require an achiral medium".into(),
+        ));
+    }
+    Ok(())
+}
+
 /// Both incidence and radiation channels of a 2D periodic spherical basis.
 pub fn spherical(
     basis: Basis,
@@ -120,21 +145,7 @@ pub fn spherical(
     helicity: bool,
 ) -> Result<ChannelsResidual> {
     basis.validate()?;
-    if q.is_empty()
-        || q.len() != polarizations.len()
-        || q.iter().flatten().any(|v| !v.is_finite())
-        || polarizations.iter().any(|&p| p > 1)
-        || ks.iter().any(|&k| !finite(k) || k == Complex::default())
-        || !area.is_finite()
-        || area <= 0.0
-    {
-        return Err(Error::InvalidInput("channels require finite transverse vectors, polarizations 0/1, nonzero wavenumbers and positive unit-cell area".into()));
-    }
-    if !helicity && ks[0] != ks[1] {
-        return Err(Error::InvalidInput(
-            "parity channels require an achiral medium".into(),
-        ));
-    }
+    validate_channels(ks, &q, &polarizations, area, helicity)?;
     let d = basis.modes.len();
     let mut value = DMatrix::zeros(4 * d, q.len());
     value
@@ -244,6 +255,165 @@ impl ChannelsResidual {
                             }
                         }
                         result.area += gradient[6].re;
+                    }
+                }
+                Ok(result)
+            })
+            .try_reduce(zero, |mut a, b| {
+                a.add(b);
+                Ok(a)
+            })
+    }
+}
+
+struct CylGeometry<const N: usize> {
+    vector: [Jet<N>; 3],
+    transverse: Jet<N>,
+    normal: Jet<N>,
+    period: Jet<N>,
+}
+impl<const N: usize> CylGeometry<N> {
+    fn new(k: Complex, q: [f64; 2], side: usize, period: f64, fixed_q: bool) -> Result<Self> {
+        let k = Jet::variable(k, 3);
+        let kz = Jet::constant(q[0]);
+        let kx = if fixed_q {
+            Jet::constant(q[1])
+        } else {
+            Jet::variable(q[1], 4)
+        };
+        let mut transverse = (k * k - kz * kz).sqrt();
+        let mut normal = (k * k - kz * kz - kx * kx).sqrt();
+        if transverse.value == Complex::default() || normal.value == Complex::default() {
+            return Err(Error::InvalidInput(
+                "cylindrical plane channel is at a cutoff or diffraction threshold".into(),
+            ));
+        }
+        if transverse.value.im < 0.0 {
+            transverse = -transverse;
+        }
+        if normal.value.im < 0.0 || (normal.value.im == 0.0 && normal.value.re < 0.0) {
+            normal = -normal;
+        }
+        Ok(Self {
+            vector: [kx, if side == 0 { normal } else { -normal }, kz],
+            transverse,
+            normal,
+            period: Jet::variable(period, 5),
+        })
+    }
+    #[allow(clippy::float_cmp)] // Axial wavenumbers are fixed mode labels.
+    fn entry(&self, mode: crate::cylwaves::Mode, pol: u8, position: [f64; 3]) -> [Jet<N>; 2] {
+        if mode.pol != pol || mode.kz != self.vector[2].value.re {
+            return [Jet::default(); 2];
+        }
+        let phase = (Complex::i()
+            * self
+                .vector
+                .iter()
+                .enumerate()
+                .map(|(a, &k)| k * Jet::variable(position[a], a))
+                .sum::<Jet<N>>())
+        .exp();
+        let incident = ((Complex::i() * self.vector[0] + self.vector[1]) / self.transverse)
+            .powi(mode.m)
+            * phase;
+        let outgoing = 2.0
+            * ((-Complex::i() * self.vector[0] + self.vector[1]) / self.transverse).powi(mode.m)
+            / (self.period * self.normal * phase);
+        [incident, outgoing]
+    }
+}
+
+/// Cylindrical channels for a lattice along x, radiating toward positive/negative y.
+#[derive(Clone, Debug)]
+pub struct CylChannelsResidual {
+    basis: crate::cylwaves::Basis,
+    ks: [Complex; 2],
+    q: Vec<[f64; 2]>,
+    polarizations: Vec<u8>,
+    period: f64,
+    /// Rows pack (incident/emitted, up/down, cylindrical mode); columns are plane modes.
+    pub value: DMatrix<Complex>,
+}
+/// Incidence/radiation channels; q=(kz,kx) matches a zx-aligned plane basis.
+/// Axial kz values are fixed labels. The polarization convention is shared by both families.
+pub fn cylindrical(
+    basis: crate::cylwaves::Basis,
+    ks: [Complex; 2],
+    q: Vec<[f64; 2]>,
+    polarizations: Vec<u8>,
+    period: f64,
+    helicity: bool,
+) -> Result<CylChannelsResidual> {
+    basis.validate()?;
+    validate_channels(ks, &q, &polarizations, period, helicity)?;
+    let d = basis.modes.len();
+    let mut value = DMatrix::zeros(4 * d, q.len());
+    value
+        .as_mut_slice()
+        .par_chunks_mut(4 * d)
+        .enumerate()
+        .try_for_each(|(j, column)| -> Result<()> {
+            let pol = polarizations[j];
+            for side in 0..2 {
+                let geometry =
+                    CylGeometry::<0>::new(ks[usize::from(pol)], q[j], side, period, false)?;
+                for (i, &(p, mode)) in basis.modes.iter().enumerate() {
+                    let [incident, outgoing] = geometry.entry(mode, pol, basis.positions[p]);
+                    column[side * d + i] = incident.value;
+                    column[(2 + side) * d + i] = outgoing.value;
+                }
+            }
+            Ok(())
+        })?;
+    Ok(CylChannelsResidual {
+        basis,
+        ks,
+        q,
+        polarizations,
+        period,
+        value,
+    })
+}
+impl CylChannelsResidual {
+    /// Origin, medium and kx cotangents; `q[:,0]` is fixed and area denotes the period.
+    pub fn pullback(self, g: &DMatrix<Complex>, fixed_q: bool) -> Result<ChannelGradient> {
+        if g.shape() != self.value.shape() || g.iter().any(|&v| !finite(v)) {
+            return Err(Error::InvalidInput(
+                "invalid cylindrical channel cotangent".into(),
+            ));
+        }
+        let d = self.basis.modes.len();
+        let zero = || ChannelGradient::zeros(self.basis.positions.len(), self.q.len());
+        self.q
+            .par_iter()
+            .enumerate()
+            .try_fold(zero, |mut result, (j, &q)| -> Result<_> {
+                let pol = self.polarizations[j];
+                for side in 0..2 {
+                    let geometry = CylGeometry::<6>::new(
+                        self.ks[usize::from(pol)],
+                        q,
+                        side,
+                        self.period,
+                        fixed_q,
+                    )?;
+                    for (i, &(p, mode)) in self.basis.modes.iter().enumerate() {
+                        let weights = [g[(side * d + i, j)], g[((2 + side) * d + i, j)]];
+                        if weights.iter().all(|&v| v == Complex::default()) {
+                            continue;
+                        }
+                        let pair = geometry.entry(mode, pol, self.basis.positions[p]);
+                        let gradient: [Complex; 6] = std::array::from_fn(|a| {
+                            weights[0] * pair[0].derivative[a].conj()
+                                + weights[1] * pair[1].derivative[a].conj()
+                        });
+                        for (g, v) in result.positions[p].iter_mut().zip(&gradient[..3]) {
+                            *g += v.re;
+                        }
+                        result.ks[usize::from(pol)] += gradient[3];
+                        result.q[j][1] += gradient[4].re;
+                        result.area += gradient[5].re;
                     }
                 }
                 Ok(result)

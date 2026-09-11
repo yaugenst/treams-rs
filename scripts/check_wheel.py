@@ -99,3 +99,33 @@ np.testing.assert_allclose(advect.grad(plane_energy)(np.array(1.0)), 0, atol=1e-
 print(
     "Clean wheel: plane operator and Advect coordinate/wavevector scale identity passed"
 )
+
+
+cylinder = tr.TMatrixC.cylinder([0.2], 3, 1.3, [0.2], [4, 1])
+cports = tr.PlaneWaveBasisByComp.default([[0.2, 0.1]], "zx")
+carray = tr.SMatrices.from_array(cylinder, cports, lattice=1.7, kpar=0.1)
+np.testing.assert_allclose(sum(carray.tr([1, 0])), 1, atol=2e-10)
+
+
+def cylindrical_radiation_energy(period):
+    channels = ad.cylindrical_channels(
+        cylinder.basis.positions,
+        [1.3, 1.3],
+        [0.1, 0.1],
+        period,
+        basis=cylinder.basis,
+        kz_labels=[0.2, 0.2],
+        polarizations=[1, 0],
+    )
+    radiated = channels[1]
+    return anp.sum(anp.real(radiated * anp.conj(radiated)))
+
+
+np.testing.assert_allclose(
+    advect.grad(cylindrical_radiation_energy)(np.array(1.7)),
+    -2 * cylindrical_radiation_energy(1.7) / 1.7,
+    rtol=1e-12,
+)
+print(
+    "Clean wheel: cylindrical array power and native radiation period gradient passed"
+)

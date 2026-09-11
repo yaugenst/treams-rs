@@ -207,3 +207,31 @@ Forward peak RSS is 67.5 / 40.2 MiB. Rust shares the normalized direction across
 multipoles, uses Rayon over incident modes, and transfers the output buffer to
 NumPy without retaining it in the residual. Seven samples after warmup.
 Raw result: `/tmp/plane-expansion-before-n2-l8-k64-t4.json` on [redacted-host].
+
+## Complete cylindrical arrays
+
+Four matched threads, one-dimensional arrays along x, kz=0.2, k0=1.3,
+radii 0.15–0.25, permittivity 4+0.1j, spacing 0.8 and period 0.8N.
+Each evaluation includes particle T matrices, Ewald coupling, the periodic solve
+and all four plane-wave scattering blocks for ten ports. Seven samples after
+warmup; arbitrary full complex cotangents for the native reverse.
+
+| Cylinders | mmax | Modes | treams ms | Rust ms | Speedup | Rust reverse ms | treams / Rust peak MiB |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 4 | 5 | 88 | 2101.29 | 8.26 | 254.4x | 21.13 | 69.1 / 41.6 |
+| 9 | 3 | 126 | 2982.63 | 16.64 | 179.2x | 45.15 | 70.9 / 43.8 |
+
+Both solvers use eta=0.7. The nine-cylinder reference at its automatic split
+differs from its converged answer by about 8.4e-8 in the final S matrix. Rust's
+coupling stays stable as eta changes; a regression checks it against the converged
+reference. Benchmark correctness tolerances remain rtol=2e-9, atol=1e-12.
+
+Sharing Ewald evaluations between equal-wavenumber polarizations roughly halved
+Rust forward and reverse times in the four-cylinder automatic-split baseline
+(18.42 to 9.38 ms forward, 45.84 to 22.99 ms reverse). Polarization wavenumber
+gradients remain separate and are checked by independent perturbations. No dense
+parameter Jacobian is retained. Results do not imply this speedup for every array.
+
+Raw results on [redacted-host]: `/tmp/cylindrical-array-converged-n4-m5-t4.json`
+and `/tmp/cylindrical-array-converged-n9-m3-t4.json`. Reproduce with
+`--workload cylindrical-array --particles 9 --lmax 3 --threads 4 --repeats 7`.
