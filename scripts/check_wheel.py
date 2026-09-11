@@ -369,3 +369,28 @@ transform = tr.permute(1, basis=plane, k0=1.3)
 inverse = tr.permute(-1, basis=permuted, k0=1.3)
 np.testing.assert_allclose(inverse @ transform, np.eye(len(plane)), atol=1e-12)
 print("Clean wheel: plane-wave coordinate transformation passed")
+
+
+# Direct scalar dispatch, NumPy ufunc output semantics and the owned adjoint all
+# use the installed Rust extension in an environment without SciPy or treams.
+z = np.array([1.3 + 0.2j, 2.1 - 0.1j])
+value = tr.special.hankel1(3, z)
+out = np.zeros_like(z)
+tr.special.hankel1(3, z, out=out, where=[True, False])
+np.testing.assert_allclose(out, [tr.special.hankel1(3, complex(z[0])), 0], rtol=1e-13)
+derivative, context = tr.diff.bessel(3, z, kind="h1")
+np.testing.assert_allclose(derivative, value, rtol=1e-13)
+np.testing.assert_allclose(
+    context.pullback(np.ones_like(z)), tr.special.hankel1_d(3, z).conj(), rtol=1e-13
+)
+print(
+    "Clean wheel: scalar and ufunc special functions, output masks and native adjoint passed"
+)
+
+scalar, context = tr.diff.bessel(3, 1.3 + 0.2j, kind="h1")
+np.testing.assert_allclose(scalar, value[0], rtol=1e-13)
+np.testing.assert_allclose(
+    context.pullback(np.array(1 + 0j)),
+    tr.special.hankel1_d(3, 1.3 + 0.2j).conjugate(),
+    rtol=1e-13,
+)

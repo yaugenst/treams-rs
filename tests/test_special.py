@@ -174,3 +174,99 @@ def test_bessel_advect_broadcast_composition():
         rtol=2e-7,
         atol=1e-9,
     )
+
+
+@pytest.mark.parametrize(
+    "name", ["hankel1", "hankel1_d", "jv", "spherical_jn", "spherical_yn"]
+)
+def test_bessel_ufunc_outputs_masks_aliasing_and_strides(name):
+    function = getattr(special, name)
+    order = np.arange(4)[:, None]
+    arguments = np.linspace(0.8, 2.4, 257).astype(complex) + 0.2j
+    expected = getattr(oracle, name)(order, arguments)
+    buffer = np.full((257, 8), 17 + 3j)
+    out = buffer[:, ::2].T[::-1]
+    mask = np.indices(out.shape).sum(axis=0) % 3 == 0
+    assert function(order, arguments, out=out, where=mask) is out
+    assert_allclose(out[mask], expected[mask], rtol=3e-12, atol=1e-13)
+    assert_allclose(out[~mask], 17 + 3j)
+    assert_allclose(buffer[:, 1::2], 17 + 3j)
+    shared = np.linspace(0.8, 2.4, 258).astype(complex) + 0.2j
+    expected = getattr(oracle, name)(3, shared[:-1].copy())
+    function(3, shared[:-1], out=shared[1:])
+    assert_allclose(shared[1:], expected, rtol=3e-12, atol=1e-13)
+    unaligned = np.ndarray(
+        (257,), dtype=complex, buffer=bytearray(16 * 257 + 1), offset=1
+    )
+    unaligned[:] = arguments
+    function(3, unaligned, out=unaligned)
+    assert_allclose(
+        unaligned, getattr(oracle, name)(3, arguments), rtol=3e-12, atol=1e-13
+    )
+    assert function([], 1.3).shape == (0,)
+
+
+def test_bessel_ufunc_error_and_mask_contract():
+    assert isinstance(special.jv, np.ufunc)
+    assert (special.jv.nin, special.jv.nout) == (2, 1)
+    for argument in (0j, complex(np.nan), np.zeros(256, complex)):
+        with pytest.raises(ValueError):
+            special.hankel1(1, argument)
+    out = np.array([123, 0], dtype=complex)
+    special.hankel1(1, [0, 1.3], out=out, where=[False, True])
+    assert out[0] == 123
+    assert_allclose(out[1], oracle.hankel1(1, 1.3), rtol=1e-13)
+
+
+@given(order=st.integers(0, 10), size=st.integers(0, 160), backwards=st.booleans())
+@settings(max_examples=30)
+def test_bessel_ufunc_inplace_derivative_identity(order, size, backwards):
+    z = np.linspace(0.7, 3.0, size).astype(complex) + 0.2j
+    if backwards:
+        z = z[::-1]
+    expected = (special.jv(order - 1, z) - special.jv(order + 1, z)) / 2
+    special.jv_d(order, z, out=z)
+    assert_allclose(z, expected, rtol=2e-12, atol=1e-13)
+
+
+def test_bessel_ufunc_concurrent_calls():
+    from concurrent.futures import ThreadPoolExecutor
+
+    z = np.linspace(0.6, 3, 256) + 0.2j
+    expected = oracle.hankel1(np.arange(8)[:, None], z)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        values = list(pool.map(lambda order: special.hankel1(order, z), range(8)))
+    assert_allclose(values, expected, rtol=2e-12, atol=1e-13)
+
+
+@pytest.mark.parametrize("kind", ["h1", "h2"])
+@given(
+    order=st.floats(-8, 8, allow_nan=False, allow_infinity=False),
+    x=st.floats(0.3, 8),
+    y=st.floats(-2, 2),
+)
+@settings(max_examples=35)
+def test_hankel_sequence_derivatives_and_reflection(kind, order, x, y):
+    z = x + 1j * y
+    function = special.hankel1 if kind == "h1" else special.hankel2
+    reference = oracle.hankel1 if kind == "h1" else oracle.hankel2
+    derivative = special.hankel1_d if kind == "h1" else special.hankel2_d
+    value, context = diff.bessel(order, z, kind=kind, derivative=True)
+    expected = 0.5 * (reference(order - 1, z) - reference(order + 1, z))
+    assert_allclose(value, expected, rtol=3e-12, atol=1e-12)
+    assert_allclose(derivative(order, z), value, rtol=3e-12, atol=1e-12)
+    second = 0.25 * (
+        reference(order - 2, z) - 2 * reference(order, z) + reference(order + 2, z)
+    )
+    assert_allclose(
+        context.pullback(np.array(0.3 + 0.2j)),
+        (0.3 + 0.2j) * second.conjugate(),
+        rtol=5e-12,
+        atol=1e-12,
+    )
+    assert_allclose(
+        function(-order, z),
+        np.exp((1j if kind == "h1" else -1j) * np.pi * order) * function(order, z),
+        rtol=3e-12,
+        atol=1e-12,
+    )

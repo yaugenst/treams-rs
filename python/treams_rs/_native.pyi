@@ -154,14 +154,28 @@ class SolveContext:
         self, cotangent: ComplexArray
     ) -> tuple[ComplexArray, ComplexArray]: ...
 
-def bessel_forward(
-    orders: RealArray,
-    arguments: ComplexArray,
-    kind: str,
-    spherical: bool,
-    derivative: int,
-    shape: tuple[int, ...],
-) -> ComplexArray: ...
+def hankel_scalar(order: float, z: complex, first: bool) -> complex: ...
+
+jv: np.ufunc
+yv: np.ufunc
+hankel1: np.ufunc
+hankel2: np.ufunc
+jv_d: np.ufunc
+yv_d: np.ufunc
+hankel1_d: np.ufunc
+hankel2_d: np.ufunc
+spherical_jn: np.ufunc
+spherical_yn: np.ufunc
+spherical_hankel1: np.ufunc
+spherical_hankel2: np.ufunc
+spherical_jn_d: np.ufunc
+spherical_yn_d: np.ufunc
+spherical_hankel1_d: np.ufunc
+spherical_hankel2_d: np.ufunc
+
+def bessel_scalar(
+    order: float, z: complex, kind: str, spherical: bool, derivative: int
+) -> tuple[ComplexArray, BesselContext]: ...
 
 class BesselContext:
     def pullback(self, cotangent: ComplexArray) -> ComplexArray: ...

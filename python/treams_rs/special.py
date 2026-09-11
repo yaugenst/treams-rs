@@ -1,4 +1,4 @@
-"""Broadcast mathematical functions evaluated in Rust.
+"""Rust special functions with NumPy broadcasting, ``out`` and ``where``.
 
 Results use complex128, including real inputs. Singular/nonfinite evaluations
 raise ValueError. Use diff.bessel or advect.bessel for native argument pullbacks.
@@ -8,106 +8,83 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from . import _native, diff
+from . import _native
 
 if TYPE_CHECKING:
     import numpy as np
     from numpy.typing import ArrayLike, NDArray
 
-
-def _bessel(
-    order: ArrayLike,
-    z: ArrayLike,
-    *,
-    kind: str = "j",
-    spherical: bool = False,
-    derivative: bool = False,
-) -> NDArray[np.complex128]:
-    orders, arguments, shape, _ = diff._bessel_inputs(order, z)
-    return _native.bessel_forward(
-        orders, arguments, kind, spherical, int(derivative), shape
-    )
-
-
-def jv(v: ArrayLike, z: ArrayLike) -> NDArray[np.complex128]:
-    """Cylindrical Bessel J for real order and complex argument."""
-    return _bessel(v, z)
-
-
-def yv(v: ArrayLike, z: ArrayLike) -> NDArray[np.complex128]:
-    """Cylindrical Bessel Y for real order and complex argument."""
-    return _bessel(v, z, kind="y")
-
-
-def hankel1(v: ArrayLike, z: ArrayLike) -> NDArray[np.complex128]:
-    """Cylindrical outgoing Hankel function."""
-    return _bessel(v, z, kind="h1")
-
-
-def hankel2(v: ArrayLike, z: ArrayLike) -> NDArray[np.complex128]:
-    """Cylindrical incoming Hankel function."""
-    return _bessel(v, z, kind="h2")
-
-
-def jv_d(v: ArrayLike, z: ArrayLike) -> NDArray[np.complex128]:
-    """Complex-argument derivative of cylindrical Bessel J."""
-    return _bessel(v, z, derivative=True)
-
-
-def yv_d(v: ArrayLike, z: ArrayLike) -> NDArray[np.complex128]:
-    """Complex-argument derivative of cylindrical Bessel Y."""
-    return _bessel(v, z, kind="y", derivative=True)
-
-
-def hankel1_d(v: ArrayLike, z: ArrayLike) -> NDArray[np.complex128]:
-    """Complex-argument derivative of outgoing cylindrical Hankel."""
-    return _bessel(v, z, kind="h1", derivative=True)
-
-
-def hankel2_d(v: ArrayLike, z: ArrayLike) -> NDArray[np.complex128]:
-    """Complex-argument derivative of incoming cylindrical Hankel."""
-    return _bessel(v, z, kind="h2", derivative=True)
+jv = _native.jv
+yv = _native.yv
+jv_d = _native.jv_d
+yv_d = _native.yv_d
+hankel1_d = _native.hankel1_d
+hankel2_d = _native.hankel2_d
+spherical_hankel1 = _native.spherical_hankel1
+spherical_hankel2 = _native.spherical_hankel2
+spherical_jn_d = _native.spherical_jn_d
+spherical_yn_d = _native.spherical_yn_d
+spherical_hankel1_d = _native.spherical_hankel1_d
+spherical_hankel2_d = _native.spherical_hankel2_d
 
 
 def spherical_jn(
-    n: ArrayLike, z: ArrayLike, derivative: bool = False
+    n: ArrayLike,
+    z: ArrayLike,
+    derivative: bool = False,
+    *,
+    out: NDArray[np.complex128] | None = None,
+    where: ArrayLike = True,
 ) -> NDArray[np.complex128]:
-    """Spherical regular Bessel function, with analytic values at the origin."""
-    return _bessel(n, z, spherical=True, derivative=derivative)
+    """Spherical regular Bessel, optionally its first argument derivative."""
+    function = _native.spherical_jn_d if derivative else _native.spherical_jn
+    return function(n, z, out=out, where=where)
 
 
 def spherical_yn(
-    n: ArrayLike, z: ArrayLike, derivative: bool = False
+    n: ArrayLike,
+    z: ArrayLike,
+    derivative: bool = False,
+    *,
+    out: NDArray[np.complex128] | None = None,
+    where: ArrayLike = True,
 ) -> NDArray[np.complex128]:
-    """Spherical second-kind Bessel function."""
-    return _bessel(n, z, kind="y", spherical=True, derivative=derivative)
+    """Spherical second-kind Bessel, optionally its first argument derivative."""
+    function = _native.spherical_yn_d if derivative else _native.spherical_yn
+    return function(n, z, out=out, where=where)
 
 
-def spherical_hankel1(n: ArrayLike, z: ArrayLike) -> NDArray[np.complex128]:
-    """Spherical outgoing Hankel function."""
-    return _bessel(n, z, kind="h1", spherical=True)
+def hankel1(
+    v: ArrayLike,
+    z: ArrayLike,
+    *,
+    out: NDArray[np.complex128] | None = None,
+    where: ArrayLike = True,
+) -> complex | NDArray[np.complex128]:
+    """Outgoing cylindrical Hankel, with a direct native Python-scalar path."""
+    if (
+        out is None
+        and where is True
+        and isinstance(v, (int, float))
+        and isinstance(z, (int, float, complex))
+    ):
+        return _native.hankel_scalar(v, z, True)
+    return _native.hankel1(v, z, out=out, where=where)
 
 
-def spherical_hankel2(n: ArrayLike, z: ArrayLike) -> NDArray[np.complex128]:
-    """Spherical incoming Hankel function."""
-    return _bessel(n, z, kind="h2", spherical=True)
-
-
-def spherical_jn_d(n: ArrayLike, z: ArrayLike) -> NDArray[np.complex128]:
-    """Complex-argument derivative of spherical regular Bessel."""
-    return spherical_jn(n, z, True)
-
-
-def spherical_yn_d(n: ArrayLike, z: ArrayLike) -> NDArray[np.complex128]:
-    """Complex-argument derivative of spherical second-kind Bessel."""
-    return spherical_yn(n, z, True)
-
-
-def spherical_hankel1_d(n: ArrayLike, z: ArrayLike) -> NDArray[np.complex128]:
-    """Complex-argument derivative of outgoing spherical Hankel."""
-    return _bessel(n, z, kind="h1", spherical=True, derivative=True)
-
-
-def spherical_hankel2_d(n: ArrayLike, z: ArrayLike) -> NDArray[np.complex128]:
-    """Complex-argument derivative of incoming spherical Hankel."""
-    return _bessel(n, z, kind="h2", spherical=True, derivative=True)
+def hankel2(
+    v: ArrayLike,
+    z: ArrayLike,
+    *,
+    out: NDArray[np.complex128] | None = None,
+    where: ArrayLike = True,
+) -> complex | NDArray[np.complex128]:
+    """Incoming cylindrical Hankel, with a direct native Python-scalar path."""
+    if (
+        out is None
+        and where is True
+        and isinstance(v, (int, float))
+        and isinstance(z, (int, float, complex))
+    ):
+        return _native.hankel_scalar(v, z, False)
+    return _native.hankel2(v, z, out=out, where=where)

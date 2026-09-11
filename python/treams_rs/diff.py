@@ -30,6 +30,8 @@ def bessel(
     Order is held fixed. kind is j, y, h1 or h2. The pullback reduces broadcast
     axes to the original z shape; scalar arguments retain only one native value.
     """
+    if isinstance(order, (int, float)) and isinstance(z, (int, float, complex)):
+        return _native.bessel_scalar(order, z, kind, spherical, int(derivative))
     orders, arguments, shape, argument_shape = _bessel_inputs(order, z)
     return _native.bessel(
         orders, arguments, kind, spherical, int(derivative), shape, argument_shape
@@ -43,7 +45,11 @@ def _bessel_inputs(
 ]:
     orders = np.asarray(order, dtype=np.float64)
     arguments = np.asarray(z, dtype=np.complex128)
-    degrees, values = np.broadcast_arrays(orders, arguments)
+    degrees, values = (
+        (orders, arguments)
+        if orders.shape == arguments.shape
+        else np.broadcast_arrays(orders, arguments)
+    )
     return (
         (orders if orders.size == 1 else degrees).ravel(),
         (arguments if arguments.size == 1 else values).ravel(),

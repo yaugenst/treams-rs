@@ -12,6 +12,7 @@ mod linalg;
 mod smatrix;
 mod special;
 mod tmatrix;
+mod ufunc;
 
 use num_complex::Complex64;
 use numpy::{
@@ -143,6 +144,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     linalg::register(m)?;
     ebcm::register(m)?;
     special::register(m)?;
+    ufunc::register(m)?;
     m.add_class::<MieContext>()?;
     m.add_function(wrap_pyfunction!(build_profile, m)?)?;
     m.add_function(wrap_pyfunction!(mie, m)?)?;

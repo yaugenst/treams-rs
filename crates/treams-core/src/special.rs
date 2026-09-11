@@ -18,6 +18,7 @@ pub enum Bessel {
     H2,
 }
 
+#[inline]
 fn bessel_raw(order: f64, z: Complex, kind: Bessel, spherical: bool) -> Result<Complex> {
     let order = if spherical { order + 0.5 } else { order };
     let value = match kind {
@@ -38,6 +39,7 @@ fn bessel_raw(order: f64, z: Complex, kind: Bessel, spherical: bool) -> Result<C
 ///
 /// Order is held fixed. Spherical regular functions use analytic origin limits.
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Integral order in 0..=256 checked before conversion.
+#[inline]
 pub fn bessel(
     order: f64,
     z: Complex,
@@ -66,6 +68,34 @@ pub fn bessel(
     let evaluate = |v| bessel_raw(v, z, kind, spherical_kind);
     let value = if derivative == 0 {
         evaluate(order)?
+    } else if !spherical_kind
+        && matches!(kind, Bessel::H1 | Bessel::H2)
+        && (order != 0.0 || derivative == 2)
+    {
+        let sequence = match kind {
+            Bessel::H1 => complex_bessel::hankel1_seq(
+                order - f64::from(derivative),
+                z,
+                usize::from(2 * derivative + 1),
+                complex_bessel::Scaling::Unscaled,
+            ),
+            _ => complex_bessel::hankel2_seq(
+                order - f64::from(derivative),
+                z,
+                usize::from(2 * derivative + 1),
+                complex_bessel::Scaling::Unscaled,
+            ),
+        }
+        .map_err(|e| Error::SpecialFunction(e.to_string()))?;
+        match sequence.values.as_slice() {
+            [left, _, right] => 0.5 * (left - right),
+            [left, _, middle, _, right] => 0.25 * (left - 2.0 * middle + right),
+            _ => {
+                return Err(Error::SpecialFunction(
+                    "invalid Hankel sequence length".into(),
+                ));
+            }
+        }
     } else if spherical_kind {
         let f = evaluate(order)?;
         let first = order * crate::ratio(f, z) - evaluate(order + 1.0)?;

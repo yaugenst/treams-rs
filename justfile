@@ -96,7 +96,7 @@ bench-performance: build-ext-release
         done
     done
     for workload in bessel bessel-derivative bessel-forward bessel-derivative-forward; do
-        for samples in 128 4096; do
-            uv run --no-sync python scripts/benchmark_cluster.py --workload "$workload" --samples "$samples" --particles 1 --lmax 3 --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/${workload}-n${samples}.json"
+        for samples in 1 128 4096; do
+            uv run --no-sync python scripts/benchmark_cluster.py --workload "$workload" --samples "$samples" --particles 1 --lmax 3 --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/ufunc-${workload}-n${samples}.json"
         done
     done

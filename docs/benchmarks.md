@@ -573,3 +573,42 @@ were exploratory; committed JSON files contain the final qualified implementatio
 Raw data: `benchmarks/results/cylindrical-particle-cluster{,-public}-n{4,16}-l3.json`.
 All four correctness, runtime and forward-RSS gates pass and are included in
 `just bench-performance`.
+
+
+## Scalar overhead and NumPy ufunc qualification
+
+A scalar outgoing Hankel call exposed a Python-dispatch regression: an exploratory
+measurement gave 1.94 us versus upstream's 0.82 us. Native scalar entry points now
+skip temporary arrays and broadcasting. Array calls use actual NumPy ufunc loops,
+retaining NumPy's output allocation, masks, broadcasting and overlap handling.
+The Rust complex-Hankel derivative now obtains its adjacent orders in one library
+sequence evaluation, using the [Bessel derivative recurrence](https://dlmf.nist.gov/10.6.ii).
+No numerical tolerance was relaxed.
+
+The following release results use the same independent-process, four-thread,
+seven-batch timing protocol, including output/context destruction. Scalar arguments
+are Python values at z=1.3+0.2i; arrays cover Re(z)=0.6..8 with Im(z)=0.2.
+Order is 3. All twelve correctness/runtime/forward-RSS gates pass. This supersedes
+the earlier Bessel implementation's table above; its historical JSON is retained.
+
+| Values | Operation | Path | Upstream us | Rust us | Speedup | Reverse us |
+| ---: | --- | --- | ---: | ---: | ---: | ---: |
+| 1 | Value | Ordinary | 0.957 | 0.596 | 1.61x | — |
+| 128 | Value | Ordinary | 61.576 | 35.080 | 1.76x | — |
+| 4096 | Value | Ordinary | 1901.426 | 553.620 | 3.43x | — |
+| 1 | Derivative | Ordinary | 1.067 | 1.004 | 1.06x | — |
+| 128 | Derivative | Ordinary | 95.156 | 24.925 | 3.82x | — |
+| 4096 | Derivative | Ordinary | 3091.247 | 554.712 | 5.57x | — |
+| 1 | Value | Recorded | 0.910 | 0.859 | 1.06x | 0.796 |
+| 128 | Value | Recorded | 61.387 | 29.670 | 2.07x | 26.041 |
+| 4096 | Value | Recorded | 2009.643 | 564.970 | 3.56x | 575.693 |
+| 1 | Derivative | Recorded | 1.081 | 0.876 | 1.23x | 0.812 |
+| 128 | Derivative | Recorded | 94.985 | 33.888 | 2.80x | 31.131 |
+| 4096 | Derivative | Recorded | 3216.664 | 567.114 | 5.67x | 582.907 |
+
+Rust forward peak RSS was 39.2–41.3 MiB, versus upstream's 64.2–65.2 MiB.
+The recorded scalar value has only a small runtime margin; these microsecond
+results should be rechecked on the target host. The broad performance claim remains
+limited to measured workloads, not every input, machine or thread count.
+Raw files are `benchmarks/results/ufunc-bessel{,-derivative}{,-forward}-n{1,128,4096}.json`.
+`just bench-performance` runs all twelve cases with the same required ratios.

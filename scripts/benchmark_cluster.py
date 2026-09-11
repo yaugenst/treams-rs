@@ -81,7 +81,9 @@ def worker(
                 oracle_upper = treams.SMatrices(upper, basis=oracle_basis, k0=1.3)
 
         if workload.startswith("bessel"):
-            bessel_arguments = np.linspace(0.6, 8.0, samples) + 0.2j
+            bessel_arguments = (
+                1.3 + 0.2j if samples == 1 else np.linspace(0.6, 8.0, samples) + 0.2j
+            )
 
         if "particle-cluster" in workload:
             degrees = [order + i % 2 for i in range(particles)]

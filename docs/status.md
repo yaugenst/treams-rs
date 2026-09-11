@@ -420,12 +420,21 @@ plus their first argument derivatives. Array inputs broadcast; results explicitl
 use complex128 even for real input. Singular or nonfinite evaluations raise
 ValueError. `diff.bessel` and `advect.bessel` differentiate complex arguments while
 holding orders fixed, including reduction to the original broadcast input shape.
-Forward-only public calls borrow contiguous inputs; recorded calls own their
+Forward-only public array calls use native NumPy ufunc loops; recorded calls own their
 arguments, retain scalar parameters once, and recompute local derivatives in
 reverse. Rust proptest checks the Wronskian and its derivative. Python tests cover
 all 16 function names, complex branch sides, real fractional cylindrical orders,
 origin limits, empty arrays, strided inputs, owned contexts and Advect composition.
-The measured 128/4096-value cases gate both forward-only and recorded performance.
+Python scalar Hankel calls and scalar recorded calls enter Rust directly, avoiding
+broadcast setup and temporary input arrays. Cylindrical Hankel derivatives share
+one native adjacent-order evaluation. Array operations support NumPy out/where,
+including overlapping, unaligned and strided buffers; singular/nonfinite values
+raise ValueError, while masked elements are not evaluated. Most public names are
+ufuncs; Hankel values and spherical J/Y retain thin scalar/derivative dispatch
+functions. Results are complex128 arrays or complex scalars as appropriate.
+Tests include concurrent calls and clean-wheel operation without SciPy or treams.
+The measured scalar/128/4096-value cases gate both forward-only and recorded
+performance; every recorded scalar still owns its inputs and one-use residual.
 
 
 Heterogeneous cylindrical clusters share the spherical block-solve residual and

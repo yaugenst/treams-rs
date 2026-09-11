@@ -112,29 +112,51 @@ fn bessel<'py>(
 }
 
 #[pyfunction]
-fn bessel_forward<'py>(
+fn bessel_scalar<'py>(
     py: Python<'py>,
-    orders: PyReadonlyArray1<'py, f64>,
-    arguments: PyReadonlyArray1<'py, Complex>,
+    order: f64,
+    z: Complex,
     kind: &str,
     spherical: bool,
     derivative: u8,
-    shape: Vec<usize>,
-) -> PyResult<Bound<'py, PyArrayDyn<Complex>>> {
-    let kind = bessel_kind(kind)?;
-    let orders = orders.as_slice()?;
-    let arguments = arguments.as_slice()?;
-    let value = py
-        .detach(|| special::bessel_values(orders, arguments, kind, spherical, derivative))
-        .map_err(error)?;
-    Ok(ArrayD::from_shape_vec(IxDyn(&shape), value)
+) -> PyResult<(Bound<'py, PyArrayDyn<Complex>>, BesselContext)> {
+    let (value, residual) = special::bessel_array(
+        vec![order],
+        vec![z],
+        bessel_kind(kind)?,
+        spherical,
+        derivative,
+    )
+    .map_err(error)?;
+    let value = ArrayD::from_shape_vec(IxDyn(&[]), value)
         .map_err(|e| PyValueError::new_err(e.to_string()))?
-        .into_pyarray(py))
+        .into_pyarray(py);
+    Ok((
+        value,
+        BesselContext {
+            residual: Some(residual),
+            shape: Vec::new(),
+            argument_shape: Vec::new(),
+        },
+    ))
+}
+
+#[pyfunction]
+fn hankel_scalar(order: f64, z: Complex, first: bool) -> PyResult<Complex> {
+    special::bessel(
+        order,
+        z,
+        if first { Bessel::H1 } else { Bessel::H2 },
+        false,
+        0,
+    )
+    .map_err(error)
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<BesselContext>()?;
-    module.add_function(wrap_pyfunction!(bessel_forward, module)?)?;
+    module.add_function(wrap_pyfunction!(bessel_scalar, module)?)?;
+    module.add_function(wrap_pyfunction!(hankel_scalar, module)?)?;
     module.add_function(wrap_pyfunction!(bessel, module)?)?;
     Ok(())
 }
