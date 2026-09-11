@@ -703,3 +703,26 @@ Kambe order is -2 and eta=0.7+0.1j. Units below are microseconds.
 | wigner | 4096 | 2357.991 | 144.681 | 16.30x | 274.425 |
 
 Peak RSS spans 39.9–41.5 MiB for Rust versus 64.2–65.8 MiB for upstream. All native hashes, timing samples, reverse measurements and environment details are in the corresponding [raw results](../benchmarks/results/).
+
+
+## Cylindrical axial field derivatives
+
+On the same release build, four particles, order 3 and four threads, both the
+existing reverse and optional per-mode axial reverse pass upstream accuracy,
+forward-runtime and forward-RSS gates. The forward is identical for both choices;
+recording adds no axial derivative table. Timings in milliseconds:
+
+| Reverse requested | Samples | Upstream forward | Rust forward | Speedup | Rust reverse | Rust / upstream RSS MiB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Existing | 128 | 32.071 | 3.120 | 10.28x | 4.045 | 44.8 / 67.7 |
+| Existing | 2048 | 503.039 | 49.549 | 10.15x | 66.882 | 44.9 / 96.4 |
+| All + axial | 128 | 33.642 | 3.094 | 10.87x | 4.180 | 43.8 / 67.7 |
+| All + axial | 2048 | 504.578 | 48.038 | 10.50x | 65.684 | 44.3 / 96.3 |
+
+The pre-change baseline at `ce0bde4` measured 3.172/47.935 ms forward and
+4.197/62.601 ms reverse for 128/2048 samples. Subsequent fixed-path runs measured
+3.093–3.120/48.038–49.549 ms forward; these short successive runs vary by a few
+percent and do not establish a change at that scale. Axial reverse remains about
+4.2/65.7 ms while computing one additional derivative per mode. The four new gates
+are included in `just bench-performance` (72 total); the prior 68-gate combined
+run and these four additions are recorded separately, not claimed as one run.

@@ -13,6 +13,7 @@ import advect as ad
 import numpy as np
 
 from . import coeffs, diff, lattice
+from ._core import CylindricalWaveBasis
 from ._operators import _rs_weights
 
 if TYPE_CHECKING:
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
 
     from numpy.typing import ArrayLike, NDArray
 
-    from ._core import CylindricalWaveBasis, SphericalWaveBasis
+    from ._core import SphericalWaveBasis
     from .ebcm import Modes
 
 
@@ -491,6 +492,35 @@ def svdvals(operator: ArrayLike) -> NDArray[np.float64]:
     return ad.numpy.real(_call((operator,), forward))
 
 
+def _field_basis(
+    basis: SphericalWaveBasis | CylindricalWaveBasis,
+    origins: ArrayLike,
+    kzs: ArrayLike | None,
+) -> SphericalWaveBasis | CylindricalWaveBasis:
+    if kzs is None:
+        return type(basis)(basis.modes, origins)
+    if not isinstance(basis, CylindricalWaveBasis):
+        raise ValueError("axial field derivatives require a cylindrical basis")
+    axial = np.asarray(kzs)
+    if np.iscomplexobj(axial):
+        if np.any(axial.imag != 0):
+            raise ValueError("kzs must be real")
+        axial = axial.real
+    axial = np.asarray(axial, dtype=np.float64)
+    if axial.shape != (len(basis),):
+        raise ValueError("kzs must contain one real axial wavenumber per mode")
+    result = CylindricalWaveBasis(
+        (
+            (p, float(kz), m, pol)
+            for (p, _, m, pol), kz in zip(basis.modes, axial, strict=True)
+        ),
+        origins,
+    )
+    if len(result) != len(basis):
+        raise ValueError("axial wavenumbers must preserve distinct mode labels")
+    return result
+
+
 def field_operator(
     points: ArrayLike,
     origins: ArrayLike,
@@ -499,20 +529,21 @@ def field_operator(
     basis: SphericalWaveBasis | CylindricalWaveBasis,
     poltype: str = "helicity",
     singular: bool = False,
+    kzs: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
-    """Full field matrix with native geometry/wavenumber derivatives."""
+    """Full field matrix; optional per-mode kzs are differentiable for cylinders."""
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.field_operator(
-            values[0],
-            type(basis)(basis.modes, values[1]),
-            values[2],
-            poltype=poltype,
-            singular=singular,
+        dynamic_basis = _field_basis(
+            basis, values[1], values[3] if kzs is not None else None
         )
-        return value, context.pullback
+        value, context = diff.field_operator(
+            values[0], dynamic_basis, values[2], poltype=poltype, singular=singular
+        )
+        return value, context.pullback if kzs is None else context.pullback_axial
 
-    return _call((points, origins, ks), forward)
+    values = (points, origins, ks) if kzs is None else (points, origins, ks, kzs)
+    return _call(values, forward)
 
 
 def field(
@@ -524,11 +555,14 @@ def field(
     basis: SphericalWaveBasis | CylindricalWaveBasis,
     poltype: str = "helicity",
     singular: bool = False,
+    kzs: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
-    """Electric field; differentiable in amplitudes, points, origins and wavenumbers."""
+    """Electric samples with native geometry/medium and optional cylindrical kz VJPs."""
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        dynamic_basis = type(basis)(basis.modes, positions=values[2])
+        dynamic_basis = _field_basis(
+            basis, values[2], values[4] if kzs is not None else None
+        )
         value, context = diff.field(
             values[0],
             values[1],
@@ -537,9 +571,14 @@ def field(
             poltype=poltype,
             singular=singular,
         )
-        return value, context.pullback
+        return value, context.pullback if kzs is None else context.pullback_axial
 
-    return _call((coefficients, points, origins, ks), forward)
+    values = (
+        (coefficients, points, origins, ks)
+        if kzs is None
+        else (coefficients, points, origins, ks, kzs)
+    )
+    return _call(values, forward)
 
 
 def hfield(
@@ -552,6 +591,7 @@ def hfield(
     basis: SphericalWaveBasis | CylindricalWaveBasis,
     poltype: str = "helicity",
     singular: bool = False,
+    kzs: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
     """Magnetic samples, including impedance derivatives through the linear weights."""
     weights = 2 * basis.pol - 1 if poltype == "helicity" else 1
@@ -570,6 +610,7 @@ def hfield(
         basis=basis,
         poltype=poltype,
         singular=singular,
+        kzs=kzs,
     )
 
 
@@ -583,6 +624,7 @@ def gfield(
     basis: SphericalWaveBasis | CylindricalWaveBasis,
     poltype: str = "helicity",
     singular: bool = False,
+    kzs: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
     """Weighted G samples and native field pullbacks, with upstream scaling."""
     electric, magnetic = _rs_weights(pol, basis, poltype)
@@ -594,6 +636,7 @@ def gfield(
         basis=basis,
         poltype=poltype,
         singular=singular,
+        kzs=kzs,
     )
     if magnetic:
         value = value + 1j * magnetic * hfield(
@@ -605,6 +648,7 @@ def gfield(
             basis=basis,
             poltype=poltype,
             singular=singular,
+            kzs=kzs,
         )
     return value
 
@@ -619,6 +663,7 @@ def ffield(
     basis: SphericalWaveBasis | CylindricalWaveBasis,
     poltype: str = "helicity",
     singular: bool = False,
+    kzs: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
     """Weighted F samples, differentiating the chiral index weights as well."""
     if poltype == "helicity":
@@ -635,6 +680,7 @@ def ffield(
         basis=basis,
         poltype=poltype,
         singular=singular,
+        kzs=kzs,
     )
 
 

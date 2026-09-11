@@ -105,6 +105,27 @@ fn cylindrical_wave_impl<const N: usize>(
     helicity: bool,
     radial: Radial,
 ) -> Result<VectorWave> {
+    Ok(pack_cylindrical(cylindrical_components::<N>(
+        mode, k, position, helicity, radial,
+    )?))
+}
+
+fn pack_cylindrical<const N: usize>(fields: [crate::jet::Jet<N>; 3]) -> VectorWave {
+    VectorWave {
+        value: fields.map(|v| v.value),
+        position: fields
+            .map(|v| std::array::from_fn(|i| v.derivative.get(i).copied().unwrap_or_default())),
+        k: fields.map(|v| v.derivative.get(3).copied().unwrap_or_default()),
+    }
+}
+
+fn cylindrical_components<const N: usize>(
+    mode: crate::cylwaves::Mode,
+    k: Complex,
+    position: [f64; 3],
+    helicity: bool,
+    radial: Radial,
+) -> Result<[crate::jet::Jet<N>; 3]> {
     use crate::{cylwaves, jet::Jet};
     mode.validate()?;
     if !finite(k) || k == Complex::default() || position.iter().any(|x| !x.is_finite()) {
@@ -114,7 +135,8 @@ fn cylindrical_wave_impl<const N: usize>(
     }
     let r: [Jet<N>; 3] = std::array::from_fn(|i| Jet::variable(position[i], i));
     let k = Jet::<N>::variable(k, 3);
-    let mut transverse = (k * k - mode.kz * mode.kz).sqrt();
+    let kz = Jet::<N>::variable(mode.kz, 4);
+    let mut transverse = (k * k - kz * kz).sqrt();
     if transverse.value.im < 0.0 {
         transverse = -transverse;
     }
@@ -124,38 +146,38 @@ fn cylindrical_wave_impl<const N: usize>(
         ));
     }
     let rho = position[0].hypot(position[1]);
-    let [lower, center, upper] =
-        if radial == Radial::Regular && (transverse.value * rho).norm() < 0.5 {
-            [mode.m - 1, mode.m, mode.m + 1]
-                .map(|m| cylwaves::regular_harmonic(m, transverse, r, Jet::constant(mode.kz)))
-        } else {
-            if rho == 0.0 {
-                return Err(Error::SpecialFunction(
-                    "outgoing cylindrical wave is singular on the axis".into(),
-                ));
-            }
-            let radius = (r[0] * r[0] + r[1] * r[1]).sqrt();
-            let argument = transverse * radius;
-            let radial = crate::special::cylindrical(mode.m, argument.value, radial)?;
-            let value = argument.map(radial.value, radial.first);
-            let derivative = argument.map(radial.first, radial.second);
-            let azimuth = (r[0] + Complex::i() * r[1]) / radius;
-            let phase = (Complex::i() * mode.kz * r[2]).exp() * azimuth.powi(mode.m);
-            let adjacent = f64::from(mode.m) * value / argument;
-            [
-                (adjacent + derivative) * phase / azimuth,
-                value * phase,
-                (adjacent - derivative) * phase * azimuth,
-            ]
-        };
+    let [lower, center, upper] = if radial == Radial::Regular
+        && (transverse.value * rho).norm() < 0.5
+    {
+        [mode.m - 1, mode.m, mode.m + 1].map(|m| cylwaves::regular_harmonic(m, transverse, r, kz))
+    } else {
+        if rho == 0.0 {
+            return Err(Error::SpecialFunction(
+                "outgoing cylindrical wave is singular on the axis".into(),
+            ));
+        }
+        let radius = (r[0] * r[0] + r[1] * r[1]).sqrt();
+        let argument = transverse * radius;
+        let radial = crate::special::cylindrical(mode.m, argument.value, radial)?;
+        let value = argument.map(radial.value, radial.first);
+        let derivative = argument.map(radial.first, radial.second);
+        let azimuth = (r[0] + Complex::i() * r[1]) / radius;
+        let phase = (Complex::i() * kz * r[2]).exp() * azimuth.powi(mode.m);
+        let adjacent = f64::from(mode.m) * value / argument;
+        [
+            (adjacent + derivative) * phase / azimuth,
+            value * phase,
+            (adjacent - derivative) * phase * azimuth,
+        ]
+    };
     let m = [
         0.5 * Complex::i() * (lower + upper),
         0.5 * (upper - lower),
         Jet::default(),
     ];
     let n = [
-        0.5 * Complex::i() * mode.kz / k * (lower - upper),
-        -0.5 * mode.kz / k * (lower + upper),
+        0.5 * Complex::i() * kz / k * (lower - upper),
+        -0.5 * kz / k * (lower + upper),
         transverse / k * center,
     ];
     let fields: [Jet<N>; 3] = std::array::from_fn(|i| {
@@ -167,12 +189,7 @@ fn cylindrical_wave_impl<const N: usize>(
             n[i]
         }
     });
-    Ok(VectorWave {
-        value: fields.map(|v| v.value),
-        position: fields
-            .map(|v| std::array::from_fn(|i| v.derivative.get(i).copied().unwrap_or_default())),
-        k: fields.map(|v| v.derivative.get(3).copied().unwrap_or_default()),
-    })
+    Ok(fields)
 }
 
 fn cross(a: [Complex; 3], b: [Complex; 3]) -> [Complex; 3] {
@@ -414,50 +431,108 @@ impl FieldResidual {
             return Err(Error::InvalidInput("invalid field cotangent".into()));
         }
         self.geometry
-            .pullback(Some(&self.coefficients), |sample, _| cotangent[sample])
+            .pullback::<false>(Some(&self.coefficients), |sample, _| cotangent[sample])
+            .map(|(gradient, _)| gradient)
+    }
+}
+
+impl FieldResidual {
+    /// Field pullback including a real axial-wavenumber gradient for each mode.
+    pub fn pullback_axial(self, cotangent: &[[Complex; 3]]) -> Result<(FieldGradient, Vec<f64>)> {
+        if cotangent.len() != self.geometry.points.len()
+            || cotangent.iter().flatten().any(|&g| !finite(g))
+        {
+            return Err(Error::InvalidInput("invalid field cotangent".into()));
+        }
+        self.geometry
+            .pullback::<true>(Some(&self.coefficients), |sample, _| cotangent[sample])
     }
 }
 
 impl FieldGeometry {
-    fn pullback(
+    fn pullback<const AXIAL: bool>(
         &self,
         coefficients: Option<&[Complex]>,
         cotangent: impl Fn(usize, usize) -> [Complex; 3] + Sync,
-    ) -> Result<FieldGradient> {
+    ) -> Result<(FieldGradient, Vec<f64>)> {
         use rayon::prelude::*;
+        let axial_basis = if AXIAL {
+            match &self.basis {
+                FieldBasis::Cylindrical(basis) => Some(basis),
+                FieldBasis::Spherical(_) => {
+                    return Err(Error::InvalidInput(
+                        "axial field derivatives require a cylindrical basis".into(),
+                    ));
+                }
+            }
+        } else {
+            None
+        };
         let mut points = vec![[0.0; 3]; self.points.len()];
-        let zero = || FieldGradient {
-            coefficients: vec![Complex::default(); coefficients.map_or(0, <[Complex]>::len)],
-            points: Vec::new(),
-            origins: vec![[0.0; 3]; self.basis.origins().len()],
-            ks: [Complex::default(); 2],
+        let zero = || {
+            (
+                FieldGradient {
+                    coefficients: vec![
+                        Complex::default();
+                        coefficients.map_or(0, <[Complex]>::len)
+                    ],
+                    points: Vec::new(),
+                    origins: vec![[0.0; 3]; self.basis.origins().len()],
+                    ks: [Complex::default(); 2],
+                },
+                if AXIAL {
+                    vec![0.0; self.basis.len()]
+                } else {
+                    Vec::new()
+                },
+            )
         };
         let mut result = points
             .par_iter_mut()
             .zip(self.points.par_iter())
             .enumerate()
-            .try_fold(zero, |mut sum, (sample, (point_gradient, point))| {
-                for i in 0..self.basis.len() {
-                    let (particle, pol) = self.basis.origin_pol(i);
-                    let wave = self.wave::<true>(i, *point)?;
-                    let amplitude = coefficients.map_or(Complex::new(1.0, 0.0), |c| c[i]);
-                    let g = cotangent(sample, i);
-                    for (component, &cot) in g.iter().enumerate() {
-                        if coefficients.is_some() {
-                            sum.coefficients[i] += wave.value[component].conj() * cot;
-                        }
-                        sum.ks[pol] += (amplitude * wave.k[component]).conj() * cot;
-                        for (axis, point_derivative) in point_gradient.iter_mut().enumerate() {
-                            let derivative =
-                                (cot.conj() * amplitude * wave.position[component][axis]).re;
-                            *point_derivative += derivative;
-                            sum.origins[particle][axis] -= derivative;
+            .try_fold(
+                zero,
+                |(mut sum, mut axial), (sample, (point_gradient, point))| {
+                    for i in 0..self.basis.len() {
+                        let (particle, pol) = self.basis.origin_pol(i);
+                        let (wave, axial_derivative) = if let Some(basis) = axial_basis {
+                            let position =
+                                std::array::from_fn(|a| point[a] - basis.positions[particle][a]);
+                            let fields = cylindrical_components::<5>(
+                                basis.modes[i].1,
+                                self.ks[pol],
+                                position,
+                                self.helicity,
+                                self.radial,
+                            )?;
+                            (pack_cylindrical(fields), fields.map(|v| v.derivative[4]))
+                        } else {
+                            (self.wave::<true>(i, *point)?, [Complex::default(); 3])
+                        };
+                        let amplitude = coefficients.map_or(Complex::new(1.0, 0.0), |c| c[i]);
+                        let g = cotangent(sample, i);
+                        for (component, &cot) in g.iter().enumerate() {
+                            if coefficients.is_some() {
+                                sum.coefficients[i] += wave.value[component].conj() * cot;
+                            }
+                            sum.ks[pol] += (amplitude * wave.k[component]).conj() * cot;
+                            if AXIAL {
+                                axial[i] +=
+                                    (cot.conj() * amplitude * axial_derivative[component]).re;
+                            }
+                            for (axis, point_derivative) in point_gradient.iter_mut().enumerate() {
+                                let derivative =
+                                    (cot.conj() * amplitude * wave.position[component][axis]).re;
+                                *point_derivative += derivative;
+                                sum.origins[particle][axis] -= derivative;
+                            }
                         }
                     }
-                }
-                Ok(sum)
-            })
-            .try_reduce(zero, |mut a, b| {
+                    Ok((sum, axial))
+                },
+            )
+            .try_reduce(zero, |(mut a, mut akz), (b, bkz)| {
                 for (x, y) in a.coefficients.iter_mut().zip(b.coefficients) {
                     *x += y;
                 }
@@ -472,9 +547,12 @@ impl FieldGeometry {
                 for (x, y) in a.ks.iter_mut().zip(b.ks) {
                     *x += y;
                 }
-                Ok(a)
+                for (x, y) in akz.iter_mut().zip(bkz) {
+                    *x += y;
+                }
+                Ok((a, akz))
             })?;
-        result.points = points;
+        result.0.points = points;
         Ok(result)
     }
 }
@@ -526,7 +604,26 @@ impl OperatorResidual {
                 "invalid field operator cotangent".into(),
             ));
         }
-        self.geometry.pullback(None, |sample, mode| {
+        self.geometry
+            .pullback::<false>(None, |sample, mode| {
+                std::array::from_fn(|i| cotangent[(3 * sample + i, mode)])
+            })
+            .map(|(gradient, _)| gradient)
+    }
+}
+
+impl OperatorResidual {
+    /// Operator pullback including a real axial-wavenumber gradient for each mode.
+    pub fn pullback_axial(
+        self,
+        cotangent: &nalgebra::DMatrix<Complex>,
+    ) -> Result<(FieldGradient, Vec<f64>)> {
+        if cotangent.shape() != self.shape() || cotangent.iter().any(|&g| !finite(g)) {
+            return Err(Error::InvalidInput(
+                "invalid field operator cotangent".into(),
+            ));
+        }
+        self.geometry.pullback::<true>(None, |sample, mode| {
             std::array::from_fn(|i| cotangent[(3 * sample + i, mode)])
         })
     }

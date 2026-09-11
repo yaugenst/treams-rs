@@ -267,7 +267,12 @@ def worker(
                 basis = SphericalWaveBasis.default(order, particles, positions)
                 ports = PlaneWaveBasisByComp.default(q)
 
-        if workload in ("field", "cylindrical-field", "field-operator"):
+        if workload in (
+            "field",
+            "cylindrical-field",
+            "cylindrical-field-axial",
+            "field-operator",
+        ):
             points = np.column_stack(
                 [
                     np.linspace(0.1, particles * 0.8 + 0.2, samples),
@@ -278,7 +283,7 @@ def worker(
             rng = np.random.default_rng(5)
             dimension = particles * (
                 4 * (2 * order + 1)
-                if workload == "cylindrical-field"
+                if workload.startswith("cylindrical-field")
                 else 2 * order * (order + 2)
             )
             amplitudes = rng.normal(size=dimension) + 1j * rng.normal(size=dimension)
@@ -287,7 +292,7 @@ def worker(
                     CylindricalWaveBasis.default(
                         [0.2, -0.3], order, particles, positions
                     )
-                    if workload == "cylindrical-field"
+                    if workload.startswith("cylindrical-field")
                     else SphericalWaveBasis.default(order, particles, positions)
                 )
             if backend in ("treams", "check"):
@@ -295,7 +300,7 @@ def worker(
                     treams.CylindricalWaveBasis.default(
                         [0.2, -0.3], order, particles, positions
                     )
-                    if workload == "cylindrical-field"
+                    if workload.startswith("cylindrical-field")
                     else treams.SphericalWaveBasis.default(order, particles, positions)
                 )
 
@@ -406,7 +411,7 @@ def worker(
                 return diff.rotation([0.2, 0.7, -0.3], basis)
             if workload == "field-operator":
                 return diff.field_operator(points, basis, [1.3, 1.3], singular=True)
-            if workload in ("field", "cylindrical-field"):
+            if workload in ("field", "cylindrical-field", "cylindrical-field-axial"):
                 return diff.field(amplitudes, points, basis, [1.3, 1.3], singular=True)
             if workload in ("periodic", "array", "cylindrical-array"):
                 dimension = len(basis)
@@ -559,7 +564,12 @@ def worker(
                 )
             if workload == "rotation":
                 return treams.rotate(0.2, 0.7, -0.3, basis=oracle_basis)
-            if workload in ("field", "cylindrical-field", "field-operator"):
+            if workload in (
+                "field",
+                "cylindrical-field",
+                "cylindrical-field-axial",
+                "field-operator",
+            ):
                 operator = np.asarray(
                     treams.efield(
                         points,
@@ -692,6 +702,8 @@ def worker(
                         for i, item in enumerate(particle_contexts)
                     ]
                     del coupling_result, particle_results
+                elif workload == "cylindrical-field-axial":
+                    context.pullback_axial(cotangent)
                 else:
                     context.pullback(cotangent)
                 elapsed = time.perf_counter() - start
@@ -734,6 +746,7 @@ def worker(
                         "internal-field-forward",
                         "ebcm",
                         "cylindrical-field",
+                        "cylindrical-field-axial",
                         "field-operator",
                         "conversion",
                         "periodic-conversion",
@@ -774,7 +787,7 @@ def worker(
                             "oriented-chirality",
                         )
                         else 4 * (2 * order + 1)
-                        if workload == "cylindrical-field"
+                        if workload.startswith("cylindrical-field")
                         else 2 * (2 * order + 1)
                         if workload
                         in ("cylindrical-array", "cylindrical-plane-expansion")
@@ -832,6 +845,7 @@ def main() -> None:
             "internal-field-forward",
             "ebcm",
             "cylindrical-field",
+            "cylindrical-field-axial",
             "field-operator",
             "periodic",
             "array",

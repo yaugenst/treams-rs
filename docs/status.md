@@ -24,7 +24,7 @@ gauge singularity; both values and derivatives use that limit.
 | Spherical functions | Public broadcast Bessel J/Y and incoming/outgoing Hankel values and first derivatives, cylindrical and spherical, with native argument VJPs; public integer-degree Legendre/pi/tau ufuncs and argument VJPs; public Wigner 3j and small/full D matrices, native Euler-angle VJPs, and broadcast upper-gamma/Kambe integrals; Cartesian harmonics in the core | Wider extreme-argument/order qualification; remaining angular/vector special namespace |
 | Sphere coefficients | Multilayer, lossy, magnetic, chiral Mie; all continuous input VJPs | Extreme-layer-conditioning analysis |
 | Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks; regular cylindrical-to-spherical and periodic spherical-to-cylindrical conversion with native pullbacks; explicit expandlattice dispatch | Remaining low-level wave-family API coverage |
-| Multipole fields | Spherical/cylindrical Cartesian waves and analytic axis limits; weighted fields and full field operators with native position/wavenumber VJPs and linear residuals; electric, magnetic, displacement, flux and Riemann-Silberstein operators; Advect magnetic and G/F samples; native weighted/full plane fields and complex-wavevector VJPs | Cylindrical axial-label derivatives and upstream operator-attribute machinery |
+| Multipole fields | Spherical/cylindrical Cartesian waves and analytic axis limits; weighted fields and full field operators with native position/wavenumber VJPs and linear residuals; electric, magnetic, displacement, flux and Riemann-Silberstein operators; Advect magnetic and G/F samples; native weighted/full plane fields and complex-wavevector VJPs | Upstream operator-attribute machinery |
 | Finite scattering | Dense solve and factorization-reusing adjoint; optimized sphere clusters; heterogeneous spherical/cylindrical local matrices with native local-block, position and medium-wavenumber pullbacks | Broader conditioning qualification |
 | Python interface | Material, spherical/cylindrical bases, TMatrix.sphere, TMatrixC.cylinder, clusters, interaction.solve, changepoltype, expand, xs/xw and averaged cross sections; explicit spherical/cylindrical sources with weighted E/H/D/B/G/F fields and direct T-matrix illumination | Full upstream ndarray annotation machinery is not reproduced; explicit .array is used |
 | Differentiation | Opaque one-use native contexts in coeffs and diff; arbitrary complex output cotangents; Advect adapters for spherical/cylindrical T-matrices, clusters, interactions, expansions, fields and sphere/cylinder coefficients | Higher derivatives and other framework adapters |
@@ -460,7 +460,7 @@ Spherical default-dimension helpers accept multiple particles and degree zero;
 `SphericalWaveBasis.ebcm` supplies azimuthal-block ordering and optional m cutoff.
 Hypothesis checks field-column reconstruction for all four families and dimension
 inversion; direct checks cover EBCM integral permutations and upstream's plane-
-alignment slicing defect. Full basis set algebra remains to be exposed.
+alignment slicing defect. Set algebra is covered below.
 
 
 `special.lpmv`, `pi_fun` and `tau_fun` use native NumPy loops with broadcasting,
@@ -498,3 +498,16 @@ integrals as broadcast ufuncs with direct scalar paths. Their domains remain
 integer/half-integer gamma degree and integer Kambe order. Their derivatives
 already enter the periodic solver pullbacks; direct public integral contexts
 remain to be exposed. No SciPy fallback is used.
+
+
+Cylindrical weighted fields and full field operators expose real per-mode axial
+wavenumber pullbacks through `context.pullback_axial`. The existing `pullback`
+retains its return signature and fixed-label computation. Advect field/operator,
+H and G/F adapters accept optional differentiable `kzs`, including grouped axial
+values propagated from `advect.cylinder`. Reverse uses five-component native jets
+only when requested, retaining the existing forward and residual storage.
+Checks cover regular axis limits, outgoing fields, both polarization conventions,
+weighted/operator contractions, ownership, empty samples and geometric scaling.
+A complete cylinder-scattering-to-field intensity objective checks both axial
+incidence and radius derivatives. Cylindrical expansion and cluster axial labels
+are still fixed; their matching partitions require a separate derivative boundary.

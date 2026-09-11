@@ -38,6 +38,9 @@ class FieldOperatorContext:
     def pullback(
         self, cotangent: ComplexArray
     ) -> tuple[RealArray, RealArray, ComplexArray]: ...
+    def pullback_axial(
+        self, cotangent: ComplexArray
+    ) -> tuple[RealArray, RealArray, ComplexArray, RealArray]: ...
 
 def field_operator(
     modes: list[tuple[int, int, int, int]],
@@ -374,6 +377,9 @@ class FieldContext:
         NDArray[np.float64],
         NDArray[np.complex128],
     ]: ...
+    def pullback_axial(
+        self, cotangent: ComplexArray
+    ) -> tuple[ComplexArray, RealArray, RealArray, ComplexArray, RealArray]: ...
 
 def field(
     modes: list[tuple[int, int, int, int]],

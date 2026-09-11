@@ -424,3 +424,26 @@ np.testing.assert_allclose(
 )
 assert np.isfinite(tr.special.intkambe(-2, 0.7 + 0.1j, 0.8))
 print("Clean wheel: Wigner symbols and Euler adjoints, gamma and Kambe ufuncs passed")
+
+
+# A regular m=0 M wave on the axis vanishes; use an off-axis sample and the
+# complete geometric scale identity to check axial, medium and position VJPs.
+cb = tr.CylindricalWaveBasis.default([0.2], 1)
+cp = np.array([[0.4, -0.3, 0.2]])
+ck = np.array([1.3 + 0.05j, 1.5 + 0.07j])
+ca = np.full(len(cb), 0.2 + 0.3j)
+cv, cc = tr.diff.field(ca, cp, cb, ck)
+cg = cc.pullback_axial(np.full_like(cv, 0.3 + 0.2j))
+np.testing.assert_allclose(
+    np.sum(cg[1] * cp), np.vdot(cg[3], ck).real + np.dot(cg[4], cb.kz), atol=1e-13
+)
+np.testing.assert_allclose(
+    advect.grad(
+        lambda kz: anp.real(
+            anp.sum(ad.field(ca, cp, cb.positions, ck, basis=cb, kzs=kz))
+        )
+    )(cb.kz),
+    tr.diff.field(ca, cp, cb, ck)[1].pullback_axial(np.ones_like(cv))[4],
+    atol=1e-13,
+)
+print("Clean wheel: cylindrical axial field adjoints and Advect composition passed")

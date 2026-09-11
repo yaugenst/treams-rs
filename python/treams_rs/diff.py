@@ -584,7 +584,11 @@ def field_operator(
     poltype: str = "helicity",
     singular: bool = False,
 ) -> tuple[NDArray[np.complex128], _native.FieldOperatorContext]:
-    """Field matrix (samples, 3, modes); VJP returns (points, origins, ks)."""
+    """Field matrix (samples, 3, modes); VJP returns (points, origins, ks).
+
+    For cylindrical bases, ``context.pullback_axial`` additionally returns real
+    per-mode axial-wavenumber gradients as the last array.
+    """
     values = np.asarray(ks, dtype=np.complex128)
     if values.shape != (2,) or poltype not in ("helicity", "parity"):
         raise ValueError("require two medium wavenumbers and a valid polarization type")
@@ -613,7 +617,8 @@ def field(
 
     Inputs are multipole amplitudes, Cartesian points (N, 3), a multipole basis,
     and negative/positive helicity wavenumbers. The residual uses linear storage.
-    Cylindrical axial wavenumbers remain fixed mode labels.
+    For cylindrical bases, ``context.pullback_axial`` additionally returns real
+    per-mode axial-wavenumber gradients as the last array.
     """
     values = np.asarray(ks, dtype=np.complex128)
     if values.shape != (2,):

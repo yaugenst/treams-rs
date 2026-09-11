@@ -20,6 +20,20 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    fn cylindrical_field_axial_scale_adjoint(kz in -0.4_f64..0.4, x in 0.3_f64..1.2) {
+        use crate::{cylwaves,fields};
+        let modes=vec![(0,cylwaves::Mode{kz,m:-1,pol:0}),(0,cylwaves::Mode{kz,m:1,pol:1})];
+        let basis=cylwaves::Basis{modes,positions:vec![[0.1,-0.2,0.0]]};
+        let ks=[Complex::new(1.3,0.05),Complex::new(1.5,0.07)];
+        let point=[x,0.4,0.3];
+        let residual=fields::field(basis,vec![Complex::new(0.3,0.2),Complex::new(-0.2,0.1)],vec![point],ks,true,Radial::Regular).unwrap();
+        let (g,gkz)=residual.pullback_axial(&[[Complex::new(0.2,0.3);3]]).unwrap();
+        let position=g.points.iter().flatten().zip(point).map(|(g,x)|g*x).sum::<f64>()+g.origins.iter().flatten().zip([0.1,-0.2,0.0]).map(|(g,x)|g*x).sum::<f64>();
+        let wave_number=g.ks.iter().zip(ks).map(|(g,k)|(g.conj()*k).re).sum::<f64>()+kz*gkz.iter().sum::<f64>();
+        prop_assert!((position-wave_number).abs()<2e-12);
+    }
+
+    #[test]
     fn wigner_generator_and_euler_adjoint(l in 0_i32..16, seed in 0_i32..32, x in -3.0_f64..3.0, y in -0.3_f64..0.3) {
         use crate::rotation::{wigner_array,wigner_small};
         let m=seed%(2*l+1)-l;

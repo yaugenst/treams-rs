@@ -55,13 +55,19 @@ type Gradient<'py> = (
     Bound<'py, PyArray1<Complex>>,
 );
 
-#[pymethods]
+type AxialGradient<'py> = (
+    Bound<'py, PyArray1<Complex>>,
+    Bound<'py, PyArray2<f64>>,
+    Bound<'py, PyArray2<f64>>,
+    Bound<'py, PyArray1<Complex>>,
+    Bound<'py, PyArray1<f64>>,
+);
+
 impl FieldContext {
-    fn pullback<'py>(
+    fn take(
         &mut self,
-        py: Python<'py>,
-        cotangent: PyReadonlyArray2<'py, Complex>,
-    ) -> PyResult<Gradient<'py>> {
+        cotangent: PyReadonlyArray2<'_, Complex>,
+    ) -> PyResult<(FieldResidual, Vec<[Complex; 3]>)> {
         let g = triples(cotangent)?;
         let residual = self
             .residual
@@ -80,12 +86,40 @@ impl FieldContext {
             .residual
             .take()
             .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        Ok((residual, g))
+    }
+}
+#[pymethods]
+impl FieldContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'py, Complex>,
+    ) -> PyResult<Gradient<'py>> {
+        let (residual, g) = self.take(cotangent)?;
         let result = py.detach(move || residual.pullback(&g)).map_err(error)?;
         Ok((
             result.coefficients.into_pyarray(py),
             array(py, &result.points),
             array(py, &result.origins),
             result.ks.to_vec().into_pyarray(py),
+        ))
+    }
+    fn pullback_axial<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'py, Complex>,
+    ) -> PyResult<AxialGradient<'py>> {
+        let (residual, g) = self.take(cotangent)?;
+        let (result, kz) = py
+            .detach(move || residual.pullback_axial(&g))
+            .map_err(error)?;
+        Ok((
+            result.coefficients.into_pyarray(py),
+            array(py, &result.points),
+            array(py, &result.origins),
+            result.ks.to_vec().into_pyarray(py),
+            kz.into_pyarray(py),
         ))
     }
 }
@@ -436,13 +470,17 @@ type OperatorGradient<'py> = (
     Bound<'py, PyArray2<f64>>,
     Bound<'py, PyArray1<Complex>>,
 );
-#[pymethods]
+type AxialOperatorGradient<'py> = (
+    Bound<'py, PyArray2<f64>>,
+    Bound<'py, PyArray2<f64>>,
+    Bound<'py, PyArray1<Complex>>,
+    Bound<'py, PyArray1<f64>>,
+);
 impl FieldOperatorContext {
-    fn pullback<'py>(
+    fn take(
         &mut self,
-        py: Python<'py>,
-        cotangent: PyReadonlyArray3<'py, Complex>,
-    ) -> PyResult<OperatorGradient<'py>> {
+        cotangent: PyReadonlyArray3<'_, Complex>,
+    ) -> PyResult<(fields::OperatorResidual, nalgebra::DMatrix<Complex>)> {
         let g = cotangent.as_array();
         let residual = self
             .residual
@@ -470,11 +508,38 @@ impl FieldOperatorContext {
             .residual
             .take()
             .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let gradient = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        Ok((residual, g))
+    }
+}
+#[pymethods]
+impl FieldOperatorContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray3<'py, Complex>,
+    ) -> PyResult<OperatorGradient<'py>> {
+        let (residual, g) = self.take(cotangent)?;
+        let result = py.detach(move || residual.pullback(&g)).map_err(error)?;
         Ok((
-            array(py, &gradient.points),
-            array(py, &gradient.origins),
-            gradient.ks.to_vec().into_pyarray(py),
+            array(py, &result.points),
+            array(py, &result.origins),
+            result.ks.to_vec().into_pyarray(py),
+        ))
+    }
+    fn pullback_axial<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray3<'py, Complex>,
+    ) -> PyResult<AxialOperatorGradient<'py>> {
+        let (residual, g) = self.take(cotangent)?;
+        let (result, kz) = py
+            .detach(move || residual.pullback_axial(&g))
+            .map_err(error)?;
+        Ok((
+            array(py, &result.points),
+            array(py, &result.origins),
+            result.ks.to_vec().into_pyarray(py),
+            kz.into_pyarray(py),
         ))
     }
 }

@@ -110,3 +110,8 @@ bench-performance: build-ext-release
             uv run --no-sync python scripts/benchmark_cluster.py --workload "$workload" --samples "$samples" --particles 1 --lmax 6 --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/${workload}-n${samples}.json"
         done
     done
+    for workload in cylindrical-field cylindrical-field-axial; do
+        for samples in 128 2048; do
+            uv run --no-sync python scripts/benchmark_cluster.py --workload "$workload" --samples "$samples" --particles 4 --lmax 3 --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/${workload}-s${samples}.json"
+        done
+    done
