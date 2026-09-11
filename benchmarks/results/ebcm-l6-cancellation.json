@@ -1,0 +1,343 @@
+{
+  "native_profile": "release",
+  "mpmath_digits": 80,
+  "symmetry": "For m=0 and odd l_out+l_in, this equatorially symmetric surface has an odd integrand under theta -> pi-theta.",
+  "results": [
+    {
+      "out": [
+        1,
+        0,
+        1
+      ],
+      "in": [
+        6,
+        0,
+        1
+      ],
+      "analytic_value": 0,
+      "mpmath_absolute_value": "5.9128103117044155143521134235337294454048843261236922944863928298659532952552663e-82",
+      "mpmath_reflection_error": "5.0156737619524555103149634964792059467073725684209586450373120041529446653516031e-75",
+      "integral_of_absolute_integrand": 731330.1110967608,
+      "epsilon_times_absolute_integral": 1.6238790558825952e-10,
+      "upstream_default": [
+        -2.214623012928858e-11,
+        6.600388277500432e-10
+      ],
+      "upstream_tight": [
+        -2.214623012928858e-11,
+        6.600388277500432e-10
+      ],
+      "quadrature_warnings": [
+        "The occurrence of roundoff error is detected, which prevents \n  the requested tolerance from being achieved.  The error may be \n  underestimated."
+      ],
+      "native_by_quadrature_order": {
+        "48": [
+          2.2657728345340186e-11,
+          -3.930082821272706e-10
+        ],
+        "96": [
+          -1.459721177852694e-11,
+          1.6266518549412934e-10
+        ],
+        "192": [
+          5.464679323365044e-12,
+          -2.0814598988443136e-10
+        ]
+      }
+    },
+    {
+      "out": [
+        1,
+        0,
+        1
+      ],
+      "in": [
+        6,
+        0,
+        0
+      ],
+      "analytic_value": 0,
+      "mpmath_absolute_value": "7.5798572811603993870256336221605222442371972286855587673710448607523304321943757e-83",
+      "mpmath_reflection_error": "7.9601119659887122354518363388988256481342588891884714938298032642565558492045786e-76",
+      "integral_of_absolute_integrand": 121636.54675869731,
+      "epsilon_times_absolute_integral": 2.7008738969480042e-11,
+      "upstream_default": [
+        -2.6849673342097135e-12,
+        1.1872266125370426e-10
+      ],
+      "upstream_tight": [
+        -2.6849673342097135e-12,
+        1.1872266125370426e-10
+      ],
+      "quadrature_warnings": [
+        "The occurrence of roundoff error is detected, which prevents \n  the requested tolerance from being achieved.  The error may be \n  underestimated."
+      ],
+      "native_by_quadrature_order": {
+        "48": [
+          3.730718690493111e-12,
+          -6.036865896667202e-11
+        ],
+        "96": [
+          -2.535631272403594e-12,
+          3.7560278465643686e-11
+        ],
+        "192": [
+          1.446378474568221e-12,
+          -2.472452853252003e-11
+        ]
+      }
+    },
+    {
+      "out": [
+        1,
+        0,
+        0
+      ],
+      "in": [
+        6,
+        0,
+        1
+      ],
+      "analytic_value": 0,
+      "mpmath_absolute_value": "1.0599384721797243252419128647896172107475613978926132305446621248349866706949691e-82",
+      "mpmath_reflection_error": "7.6174727363304431102787288994880457072582979755560352187523589253698478039198522e-76",
+      "integral_of_absolute_integrand": 112301.456528941,
+      "epsilon_times_absolute_integral": 2.493593254747428e-11,
+      "upstream_default": [
+        -1.4686041924157712e-11,
+        1.10535199658408e-10
+      ],
+      "upstream_tight": [
+        -1.4686041924157712e-11,
+        1.10535199658408e-10
+      ],
+      "quadrature_warnings": [
+        "The occurrence of roundoff error is detected, which prevents \n  the requested tolerance from being achieved.  The error may be \n  underestimated."
+      ],
+      "native_by_quadrature_order": {
+        "48": [
+          3.5504552491469178e-12,
+          -5.8144684296748054e-11
+        ],
+        "96": [
+          -3.1940608449366214e-12,
+          3.052092070345381e-11
+        ],
+        "192": [
+          1.7570892764500376e-12,
+          -3.21815513254018e-11
+        ]
+      }
+    },
+    {
+      "out": [
+        1,
+        0,
+        0
+      ],
+      "in": [
+        6,
+        0,
+        0
+      ],
+      "analytic_value": 0,
+      "mpmath_absolute_value": "7.6972175392819106814013962725177833204596449622137163198286595530817770290995224e-82",
+      "mpmath_reflection_error": "4.5332646404690641724858143185037287213334407537543299615804333843861135107438589e-75",
+      "integral_of_absolute_integrand": 694975.4148996464,
+      "epsilon_times_absolute_integral": 1.543155414340017e-10,
+      "upstream_default": [
+        -5.055921075692696e-11,
+        6.547889902750311e-10
+      ],
+      "upstream_tight": [
+        -5.055921075692696e-11,
+        6.547889902750311e-10
+      ],
+      "quadrature_warnings": [
+        "The occurrence of roundoff error is detected, which prevents \n  the requested tolerance from being achieved.  The error may be \n  underestimated."
+      ],
+      "native_by_quadrature_order": {
+        "48": [
+          2.2729992638515634e-11,
+          -3.543800559127836e-10
+        ],
+        "96": [
+          -1.3640462582870996e-11,
+          1.9863494538383183e-10
+        ],
+        "192": [
+          1.0702569719232627e-11,
+          -1.5130318391105054e-10
+        ]
+      }
+    },
+    {
+      "out": [
+        3,
+        0,
+        1
+      ],
+      "in": [
+        6,
+        0,
+        1
+      ],
+      "analytic_value": 0,
+      "mpmath_absolute_value": "5.875573969532610271726481206336127092623860345103391094923762946671788660558265e-83",
+      "mpmath_reflection_error": "4.4145020755016828055693075285924942891377331080292305263799408243845820958403625e-77",
+      "integral_of_absolute_integrand": 15470.773815942855,
+      "epsilon_times_absolute_integral": 3.4352018598455504e-12,
+      "upstream_default": [
+        1.5719467654322585e-12,
+        -8.81295382769363e-12
+      ],
+      "upstream_tight": [
+        1.5719467654322585e-12,
+        -8.81295382769363e-12
+      ],
+      "quadrature_warnings": [
+        "The occurrence of roundoff error is detected, which prevents \n  the requested tolerance from being achieved.  The error may be \n  underestimated."
+      ],
+      "native_by_quadrature_order": {
+        "48": [
+          -1.8059208600044205e-13,
+          1.1027953520531021e-12
+        ],
+        "96": [
+          3.7357327222439855e-13,
+          -1.2610073967366794e-12
+        ],
+        "192": [
+          1.770694565658425e-13,
+          -5.858321185366807e-13
+        ]
+      }
+    },
+    {
+      "out": [
+        3,
+        0,
+        1
+      ],
+      "in": [
+        6,
+        0,
+        0
+      ],
+      "analytic_value": 0,
+      "mpmath_absolute_value": "3.6578620631893757006332434272614416991989470373595326605262833185127646455708156e-84",
+      "mpmath_reflection_error": "6.5664703115335254848886382018239227623521537350740218608546206537493846487502898e-78",
+      "integral_of_absolute_integrand": 1809.6018230400875,
+      "epsilon_times_absolute_integral": 4.0181232186855266e-13,
+      "upstream_default": [
+        1.6280721733291142e-13,
+        -9.029490986756877e-13
+      ],
+      "upstream_tight": [
+        1.6280721733291142e-13,
+        -9.029490986756877e-13
+      ],
+      "quadrature_warnings": [
+        "The occurrence of roundoff error is detected, which prevents \n  the requested tolerance from being achieved.  The error may be \n  underestimated."
+      ],
+      "native_by_quadrature_order": {
+        "48": [
+          -1.3051918216975322e-14,
+          1.0915606399246693e-13
+        ],
+        "96": [
+          5.608684007188649e-14,
+          -3.03704187122117e-13
+        ],
+        "192": [
+          3.4187021021172172e-15,
+          -1.6989798092477278e-14
+        ]
+      }
+    },
+    {
+      "out": [
+        3,
+        0,
+        0
+      ],
+      "in": [
+        6,
+        0,
+        1
+      ],
+      "analytic_value": 0,
+      "mpmath_absolute_value": "4.1157111507796693124765220286778223746385413485628983279126855378805615892359143e-84",
+      "mpmath_reflection_error": "3.3735033418337674317915436964064060824671876423579224160248841680346061731103231e-78",
+      "integral_of_absolute_integrand": 1410.6828353465908,
+      "epsilon_times_absolute_integral": 3.1323451284905674e-13,
+      "upstream_default": [
+        2.480537671707575e-13,
+        -8.252334678178536e-13
+      ],
+      "upstream_tight": [
+        2.480537671707575e-13,
+        -8.252334678178536e-13
+      ],
+      "quadrature_warnings": [
+        "The occurrence of roundoff error is detected, which prevents \n  the requested tolerance from being achieved.  The error may be \n  underestimated."
+      ],
+      "native_by_quadrature_order": {
+        "48": [
+          -4.147304793273627e-14,
+          6.379114043621241e-14
+        ],
+        "96": [
+          7.3443679247357e-14,
+          -3.93463909150877e-13
+        ],
+        "192": [
+          -2.436509246306976e-14,
+          -1.0066137815592636e-13
+        ]
+      }
+    },
+    {
+      "out": [
+        3,
+        0,
+        0
+      ],
+      "in": [
+        6,
+        0,
+        0
+      ],
+      "analytic_value": 0,
+      "mpmath_absolute_value": "5.9944456629751673520063338218966352586980384491874535135810361516480087107658668e-83",
+      "mpmath_reflection_error": "3.1292148574440196837099665685163840156208721341726670939376167603682670970736987e-77",
+      "integral_of_absolute_integrand": 12768.951056811029,
+      "epsilon_times_absolute_integral": 2.835276692716666e-12,
+      "upstream_default": [
+        1.984322402624779e-12,
+        -8.320905687609823e-12
+      ],
+      "upstream_tight": [
+        1.984322402624779e-12,
+        -8.320905687609823e-12
+      ],
+      "quadrature_warnings": [
+        "The occurrence of roundoff error is detected, which prevents \n  the requested tolerance from being achieved.  The error may be \n  underestimated."
+      ],
+      "native_by_quadrature_order": {
+        "48": [
+          -2.860597626000238e-13,
+          7.830562370400584e-13
+        ],
+        "96": [
+          8.575806346856638e-13,
+          -2.1070230841955094e-12
+        ],
+        "192": [
+          4.698570483842247e-13,
+          3.256815199814447e-13
+        ]
+      }
+    }
+  ]
+}

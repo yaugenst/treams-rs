@@ -26,13 +26,31 @@ residual retains inputs only. Peak RSS through reverse stayed at the forward
 peak in these cases. Results include the native/Python boundary and residual
 creation, but exclude shape/basis setup.
 
-The degree-6 comparison failed its accuracy gate: six of 9,216 nearly zero
-entries differed by up to 4.98e-10. That comparison has not been fully diagnosed,
-so no degree-6 speedup is reported and the tolerance has not been relaxed.
-This is separate from the corrected integral's independent lossless and
-zero-contrast checks. Raw results on [redacted-host]:
+The degree-6 strict comparison fails on six of 9,216 nearly zero entries,
+with differences up to 4.98e-10. This is now diagnosed as cancellation in both
+implementations: all affected entries have m=0 and odd l_out+l_in, so their
+integrands are odd under theta -> pi-theta for this equatorially symmetric surface.
+Their exact integrals vanish. An independent m=0 spherical-wave calculation at
+80 decimal digits gives magnitudes below 8e-82 and confirms the angular reflection
+identity. Its integrand also agrees with upstream at an ordinary sample point.
+
+The largest integral of the absolute integrand is about 7.31e5; one double-precision
+epsilon times that magnitude is 1.62e-10. The Rust residuals at 48, 96 and 192 nodes
+range from 0.04 to 2.43 times their corresponding epsilon-scaled absolute integrals.
+Upstream leaves up to 6.62e-10, and tighter adaptive tolerances return the same
+values with a roundoff warning. Increasing quadrature order alone does not remove
+this floating-point floor. Neither these data nor the symmetry diagnostic justify
+relaxing the generic accuracy gate or claiming a degree-6 speedup.
+
+The corrected integral's independent physical convergence tests remain separate.
+Reproduce this diagnostic with
+`uv run --no-sync --with mpmath python scripts/qualify_ebcm_cancellation.py`.
+All eight m=0 degree-1/3 to degree-6 entries, their high-precision results, quadrature
+samples and condition estimates are recorded in
+`benchmarks/results/ebcm-l6-cancellation.json`.
+Earlier timing results on [redacted-host]:
 `/tmp/ebcm-legacy-l3-q96-t4.json`, `/tmp/ebcm-legacy-l4-q96-t4.json`;
-failure details: `/tmp/ebcm-l6-check.log`.
+strict failure details: `/tmp/ebcm-l6-check.log`.
 
 ```sh
 uv run --no-sync python scripts/benchmark_cluster.py --workload ebcm --particles 1 --lmax 4 --samples 96 --threads 4

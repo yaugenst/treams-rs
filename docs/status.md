@@ -113,7 +113,11 @@ The default restores a missing radial area factor in upstream's integral;
 Tests cover homogeneous spheres against Mie, zero scattering for identical media,
 lossless deformed-particle convergence through degree 6 and complete geometry,
 material and frequency gradients through `-solve(Q_singular, Q_regular)`.
-Callers must check quadrature and multipole convergence for their shapes. Sharp
+The degree-6 legacy-oracle discrepancy is independently diagnosed as cancellation
+in exactly zero, symmetry-forbidden m=0 entries in both double-precision solvers;
+80-digit results and an executable reproducer are recorded in benchmarks.md.
+The generic benchmark tolerance is unchanged. Callers must check quadrature and
+multipole convergence for their shapes. Sharp
 surfaces, shapes that are not positive radial graphs, and extreme conditioning
 are not qualified by these tests.
 
