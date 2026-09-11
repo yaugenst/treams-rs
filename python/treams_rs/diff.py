@@ -58,6 +58,47 @@ def _bessel_inputs(
     )
 
 
+def angular(
+    degree: ArrayLike,
+    order: ArrayLike,
+    z: ArrayLike,
+    *,
+    kind: str = "legendre",
+) -> tuple[NDArray[np.complex128], _native.AngularContext]:
+    """Integer-degree Legendre/pi/tau values and an argument VJP; labels stay fixed.
+
+    kind is legendre, pi or tau. A derivative at a branch point raises ValueError
+    unless its cotangent is zero. Broadcast axes reduce to the original z shape.
+    """
+    if (
+        isinstance(degree, (int, float))
+        and isinstance(order, (int, float))
+        and isinstance(z, (int, float, complex))
+    ):
+        return _native.angular_scalar(degree, order, z, kind)
+    degrees = np.asarray(degree, dtype=np.float64)
+    orders = np.asarray(order, dtype=np.float64)
+    arguments = np.asarray(z, dtype=np.complex128)
+    arrays = (degrees, orders, arguments)
+    broadcast = (
+        arrays
+        if degrees.shape == orders.shape == arguments.shape
+        or (
+            degrees.size == orders.size == 1
+            and max(degrees.ndim, orders.ndim) <= arguments.ndim
+        )
+        else np.broadcast_arrays(*arrays)
+    )
+    return _native.angular(
+        (degrees if degrees.size == 1 else broadcast[0]).ravel(),
+        (orders if orders.size == 1 else broadcast[1]).ravel(),
+        (arguments if arguments.size == 1 else broadcast[2]).ravel(),
+        kind,
+        broadcast[2].shape,
+        arguments.shape,
+    )
+
+
 def chirality_density(
     ks: ArrayLike, normal: ArrayLike, z: ArrayLike = (0.0, 0.0)
 ) -> tuple[NDArray[np.complex128], _native.ChiralityContext]:

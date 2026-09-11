@@ -80,6 +80,16 @@ def worker(
                 oracle_lower = treams.SMatrices(lower, basis=oracle_basis, k0=1.3)
                 oracle_upper = treams.SMatrices(upper, basis=oracle_basis, k0=1.3)
 
+        if workload.startswith("angular-"):
+            angular_kind = workload.split("-")[1]
+            angular_arguments = (
+                0.3 + 0.1j if samples == 1 else np.linspace(-0.8, 0.8, samples) + 0.1j
+            )
+            angular_name = {"legendre": "lpmv", "pi": "pi_fun", "tau": "tau_fun"}[
+                angular_kind
+            ]
+            angular_labels = (2, order) if angular_kind == "legendre" else (order, 2)
+
         if workload.startswith("bessel"):
             bessel_arguments = (
                 1.3 + 0.2j if samples == 1 else np.linspace(0.6, 8.0, samples) + 0.2j
@@ -303,6 +313,12 @@ def worker(
         eta = 0.7 if workload == "cylindrical-array" else 0
 
         def rust():
+            if workload.startswith("angular-"):
+                if workload.endswith("-forward"):
+                    return getattr(special, angular_name)(
+                        *angular_labels, angular_arguments
+                    ), None
+                return diff.angular(order, 2, angular_arguments, kind=angular_kind)
             if workload == "bessel-forward":
                 return special.hankel1(order, bessel_arguments), None
             if workload == "bessel-derivative-forward":
@@ -419,6 +435,10 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload.startswith("angular-"):
+                return getattr(treams.special, angular_name)(
+                    *angular_labels, angular_arguments
+                )
             if workload.startswith("bessel"):
                 function = (
                     treams.special.hankel1_d
@@ -434,8 +454,12 @@ def worker(
                 )
             if workload == "oriented-chirality":
                 q0, q1, normal = oracle_vectors.T
-                up = treams.special.vpw_A(normal, q0, q1, 0, 0, 0, oracle_basis.pol)
-                down = treams.special.vpw_A(-normal, q0, q1, 0, 0, 0, oracle_basis.pol)
+                up_polarization = treams.special.vpw_A(
+                    normal, q0, q1, 0, 0, 0, oracle_basis.pol
+                )
+                down_polarization = treams.special.vpw_A(
+                    -normal, q0, q1, 0, 0, 0, oracle_basis.pol
+                )
                 sign = 2 * oracle_basis.pol - 1
 
                 def mean(slope):
@@ -448,15 +472,15 @@ def worker(
                     [
                         2
                         * sign
-                        * np.sum(up.conj() * up, axis=-1)
+                        * np.sum(up_polarization.conj() * up_polarization, axis=-1)
                         * mean(-2 * normal.imag),
                         2
                         * sign
-                        * np.sum(down.conj() * down, axis=-1)
+                        * np.sum(down_polarization.conj() * down_polarization, axis=-1)
                         * mean(2 * normal.imag),
                         4
                         * sign
-                        * np.sum(down.conj() * up, axis=-1)
+                        * np.sum(down_polarization.conj() * up_polarization, axis=-1)
                         * mean(2j * normal.real),
                     ]
                 )
@@ -611,6 +635,9 @@ def worker(
             "cylindrical-particle-cluster-public",
             "bessel-forward",
             "bessel-derivative-forward",
+            "angular-legendre-forward",
+            "angular-pi-forward",
+            "angular-tau-forward",
         ):
             sample_total = 0.0
             for iteration in range((repeats + 1) * batch):
@@ -703,7 +730,7 @@ def worker(
                     "channels": samples if workload == "slab" else None,
                     "lmax": order,
                     "dimension": samples
-                    if workload.startswith("bessel")
+                    if workload.startswith(("bessel", "angular-"))
                     else particle_dimension
                     if "particle-cluster" in workload
                     else 2 * samples
@@ -755,6 +782,12 @@ def main() -> None:
     parser.add_argument(
         "--workload",
         choices=[
+            "angular-legendre",
+            "angular-pi",
+            "angular-tau",
+            "angular-legendre-forward",
+            "angular-pi-forward",
+            "angular-tau-forward",
             "bessel-forward",
             "bessel-derivative-forward",
             "bessel",
@@ -841,9 +874,12 @@ def main() -> None:
             "--repeats",
             str(args.repeats),
         ]
-        result = subprocess.run(
-            command, env=env, check=True, capture_output=True, text=True
-        )
+        try:
+            result = subprocess.run(
+                command, env=env, check=True, capture_output=True, text=True
+            )
+        except subprocess.CalledProcessError as error:
+            raise SystemExit(error.stderr or str(error)) from error
         if backend != "check":
             results.append(json.loads(result.stdout))
     print(

@@ -394,3 +394,16 @@ np.testing.assert_allclose(
     tr.special.hankel1_d(3, 1.3 + 0.2j).conjugate(),
     rtol=1e-13,
 )
+
+z = np.array([-1.0, -0.4, 0.7, 1.0])
+value, context = tr.diff.angular(3, 0, z)
+np.testing.assert_allclose(value, (5 * z**3 - 3 * z) / 2, atol=2e-15)
+np.testing.assert_allclose(context.pullback(np.ones(4, complex)), (15 * z**2 - 3) / 2)
+out = np.empty(4, complex)
+tr.special.pi_fun(3, 1, z, out=out)
+np.testing.assert_allclose(out, -(15 * z**2 - 3) / 2)
+np.testing.assert_allclose(
+    advect.grad(lambda x: anp.real(anp.sum(ad.angular(x, degree=3, order=0))))(z),
+    (15 * z**2 - 3) / 2,
+)
+print("Clean wheel: angular ufuncs, finite polar derivatives and Advect passed")

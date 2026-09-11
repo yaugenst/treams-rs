@@ -52,6 +52,10 @@ pub fn bessel(
             "finite order/argument and derivative 0, 1 or 2 required".into(),
         ));
     }
+    // AMOS-based kernels lose accuracy for subnormal orders (including NaNs in
+    // SciPy). Their zero-order limit is identical at double precision: even at
+    // extreme finite z, order * log(z) is far below a representable correction.
+    let order = if order.is_subnormal() { 0.0 } else { order };
     if spherical_kind
         && kind == Bessel::J
         && z.norm() < 0.5
@@ -358,9 +362,10 @@ pub(crate) fn legendre_factor<const N: usize>(
         return p;
     }
     let mut prev = p;
-    p *= f64::from(2 * m.abs() + 1) * z / f64::from(m.abs() - m + 1);
+    p *= (f64::from(2 * m.abs() + 1) / f64::from(m.abs() - m + 1)) * z;
     for k in (m.abs() + 2)..=l {
-        let next = (f64::from(2 * k - 1) * z * p - f64::from(k + m - 1) * prev) / f64::from(k - m);
+        let next =
+            (f64::from(2 * k - 1) * z * p - f64::from(k + m - 1) * prev) * (1.0 / f64::from(k - m));
         prev = p;
         p = next;
     }
@@ -499,5 +504,203 @@ mod tests {
             }
         }
         Ok(())
+    }
+}
+
+/// Associated Legendre polynomial or one of the two vector-wave angular functions.
+#[derive(Clone, Copy, Debug)]
+pub enum Angular {
+    /// Associated Legendre P, including its Condon-Shortley phase.
+    Legendre,
+    /// m P / sqrt(1-z^2), with analytic polar limits.
+    Pi,
+    /// Polar-angle derivative of P(cos(theta)).
+    Tau,
+}
+
+fn sine_power<const N: usize>(z: crate::jet::Jet<N>, power: i32) -> crate::jet::Jet<N> {
+    use crate::jet::Jet;
+    let w = 1.0 - z * z;
+    if power % 2 == 0 {
+        w.powi(power / 2)
+    } else if power > 1 && w.value == Complex::default() {
+        // Odd powers >=3 have zero value and first derivative at the poles.
+        Jet::default()
+    } else {
+        w.powi(power / 2) * w.sqrt()
+    }
+}
+
+fn angular_legendre<const N: usize>(
+    l: i32,
+    m: i32,
+    z: crate::jet::Jet<N>,
+    power: i32,
+) -> crate::jet::Jet<N> {
+    if m.abs() > l {
+        return crate::jet::Jet::default();
+    }
+    legendre_factor(l, m, z) * sine_power(z, power)
+}
+
+#[allow(clippy::cast_possible_truncation)] // Integer labels are checked and bounded before conversion.
+fn angular_jet<const N: usize>(
+    l: f64,
+    m: f64,
+    z: Complex,
+    kind: Angular,
+) -> Result<crate::jet::Jet<N>> {
+    use crate::jet::Jet;
+    if !finite(z)
+        || !l.is_finite()
+        || !m.is_finite()
+        || l.fract() != 0.0
+        || m.fract() != 0.0
+        || !(0.0..=128.0).contains(&l)
+    {
+        return Err(Error::InvalidInput("angular functions require integer 0 <= degree <= 128, integer order and finite argument".into()));
+    }
+    if m.abs() > l {
+        return Ok(Jet::default());
+    }
+    let (l, m) = (l as i32, m as i32);
+    let z = Jet::<N>::variable(z, 0);
+    let value = match kind {
+        Angular::Legendre => angular_legendre(l, m, z, m.abs()),
+        Angular::Pi if m == 0 => Jet::default(),
+        Angular::Pi => f64::from(m) * angular_legendre(l, m, z, m.abs() - 1),
+        Angular::Tau if m == 0 => angular_legendre(l, 1, z, 1),
+        Angular::Tau => {
+            // Adjacent orders share sin(theta)^(|m|-1); evaluate its root once.
+            let mut upper = legendre_factor(l, m + 1, z);
+            let mut lower = f64::from((l + m) * (l - m + 1)) * legendre_factor(l, m - 1, z);
+            if m > 0 {
+                upper *= 1.0 - z * z;
+            } else {
+                lower *= 1.0 - z * z;
+            }
+            0.5 * (upper - lower) * sine_power(z, m.abs() - 1)
+        }
+    };
+    if !value.finite() {
+        return Err(Error::SpecialFunction(
+            if N == 0 {
+                "nonfinite angular result"
+            } else {
+                "angular argument derivative is undefined or nonfinite"
+            }
+            .into(),
+        ));
+    }
+    Ok(value)
+}
+
+/// Integer-degree angular function at a complex cosine argument.
+pub fn angular_value(l: f64, m: f64, z: Complex, kind: Angular) -> Result<Complex> {
+    Ok(angular_jet::<0>(l, m, z, kind)?.value)
+}
+
+/// Borrowed angular values with scalar-or-equal-length broadcasting.
+pub fn angular_values(
+    degrees: &[f64],
+    orders: &[f64],
+    arguments: &[Complex],
+    kind: Angular,
+) -> Result<Vec<Complex>> {
+    let sizes = [degrees.len(), orders.len(), arguments.len()];
+    let size = if sizes.contains(&0) {
+        0
+    } else {
+        sizes.into_iter().max().unwrap_or_default()
+    };
+    if sizes.iter().any(|&n| n != 1 && n != size) {
+        return Err(Error::InvalidInput(
+            "angular arrays must have equal lengths or scalar inputs".into(),
+        ));
+    }
+    let evaluate = |i| {
+        angular_value(
+            element(degrees, i),
+            element(orders, i),
+            element(arguments, i),
+            kind,
+        )
+    };
+    if size >= 1024 {
+        (0..size).into_par_iter().map(evaluate).collect()
+    } else {
+        (0..size).map(evaluate).collect()
+    }
+}
+
+/// Owned angular arguments; reverse recomputes local analytic derivatives.
+#[derive(Debug)]
+pub struct AngularResidual {
+    degrees: Vec<f64>,
+    orders: Vec<f64>,
+    arguments: Vec<Complex>,
+    kind: Angular,
+    size: usize,
+}
+
+/// Broadcast angular values and a complex-argument residual; labels stay fixed.
+pub fn angular_array(
+    degrees: Vec<f64>,
+    orders: Vec<f64>,
+    arguments: Vec<Complex>,
+    kind: Angular,
+) -> Result<(Vec<Complex>, AngularResidual)> {
+    let values = angular_values(&degrees, &orders, &arguments, kind)?;
+    let size = values.len();
+    Ok((
+        values,
+        AngularResidual {
+            degrees,
+            orders,
+            arguments,
+            kind,
+            size,
+        },
+    ))
+}
+
+impl AngularResidual {
+    /// Contract the argument derivative. A zero cotangent skips singular derivatives.
+    pub fn pullback(self, cotangent: &[Complex]) -> Result<Vec<Complex>> {
+        if cotangent.len() != self.size || cotangent.iter().any(|&g| !finite(g)) {
+            return Err(Error::InvalidInput(
+                "angular cotangent must be finite and match output".into(),
+            ));
+        }
+        let evaluate = |(i, &g): (usize, &Complex)| {
+            if g == Complex::default() {
+                return Ok(g);
+            }
+            let jet = angular_jet::<1>(
+                element(&self.degrees, i),
+                element(&self.orders, i),
+                element(&self.arguments, i),
+                self.kind,
+            )?;
+            Ok(g * jet.derivative.first().copied().unwrap_or_default().conj())
+        };
+        let values: Vec<_> = if self.size >= 1024 {
+            cotangent
+                .par_iter()
+                .enumerate()
+                .map(evaluate)
+                .collect::<Result<_>>()?
+        } else {
+            cotangent
+                .iter()
+                .enumerate()
+                .map(evaluate)
+                .collect::<Result<_>>()?
+        };
+        Ok(if self.arguments.len() == 1 {
+            vec![values.into_iter().sum()]
+        } else {
+            values
+        })
     }
 }

@@ -612,3 +612,49 @@ results should be rechecked on the target host. The broad performance claim rema
 limited to measured workloads, not every input, machine or thread count.
 Raw files are `benchmarks/results/ufunc-bessel{,-derivative}{,-forward}-n{1,128,4096}.json`.
 `just bench-performance` runs all twelve cases with the same required ratios.
+
+## Public angular functions and complete performance gate
+
+The complete `just bench-performance` recipe passed all 50 runtime gates on
+[redacted-host] with four matched threads after the angular/basis changes.
+Ordinary forward paths and the special-function/particle adjoint recordings also
+passed the peak-RSS gates. Recorded internal illumination retains additional
+owned inputs and is intentionally measured separately from its ordinary forward
+RSS gate, as described above. These results qualify the listed inputs and host;
+they do not establish a universal speed guarantee for every possible argument.
+
+Integer-degree Legendre, pi and tau use native NumPy loops, a direct scalar path,
+and the same factored recurrences for forward and native reverse. Fixed-label
+recording avoids Python broadcast expansion. Tau shares one sine-power factor
+between adjacent Legendre orders. This removed the measured 128-element recording
+regression without changing the comparison tolerances.
+
+Degree is 6, order is 2. The scalar argument is 0.3+0.1j; arrays span
+[-0.8,0.8]+0.1j. Units below are microseconds. Recording includes owned residual
+creation and result destruction; reverse consumes a fresh residual each time.
+
+| Operation | Count | Upstream forward | Rust forward | Speedup | Rust reverse |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Legendre ordinary | 1 | 0.802 | 0.290 | 2.76x | — |
+| Legendre ordinary | 128 | 6.192 | 3.545 | 1.75x | — |
+| Legendre ordinary | 4096 | 362.485 | 46.219 | 7.84x | — |
+| Legendre recorded | 1 | 0.780 | 0.430 | 1.82x | 0.402 |
+| Legendre recorded | 128 | 6.267 | 4.643 | 1.35x | 6.061 |
+| Legendre recorded | 4096 | 363.316 | 71.860 | 5.06x | 98.387 |
+| Pi ordinary | 1 | 0.837 | 0.335 | 2.50x | — |
+| Pi ordinary | 128 | 9.155 | 6.732 | 1.36x | — |
+| Pi ordinary | 4096 | 652.243 | 69.679 | 9.36x | — |
+| Pi recorded | 1 | 0.815 | 0.487 | 1.67x | 0.465 |
+| Pi recorded | 128 | 9.161 | 7.882 | 1.16x | 11.552 |
+| Pi recorded | 4096 | 651.226 | 71.144 | 9.15x | 111.898 |
+| Tau ordinary | 1 | 0.879 | 0.362 | 2.43x | — |
+| Tau ordinary | 128 | 12.946 | 8.792 | 1.47x | — |
+| Tau ordinary | 4096 | 856.314 | 86.509 | 9.90x | — |
+| Tau recorded | 1 | 0.850 | 0.492 | 1.73x | 0.455 |
+| Tau recorded | 128 | 12.955 | 9.976 | 1.30x | 15.271 |
+| Tau recorded | 4096 | 855.324 | 88.387 | 9.68x | 142.593 |
+
+Peak RSS is 40.3–41.7 MiB for Rust versus 64.1–65.2 MiB for upstream.
+The 18 `angular-*.json` files in [raw results](../benchmarks/results/) record every
+sample, native-extension hash, Python/NumPy version, thread configuration and
+reverse peak RSS. The other 32 recipe results were refreshed in the same run.

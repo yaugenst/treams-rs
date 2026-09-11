@@ -1,7 +1,8 @@
 """Rust special functions with NumPy broadcasting, ``out`` and ``where``.
 
 Results use complex128, including real inputs. Singular/nonfinite evaluations
-raise ValueError. Use diff.bessel or advect.bessel for native argument pullbacks.
+raise ValueError. diff/advect.bessel and .angular provide native argument pullbacks.
+Angular degrees and orders must be integers, with degree between zero and 128.
 """
 
 from __future__ import annotations
@@ -88,3 +89,63 @@ def hankel2(
     ):
         return _native.hankel_scalar(v, z, False)
     return _native.hankel2(v, z, out=out, where=where)
+
+
+def lpmv(
+    m: ArrayLike,
+    n: ArrayLike,
+    z: ArrayLike,
+    *,
+    out: NDArray[np.complex128] | None = None,
+    where: ArrayLike = True,
+) -> complex | NDArray[np.complex128]:
+    """Integer-degree legendre function with native broadcasting and polar limits."""
+    if (
+        out is None
+        and where is True
+        and isinstance(n, (int, float))
+        and isinstance(m, (int, float))
+        and isinstance(z, (int, float, complex))
+    ):
+        return _native.angular_value(n, m, z, "legendre")
+    return _native.lpmv(m, n, z, out=out, where=where)
+
+
+def pi_fun(
+    n: ArrayLike,
+    m: ArrayLike,
+    z: ArrayLike,
+    *,
+    out: NDArray[np.complex128] | None = None,
+    where: ArrayLike = True,
+) -> complex | NDArray[np.complex128]:
+    """Integer-degree pi function with native broadcasting and polar limits."""
+    if (
+        out is None
+        and where is True
+        and isinstance(n, (int, float))
+        and isinstance(m, (int, float))
+        and isinstance(z, (int, float, complex))
+    ):
+        return _native.angular_value(n, m, z, "pi")
+    return _native.pi_fun(n, m, z, out=out, where=where)
+
+
+def tau_fun(
+    n: ArrayLike,
+    m: ArrayLike,
+    z: ArrayLike,
+    *,
+    out: NDArray[np.complex128] | None = None,
+    where: ArrayLike = True,
+) -> complex | NDArray[np.complex128]:
+    """Integer-degree tau function with native broadcasting and polar limits."""
+    if (
+        out is None
+        and where is True
+        and isinstance(n, (int, float))
+        and isinstance(m, (int, float))
+        and isinstance(z, (int, float, complex))
+    ):
+        return _native.angular_value(n, m, z, "tau")
+    return _native.tau_fun(n, m, z, out=out, where=where)

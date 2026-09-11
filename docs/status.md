@@ -21,7 +21,7 @@ gauge singularity; both values and derivatives use that limit.
 | Subsystem | Implemented and checked | Remaining |
 | --- | --- | --- |
 | Project | Cargo/PyO3/maturin/uv, lockfiles, just, Ruff, strict Pyrefly, Clippy, pre-commit; hosted Linux CI passing on Python 3.12 and 3.13 | Broader packaged-platform qualification |
-| Spherical functions | Public broadcast Bessel J/Y and incoming/outgoing Hankel values and first derivatives, cylindrical and spherical, with native argument VJPs; Legendre functions, Wigner 3j and Cartesian harmonics in the core | Wider extreme-argument/order qualification; remaining angular/vector special namespace |
+| Spherical functions | Public broadcast Bessel J/Y and incoming/outgoing Hankel values and first derivatives, cylindrical and spherical, with native argument VJPs; public integer-degree Legendre/pi/tau ufuncs and argument VJPs; Wigner 3j and Cartesian harmonics in the core | Wider extreme-argument/order qualification; remaining angular/vector special namespace |
 | Sphere coefficients | Multilayer, lossy, magnetic, chiral Mie; all continuous input VJPs | Extreme-layer-conditioning analysis |
 | Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks; regular cylindrical-to-spherical and periodic spherical-to-cylindrical conversion with native pullbacks; explicit expandlattice dispatch | Remaining low-level wave-family API coverage |
 | Multipole fields | Spherical/cylindrical Cartesian waves and analytic axis limits; weighted fields and full field operators with native position/wavenumber VJPs and linear residuals; electric, magnetic, displacement, flux and Riemann-Silberstein operators; Advect magnetic and G/F samples; native weighted/full plane fields and complex-wavevector VJPs | Cylindrical axial-label derivatives and upstream operator-attribute machinery |
@@ -461,3 +461,21 @@ Spherical default-dimension helpers accept multiple particles and degree zero;
 Hypothesis checks field-column reconstruction for all four families and dimension
 inversion; direct checks cover EBCM integral permutations and upstream's plane-
 alignment slicing defect. Full basis set algebra remains to be exposed.
+
+
+`special.lpmv`, `pi_fun` and `tau_fun` use native NumPy loops with broadcasting,
+masked output and overlapping/strided buffers. `diff.angular` and `advect.angular`
+hold integer degree/order labels fixed and differentiate the complex argument.
+They factor the sine powers explicitly, preserving finite derivatives at poles;
+undefined branch-point derivatives raise an error unless their cotangent is zero.
+The current public Legendre domain is integer degree 0..128, integer order and
+finite complex argument. Upstream's real noninteger-degree Legendre extension
+remains unimplemented. Tests cover reference values, recurrence identities,
+polar limits, owned broadcast reductions and complete Advect compositions.
+
+Basis set operations preserve stable ordering, origin tables and plane alignment,
+and reject incompatible geometry. Union appends new right-hand modes; intersection
+follows right-hand order, as in upstream. Unit directions preserve their exact
+normalized values. `CylindricalWaveBasis.diffr_orders` accepts a scalar signed axial
+period and a nonnegative reciprocal cutoff. Lattice/WaveVector annotation objects
+are not yet reproduced; geometry remains explicit in numerical calls.

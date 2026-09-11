@@ -100,3 +100,8 @@ bench-performance: build-ext-release
             uv run --no-sync python scripts/benchmark_cluster.py --workload "$workload" --samples "$samples" --particles 1 --lmax 3 --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/ufunc-${workload}-n${samples}.json"
         done
     done
+    for workload in angular-legendre angular-pi angular-tau angular-legendre-forward angular-pi-forward angular-tau-forward; do
+        for samples in 1 128 4096; do
+            uv run --no-sync python scripts/benchmark_cluster.py --workload "$workload" --samples "$samples" --particles 1 --lmax 6 --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/${workload}-n${samples}.json"
+        done
+    done

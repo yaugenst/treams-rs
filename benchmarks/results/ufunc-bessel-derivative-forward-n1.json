@@ -19,17 +19,17 @@
       "lmax": 3,
       "dimension": 1,
       "threads": 4,
-      "median_seconds": 1.066829699993832e-06,
-      "peak_rss_mib": 64.92578125,
-      "baseline_rss_mib": 64.671875,
+      "median_seconds": 1.0758189599437173e-06,
+      "peak_rss_mib": 64.88671875,
+      "baseline_rss_mib": 64.63671875,
       "samples_seconds": [
-        1.0707513098896015e-06,
-        1.0670083100558258e-06,
-        1.066829699993832e-06,
-        1.0673224199854303e-06,
-        1.0652808600571006e-06,
-        1.064779250009451e-06,
-        1.063414520031074e-06
+        1.0706064300029538e-06,
+        1.0722633700061124e-06,
+        1.0773468999832403e-06,
+        1.0751263500424103e-06,
+        1.0758189599437173e-06,
+        1.0879679900244809e-06,
+        1.0796847699384671e-06
       ],
       "calls_per_timing_sample": 100000,
       "forward_includes_result_destruction": true,
@@ -65,7 +65,7 @@
       "platform": "Linux-7.2.4-200.fc44.x86_64-x86_64-with-glibc2.43",
       "numpy_version": "2.5.3",
       "treams_version": "0.4.5",
-      "native_sha256": "2bb83e776db8e8d6071c99780cf278bbdb609083d4b77c2bf51764a2f2b64b73",
+      "native_sha256": "956610419634603116e35ee3aee8e6964fdce1d63f7722546bb38cb9666f89b3",
       "native_profile": "release",
       "workload": "bessel-derivative-forward",
       "oracle": "treams public operation",
@@ -78,17 +78,17 @@
       "lmax": 3,
       "dimension": 1,
       "threads": 4,
-      "median_seconds": 1.0044547700090333e-06,
-      "peak_rss_mib": 39.18359375,
-      "baseline_rss_mib": 38.93359375,
+      "median_seconds": 9.644965700863394e-07,
+      "peak_rss_mib": 40.56640625,
+      "baseline_rss_mib": 40.56640625,
       "samples_seconds": [
-        9.964861600019504e-07,
-        1.0039122600574047e-06,
-        9.994838399870787e-07,
-        1.0045735799940303e-06,
-        1.0046065799542702e-06,
-        1.0044547700090333e-06,
-        1.01069912998355e-06
+        9.81298419937957e-07,
+        9.618744898762087e-07,
+        9.62388220068533e-07,
+        9.631769300904124e-07,
+        9.65367890021298e-07,
+        9.654096901067534e-07,
+        9.644965700863394e-07
       ],
       "calls_per_timing_sample": 100000,
       "forward_includes_result_destruction": true,
@@ -109,5 +109,5 @@
       ]
     }
   ],
-  "speedup": 1.0620982963565773
+  "speedup": 1.1154202029431919
 }

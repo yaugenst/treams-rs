@@ -9,6 +9,7 @@
       "native_sha256": null,
       "native_profile": null,
       "workload": "internal-field",
+      "oracle": "treams public operation",
       "ebcm_legacy": null,
       "ewald_eta": null,
       "samples": 8,
@@ -18,17 +19,17 @@
       "lmax": 512,
       "dimension": 1024,
       "threads": 4,
-      "median_seconds": 0.06625602100393735,
-      "peak_rss_mib": 259.45703125,
-      "baseline_rss_mib": 257.375,
+      "median_seconds": 0.06406459400022868,
+      "peak_rss_mib": 259.80859375,
+      "baseline_rss_mib": 257.7421875,
       "samples_seconds": [
-        0.06649313699745107,
-        0.06841607700334862,
-        0.0653614769980777,
-        0.06550122098997235,
-        0.06760180499986745,
-        0.06406715299817733,
-        0.06625602100393735
+        0.06273011899611447,
+        0.06406459400022868,
+        0.0666650539933471,
+        0.06316119100665674,
+        0.06300908599223476,
+        0.06455771799664944,
+        0.06679974899452645
       ],
       "calls_per_timing_sample": 1,
       "forward_includes_result_destruction": true,
@@ -64,9 +65,10 @@
       "platform": "Linux-7.2.4-200.fc44.x86_64-x86_64-with-glibc2.43",
       "numpy_version": "2.5.3",
       "treams_version": "0.4.5",
-      "native_sha256": "747c164c64ee28c942cb12be32240b8bdf4c2aa8f087ee9314027c9041ed389c",
+      "native_sha256": "956610419634603116e35ee3aee8e6964fdce1d63f7722546bb38cb9666f89b3",
       "native_profile": "release",
       "workload": "internal-field",
+      "oracle": "treams public operation",
       "ebcm_legacy": null,
       "ewald_eta": null,
       "samples": 8,
@@ -76,31 +78,31 @@
       "lmax": 512,
       "dimension": 1024,
       "threads": 4,
-      "median_seconds": 0.041255467003793456,
-      "peak_rss_mib": 332.4296875,
-      "baseline_rss_mib": 234.9609375,
+      "median_seconds": 0.04112594800244551,
+      "peak_rss_mib": 332.8671875,
+      "baseline_rss_mib": 235.484375,
       "samples_seconds": [
-        0.041255467003793456,
-        0.041876483999658376,
-        0.04201940799248405,
-        0.040706322994083166,
-        0.040833217004546896,
-        0.04177700100990478,
-        0.0411786159966141
+        0.04112594800244551,
+        0.0417465640057344,
+        0.04127702099503949,
+        0.04101470399473328,
+        0.04104024499247316,
+        0.040474830006132834,
+        0.04244101300719194
       ],
       "calls_per_timing_sample": 1,
       "forward_includes_result_destruction": true,
-      "backward_median_seconds": 0.0333380899974145,
+      "backward_median_seconds": 0.03291995699692052,
       "backward_samples_seconds": [
-        0.033511824993183836,
-        0.03203470600419678,
-        0.0333380899974145,
-        0.0333566010085633,
-        0.03350638500705827,
-        0.0320506470015971,
-        0.03323000800446607
+        0.03343564999522641,
+        0.033128492010291666,
+        0.03291995699692052,
+        0.03277453199552838,
+        0.03291118599008769,
+        0.032723061012802646,
+        0.033093310994445346
       ],
-      "forward_and_backward_peak_rss_mib": 423.7578125,
+      "forward_and_backward_peak_rss_mib": 424.19921875,
       "blas": [
         {
           "user_api": "blas",
@@ -115,5 +117,5 @@
       ]
     }
   ],
-  "speedup": 1.6059937219434477
+  "speedup": 1.5577657686193433
 }

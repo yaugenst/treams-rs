@@ -249,7 +249,13 @@ def test_bessel_ufunc_concurrent_calls():
 def test_hankel_sequence_derivatives_and_reflection(kind, order, x, y):
     z = x + 1j * y
     function = special.hankel1 if kind == "h1" else special.hankel2
-    reference = oracle.hankel1 if kind == "h1" else oracle.hankel2
+    scipy_reference = oracle.hankel1 if kind == "h1" else oracle.hankel2
+
+    def reference(order, z):
+        # SciPy 1.16.3 returns NaN for subnormal order on this branch. Its
+        # continuous zero-order limit differs by far less than double precision.
+        return scipy_reference(0 if abs(order) < np.finfo(float).tiny else order, z)
+
     derivative = special.hankel1_d if kind == "h1" else special.hankel2_d
     value, context = diff.bessel(order, z, kind=kind, derivative=True)
     expected = 0.5 * (reference(order - 1, z) - reference(order + 1, z))
@@ -270,3 +276,140 @@ def test_hankel_sequence_derivatives_and_reflection(kind, order, x, y):
         rtol=3e-12,
         atol=1e-12,
     )
+
+
+@pytest.mark.parametrize(
+    "name,kind", [("lpmv", "legendre"), ("pi_fun", "pi"), ("tau_fun", "tau")]
+)
+def test_angular_reference_broadcast_and_mask(name, kind):
+    labels = [(degree, m) for degree in range(13) for m in range(-degree, degree + 1)]
+    degrees, orders = np.array(labels).T[:, :, None]
+    z = np.array([-1, -0.9, 0, 0.7, 1, 1.3 + 0.2j, -1.3 - 0.2j, 0.2 + 0.5j])
+    a, b = (orders, degrees) if name == "lpmv" else (degrees, orders)
+    function = getattr(special, name)
+    expected = getattr(oracle, name)(a, b, z.astype(complex))
+    # Upstream's m=0 pi at degree=0 on the axis is finite, as are all integers.
+    actual = function(a, b, z)
+    assert_allclose(actual, expected, rtol=2e-12, atol=2e-12)
+    value, context = diff.angular(degrees, orders, z, kind=kind)
+    assert_allclose(value, actual, rtol=2e-13, atol=1e-13)
+    assert_allclose(context.pullback(np.zeros_like(value)), 0)
+    out = np.full(actual.shape, 9 + 2j)
+    mask = np.arange(z.size) % 2 == 0
+    function(a, b, z, out=out, where=mask)
+    assert_allclose(out[:, mask], actual[:, mask])
+    assert_allclose(out[:, ~mask], 9 + 2j)
+    arguments = np.linspace(-0.8, 0.8, 2048).astype(complex)
+    expected = function(3, 2, arguments)
+    function(3, 2, arguments, out=arguments)
+    assert_allclose(arguments, expected)
+    assert_allclose(function(3, 2, arguments[::-1]), function(3, 2, arguments)[::-1])
+
+
+@pytest.mark.parametrize("kind", ["legendre", "pi", "tau"])
+@given(
+    degree=st.integers(1, 10),
+    seed=st.integers(0, 20),
+    x=st.floats(-0.8, 0.8),
+    y=st.floats(-0.3, 0.3),
+)
+@settings(max_examples=35)
+def test_angular_recurrence_and_adjoint(kind, degree, seed, x, y):
+    m = seed % (2 * degree + 1) - degree
+    z = complex(x, y)
+    value, context = diff.angular(degree, m, z, kind=kind)
+    g = 0.3 + 0.2j
+    gradient = context.pullback(np.array(g))
+    direction = 0.17 + 0.11j
+    h = 2e-6
+    numerical = (
+        diff.angular(degree, m, z + h * direction, kind=kind)[0]
+        - diff.angular(degree, m, z - h * direction, kind=kind)[0]
+    ) / (2 * h)
+    assert_allclose(
+        (gradient.conjugate() * direction).real,
+        (g.conjugate() * numerical).real,
+        rtol=2e-6,
+        atol=2e-8 * max(1, abs(value)),
+    )
+    if kind == "legendre":
+        lower = special.lpmv(m, degree - 1, z)
+        upper = special.lpmv(m, degree + 1, z)
+        assert_allclose(
+            (degree - m + 1) * upper,
+            (2 * degree + 1) * z * value - (degree + m) * lower,
+            rtol=2e-12,
+            atol=2e-10,
+        )
+        assert_allclose(
+            (1 - z * z) * gradient.conjugate() / g.conjugate(),
+            (degree + m) * lower - degree * z * value,
+            rtol=2e-12,
+            atol=2e-10,
+        )
+
+
+def test_angular_polar_derivatives_and_branch_points():
+    for z in (-1.0, 1.0):
+        # P_3 = (5z^3-3z)/2 and pi_3^1 = -(15z^2-3)/2.
+        for kind, m, expected in [
+            ("legendre", 0, 6),
+            ("pi", 1, -15 * z),
+            ("tau", 1, -51),
+            ("legendre", 2, -30),
+        ]:
+            _, context = diff.angular(3, m, z, kind=kind)
+            assert_allclose(context.pullback(np.array(1 + 0j)), expected)
+        for kind, m in [("legendre", 1), ("pi", 2), ("tau", 0)]:
+            _, context = diff.angular(3, m, z, kind=kind)
+            with pytest.raises(ValueError, match="undefined"):
+                context.pullback(np.array(1 + 0j))
+            _, context = diff.angular(3, m, z, kind=kind)
+            assert_allclose(context.pullback(np.array(0j)), 0)
+        for m in (-3, 3):
+            _, context = diff.angular(3, m, z)
+            assert_allclose(context.pullback(np.array(1 + 0j)), 0)
+
+
+@pytest.mark.parametrize("kind", ["legendre", "pi", "tau"])
+def test_angular_broadcast_ownership_and_advect(kind):
+    degrees = np.array([2, 3, 4])[:, None, None]
+    orders = np.array([1, -1])[:, None]
+    z = np.array([0.2 + 0.1j, 0.4 - 0.2j])
+    value, context = diff.angular(degrees, orders, z, kind=kind)
+    g = np.full_like(value, 0.2 + 0.3j)
+    gradient = context.pullback(g)
+    value, context = diff.angular(degrees, orders, z, kind=kind)
+    saved = z.copy()
+    z[:] = 0
+    with pytest.raises(ValueError, match="shape"):
+        context.pullback(g[:1])
+    assert_allclose(context.pullback(g), gradient)
+    with pytest.raises(ValueError, match="consumed"):
+        context.pullback(g)
+    for arguments in (saved, np.array(0.2 + 0.1j)):
+
+        def objective(argument):
+            result = ad.angular(argument, degree=degrees, order=orders, kind=kind)
+            return anp.sum(anp.abs(result) ** 2)
+
+        derivative = advect.grad(objective)(arguments)
+        h = 1e-6
+        assert_allclose(
+            np.sum(derivative.real),
+            (objective(arguments + h) - objective(arguments - h)) / (2 * h),
+            rtol=1e-7,
+            atol=1e-8,
+        )
+    value, context = diff.angular(np.empty((0, 2)), 1, np.ones((1, 1)))
+    assert value.shape == (0, 2)
+    assert_allclose(context.pullback(np.empty_like(value)), np.zeros((1, 1)))
+
+
+def test_hankel_subnormal_order_continuous_limit():
+    for name in ("hankel1", "hankel2", "hankel1_d", "hankel2_d"):
+        function = getattr(special, name)
+        for order in (5e-324, -5e-324, 1e-310):
+            assert_allclose(
+                function(order, 1 + 0j), getattr(oracle, name)(0, 1 + 0j), rtol=2e-14
+            )

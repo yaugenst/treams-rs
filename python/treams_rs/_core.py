@@ -170,10 +170,68 @@ class _Basis[M: tuple[object, ...]]:
         if selected.ndim != 1:
             raise IndexError("basis selections must be one-dimensional")
         indices = np.fromiter(dict.fromkeys(selected.tolist()), dtype=np.intp)
-        return self._select(indices)
+        return self._from_modes(tuple(self.modes[i] for i in indices))
 
-    def _select(self, indices: NDArray[np.intp]) -> Self:
+    def _from_modes(self, modes: tuple[M, ...]) -> Self:
         raise NotImplementedError
+
+    def _sets(self, other: Self) -> tuple[set[M], set[M]]:
+        if type(other) is not type(self):
+            raise TypeError("basis operations require the same family")
+        if (
+            isinstance(self, _WaveBasis)
+            and isinstance(other, _WaveBasis)
+            and not np.array_equal(self.positions, other.positions)
+        ):
+            raise ValueError("basis operations require identical origin tables")
+        if (
+            isinstance(self, PlaneWaveBasisByComp)
+            and isinstance(other, PlaneWaveBasisByComp)
+            and self.alignment != other.alignment
+        ):
+            raise ValueError("basis operations require identical plane alignment")
+        return set(self.modes), set(other.modes)
+
+    def __or__(self, other: Self) -> Self:
+        left, _ = self._sets(other)
+        return self._from_modes(
+            self.modes + tuple(mode for mode in other if mode not in left)
+        )
+
+    def __and__(self, other: Self) -> Self:
+        left, _ = self._sets(other)
+        return self._from_modes(tuple(mode for mode in other if mode in left))
+
+    def __sub__(self, other: Self) -> Self:
+        _, right = self._sets(other)
+        return self._from_modes(tuple(mode for mode in self if mode not in right))
+
+    def __xor__(self, other: Self) -> Self:
+        left, right = self._sets(other)
+        return self._from_modes(
+            tuple(mode for mode in self if mode not in right)
+            + tuple(mode for mode in other if mode not in left)
+        )
+
+    def __le__(self, other: Self) -> bool:
+        left, right = self._sets(other)
+        return left <= right
+
+    def __lt__(self, other: Self) -> bool:
+        left, right = self._sets(other)
+        return left < right
+
+    def __ge__(self, other: Self) -> bool:
+        left, right = self._sets(other)
+        return left >= right
+
+    def __gt__(self, other: Self) -> bool:
+        left, right = self._sets(other)
+        return left > right
+
+    def isdisjoint(self, other: Self) -> bool:
+        left, right = self._sets(other)
+        return left.isdisjoint(right)
 
     def __eq__(self, other: object) -> bool:
         return (
@@ -213,10 +271,14 @@ class PlaneWaveBasisByUnitVector(_Basis[tuple[complex, complex, complex, int]]):
             )
 
     @override
-    def _select(self, indices: NDArray[np.intp]) -> Self:
+    def _from_modes(
+        self, modes: tuple[tuple[complex, complex, complex, int], ...]
+    ) -> Self:
         result = type(self).__new__(type(self))
-        result.modes = tuple(self.modes[i] for i in indices)
-        result.directions = self.directions[indices]
+        result.modes = modes
+        result.directions = np.array(
+            [mode[:3] for mode in modes], dtype=np.complex128
+        ).reshape(-1, 3)
         result.directions.flags.writeable = False
         return result
 
@@ -309,8 +371,8 @@ class PlaneWaveBasisByComp(_Basis[tuple[float, float, int]]):
         self.modes: tuple[tuple[float, float, int], ...] = tuple(dict.fromkeys(values))
 
     @override
-    def _select(self, indices: NDArray[np.intp]) -> Self:
-        return type(self)((self.modes[i] for i in indices), self.alignment)
+    def _from_modes(self, modes: tuple[tuple[float, float, int], ...]) -> Self:
+        return type(self)(modes, self.alignment)
 
     @override
     def __eq__(self, other: object) -> bool:
@@ -475,8 +537,8 @@ class _WaveBasis[M: tuple[int, float, int, int]](_Basis[M]):
         self.positions.flags.writeable = False
 
     @override
-    def _select(self, indices: NDArray[np.intp]) -> Self:
-        return type(self)([self.modes[i] for i in indices], self.positions)
+    def _from_modes(self, modes: tuple[M, ...]) -> Self:
+        return type(self)(modes, self.positions)
 
     @override
     def __eq__(self, other: object) -> bool:
@@ -666,6 +728,30 @@ class CylindricalWaveBasis(_WaveBasis[CylindricalMode]):
                 for pol in (1, 0)
             ),
             np.zeros((nmax, 3)) if positions is None else positions,
+        )
+
+    @classmethod
+    def diffr_orders(
+        cls,
+        kz: float,
+        mmax: int,
+        lattice: float,
+        bmax: float,
+        nmax: int = 1,
+        positions: ArrayLike | None = None,
+    ) -> CylindricalWaveBasis:
+        """Axial diffraction orders with reciprocal shifts bounded by bmax."""
+        if (
+            not math.isfinite(lattice)
+            or lattice == 0
+            or not math.isfinite(bmax)
+            or bmax < 0
+        ):
+            raise ValueError("require a finite nonzero period and nonnegative cutoff")
+        reciprocal = 2 * np.pi / lattice
+        count = math.floor(bmax / abs(reciprocal))
+        return cls.default(
+            kz + np.arange(-count, count + 1) * reciprocal, mmax, nmax, positions
         )
 
     @property

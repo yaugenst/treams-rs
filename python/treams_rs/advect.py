@@ -89,6 +89,18 @@ def bessel(
     return _call((z,), forward)
 
 
+def angular(
+    z: ArrayLike, *, degree: ArrayLike, order: ArrayLike, kind: str = "legendre"
+) -> NDArray[np.complex128]:
+    """Integer-degree angular functions with a native argument VJP."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.angular(degree, order, values[0], kind=kind)
+        return value, lambda g: (context.pullback(g),)
+
+    return _call((z,), forward)
+
+
 def chirality_density(
     ks: ArrayLike, normal: ArrayLike, z: ArrayLike = (0.0, 0.0)
 ) -> NDArray[np.complex128]:

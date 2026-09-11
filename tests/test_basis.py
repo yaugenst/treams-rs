@@ -158,3 +158,49 @@ def test_upstream_component_selection_alignment_regression():
     assert tr.SphericalWaveBasis.default(
         1, positions=[0, 0, 0]
     ) == tr.SphericalWaveBasis.default(1)
+
+
+@pytest.mark.parametrize("family", ["spherical", "cylindrical", "unit", "component"])
+@given(
+    left=st.lists(st.integers(0, 15), max_size=25),
+    right=st.lists(st.integers(0, 15), max_size=25),
+)
+@settings(max_examples=35)
+def test_basis_ordered_set_algebra(family, left, right):
+    basis, _ = _basis(family)
+    a = basis[[i % len(basis) for i in left]]
+    b = basis[[i % len(basis) for i in right]]
+    aset, bset = set(a), set(b)
+    assert (a | b).modes == tuple(dict.fromkeys((*a, *b)))
+    assert (a & b).modes == tuple(mode for mode in b if mode in aset)
+    assert (a - b).modes == tuple(mode for mode in a if mode not in bset)
+    assert set(a ^ b) == aset ^ bset
+    assert (a <= b) == (aset <= bset)
+    assert (a < b) == (aset < bset)
+    assert (a >= b) == (aset >= bset)
+    assert (a > b) == (aset > bset)
+    assert a.isdisjoint(b) == aset.isdisjoint(bset)
+    assert ((a | b) - b).modes == (a - b).modes
+    assert (a ^ a).modes == ()
+    for result in (a | b, a & b, a - b, a ^ b):
+        expected = basis[[basis.index(mode) for mode in result]]
+        assert result == expected
+        if family == "unit":
+            assert_array_equal(result.directions, expected.directions)
+
+
+def test_basis_set_geometry_contract_and_cylindrical_orders():
+    a = tr.SphericalWaveBasis.default(1)
+    with pytest.raises(ValueError, match="origin"):
+        _ = a | tr.SphericalWaveBasis(a, [[0.1, 0, 0]])
+    b = tr.PlaneWaveBasisByComp.default([[0.1, 0.2]], "yz")
+    with pytest.raises(ValueError, match="alignment"):
+        _ = b & tr.PlaneWaveBasisByComp(b, "zx")
+    with pytest.raises(TypeError, match="family"):
+        _ = a | b
+    for period in (2 * np.pi, 1.7, -3.1):
+        for cutoff in (0, 1, 7.0):
+            expected = treams.CylindricalWaveBasis.diffr_orders(0.1, 2, period, cutoff)
+            actual = tr.CylindricalWaveBasis.diffr_orders(0.1, 2, period, cutoff)
+            assert_allclose(np.array(actual.modes), np.array(list(expected)))
+            assert np.all(np.abs(actual.kz - 0.1) <= cutoff + 1e-14)

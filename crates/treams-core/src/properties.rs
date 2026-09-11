@@ -20,6 +20,22 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    fn angular_legendre_recurrence_adjoint(l in 1_i32..12, seed in 0_i32..24, x in -0.8_f64..0.8, y in -0.3_f64..0.3) {
+        use crate::special::{Angular, angular_array, angular_value};
+        let m=seed%(2*l+1)-l;
+        let z=Complex::new(x,y);
+        let (p,r)=angular_array(vec![f64::from(l)],vec![f64::from(m)],vec![z],Angular::Legendre).unwrap();
+        let p=*p.first().unwrap();
+        let lower=angular_value(f64::from(l-1),f64::from(m),z,Angular::Legendre).unwrap();
+        let upper=angular_value(f64::from(l+1),f64::from(m),z,Angular::Legendre).unwrap();
+        let scale=1.0+p.norm()+lower.norm()+upper.norm();
+        prop_assert!((f64::from(l-m+1)*upper-f64::from(2*l+1)*z*p+f64::from(l+m)*lower).norm()<1e-12*scale);
+        let g=Complex::new(0.4,0.2);
+        let derivative=r.pullback(&[g]).unwrap().first().unwrap().conj()/g.conj();
+        prop_assert!(((1.0-z*z)*derivative-f64::from(l+m)*lower+f64::from(l)*z*p).norm()<1e-12*scale);
+    }
+
+    #[test]
     fn bessel_wronskian_adjoint(x in 0.7_f64..4.0, y in -0.3_f64..0.3, order in 0_i32..10, spherical in any::<bool>()) {
         use crate::special::{Bessel, bessel_array};
         let z=Complex::new(x,y);

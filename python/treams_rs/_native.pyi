@@ -190,6 +190,26 @@ def bessel(
     argument_shape: tuple[int, ...],
 ) -> tuple[ComplexArray, BesselContext]: ...
 
+lpmv: np.ufunc
+pi_fun: np.ufunc
+tau_fun: np.ufunc
+
+class AngularContext:
+    def pullback(self, cotangent: ComplexArray) -> ComplexArray: ...
+
+def angular_value(degree: float, order: float, z: complex, kind: str) -> complex: ...
+def angular_scalar(
+    degree: float, order: float, z: complex, kind: str
+) -> tuple[ComplexArray, AngularContext]: ...
+def angular(
+    degrees: RealArray,
+    orders: RealArray,
+    arguments: ComplexArray,
+    kind: str,
+    shape: tuple[int, ...],
+    argument_shape: tuple[int, ...],
+) -> tuple[ComplexArray, AngularContext]: ...
+
 class ParticleClusterContext:
     def pullback(
         self, cotangent: ComplexArray
