@@ -519,3 +519,31 @@ def cylindrical_channels(
         return value, pullback
 
     return _call((origins, ks, kx, period), forward)
+
+
+def interface(
+    ks: ArrayLike,
+    zs: ArrayLike,
+    q: ArrayLike,
+    *,
+    alignment: str = "xy",
+    fixed_q: bool = False,
+) -> NDArray[np.complex128]:
+    """Native Cartesian interface matching with its implicit solve adjoint."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.interface(
+            values[0],
+            values[1],
+            q if fixed_q else values[2],
+            alignment=alignment,
+            fixed_q=fixed_q,
+        )
+
+        def pullback(g: NDArray[np.complex128]) -> _Values:
+            gradients = context.pullback(g)
+            return gradients[:2] if fixed_q else gradients
+
+        return value, pullback
+
+    return _call((ks, zs) if fixed_q else (ks, zs, q), forward)

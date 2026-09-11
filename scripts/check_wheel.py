@@ -139,3 +139,8 @@ np.testing.assert_allclose(
     atol=1e-14,
 )
 print("Clean wheel: cylindrical plane-illumination operator passed")
+
+
+oriented_slab = tr.SMatrices.slab(0.4, cports, 1.3, [1, 2.3, 1])
+np.testing.assert_allclose(sum(carray.add(oriented_slab).tr([1, 0])), 1, atol=2e-10)
+print("Clean wheel: cylindrical array plus oriented slab conserves power")

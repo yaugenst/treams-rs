@@ -378,3 +378,12 @@ def cylindrical_channels(
     helicity: bool,
     fixed_q: bool,
 ) -> tuple[ComplexArray, ChannelsContext]: ...
+
+class InterfaceContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[ComplexArray, ComplexArray, RealArray]: ...
+
+def interface(
+    ks: list[list[complex]], z: list[complex], q: list[float], axis: int, fixed_q: bool
+) -> tuple[ComplexArray, InterfaceContext]: ...

@@ -400,3 +400,27 @@ def cylindrical_channels(
         poltype == "helicity",
         fixed_q,
     )
+
+
+def interface(
+    ks: ArrayLike,
+    zs: ArrayLike,
+    q: ArrayLike,
+    *,
+    alignment: str = "xy",
+    fixed_q: bool = False,
+) -> tuple[NDArray[np.complex128], _native.InterfaceContext]:
+    """Cartesian interface; VJP returns (two-media wavenumbers, impedances, q).
+
+    Wavenumbers have shape (2, 2), ordered below/above then polarization 0/1.
+    Transverse components follow alignment xy/yz/zx; the remaining axis is normal.
+    """
+    if alignment not in ("xy", "yz", "zx"):
+        raise ValueError("interface alignment must be xy, yz or zx")
+    return _native.interface(
+        np.asarray(ks, dtype=np.complex128).tolist(),
+        np.asarray(zs, dtype=np.complex128).tolist(),
+        np.asarray(q, dtype=np.float64).tolist(),
+        {"xy": 2, "yz": 0, "zx": 1}[alignment],
+        fixed_q,
+    )

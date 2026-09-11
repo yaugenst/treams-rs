@@ -153,6 +153,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<FresnelContext>()?;
     module.add_class::<PropagationContext>()?;
     module.add_function(wrap_pyfunction!(fresnel, module)?)?;
+    module.add_class::<InterfaceContext>()?;
+    module.add_function(wrap_pyfunction!(interface, module)?)?;
     module.add_function(wrap_pyfunction!(propagation, module)?)?;
     Ok(())
 }
@@ -209,6 +211,66 @@ fn fresnel(
         array(py, &residual.value),
         FresnelContext {
             residual: Some(residual),
+        },
+    ))
+}
+
+#[pyclass]
+#[derive(Debug)]
+struct InterfaceContext {
+    residual: Option<smatrix::InterfaceResidual>,
+    fixed_q: bool,
+}
+type InterfaceGradient<'py> = (
+    Bound<'py, PyArray2<Complex>>,
+    Bound<'py, PyArray1<Complex>>,
+    Bound<'py, PyArray1<f64>>,
+);
+#[pymethods]
+impl InterfaceContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray4<'py, Complex>,
+    ) -> PyResult<InterfaceGradient<'py>> {
+        let g = from_array(cotangent)?;
+        if g[0].nrows() != 2 {
+            return Err(PyValueError::new_err(
+                "interface cotangent requires shape (2, 2, 2, 2)",
+            ));
+        }
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let fixed_q = self.fixed_q;
+        let (ks, z, q) = py
+            .detach(move || residual.pullback(&g, fixed_q))
+            .map_err(error)?;
+        Ok((
+            Array2::from_shape_fn((2, 2), |(i, j)| ks[i][j]).into_pyarray(py),
+            z.to_vec().into_pyarray(py),
+            q.to_vec().into_pyarray(py),
+        ))
+    }
+}
+#[pyfunction]
+fn interface(
+    py: Python<'_>,
+    ks: [[Complex; 2]; 2],
+    z: [Complex; 2],
+    q: [f64; 2],
+    axis: usize,
+    fixed_q: bool,
+) -> PyResult<(Bound<'_, PyArray4<Complex>>, InterfaceContext)> {
+    let residual = py
+        .detach(move || smatrix::interface(ks, z, q, axis))
+        .map_err(error)?;
+    Ok((
+        array(py, &residual.value),
+        InterfaceContext {
+            residual: Some(residual),
+            fixed_q,
         },
     ))
 }

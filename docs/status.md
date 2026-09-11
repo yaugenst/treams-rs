@@ -17,7 +17,7 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 | Performance | Cached angular plans and radial tables, faer LU and matmul, block-diagonal local storage, Rayon coupling assembly | See measured scope and limitations in benchmarks.md |
 | Cylindrical scattering | Complex J/H and derivatives; multilayer chiral coefficients and complete T-matrix with all parameter VJPs; cylindrical bases, translations, clusters, electric fields and cross widths; regular spherical conversion; periodic plane-wave radiation and adjoints | Broader cutoff qualification |
 | Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections; full unit-vector and xy/yz/zx component plane bases, diffraction orders, native Cartesian fields and slab illumination; spherical/cylindrical illumination VJPs | Broader constrained-incidence workflows |
-| Planar layers | Native chiral Fresnel coefficients and propagation; one-LU S-matrix composition with reused-factor adjoint; interfaces, multilayer slabs, stacking/doubling, polarization conversion and power-flux transmittance/reflectance | Oriented interfaces, internal-field convenience; full SMatrix annotation API |
+| Planar layers | Native chiral Fresnel coefficients and propagation; one-LU S-matrix composition with reused-factor adjoint; interfaces, multilayer slabs, stacking/doubling, polarization conversion and power-flux transmittance/reflectance | Internal-field convenience; full SMatrix annotation API |
 | Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D; periodic coupling and solves; spherical 2D and cylindrical 1D particle-to-plane channels and S matrices; complete native pullbacks and Advect reflectance gradients; direct-sum, reference, energy, Bloch/split/scale invariants | Broader combined particle/layer workflows |
 | Remaining public API | Not implemented | Field-operator conveniences, EBCM, band calculations, I/O and remaining observables |
 
@@ -77,7 +77,7 @@ as checked by complete slab gradients. The metadata-bearing SMatrices convenienc
 class itself accepts ordinary arrays rather than tracked parameters.
 
 Component plane bases support xy, yz and zx alignments for fields and illumination.
-Fresnel interfaces currently require xy alignment. Propagation, composition,
+Fresnel interfaces, propagation, composition,
 illumination and Cartesian power-flux calculations support all three alignments,
 with one incident amplitude vector or PlaneWave object per direction. Arrays are
 explicit rather than inheriting upstream's ndarray metadata. Fresnel's low-level
@@ -165,7 +165,7 @@ reference- and round-trip checked. The E/H/D/B operators, spherical illumination
 and `PlaneWave.expand` accept these bases. Plane-wave directions remain unchanged
 under input scales from 1e-300 to 1e300. These Python metadata conveniences compose
 the previously checked native operations; tracked parameters use the explicit
-Advect boundaries. Arbitrarily oriented slab interfaces are still pending.
+Advect boundaries. Coordinate-aligned xy, yz and zx interfaces and slabs are supported.
 
 Cylindrical radiation channels have native origin, complex-wavenumber, transverse
 wavevector and period pullbacks. Axial wavenumbers remain fixed mode labels; exact
@@ -186,3 +186,15 @@ complete Advect cylinder illumination, scattering and total-field intensity.
 Origin phases are computed once per plane/origin pair in both directions rather
 than repeated for every multipole. The matrix buffer transfers directly to NumPy;
 the residual holds only inputs.
+
+`diff.interface` and `advect.interface` match Cartesian tangential E/H fields
+for xy, yz and zx interfaces in lossy, magnetic and chiral media. Their eight
+parameter groups are the four medium wavenumbers, two impedances and two real
+transverse components. The 4-by-4 solve uses pivoted LU; reverse reuses its small
+inverse and recomputes local field derivatives without retaining an output
+Jacobian. Normal-incidence xy direction derivatives use the analytic zero limit
+of the S blocks, avoiding the intermediate polarization azimuth singularity.
+`SMatrices.interface` retains the closed-form Fresnel path for xy bases. Oriented
+slabs compose with cylindrical array S matrices. Cartesian boundary continuity,
+lossless power, slab splitting, native identity adjoints and complete Advect slab
+gradients cover the new path. Exact diffraction thresholds remain unsupported.

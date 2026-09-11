@@ -91,10 +91,6 @@ class SMatrices:
         materials: Sequence[MaterialLike],
         poltype: str = "helicity",
     ) -> SMatrices:
-        if basis.alignment != "xy":
-            raise ValueError(
-                "planar interfaces currently require xy-aligned plane bases"
-            )
         if len(materials) != 2:
             raise ValueError("an interface requires two materials, below then above")
         below, above = (Material(m) for m in materials)
@@ -103,7 +99,13 @@ class SMatrices:
         result = np.zeros((2, 2, len(basis), len(basis)), dtype=np.complex128)
         for kx, ky in dict.fromkeys((kx, ky) for kx, ky, _ in basis):
             kz = np.array([m.kzs(k0, kx, ky) for m in (below, above)])
-            value = coeffs.fresnel(ks, kz, zs)
+            value = (
+                coeffs.fresnel(ks, kz, zs)
+                if basis.alignment == "xy"
+                else diff.interface(
+                    ks, zs, [kx, ky], alignment=basis.alignment, fixed_q=True
+                )[0]
+            )
             indices = [
                 (i, pol) for i, (x, y, pol) in enumerate(basis) if (x, y) == (kx, ky)
             ]

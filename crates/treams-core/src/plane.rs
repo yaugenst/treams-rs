@@ -150,6 +150,32 @@ pub fn polarization(vector: [Complex; 3], pol: u8, helicity: bool) -> Result<[Co
     Ok(polarization_jet::<0>(vector, pol, helicity)?.map(|p| p.value))
 }
 
+/// Chain the local Cartesian polarization derivative into solver parameters.
+pub(crate) fn polarization_from_inputs<const N: usize>(
+    vector: [Jet<N>; 3],
+    pol: u8,
+) -> Result<[Jet<N>; 3]> {
+    let values = vector.map(|k| k.value);
+    if N == 0
+        || (values[0] == Complex::default()
+            && values[1] == Complex::default()
+            && vector[..2]
+                .iter()
+                .flat_map(|k| k.derivative)
+                .all(|d| d == Complex::default()))
+    {
+        return Ok(polarization(values, pol, true)?.map(Jet::constant));
+    }
+    Ok(polarization_jet::<3>(values, pol, true)?.map(|e| Jet {
+        value: e.value,
+        derivative: std::array::from_fn(|a| {
+            (0..3)
+                .map(|b| e.derivative[b] * vector[b].derivative[a])
+                .sum()
+        }),
+    }))
+}
+
 fn spherical_coefficient<const N: usize>(
     mode: Mode,
     vector: [Complex; 3],

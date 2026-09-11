@@ -268,6 +268,165 @@ impl FresnelResidual {
     }
 }
 
+type InterfaceMatrix = nalgebra::SMatrix<Complex, 4, 4>;
+type BoundaryJets<const N: usize> = [[Jet<N>; 4]; 4];
+
+fn interface_boundary<const N: usize>(
+    ks: [[Jet<N>; 2]; 2],
+    z: [Jet<N>; 2],
+    q: [Jet<N>; 2],
+    axis: usize,
+) -> Result<(BoundaryJets<N>, BoundaryJets<N>)> {
+    let mut waves = [[[[Jet::default(); 4]; 2]; 2]; 2];
+    let a = (axis + 1) % 3;
+    let b = (axis + 2) % 3;
+    for (medium, sides) in waves.iter_mut().enumerate() {
+        for (side, polarizations) in sides.iter_mut().enumerate() {
+            for (pol, wave) in polarizations.iter_mut().enumerate() {
+                let mut normal =
+                    (ks[medium][pol] * ks[medium][pol] - q[0] * q[0] - q[1] * q[1]).sqrt();
+                if normal.value == Complex::default() {
+                    return Err(Error::InvalidInput(
+                        "interface at exact diffraction threshold requires a limiting formulation"
+                            .into(),
+                    ));
+                }
+                if normal.value.im < 0.0 || (normal.value.im == 0.0 && normal.value.re < 0.0) {
+                    normal = -normal;
+                }
+                let mut vector = [Jet::default(); 3];
+                vector[a] = q[0];
+                vector[b] = q[1];
+                vector[axis] = if side == 0 { normal } else { -normal };
+                let e = crate::plane::polarization_from_inputs(vector, u8::from(pol != 0))?;
+                let impedance = -Complex::i() * (if pol == 0 { -1.0 } else { 1.0 }) / z[medium];
+                *wave = [e[a], e[b], impedance * e[a], impedance * e[b]];
+            }
+        }
+    }
+    let lhs = std::array::from_fn(|row| {
+        std::array::from_fn(|col| {
+            if col < 2 {
+                waves[1][0][col][row]
+            } else {
+                -waves[0][1][col - 2][row]
+            }
+        })
+    });
+    let rhs = std::array::from_fn(|row| {
+        std::array::from_fn(|col| {
+            if col < 2 {
+                waves[0][0][col][row]
+            } else {
+                -waves[1][1][col - 2][row]
+            }
+        })
+    });
+    Ok((lhs, rhs))
+}
+
+/// Cartesian tangential-field matching for an interface with any coordinate normal.
+#[derive(Debug)]
+pub struct InterfaceResidual {
+    ks: [[Complex; 2]; 2],
+    z: [Complex; 2],
+    q: [f64; 2],
+    axis: usize,
+    inverse: InterfaceMatrix,
+    /// Four helicity scattering blocks, with polarization order (0,1).
+    pub value: Blocks,
+}
+
+/// Interface from wavenumbers/impedances (below, above) and cyclic transverse components.
+pub fn interface(
+    ks: [[Complex; 2]; 2],
+    z: [Complex; 2],
+    q: [f64; 2],
+    axis: usize,
+) -> Result<InterfaceResidual> {
+    if axis > 2
+        || q.iter().any(|x| !x.is_finite())
+        || ks
+            .iter()
+            .flatten()
+            .chain(&z)
+            .any(|&v| !finite(v) || v == Complex::default())
+    {
+        return Err(Error::InvalidInput("interface requires finite transverse components, nonzero finite wavenumbers/impedances, and a Cartesian normal".into()));
+    }
+    let (lhs, rhs) = interface_boundary::<0>(
+        ks.map(|k| k.map(Jet::constant)),
+        z.map(Jet::constant),
+        q.map(Jet::constant),
+        axis,
+    )?;
+    let matrix = InterfaceMatrix::from_fn(|i, j| lhs[i][j].value);
+    let inverse = matrix.lu().try_inverse().ok_or(Error::Singular)?;
+    let result = inverse * InterfaceMatrix::from_fn(|i, j| rhs[i][j].value);
+    let value = std::array::from_fn(|block| {
+        DMatrix::from_fn(2, 2, |i, j| {
+            result[(2 * (block / 2) + i, 2 * (block % 2) + j)]
+        })
+    });
+    dimension(&value).map_err(|_| Error::Singular)?;
+    Ok(InterfaceResidual {
+        ks,
+        z,
+        q,
+        axis,
+        inverse,
+        value,
+    })
+}
+
+/// Interface cotangents: medium wavenumbers, impedances and real transverse components.
+pub type InterfaceGradient = ([[Complex; 2]; 2], [Complex; 2], [f64; 2]);
+impl InterfaceResidual {
+    /// Reuse the 4-by-4 inverse for the implicit solve adjoint; recompute local field derivatives.
+    pub fn pullback(self, g: &Blocks, fixed_q: bool) -> Result<InterfaceGradient> {
+        if dimension(g)? != 2 {
+            return Err(Error::InvalidInput(
+                "interface cotangent blocks must be 2 by 2".into(),
+            ));
+        }
+        let cotangent = InterfaceMatrix::from_fn(|i, j| g[2 * (i / 2) + j / 2][(i % 2, j % 2)]);
+        let value =
+            InterfaceMatrix::from_fn(|i, j| self.value[2 * (i / 2) + j / 2][(i % 2, j % 2)]);
+        let adjoint = self.inverse.adjoint() * cotangent;
+        let operator = -adjoint * value.adjoint();
+        let ks = std::array::from_fn(|i| {
+            std::array::from_fn(|j| Jet::<8>::variable(self.ks[i][j], 2 * i + j))
+        });
+        let z = std::array::from_fn(|i| Jet::variable(self.z[i], 4 + i));
+        // At normal incidence the xy-interface blocks depend on q only to second
+        // order. Use their zero first derivative instead of an undefined
+        // azimuth derivative in the intermediate polarization vectors.
+        let fixed_q = fixed_q || (self.axis == 2 && self.q.iter().all(|&q| q == 0.0));
+        let q = std::array::from_fn(|i| {
+            if fixed_q {
+                Jet::constant(self.q[i])
+            } else {
+                Jet::variable(self.q[i], 6 + i)
+            }
+        });
+        let (lhs, rhs) = interface_boundary(ks, z, q, self.axis)?;
+        let mut result = [Complex::default(); 8];
+        for i in 0..4 {
+            for j in 0..4 {
+                for (a, g) in result.iter_mut().enumerate() {
+                    *g += operator[(i, j)] * lhs[i][j].derivative[a].conj()
+                        + adjoint[(i, j)] * rhs[i][j].derivative[a].conj();
+                }
+            }
+        }
+        Ok((
+            std::array::from_fn(|i| std::array::from_fn(|j| result[2 * i + j])),
+            [result[4], result[5]],
+            [result[6].re, result[7].re],
+        ))
+    }
+}
+
 /// Translation of up/down reference planes, retaining only its physical inputs and output.
 #[derive(Clone, Debug)]
 pub struct PropagationResidual {

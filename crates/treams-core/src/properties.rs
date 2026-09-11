@@ -20,6 +20,24 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    #[allow(clippy::indexing_slicing)] // Two material/helicity slots and four blocks.
+    fn cartesian_interface_identity_and_adjoint(k in 1.1_f64..2.0, q in 0.1_f64..0.5, axis in 0_usize..3) {
+        let ks=[[Complex::new(k,0.1),Complex::new(k+0.2,0.15)];2];
+        let z=[Complex::new(0.8,0.03);2];
+        let residual=crate::smatrix::interface(ks,z,[q,0.2],axis).unwrap();
+        let identity=DMatrix::identity(2,2);
+        for (b,value) in residual.value.iter().enumerate() {
+            let expected=if b==0 || b==3 {identity.clone()}else{DMatrix::zeros(2,2)};
+            prop_assert!((value-expected).norm()<1e-12);
+        }
+        let g=std::array::from_fn(|b|DMatrix::from_element(2,2,Complex::new(0.2*(f64::from(u32::try_from(b).unwrap())+1.0),0.1)));
+        let (gk,gz,gq)=residual.pullback(&g,false).unwrap();
+        for (a,b) in gk[0].iter().zip(gk[1]) {prop_assert!((a+b).norm()<1e-12);}
+        prop_assert!((gz[0]+gz[1]).norm()<1e-12);
+        prop_assert!(gq.iter().all(|v|v.abs()<1e-12));
+    }
+
+    #[test]
     fn cylindrical_plane_expansion_scale_adjoint(kx in 0.1_f64..0.7, x in -0.3_f64..0.3, helicity in any::<bool>()) {
         let basis=crate::cylwaves::Basis{modes:(-3..=3).flat_map(|m|(0..2).map(move|pol|(0,crate::cylwaves::Mode{kz:0.0,m,pol}))).collect(),positions:vec![[x,0.1,0.2]]};
         let vectors=vec![[Complex::new(kx,0.1),Complex::new(0.3,0.2),Complex::default()]];
