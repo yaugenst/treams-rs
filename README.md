@@ -144,3 +144,18 @@ print(scattered.efield([[0.5, 0.3, 0.1]]))
 
 `tr.cylindrical_wave(kz, m, pol, ...)` follows the same pattern. Source E/H/D/B/G/F
 methods use weighted native evaluation; `.array` exposes ordinary coefficients.
+
+Install `treams-rs[io]` for HDF5 interchange:
+
+```python
+import h5py
+from treams_rs import io
+
+with h5py.File("particle.h5", "w") as handle:
+    io.save_hdf5(handle, particle, lunit="nm")
+restored = io.load_hdf5("particle.h5", lunit="nm")
+```
+
+The adapter accepts a single spherical T matrix or rectangular parameter sweeps.
+It preserves embedding chirality and mode origins and writes matrices one at a
+time. The core package and native solver do not require HDF5.

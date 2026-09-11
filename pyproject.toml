@@ -15,9 +15,24 @@ classifiers = ["Development Status :: 3 - Alpha", "Programming Language :: Rust"
 
 [project.optional-dependencies]
 advect = ["advect>=0.2.0,<0.3"]
+io = [
+    "h5py>=3,<4",
+]
 
 [dependency-groups]
-dev = ["advect>=0.2.0,<0.3", "maturin>=1.12,<2", "pre-commit>=4", "pyrefly>=1.1.1", "pytest>=8.3", "hypothesis>=6", "ruff>=0.15.7", "scipy>=1.14,<1.17", "treams==0.4.5", "threadpoolctl>=3.6"]
+dev = [
+    "advect>=0.2.0,<0.3",
+    "maturin>=1.12,<2",
+    "pre-commit>=4",
+    "pyrefly>=1.1.1",
+    "pytest>=8.3",
+    "hypothesis>=6",
+    "ruff>=0.15.7",
+    "scipy>=1.14,<1.17",
+    "treams==0.4.5",
+    "threadpoolctl>=3.6",
+    "h5py>=3,<4",
+]
 
 [tool.maturin]
 manifest-path = "crates/treams-py/Cargo.toml"

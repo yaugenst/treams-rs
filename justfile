@@ -55,3 +55,20 @@ check-wheel: build-wheel
     wheel=$(ls -t dist/*.whl | head -n 1)
     uv pip install --python "$env_dir/bin/python" "$wheel" advect
     "$env_dir/bin/python" scripts/check_wheel.py
+    uv pip install --python "$env_dir/bin/python" "${wheel}[io]"
+    "$env_dir/bin/python" - <<'PY'
+    import h5py
+    import numpy as np
+    import treams_rs as tr
+    from treams_rs import io
+    sphere = tr.TMatrix.sphere(1, 1.3, 0.2, [3, (1.3, 1.1, 0.08)])
+    cluster = tr.TMatrix.cluster([sphere, sphere], [[0, 0, 0], [0.7, 0.2, 0.1]])
+    with h5py.File("memory.h5", "w", driver="core", backing_store=False) as handle:
+        io.save_hdf5(handle, cluster)
+        loaded = io.load_hdf5(handle, lunit="um")
+        np.testing.assert_allclose(loaded.array, cluster.array)
+        np.testing.assert_allclose(loaded.basis.positions, cluster.basis.positions * 1e-3)
+        np.testing.assert_allclose(loaded.k0, cluster.k0 * 1e3)
+        assert loaded.material == cluster.material
+    print("Clean wheel: optional HDF5 chirality, origins and units round trip passed")
+    PY

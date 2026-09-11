@@ -34,7 +34,8 @@ need their actual polarization vectors in the forms and are explicitly unsupport
 | Bloch bands | Native periodic transfer matrices, complex right eigensystems, Bloch wavenumbers/vectors; native S-matrix, period and eigenvector adjoints; complete Advect multilayer bands | Wider conditioning and branch-crossing qualification; individual degenerate modes have no derivative |
 | Global observables | Native TMatrix cd/db/chi with matrix and CD embedding-wavenumber pullbacks; thin SVD and singular-value VJP; complete Advect chiral-sphere gradients; xy plane chirality-density forms with native wavenumber and interval adjoints; SMatrices.cd with direction-aware polarization swapping | Oriented-plane chirality forms; direct high-level S-matrix observable adapters |
 | Axisymmetric EBCM | Native sampled-surface regular/outgoing Q integrals and radius, slope, complex-wavenumber and impedance pullbacks; callable-surface convenience; complete Advect deformed-particle solve | Wider shape/order conditioning and quadrature qualification |
-| Remaining public API | Not implemented | Field-operator conveniences, I/O and remaining observables |
+| HDF5 interchange | Optional h5py adapter; scalar matrices and rectangular parameter sweeps; streamed matrix writes; chirality, mode origins/indices and length-unit round trips; legacy treams names and rectangular incident/scattered mode sets | Gmsh mesh helper and extended tmat.h5 v1 submission metadata |
+| Remaining public API | Not implemented | Remaining field-operator conveniences and public low-level namespace coverage |
 
 The optimized `diff.cluster` is restricted to non-overlapping homogeneous,
 nonmagnetic spheres in vacuum with a common multipole cutoff. Its pullback covers
