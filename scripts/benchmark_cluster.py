@@ -55,6 +55,18 @@ def worker(
             [np.arange(particles) * 0.8, np.zeros((particles, 2))]
         )
 
+        if workload.startswith(("cylindrical-expansion", "cylindrical-periodic")):
+            vectors = np.array([[particles * 0.8]])
+            bloch = np.array([0.1])
+            if backend in ("rust", "check"):
+                basis = CylindricalWaveBasis.default(
+                    [0.2, -0.3], order, particles, positions
+                )
+            if backend in ("treams", "check"):
+                oracle_basis = treams.CylindricalWaveBasis.default(
+                    [0.2, -0.3], order, particles, positions
+                )
+
         if workload in ("internal-field", "internal-field-forward"):
             n = 2 * particles * order
             rng = np.random.default_rng(81)
@@ -321,9 +333,20 @@ def worker(
 
         # The reference cylinder sum loses accuracy for larger cells at eta=0.
         # Use the same converged split for both implementations.
-        eta = 0.7 if workload == "cylindrical-array" else 0
+        eta = (
+            0.7
+            if workload == "cylindrical-array"
+            or workload.startswith("cylindrical-periodic")
+            else 0
+        )
 
         def rust():
+            if workload.startswith("cylindrical-expansion"):
+                return diff.expansion(basis, basis, [1.3, 1.3], singular=True)
+            if workload.startswith("cylindrical-periodic"):
+                return lattice.expansion_with_context(
+                    basis, basis, [1.3, 1.3], vectors, bloch, eta=eta
+                )
             if workload == "wigner":
                 return diff.wigner(order, 1, -2, 0.2, special_arguments, -0.1)
             if workload == "wigner-forward":
@@ -458,6 +481,20 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload.startswith("cylindrical-expansion"):
+                return treams.expand(
+                    (oracle_basis, oracle_basis),
+                    k0=1.3,
+                    modetype=("regular", "singular"),
+                )
+            if workload.startswith("cylindrical-periodic"):
+                return treams.expandlattice(
+                    float(vectors[0, 0]),
+                    float(bloch[0]),
+                    basis=(oracle_basis, oracle_basis),
+                    k0=1.3,
+                    eta=eta,
+                )
             if workload in ("wigner", "wigner-forward"):
                 return treams.special.wignerd(
                     order, 1, -2, 0.2, special_arguments, -0.1
@@ -702,7 +739,7 @@ def worker(
                         for i, item in enumerate(particle_contexts)
                     ]
                     del coupling_result, particle_results
-                elif workload == "cylindrical-field-axial":
+                elif workload.endswith("-axial"):
                     context.pullback_axial(cotangent)
                 else:
                     context.pullback(cotangent)
@@ -737,6 +774,7 @@ def worker(
                     "ebcm_legacy": True if workload == "ebcm" else None,
                     "ewald_eta": eta
                     if workload in ("periodic", "array", "cylindrical-array")
+                    or workload.startswith("cylindrical-periodic")
                     else None,
                     "samples": samples
                     if workload
@@ -763,7 +801,11 @@ def worker(
                     "layers": particles if workload == "slab" else None,
                     "channels": samples if workload == "slab" else None,
                     "lmax": order,
-                    "dimension": samples
+                    "dimension": particles * 4 * (2 * order + 1)
+                    if workload.startswith(
+                        ("cylindrical-expansion", "cylindrical-periodic")
+                    )
+                    else samples
                     if workload.startswith(
                         ("bessel", "angular-", "wigner", "incgamma", "intkambe")
                     )
@@ -844,6 +886,10 @@ def main() -> None:
             "internal-field",
             "internal-field-forward",
             "ebcm",
+            "cylindrical-expansion",
+            "cylindrical-expansion-axial",
+            "cylindrical-periodic",
+            "cylindrical-periodic-axial",
             "cylindrical-field",
             "cylindrical-field-axial",
             "field-operator",

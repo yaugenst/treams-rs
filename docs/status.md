@@ -23,7 +23,7 @@ gauge singularity; both values and derivatives use that limit.
 | Project | Cargo/PyO3/maturin/uv, lockfiles, just, Ruff, strict Pyrefly, Clippy, pre-commit; hosted Linux CI passing on Python 3.12 and 3.13 | Broader packaged-platform qualification |
 | Spherical functions | Public broadcast Bessel J/Y and incoming/outgoing Hankel values and first derivatives, cylindrical and spherical, with native argument VJPs; public integer-degree Legendre/pi/tau ufuncs and argument VJPs; public Wigner 3j and small/full D matrices, native Euler-angle VJPs, and broadcast upper-gamma/Kambe integrals; Cartesian harmonics in the core | Wider extreme-argument/order qualification; remaining angular/vector special namespace |
 | Sphere coefficients | Multilayer, lossy, magnetic, chiral Mie; all continuous input VJPs | Extreme-layer-conditioning analysis |
-| Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks; regular cylindrical-to-spherical and periodic spherical-to-cylindrical conversion with native pullbacks; explicit expandlattice dispatch | Remaining low-level wave-family API coverage |
+| Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs and shared cylindrical axial-group VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks; regular cylindrical-to-spherical and periodic spherical-to-cylindrical conversion with native pullbacks; explicit expandlattice dispatch | Remaining low-level wave-family API coverage |
 | Multipole fields | Spherical/cylindrical Cartesian waves and analytic axis limits; weighted fields and full field operators with native position/wavenumber VJPs and linear residuals; electric, magnetic, displacement, flux and Riemann-Silberstein operators; Advect magnetic and G/F samples; native weighted/full plane fields and complex-wavevector VJPs | Upstream operator-attribute machinery |
 | Finite scattering | Dense solve and factorization-reusing adjoint; optimized sphere clusters; heterogeneous spherical/cylindrical local matrices with native local-block, position and medium-wavenumber pullbacks | Broader conditioning qualification |
 | Python interface | Material, spherical/cylindrical bases, TMatrix.sphere, TMatrixC.cylinder, clusters, interaction.solve, changepoltype, expand, xs/xw and averaged cross sections; explicit spherical/cylindrical sources with weighted E/H/D/B/G/F fields and direct T-matrix illumination | Full upstream ndarray annotation machinery is not reproduced; explicit .array is used |
@@ -33,7 +33,7 @@ gauge singularity; both values and derivatives use that limit.
 | Cylindrical scattering | Complex J/H and derivatives; multilayer chiral coefficients and complete T-matrix with all parameter VJPs; cylindrical bases, translations, clusters, electric fields and cross widths; regular spherical conversion; periodic plane-wave radiation and adjoints | Broader cutoff qualification |
 | Plane-wave illumination | Real/complex directions, scalar/helicity/Cartesian polarization inputs, native spherical/cylindrical conversion, direct T-matrix illumination and cross sections; full unit-vector and xy/yz/zx component plane bases, diffraction orders, native Cartesian fields and slab illumination; spherical/cylindrical illumination VJPs | Broader constrained-incidence workflows |
 | Planar layers | Native chiral Fresnel coefficients and propagation; one-LU S-matrix composition with reused-factor adjoint; interfaces, multilayer slabs, stacking/doubling, polarization conversion, power-flux transmittance/reflectance and internal fields between adjacent stacks | Full SMatrix annotation API |
-| Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D; periodic coupling and solves; spherical 2D and cylindrical 1D particle-to-plane channels and S matrices; complete native pullbacks and Advect reflectance gradients; direct-sum, reference, energy, Bloch/split/scale invariants | Broader combined particle/layer workflows |
+| Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D; periodic coupling and solves; spherical 2D and cylindrical 1D particle-to-plane channels and S matrices; complete native pullbacks including shared cylindrical axial groups and Advect reflectance gradients; direct-sum, reference, energy, Bloch/split/scale invariants | Broader combined particle/layer workflows |
 | Bloch bands | Native periodic transfer matrices, complex right eigensystems, Bloch wavenumbers/vectors; native S-matrix, period and eigenvector adjoints; complete Advect multilayer bands | Wider conditioning and branch-crossing qualification; individual degenerate modes have no derivative |
 | Global observables | Native TMatrix cd/db/chi with matrix and CD embedding-wavenumber pullbacks; thin SVD and singular-value VJP; complete Advect chiral-sphere gradients; all-orientation plane chirality-density forms with native geometry and interval adjoints; SMatrices.cd with direction-aware polarization swapping | Direct high-level S-matrix observable adapters |
 | Axisymmetric EBCM | Native sampled-surface regular/outgoing Q integrals and radius, slope, complex-wavenumber and impedance pullbacks; callable-surface convenience; complete Advect deformed-particle solve | Wider shape/order conditioning and quadrature qualification |
@@ -509,5 +509,27 @@ only when requested, retaining the existing forward and residual storage.
 Checks cover regular axis limits, outgoing fields, both polarization conventions,
 weighted/operator contractions, ownership, empty samples and geometric scaling.
 A complete cylinder-scattering-to-field intensity objective checks both axial
-incidence and radius derivatives. Cylindrical expansion and cluster axial labels
-are still fixed; their matching partitions require a separate derivative boundary.
+incidence and radius derivatives. Finite and periodic expansion contexts now also
+provide grouped axial derivatives as described below; the optimized particle-cluster
+boundary still holds its axial labels fixed.
+
+
+Finite and periodic cylindrical expansions expose `context.pullback_axial`,
+appending a real gradient array ordered by sorted distinct axial labels across
+both bases. A derivative moves the entire matching group in both bases; unmatched
+groups have zero coupling and zero gradient. Advect `expansion` and
+`lattice_expansion` accept optional `kzs` in the original sorted group order,
+preserve the original equality partition and return gradients in input order
+even when numeric ordering changes. Coalescing groups is a discrete change and
+is rejected by this boundary.
+
+Finite reverse contracts the existing analytic translation derivative. Periodic
+reverse contracts the existing Ewald wavenumber derivative through the transverse
+wavenumber and axial phase, sharing the Ewald work with existing gradients.
+Tests cover rectangular/partial bases, negative zero, propagating and evanescent
+channels, parallel/serial contractions, invalid-cotangent retry, owned inputs,
+self images, 1D/2D periodicity, chiral/achiral media and Ewald split independence.
+Native proptest and Hypothesis check geometric scaling. Complete Advect tests
+compose cylinder coefficients, multiple-scattering interaction and sampled fields
+with a shared axial-incidence parameter. The ordinary forward and fixed-label
+pullback signatures remain unchanged.

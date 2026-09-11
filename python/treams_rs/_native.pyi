@@ -317,6 +317,9 @@ def translation(
 ) -> tuple[complex, tuple[complex, complex, complex], complex]: ...
 
 class ExpansionContext:
+    def pullback_axial(
+        self, cotangent: ComplexArray
+    ) -> tuple[RealArray, RealArray, ComplexArray, RealArray]: ...
     def pullback(
         self, cotangent: ComplexArray
     ) -> tuple[RealArray, RealArray, ComplexArray]: ...
@@ -505,6 +508,9 @@ def lattice_derivatives(
 ]: ...
 
 class PeriodicContext:
+    def pullback_axial(
+        self, cotangent: ComplexArray
+    ) -> tuple[RealArray, RealArray, ComplexArray, RealArray, RealArray, RealArray]: ...
     def pullback(
         self, cotangent: ComplexArray
     ) -> tuple[RealArray, RealArray, ComplexArray, RealArray, RealArray]: ...

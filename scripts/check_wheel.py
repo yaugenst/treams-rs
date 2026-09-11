@@ -447,3 +447,19 @@ np.testing.assert_allclose(
     atol=1e-13,
 )
 print("Clean wheel: cylindrical axial field adjoints and Advect composition passed")
+
+
+cd = tr.CylindricalWaveBasis.default([0.2], 1, positions=[[0.3, 0.2, -0.1]])
+cv, cc = tr.diff.expansion(cd, cb, ck)
+cg = cc.pullback_axial(np.ones_like(cv))
+np.testing.assert_allclose(
+    np.sum(cg[0] * cd.positions), np.vdot(cg[2], ck).real + cg[3][0] * 0.2, atol=1e-13
+)
+cv, cc = tr.lattice.expansion_with_context(cb, cb, ck, [[1.7]], [0.1])
+cg = cc.pullback_axial(np.ones_like(cv))
+np.testing.assert_allclose(
+    np.sum(cg[4] * 1.7),
+    np.vdot(cg[2], ck).real + cg[3][0] * 0.1 + cg[5][0] * 0.2,
+    atol=1e-11,
+)
+print("Clean wheel: finite and periodic shared axial-group pullbacks passed")

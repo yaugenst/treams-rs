@@ -478,15 +478,16 @@ def test_coincident_origin_regular_image_derivative(spherical, dim, m):
         )
 
 
-def test_large_cylindrical_cell_ewald_split_invariance():
+@pytest.mark.parametrize("period", [7.2, 12.8])
+def test_large_cylindrical_cell_ewald_split_invariance(period):
     # Upstream's automatic split loses 0.00676 at this order/displacement.
     # The converged reference and our automatic split agree independently.
     import treams_rs as tr
 
     k = np.sqrt(1.3**2 - 0.2**2)
-    automatic = tr.lattice.lsumcw(1, -6, k, 0.1, 7.2, [0.8, 0])
-    expected = oracle.lsumcw1d(-6, k, 0.1, 7.2, 0.8, 0.7)
+    automatic = tr.lattice.lsumcw(1, -6, k, 0.1, period, [0.8, 0])
+    expected = oracle.lsumcw1d(-6, k, 0.1, period, 0.8, 0.7)
     for eta in (0.4, 0.7, 1.0):
-        actual = tr.lattice.lsumcw(1, -6, k, 0.1, 7.2, [0.8, 0], eta=eta)
+        actual = tr.lattice.lsumcw(1, -6, k, 0.1, period, [0.8, 0], eta=eta)
         assert_allclose(actual, expected, rtol=1e-12, atol=1e-10)
         assert_allclose(actual, automatic, rtol=1e-12, atol=1e-10)

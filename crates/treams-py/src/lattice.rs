@@ -42,13 +42,19 @@ type PeriodicGradients<'py> = (
     Bound<'py, PyArray1<f64>>,
     Bound<'py, PyArray2<f64>>,
 );
-#[pymethods]
+type AxialPeriodicGradients<'py> = (
+    Bound<'py, PyArray2<f64>>,
+    Bound<'py, PyArray2<f64>>,
+    Bound<'py, PyArray1<Complex64>>,
+    Bound<'py, PyArray1<f64>>,
+    Bound<'py, PyArray2<f64>>,
+    Bound<'py, PyArray1<f64>>,
+);
 impl PeriodicContext {
-    fn pullback<'py>(
+    fn take(
         &mut self,
-        py: Python<'py>,
-        cotangent: PyReadonlyArray2<'py, Complex64>,
-    ) -> PyResult<PeriodicGradients<'py>> {
+        cotangent: PyReadonlyArray2<'_, Complex64>,
+    ) -> PyResult<(Periodic, nalgebra::DMatrix<Complex64>)> {
         let g = crate::tmatrix::from_array(cotangent)?;
         let residual = self
             .residual
@@ -63,20 +69,62 @@ impl PeriodicContext {
             .residual
             .take()
             .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        Ok((residual, g))
+    }
+}
+fn periodic_gradient(
+    py: Python<'_>,
+    result: treams_core::basis::PeriodicGradient,
+) -> PeriodicGradients<'_> {
+    (
+        Array2::from_shape_fn((result.expansion.destination.len(), 3), |(i, j)| {
+            result.expansion.destination[i][j]
+        })
+        .into_pyarray(py),
+        Array2::from_shape_fn((result.expansion.source.len(), 3), |(i, j)| {
+            result.expansion.source[i][j]
+        })
+        .into_pyarray(py),
+        result.expansion.ks.to_vec().into_pyarray(py),
+        result.bloch.into_pyarray(py),
+        Array2::from_shape_fn(result.vectors.shape(), |(i, j)| result.vectors[(i, j)])
+            .into_pyarray(py),
+    )
+}
+#[pymethods]
+impl PeriodicContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'py, Complex64>,
+    ) -> PyResult<PeriodicGradients<'py>> {
+        let (residual, g) = self.take(cotangent)?;
         let result = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        Ok(periodic_gradient(py, result))
+    }
+    /// Also return gradients of sorted distinct shared axial wavenumbers.
+    fn pullback_axial<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'py, Complex64>,
+    ) -> PyResult<AxialPeriodicGradients<'py>> {
+        let (residual, g) = self.take(cotangent)?;
+        let Periodic::Cylindrical(residual) = residual else {
+            return Err(PyValueError::new_err(
+                "axial periodic derivatives require two cylindrical bases",
+            ));
+        };
+        let (result, axial) = py
+            .detach(move || residual.pullback_axial(&g))
+            .map_err(error)?;
+        let (destination, source, ks, bloch, vectors) = periodic_gradient(py, result);
         Ok((
-            Array2::from_shape_fn((result.expansion.destination.len(), 3), |(i, j)| {
-                result.expansion.destination[i][j]
-            })
-            .into_pyarray(py),
-            Array2::from_shape_fn((result.expansion.source.len(), 3), |(i, j)| {
-                result.expansion.source[i][j]
-            })
-            .into_pyarray(py),
-            result.expansion.ks.to_vec().into_pyarray(py),
-            result.bloch.into_pyarray(py),
-            Array2::from_shape_fn(result.vectors.shape(), |(i, j)| result.vectors[(i, j)])
-                .into_pyarray(py),
+            destination,
+            source,
+            ks,
+            bloch,
+            vectors,
+            axial.into_pyarray(py),
         ))
     }
 }

@@ -175,6 +175,18 @@ impl Basis {
     }
 }
 
+fn axial_groups(destination: &Basis, source: &Basis) -> Vec<f64> {
+    let mut groups: Vec<_> = destination
+        .modes
+        .iter()
+        .chain(&source.modes)
+        .map(|(_, m)| m.kz)
+        .collect();
+    groups.sort_by(f64::total_cmp);
+    groups.dedup();
+    groups
+}
+
 /// Cylindrical expansion residual; kz matching is a fixed basis selection.
 #[derive(Debug)]
 pub struct ExpansionResidual {
@@ -228,6 +240,22 @@ impl ExpansionResidual {
         self,
         cotangent: &DMatrix<Complex>,
     ) -> Result<crate::basis::TranslationGradient> {
+        self.pullback_impl::<false>(cotangent).map(|(g, _)| g)
+    }
+
+    /// Also differentiate each shared axial wavenumber. The final array follows
+    /// the sorted distinct kz values from both bases; equality partitions stay fixed.
+    pub fn pullback_axial(
+        self,
+        cotangent: &DMatrix<Complex>,
+    ) -> Result<(crate::basis::TranslationGradient, Vec<f64>)> {
+        self.pullback_impl::<true>(cotangent)
+    }
+
+    fn pullback_impl<const AXIAL: bool>(
+        self,
+        cotangent: &DMatrix<Complex>,
+    ) -> Result<(crate::basis::TranslationGradient, Vec<f64>)> {
         if cotangent.shape() != (self.destination.modes.len(), self.source.modes.len())
             || cotangent.iter().any(|&g| !finite(g))
         {
@@ -236,38 +264,61 @@ impl ExpansionResidual {
             ));
         }
         use rayon::prelude::*;
-        let empty = || crate::basis::TranslationGradient {
-            destination: vec![[0.0; 3]; self.destination.positions.len()],
-            source: vec![[0.0; 3]; self.source.positions.len()],
-            ks: [Complex::default(); 2],
+        let groups = if AXIAL {
+            axial_groups(&self.destination, &self.source)
+        } else {
+            Vec::new()
         };
-        let accumulate = |mut result: crate::basis::TranslationGradient,
-                          (j, &(q, from)): (usize, &(usize, Mode))|
-         -> Result<_> {
-            for (i, &(p, to)) in self.destination.modes.iter().enumerate() {
-                let g = cotangent[(i, j)];
-                if g == Complex::default() {
-                    continue;
-                }
-                let position = std::array::from_fn(|a| {
-                    self.destination.positions[p][a] - self.source.positions[q][a]
-                });
-                let jet = translate(
-                    to,
-                    from,
-                    self.ks[usize::from(from.pol)],
-                    position,
-                    self.radial,
-                )?;
-                result.ks[usize::from(from.pol)] += jet.k.conj() * g;
-                for axis in 0..3 {
-                    let derivative = (g.conj() * jet.position[axis]).re;
-                    result.destination[p][axis] += derivative;
-                    result.source[q][axis] -= derivative;
-                }
-            }
-            Ok(result)
+        let source_groups: Vec<_> = if AXIAL {
+            self.source
+                .modes
+                .iter()
+                .map(|(_, m)| groups.partition_point(|&kz| kz < m.kz))
+                .collect()
+        } else {
+            Vec::new()
         };
+        let empty = || {
+            (
+                crate::basis::TranslationGradient {
+                    destination: vec![[0.0; 3]; self.destination.positions.len()],
+                    source: vec![[0.0; 3]; self.source.positions.len()],
+                    ks: [Complex::default(); 2],
+                },
+                vec![0.0; groups.len()],
+            )
+        };
+        let accumulate =
+            |(mut result, mut axial): (crate::basis::TranslationGradient, Vec<f64>),
+             (j, &(q, from)): (usize, &(usize, Mode))|
+             -> Result<_> {
+                for (i, &(p, to)) in self.destination.modes.iter().enumerate() {
+                    let g = cotangent[(i, j)];
+                    if g == Complex::default() {
+                        continue;
+                    }
+                    let position = std::array::from_fn(|a| {
+                        self.destination.positions[p][a] - self.source.positions[q][a]
+                    });
+                    let jet = translate(
+                        to,
+                        from,
+                        self.ks[usize::from(from.pol)],
+                        position,
+                        self.radial,
+                    )?;
+                    result.ks[usize::from(from.pol)] += jet.k.conj() * g;
+                    if AXIAL {
+                        axial[source_groups[j]] += (g.conj() * jet.kz).re;
+                    }
+                    for axis in 0..3 {
+                        let derivative = (g.conj() * jet.position[axis]).re;
+                        result.destination[p][axis] += derivative;
+                        result.source[q][axis] -= derivative;
+                    }
+                }
+                Ok((result, axial))
+            };
         if self.source.modes.len() < 64 {
             return self
                 .source
@@ -281,7 +332,7 @@ impl ExpansionResidual {
             .par_iter()
             .enumerate()
             .try_fold(empty, accumulate)
-            .try_reduce(empty, |mut left, right| {
+            .try_reduce(empty, |(mut left, mut axial), (right, right_axial)| {
                 for (a, b) in left
                     .destination
                     .iter_mut()
@@ -295,7 +346,10 @@ impl ExpansionResidual {
                 for (out, value) in left.ks.iter_mut().zip(right.ks) {
                     *out += value;
                 }
-                Ok(left)
+                for (a, b) in axial.iter_mut().zip(right_axial) {
+                    *a += b;
+                }
+                Ok((left, axial))
             })
     }
 }
@@ -391,8 +445,23 @@ pub struct PeriodicResidual {
 }
 impl PeriodicResidual {
     /// Consume the context and differentiate origins, medium wavenumbers and lattice geometry.
-    #[allow(clippy::float_cmp)] // Fixed axial labels.
     pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<crate::basis::PeriodicGradient> {
+        self.pullback_impl::<false>(cotangent).map(|(g, _)| g)
+    }
+
+    /// Also differentiate sorted distinct axial wavenumbers with matching groups fixed.
+    pub fn pullback_axial(
+        self,
+        cotangent: &DMatrix<Complex>,
+    ) -> Result<(crate::basis::PeriodicGradient, Vec<f64>)> {
+        self.pullback_impl::<true>(cotangent)
+    }
+
+    #[allow(clippy::float_cmp)] // Exact axial matching partitions are fixed.
+    fn pullback_impl<const AXIAL: bool>(
+        self,
+        cotangent: &DMatrix<Complex>,
+    ) -> Result<(crate::basis::PeriodicGradient, Vec<f64>)> {
         use rayon::prelude::*;
         use std::collections::HashMap;
         if cotangent.shape() != self.value.shape() || cotangent.iter().any(|&g| !finite(g)) {
@@ -455,7 +524,13 @@ impl PeriodicResidual {
                     vectors: jet.vectors.map(|row| row.map(|d| (scalar_g.conj() * d).re)),
                 };
                 gradient.position[2] = (total.conj() * (-Complex::i() * kz) * phase * jet.value).re;
-                Ok((p, q, spectral, gradient))
+                let axial = if AXIAL {
+                    (total.conj() * phase * (-jet.k * kz / krho - Complex::i() * r[2] * jet.value))
+                        .re
+                } else {
+                    0.0
+                };
+                Ok((p, q, spectral, gradient, axial))
             })
             .collect::<Result<Vec<_>>>()?;
         let mut result = crate::basis::PeriodicGradient::new(
@@ -463,7 +538,18 @@ impl PeriodicResidual {
             self.source.positions.len(),
             self.lattice.dimension(),
         );
-        for (p, q, spectral, g) in gradients {
+        let groups = if AXIAL {
+            axial_groups(&self.destination, &self.source)
+        } else {
+            Vec::new()
+        };
+        let mut axial = vec![0.0; groups.len()];
+        for ((p, q, spectral, g, gkz), &(_, _, kz, _, _)) in
+            gradients.into_iter().zip(&self.requests)
+        {
+            if AXIAL {
+                axial[groups.partition_point(|&k| k < f64::from_bits(kz))] += gkz;
+            }
             result.lattice(&g);
             for (g, k) in result.expansion.ks.iter_mut().zip(spectral) {
                 *g += k;
@@ -473,6 +559,6 @@ impl PeriodicResidual {
                 result.expansion.source[q][axis] += value;
             }
         }
-        Ok(result)
+        Ok((result, axial))
     }
 }

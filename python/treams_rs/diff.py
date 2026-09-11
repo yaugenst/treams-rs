@@ -496,7 +496,9 @@ def expansion(
 ) -> tuple[NDArray[np.complex128], _native.ExpansionContext]:
     """Expansion VJP returns (destination positions, source positions, ks).
 
-    Cylindrical axial wavenumbers are fixed mode labels; different labels decouple.
+    Cylindrical ``context.pullback_axial`` adds a fourth gradient array, ordered
+    by sorted distinct axial wavenumbers from both bases. Each derivative moves
+    all modes with that shared label together; different groups remain distinct.
     """
     values = np.asarray(ks, dtype=np.complex128)
     if values.shape != (2,):

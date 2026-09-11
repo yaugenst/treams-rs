@@ -185,7 +185,11 @@ def expansion_with_context(
     poltype: str = "helicity",
     eta: complex = 0,
 ) -> tuple[NDArray[np.complex128], _native.PeriodicContext]:
-    """Periodic outgoing-to-regular coupling, including nonzero self images."""
+    """Periodic outgoing-to-regular coupling, including nonzero self images.
+
+    Cylindrical ``context.pullback_axial`` appends gradients of the sorted
+    distinct axial wavenumbers from both bases, with matching groups fixed.
+    """
     wavenumbers = np.asarray(ks, dtype=np.complex128)
     if wavenumbers.shape != (2,):
         raise ValueError(
@@ -238,7 +242,11 @@ def expansion(
     poltype: str = "helicity",
     eta: complex = 0,
 ) -> NDArray[np.complex128]:
-    """Periodic outgoing-to-regular coupling, including nonzero self images."""
+    """Periodic outgoing-to-regular coupling, including nonzero self images.
+
+    Cylindrical ``context.pullback_axial`` appends gradients of the sorted
+    distinct axial wavenumbers from both bases, with matching groups fixed.
+    """
     return expansion_with_context(
         destination,
         source,

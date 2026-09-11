@@ -20,6 +20,35 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    fn cylindrical_periodic_axial_scale_adjoint(kz in -0.3_f64..0.3, a in 1.5_f64..1.8) {
+        use crate::{cylwaves::{self,Basis,Mode},lattice::Lattice};
+        let basis=Basis{modes:vec![(0,Mode{kz,m:-1,pol:0}),(0,Mode{kz,m:1,pol:1})],positions:vec![[0.0;3]]};
+        let ks=[Complex::new(1.3,0.05),Complex::new(1.5,0.07)];
+        let lattice=Lattice::new(&[vec![a]], &[0.1]).unwrap();
+        let r=cylwaves::periodic(basis.clone(),basis,ks,lattice,Complex::new(0.9,0.0)).unwrap();
+        let (g,gkz)=r.pullback_axial(&DMatrix::from_element(2,2,Complex::new(0.3,0.2))).unwrap();
+        let length=g.vectors.iter().sum::<f64>()*a;
+        let spectral=g.expansion.ks.iter().zip(ks).map(|(g,k)|(g.conj()*k).re).sum::<f64>()+g.bloch.iter().sum::<f64>()*0.1+gkz.iter().sum::<f64>()*kz;
+        prop_assert!((length-spectral).abs()<1e-11);
+    }
+
+    #[test]
+    fn cylindrical_expansion_shared_axial_scale_adjoint(kz in -0.4_f64..0.4, x in 0.3_f64..1.2, outgoing in any::<bool>()) {
+        use crate::cylwaves::{self, Basis,Mode};
+        let modes=vec![(0,Mode{kz,m:-1,pol:0}),(0,Mode{kz:0.7,m:1,pol:1})];
+        let to=[x,0.4,0.3];
+        let from=[0.1,-0.2,0.0];
+        let destination=Basis{modes:modes.clone(),positions:vec![to]};
+        let source=Basis{modes,positions:vec![from]};
+        let ks=[Complex::new(1.3,0.05),Complex::new(1.5,0.07)];
+        let r=cylwaves::expansion(destination,source,ks,if outgoing {Radial::Outgoing}else{Radial::Regular}).unwrap();
+        let (g,gkz)=r.pullback_axial(&DMatrix::from_element(2,2,Complex::new(0.3,0.2))).unwrap();
+        let positions=g.destination.iter().flatten().zip(to).chain(g.source.iter().flatten().zip(from)).map(|(g,r)|g*r).sum::<f64>();
+        let spectral=g.ks.iter().zip(ks).map(|(g,k)|(g.conj()*k).re).sum::<f64>()+gkz.iter().zip([kz,0.7]).map(|(g,k)|g*k).sum::<f64>();
+        prop_assert!((positions-spectral).abs()<1e-12);
+    }
+
+    #[test]
     fn cylindrical_field_axial_scale_adjoint(kz in -0.4_f64..0.4, x in 0.3_f64..1.2) {
         use crate::{cylwaves,fields};
         let modes=vec![(0,cylwaves::Mode{kz,m:-1,pol:0}),(0,cylwaves::Mode{kz,m:1,pol:1})];

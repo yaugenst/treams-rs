@@ -492,7 +492,16 @@ def svdvals(operator: ArrayLike) -> NDArray[np.float64]:
     return ad.numpy.real(_call((operator,), forward))
 
 
-def _field_basis(
+def _real_kzs(kzs: ArrayLike) -> NDArray[np.float64]:
+    axial = np.asarray(kzs)
+    if np.iscomplexobj(axial):
+        if np.any(axial.imag != 0):
+            raise ValueError("kzs must be real")
+        axial = axial.real
+    return np.asarray(axial, dtype=np.float64)
+
+
+def _dynamic_basis(
     basis: SphericalWaveBasis | CylindricalWaveBasis,
     origins: ArrayLike,
     kzs: ArrayLike | None,
@@ -500,13 +509,8 @@ def _field_basis(
     if kzs is None:
         return type(basis)(basis.modes, origins)
     if not isinstance(basis, CylindricalWaveBasis):
-        raise ValueError("axial field derivatives require a cylindrical basis")
-    axial = np.asarray(kzs)
-    if np.iscomplexobj(axial):
-        if np.any(axial.imag != 0):
-            raise ValueError("kzs must be real")
-        axial = axial.real
-    axial = np.asarray(axial, dtype=np.float64)
+        raise ValueError("axial derivatives require a cylindrical basis")
+    axial = _real_kzs(kzs)
     if axial.shape != (len(basis),):
         raise ValueError("kzs must contain one real axial wavenumber per mode")
     result = CylindricalWaveBasis(
@@ -534,7 +538,7 @@ def field_operator(
     """Full field matrix; optional per-mode kzs are differentiable for cylinders."""
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        dynamic_basis = _field_basis(
+        dynamic_basis = _dynamic_basis(
             basis, values[1], values[3] if kzs is not None else None
         )
         value, context = diff.field_operator(
@@ -560,7 +564,7 @@ def field(
     """Electric samples with native geometry/medium and optional cylindrical kz VJPs."""
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        dynamic_basis = _field_basis(
+        dynamic_basis = _dynamic_basis(
             basis, values[2], values[4] if kzs is not None else None
         )
         value, context = diff.field(
@@ -684,6 +688,32 @@ def ffield(
     )
 
 
+def _group_axial(
+    destination: SphericalWaveBasis | CylindricalWaveBasis,
+    source: SphericalWaveBasis | CylindricalWaveBasis,
+    kzs: ArrayLike | None,
+) -> tuple[
+    NDArray[np.float64] | None, NDArray[np.float64] | None, NDArray[np.intp] | None
+]:
+    if kzs is None:
+        return None, None, None
+    if not isinstance(destination, CylindricalWaveBasis) or not isinstance(
+        source, CylindricalWaveBasis
+    ):
+        raise ValueError("axial expansion derivatives require two cylindrical bases")
+    groups = np.unique(np.concatenate((destination.kz, source.kz)))
+    axial = _real_kzs(kzs)
+    if axial.shape != groups.shape or not np.all(np.isfinite(axial)):
+        raise ValueError("kzs must contain one finite real value per axial group")
+    if len(np.unique(axial)) != len(groups):
+        raise ValueError("axial groups must remain distinct")
+    return (
+        axial[np.searchsorted(groups, destination.kz)],
+        axial[np.searchsorted(groups, source.kz)],
+        np.searchsorted(np.sort(axial), axial),
+    )
+
+
 def expansion(
     destination_positions: ArrayLike,
     source_positions: ArrayLike,
@@ -693,20 +723,37 @@ def expansion(
     source: SphericalWaveBasis | CylindricalWaveBasis,
     poltype: str = "helicity",
     singular: bool = False,
+    kzs: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
-    """Expansion matrix, differentiable in both origin arrays and wavenumbers."""
+    """Expansion with origin/medium VJPs and optional cylindrical axial groups.
+
+    ``kzs`` corresponds to sorted distinct axial labels of both original bases.
+    One value moves the entire matching group in both bases. Values must remain
+    distinct; changing which modes couple is a discrete operation.
+    """
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        to_axial, from_axial, order = _group_axial(
+            destination, source, values[3] if kzs is not None else None
+        )
         value, context = diff.expansion(
-            type(destination)(destination.modes, positions=values[0]),
-            type(source)(source.modes, positions=values[1]),
+            _dynamic_basis(destination, values[0], to_axial),
+            _dynamic_basis(source, values[1], from_axial),
             values[2],
             poltype=poltype,
             singular=singular,
         )
-        return value, context.pullback
+        if order is None:
+            return value, context.pullback
 
-    return _call((destination_positions, source_positions, ks), forward)
+        def pullback(g: NDArray[np.complex128]) -> _Values:
+            to, source, ks, axial = context.pullback_axial(g)
+            return to, source, ks, axial[order]
+
+        return value, pullback
+
+    values = (destination_positions, source_positions, ks)
+    return _call(values if kzs is None else (*values, kzs), forward)
 
 
 def cylinder(
@@ -751,26 +798,39 @@ def lattice_expansion(
     source: SphericalWaveBasis | CylindricalWaveBasis,
     poltype: str = "helicity",
     eta: complex = 0,
+    kzs: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
     """Periodic coupling with native VJPs for origins, two ks, Bloch and lattice vectors.
 
     The Ewald split eta is a numerical constant; its exact physical derivative is zero.
-    Cylindrical axial wavenumbers remain fixed basis labels.
+    Optional ``kzs`` moves shared cylindrical axial groups, ordered as in
+    ``expansion``. Groups must remain distinct.
     """
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        to_axial, from_axial, order = _group_axial(
+            destination, source, values[5] if kzs is not None else None
+        )
         value, context = lattice.expansion_with_context(
-            type(destination)(destination.modes, positions=values[0]),
-            type(source)(source.modes, positions=values[1]),
+            _dynamic_basis(destination, values[0], to_axial),
+            _dynamic_basis(source, values[1], from_axial),
             values[2],
             values[4],
             values[3],
             poltype=poltype,
             eta=eta,
         )
-        return value, context.pullback
+        if order is None:
+            return value, context.pullback
 
-    return _call((destination_positions, source_positions, ks, kpar, a), forward)
+        def pullback(g: NDArray[np.complex128]) -> _Values:
+            to, source, ks, bloch, vectors, axial = context.pullback_axial(g)
+            return to, source, ks, bloch, vectors, axial[order]
+
+        return value, pullback
+
+    values = (destination_positions, source_positions, ks, kpar, a)
+    return _call(values if kzs is None else (*values, kzs), forward)
 
 
 def plane_phases(points: ArrayLike, vectors: ArrayLike) -> NDArray[np.complex128]:

@@ -50,13 +50,17 @@ type Gradient<'py> = (
     Bound<'py, PyArray2<f64>>,
     Bound<'py, PyArray1<Complex>>,
 );
-#[pymethods]
+type AxialGradient<'py> = (
+    Bound<'py, PyArray2<f64>>,
+    Bound<'py, PyArray2<f64>>,
+    Bound<'py, PyArray1<Complex>>,
+    Bound<'py, PyArray1<f64>>,
+);
 impl ExpansionContext {
-    fn pullback<'py>(
+    fn take(
         &mut self,
-        py: Python<'py>,
-        cotangent: PyReadonlyArray2<'py, Complex>,
-    ) -> PyResult<Gradient<'py>> {
+        cotangent: PyReadonlyArray2<'_, Complex>,
+    ) -> PyResult<(Expansion, nalgebra::DMatrix<Complex>)> {
         let g = from_array(cotangent)?;
         let residual = self
             .residual
@@ -71,16 +75,49 @@ impl ExpansionContext {
             .residual
             .take()
             .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let result = py.detach(move || residual.pullback(&g)).map_err(error)?;
-        Ok((
-            Array2::from_shape_fn((result.destination.len(), 3), |(i, j)| {
-                result.destination[i][j]
-            })
+        Ok((residual, g))
+    }
+}
+fn expansion_gradient(py: Python<'_>, result: basis::TranslationGradient) -> Gradient<'_> {
+    (
+        Array2::from_shape_fn((result.destination.len(), 3), |(i, j)| {
+            result.destination[i][j]
+        })
+        .into_pyarray(py),
+        Array2::from_shape_fn((result.source.len(), 3), |(i, j)| result.source[i][j])
             .into_pyarray(py),
-            Array2::from_shape_fn((result.source.len(), 3), |(i, j)| result.source[i][j])
-                .into_pyarray(py),
-            result.ks.to_vec().into_pyarray(py),
-        ))
+        result.ks.to_vec().into_pyarray(py),
+    )
+}
+#[pymethods]
+impl ExpansionContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'py, Complex>,
+    ) -> PyResult<Gradient<'py>> {
+        let (residual, g) = self.take(cotangent)?;
+        let result = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        Ok(expansion_gradient(py, result))
+    }
+
+    /// Gradients of origins, medium ks and sorted distinct shared axial wavenumbers.
+    fn pullback_axial<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'py, Complex>,
+    ) -> PyResult<AxialGradient<'py>> {
+        let (residual, g) = self.take(cotangent)?;
+        let Expansion::Cylindrical(residual) = residual else {
+            return Err(PyValueError::new_err(
+                "axial expansion derivatives require two cylindrical bases",
+            ));
+        };
+        let (result, axial) = py
+            .detach(move || residual.pullback_axial(&g))
+            .map_err(error)?;
+        let (destination, source, ks) = expansion_gradient(py, result);
+        Ok((destination, source, ks, axial.into_pyarray(py)))
     }
 }
 

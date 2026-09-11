@@ -726,3 +726,38 @@ percent and do not establish a change at that scale. Axial reverse remains about
 4.2/65.7 ms while computing one additional derivative per mode. The four new gates
 are included in `just bench-performance` (72 total); the prior 68-gate combined
 run and these four additions are recorded separately, not claimed as one run.
+
+
+## Shared axial derivatives of finite and periodic cylindrical expansions
+
+Four or sixteen particles, two axial groups, order 3 and four threads. Each
+accuracy-checked case passes forward-runtime and peak-RSS gates against treams.
+Periodic comparisons use the same explicit Ewald split eta=0.7 in both solvers.
+At period 12.8, upstream's automatic split differs from the converged result by
+up to 0.007466 in this matrix; explicit eta=0.5/0.8/1.0 agrees with Rust to about
+1.5e-11 or better. The native automatic split also agrees with those values.
+The existing scalar split regression now covers both periods 7.2 and 12.8.
+
+| Workload | Particles | Upstream forward ms | Rust forward ms | Speedup | Rust reverse ms | Rust / upstream RSS MiB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| expansion | 4 | 2.319 | 0.583 | 3.98x | 0.606 | 41.9 / 67.1 |
+| expansion | 16 | 38.088 | 10.762 | 3.54x | 10.599 | 48.2 / 74.8 |
+| expansion-axial | 4 | 2.313 | 0.592 | 3.91x | 0.640 | 42.4 / 66.8 |
+| expansion-axial | 16 | 37.895 | 10.523 | 3.60x | 10.716 | 48.0 / 74.8 |
+| periodic | 4 | 1522.719 | 8.786 | 173.32x | 19.316 | 43.5 / 67.6 |
+| periodic | 16 | 16303.387 | 88.316 | 184.60x | 238.705 | 50.4 / 86.0 |
+| periodic-axial | 4 | 1510.388 | 9.131 | 165.41x | 20.026 | 43.4 / 66.8 |
+| periodic-axial | 16 | 16334.604 | 88.576 | 184.41x | 238.965 | 50.3 / 85.8 |
+
+The `-axial` cases evaluate the same forward and request the additional grouped
+axial gradient in reverse. Periodic reverse reuses the same Ewald derivatives,
+without retaining an axial Jacobian. These eight additions bring the reproducible
+`just bench-performance` recipe to 80 gates. They were run separately from the
+previous 68-gate combined run and the four field gates above.
+
+
+The existing complete four-cylinder array path also passes its runtime/RSS gate:
+4.729 to 4.511 ms forward and 12.138 to 11.760 ms reverse before/after this change,
+with measured peak RSS 42.5/43.9 MiB. This is a short same-host check rather than
+a claim that the optional derivative improves the unchanged forward algorithm.
+Raw baselines and new runs are saved as `cylindrical-array-{before,after}-axial.json`.
