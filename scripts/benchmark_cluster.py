@@ -122,6 +122,7 @@ def worker(
             "plane-operator",
             "plane-phases",
             "plane-permutation",
+            "oriented-chirality",
         ):
             q = np.column_stack(
                 [
@@ -268,6 +269,14 @@ def worker(
         eta = 0.7 if workload == "cylindrical-array" else 0
 
         def rust():
+            if workload == "oriented-chirality":
+                return diff.oriented_chirality(
+                    vectors[:, :2].real,
+                    vectors[:, 2],
+                    (-0.2, 0.7),
+                    polarizations=basis.pol,
+                    axis=0,
+                )
             if workload == "plane-permutation":
                 return diff.plane_permutation(vectors, basis.pol)
             if workload == "plane-phases":
@@ -357,6 +366,34 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload == "oriented-chirality":
+                q0, q1, normal = oracle_vectors.T
+                up = treams.special.vpw_A(normal, q0, q1, 0, 0, 0, oracle_basis.pol)
+                down = treams.special.vpw_A(-normal, q0, q1, 0, 0, 0, oracle_basis.pol)
+                sign = 2 * oracle_basis.pol - 1
+
+                def mean(slope):
+                    width = slope * 0.9
+                    result = np.ones_like(width)
+                    np.divide(np.expm1(width), width, out=result, where=width != 0)
+                    return np.exp(-0.2 * slope) * result
+
+                return np.array(
+                    [
+                        2
+                        * sign
+                        * np.sum(up.conj() * up, axis=-1)
+                        * mean(-2 * normal.imag),
+                        2
+                        * sign
+                        * np.sum(down.conj() * down, axis=-1)
+                        * mean(2 * normal.imag),
+                        4
+                        * sign
+                        * np.sum(down.conj() * up, axis=-1)
+                        * mean(2j * normal.real),
+                    ]
+                )
             if workload == "plane-permutation":
                 return treams.pw.permute_xyz(
                     *oracle_vectors.T, np.arange(2)[:, None], oracle_basis.pol[None, :]
@@ -562,6 +599,9 @@ def worker(
                     if backend == "rust"
                     else None,
                     "workload": workload,
+                    "oracle": "Cartesian treams plane fields"
+                    if workload == "oriented-chirality"
+                    else "treams public operation",
                     "ebcm_legacy": True if workload == "ebcm" else None,
                     "ewald_eta": eta
                     if workload in ("periodic", "array", "cylindrical-array")
@@ -581,6 +621,7 @@ def worker(
                         "plane-operator",
                         "plane-phases",
                         "plane-permutation",
+                        "oriented-chirality",
                         "plane-expansion",
                         "cylindrical-plane-expansion",
                     )
@@ -604,6 +645,7 @@ def worker(
                             "plane-operator",
                             "plane-phases",
                             "plane-permutation",
+                            "oriented-chirality",
                         )
                         else 4 * (2 * order + 1)
                         if workload == "cylindrical-field"
@@ -654,6 +696,7 @@ def main() -> None:
             "plane-operator",
             "plane-phases",
             "plane-permutation",
+            "oriented-chirality",
             "plane-expansion",
             "cylindrical-plane-expansion",
             "cylindrical-array",

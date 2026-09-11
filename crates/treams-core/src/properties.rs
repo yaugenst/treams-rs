@@ -36,6 +36,24 @@ proptest! {
     }
 
     #[test]
+    fn oriented_chirality_interval_and_geometry_adjoint(q in 0.1_f64..0.5, stop in 0.1_f64..1.0, axis in 0_usize..3) {
+        use crate::smatrix::oriented_chirality;
+        let transverse=vec![[q, -0.3]];
+        let normal=vec![Complex::new(1.2,0.15)];
+        let z=[-0.2,stop];
+        let (value,residual)=oriented_chirality(transverse.clone(),normal.clone(),vec![1],axis,z).unwrap();
+        let left=oriented_chirality(transverse.clone(),normal.clone(),vec![1],axis,[-0.2,0.0]).unwrap().0;
+        let right=oriented_chirality(transverse.clone(),normal.clone(),vec![1],axis,[0.0,stop]).unwrap().0;
+        prop_assert!((&value*Complex::new(stop+0.2,0.0)-left*Complex::new(0.2,0.0)-right*Complex::new(stop,0.0)).norm()<1e-12);
+        let g=DMatrix::from_element(3,1,Complex::new(0.3,0.2));
+        let gradient=residual.pullback(&g).unwrap();
+        let scale=gradient.transverse.iter().flatten().zip(transverse.iter().flatten()).map(|(g,k)|g*k).sum::<f64>()
+            +gradient.normal.iter().zip(normal).map(|(g,k)|(g.conj()*k).re).sum::<f64>()
+            -gradient.interval.iter().zip(z).map(|(g,k)|g*k).sum::<f64>();
+        prop_assert!(scale.abs()<1e-12);
+    }
+
+    #[test]
     fn ebcm_surface_scaling_adjoint(deformation in -0.2_f64..0.2) {
         use crate::ebcm::{Surface, qmat};
         let modes = vec![Mode {l:1,m:0,pol:0}, Mode {l:1,m:0,pol:1}, Mode {l:2,m:1,pol:0}];

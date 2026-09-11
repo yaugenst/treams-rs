@@ -32,6 +32,29 @@ def chirality_density(
     )
 
 
+def oriented_chirality(
+    transverse: ArrayLike,
+    normal: ArrayLike,
+    z: ArrayLike = (0.0, 0.0),
+    *,
+    polarizations: ArrayLike,
+    axis: int = 2,
+) -> tuple[NDArray[np.complex128], _native.OrientedChiralityContext]:
+    """Signed helicity (3, modes) chirality forms for any Cartesian normal.
+
+    Transverse components are real, shape (modes, 2), in cyclic order after axis.
+    The native pullback covers transverse/complex normal components and endpoints.
+    """
+    start, stop = np.asarray(z, dtype=np.float64)
+    return _native.oriented_chirality(
+        np.asarray(transverse, dtype=np.float64),
+        np.asarray(normal, dtype=np.complex128),
+        np.asarray(polarizations).tolist(),
+        axis,
+        (float(start), float(stop)),
+    )
+
+
 def ebcm_qmat(
     radii: ArrayLike,
     slopes: ArrayLike,

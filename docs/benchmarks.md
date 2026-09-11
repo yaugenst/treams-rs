@@ -447,3 +447,23 @@ Raw results are `/tmp/treams-plane-phases-borrow-n128-t4.json` and
 `/tmp/treams-plane-phases-borrow-n1024-t4.json` on [redacted-host]. Reproduce with
 `--workload plane-phases --particles 16 --lmax 32 --samples 4096 --threads 4`;
 the number of plane modes is 2*particles*lmax. The smaller case uses 8 and 8.
+
+## Oriented chirality forms
+
+Compact signed-helicity up/down/cross coefficients, averaged from -0.2 to 0.7
+along x, including propagating and evanescent waves. The independent reference
+constructs Cartesian polarizations with `treams.special.vpw_A` and contracts their
+inner products and analytic exponential averages. This measures the equivalent
+Cartesian calculation, not upstream's xy-only high-level chirality implementation.
+Both outputs have shape (3, N); accuracy is checked before timing.
+
+| Modes | Reference us | Rust us | Speedup | Rust reverse us | Reference / Rust forward peak MiB |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 128 | 54.72 | 24.45 | 2.24x | 114.67 | 65.3 / 42.8 |
+| 1024 | 619.42 | 65.88 | 9.40x | 280.72 | 65.3 / 43.4 |
+
+Release, four matched threads, seven batched samples including result destruction.
+Reverse covers both real transverse components, complex normal components and
+interval endpoints; the residual stores only input geometry. Large mode sets use
+Rayon. Raw results: `benchmarks/results/oriented-chirality-l{64,512}.json`.
+Reproduce with `--workload oriented-chirality --particles 1 --lmax 512 --threads 4`.

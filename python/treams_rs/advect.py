@@ -82,6 +82,25 @@ def chirality_density(
     return _call((ks, normal, z), forward)
 
 
+def oriented_chirality(
+    transverse: ArrayLike,
+    normal: ArrayLike,
+    z: ArrayLike = (0.0, 0.0),
+    *,
+    polarizations: ArrayLike,
+    axis: int = 2,
+) -> NDArray[np.complex128]:
+    """Signed helicity chirality forms with native geometry and interval VJP."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.oriented_chirality(
+            *values, polarizations=polarizations, axis=axis
+        )
+        return value, context.pullback
+
+    return _call((transverse, normal, z), forward)
+
+
 def sphere(
     lmax: int,
     k0: ArrayLike,

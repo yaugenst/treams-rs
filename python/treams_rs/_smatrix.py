@@ -499,19 +499,45 @@ def chirality_density(
     poltype: str = "helicity",
     z: ArrayLike = (0.0, 0.0),
 ) -> tuple[NDArray[np.complex128], NDArray[np.complex128], NDArray[np.complex128]]:
-    """Up/down/coherent-cross forms of 2 Re(E* . i Z H), averaged over z.
+    """Up/down/coherent-cross forms of 2 Re(E* . i Z H), along the basis normal.
 
-    Requires an xy-aligned basis. Equal endpoints evaluate at that z plane.
+    Equal endpoints evaluate at that plane. z gives coordinates along the normal.
     For amplitudes u,d the density is
     Re(u* U u + d* D d + d* X u). X can be complex for a shifted interval.
     This corrects upstream's attenuation average and discarded cross phase.
     """
-    if basis.alignment != "xy":
-        raise ValueError("chirality forms require xy-aligned plane bases")
     medium = Material(material)
+    if poltype not in ("helicity", "parity") or (
+        poltype == "parity" and medium.ischiral
+    ):
+        raise ValueError("invalid polarization type for the medium")
+    normal = basis.kvecs(k0, medium)[basis.normal_axis]
+    if basis.alignment != "xy":
+        q = basis.components
+        if poltype == "helicity":
+            values, _ = diff.oriented_chirality(
+                q, normal, z, polarizations=basis.pol, axis=basis.normal_axis
+            )
+            up, down, cross = (np.diag(row) for row in values)
+        else:
+            values, _ = diff.oriented_chirality(
+                np.repeat(q, 2, axis=0),
+                np.repeat(normal, 2),
+                z,
+                polarizations=np.tile([0, 1], len(basis)),
+                axis=basis.normal_axis,
+            )
+            values = values.reshape(3, len(basis), 2)
+            same = np.all(q[:, None, :] == q[None, :, :], axis=-1)
+            sign = 2 * basis.pol - 1
+            pair = sign[:, None] * sign
+            up, down, cross = (
+                0.5 * same * (pair * row[:, 0] + row[:, 1]) for row in values
+            )
+        return up, down, cross
     values, _ = diff.chirality_density(
         medium.ks(k0)[basis.pol],
-        basis.kvecs(k0, medium)[basis.normal_axis],
+        normal,
         z,
     )
     if poltype == "helicity":

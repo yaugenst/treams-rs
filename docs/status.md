@@ -6,14 +6,17 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 Known reference defects and accuracy limits are indexed in [upstream findings](upstream-findings.md).
 
 `chirality_density` returns up/down/coherent-cross forms for 2 Re(E* . i Z H)
-averaged over an interval along z, for xy plane bases. It fixes upstream's
-attenuation average, shifted observation plane and missing coherent cross phase.
-The cross form can be complex and contracts as Re(down* X up).
-`diff.chirality_density` and `advect.chirality_density` use compact (3, modes)
-coefficients before polarization weighting; their native contexts retain only
-full/normal wavenumbers and interval endpoints. They are checked against direct
-Cartesian E/H quadrature in lossy/chiral and evanescent cases. Other alignments
-need their actual polarization vectors in the forms and are explicitly unsupported.
+averaged over an interval along the plane basis normal (xy, yz or zx). It fixes
+upstream's attenuation average, shifted observation plane and missing coherent
+cross phase. The cross form can be complex and contracts as Re(down* X up).
+`diff.chirality_density` and `advect.chirality_density` retain the compact xy
+full/normal-wavenumber boundary. `diff.oriented_chirality` and its Advect adapter
+use actual Cartesian polarizations for any normal and differentiate real transverse
+components, complex normal wavenumbers and interval endpoints. Both retain only
+input geometry. Tests use independent Cartesian E/H quadrature, interval
+partition/reversal, scale identities, native proptest and complete Advect gradients.
+At normal incidence the observable has a smooth limit despite the polarization
+gauge singularity; both values and derivatives use that limit.
 
 | Subsystem | Implemented and checked | Remaining |
 | --- | --- | --- |
@@ -32,7 +35,7 @@ need their actual polarization vectors in the forms and are explicitly unsupport
 | Planar layers | Native chiral Fresnel coefficients and propagation; one-LU S-matrix composition with reused-factor adjoint; interfaces, multilayer slabs, stacking/doubling, polarization conversion, power-flux transmittance/reflectance and internal fields between adjacent stacks | Full SMatrix annotation API |
 | Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D; periodic coupling and solves; spherical 2D and cylindrical 1D particle-to-plane channels and S matrices; complete native pullbacks and Advect reflectance gradients; direct-sum, reference, energy, Bloch/split/scale invariants | Broader combined particle/layer workflows |
 | Bloch bands | Native periodic transfer matrices, complex right eigensystems, Bloch wavenumbers/vectors; native S-matrix, period and eigenvector adjoints; complete Advect multilayer bands | Wider conditioning and branch-crossing qualification; individual degenerate modes have no derivative |
-| Global observables | Native TMatrix cd/db/chi with matrix and CD embedding-wavenumber pullbacks; thin SVD and singular-value VJP; complete Advect chiral-sphere gradients; xy plane chirality-density forms with native wavenumber and interval adjoints; SMatrices.cd with direction-aware polarization swapping | Oriented-plane chirality forms; direct high-level S-matrix observable adapters |
+| Global observables | Native TMatrix cd/db/chi with matrix and CD embedding-wavenumber pullbacks; thin SVD and singular-value VJP; complete Advect chiral-sphere gradients; all-orientation plane chirality-density forms with native geometry and interval adjoints; SMatrices.cd with direction-aware polarization swapping | Direct high-level S-matrix observable adapters |
 | Axisymmetric EBCM | Native sampled-surface regular/outgoing Q integrals and radius, slope, complex-wavenumber and impedance pullbacks; callable-surface convenience; complete Advect deformed-particle solve | Wider shape/order conditioning and quadrature qualification |
 | HDF5 interchange | Optional h5py adapter; scalar matrices and rectangular parameter sweeps; streamed matrix writes; chirality, mode origins/indices and length-unit round trips; legacy treams names and rectangular incident/scattered mode sets | Gmsh mesh helper and extended tmat.h5 v1 submission metadata |
 | Remaining public API | Plane-wave z rotations and native cyclic-axis polarization transforms | Remaining field-operator conveniences and public low-level namespace coverage |

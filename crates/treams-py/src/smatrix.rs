@@ -223,6 +223,8 @@ fn smatrix_add<'py>(
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<ChiralityContext>()?;
     module.add_function(wrap_pyfunction!(chirality_density, module)?)?;
+    module.add_class::<OrientedChiralityContext>()?;
+    module.add_function(wrap_pyfunction!(oriented_chirality, module)?)?;
     module.add_class::<IlluminationContext>()?;
     module.add_class::<SMatrixPeriodicContext>()?;
     module.add_class::<BandContext>()?;
@@ -302,6 +304,85 @@ fn chirality_density<'py>(
     Ok((
         crate::tmatrix::matrix(py, &value),
         ChiralityContext {
+            residual: Some(residual),
+        },
+    ))
+}
+
+#[pyclass]
+#[derive(Debug)]
+struct OrientedChiralityContext {
+    residual: Option<smatrix::OrientedChiralityResidual>,
+}
+
+type OrientedChiralityGradient<'py> = (
+    Bound<'py, PyArray2<f64>>,
+    Bound<'py, PyArray1<Complex>>,
+    Bound<'py, PyArray1<f64>>,
+);
+
+#[pymethods]
+impl OrientedChiralityContext {
+    fn pullback<'py>(
+        &mut self,
+        py: Python<'py>,
+        cotangent: PyReadonlyArray2<'py, Complex>,
+    ) -> PyResult<OrientedChiralityGradient<'py>> {
+        let g = crate::tmatrix::from_array(cotangent)?;
+        let residual = self
+            .residual
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        if g.shape() != residual.shape() {
+            return Err(PyValueError::new_err(
+                "chirality cotangent shape must match output",
+            ));
+        }
+        let residual = self
+            .residual
+            .take()
+            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
+        let gradient = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        Ok((
+            Array2::from_shape_fn((gradient.transverse.len(), 2), |(i, j)| {
+                gradient.transverse[i][j]
+            })
+            .into_pyarray(py),
+            gradient.normal.into_pyarray(py),
+            gradient.interval.to_vec().into_pyarray(py),
+        ))
+    }
+}
+
+#[pyfunction]
+fn oriented_chirality<'py>(
+    py: Python<'py>,
+    transverse: PyReadonlyArray2<'py, f64>,
+    normal: PyReadonlyArray1<'py, Complex>,
+    polarizations: Vec<u8>,
+    axis: usize,
+    interval: [f64; 2],
+) -> PyResult<(Bound<'py, PyArray2<Complex>>, OrientedChiralityContext)> {
+    let q = transverse.as_array();
+    if q.ncols() != 2 {
+        return Err(PyValueError::new_err(
+            "transverse components must have shape (N, 2)",
+        ));
+    }
+    let transverse = q.rows().into_iter().map(|row| [row[0], row[1]]).collect();
+    let normal = normal.as_array().to_vec();
+    let (value, residual) = py
+        .detach(move || {
+            smatrix::oriented_chirality(transverse, normal, polarizations, axis, interval)
+        })
+        .map_err(error)?;
+    let output = Array2::from_shape_vec((value.ncols(), 3), Vec::from(value.data))
+        .map_err(|e| PyValueError::new_err(e.to_string()))?
+        .reversed_axes()
+        .into_pyarray(py);
+    Ok((
+        output,
+        OrientedChiralityContext {
             residual: Some(residual),
         },
     ))

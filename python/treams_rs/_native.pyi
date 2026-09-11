@@ -165,6 +165,19 @@ def chirality_density(
     interval: tuple[float, float],
 ) -> tuple[NDArray[np.complex128], ChiralityContext]: ...
 
+class OrientedChiralityContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[RealArray, ComplexArray, RealArray]: ...
+
+def oriented_chirality(
+    transverse: RealArray,
+    normal: ComplexArray,
+    polarizations: list[int],
+    axis: int,
+    interval: tuple[float, float],
+) -> tuple[ComplexArray, OrientedChiralityContext]: ...
+
 class EigenContext:
     def pullback(
         self, eigenvalues: ComplexArray, eigenvectors: ComplexArray

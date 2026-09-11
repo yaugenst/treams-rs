@@ -184,6 +184,198 @@ impl ChiralityResidual {
     }
 }
 
+/// Real transverse geometry for chirality forms along any Cartesian normal.
+#[derive(Debug)]
+pub struct OrientedChiralityResidual {
+    transverse: Vec<[f64; 2]>,
+    normal: Vec<Complex>,
+    polarizations: Vec<u8>,
+    axis: usize,
+    interval: [f64; 2],
+}
+
+/// Real transverse, complex normal and real interval-endpoint cotangents.
+#[derive(Debug)]
+pub struct OrientedChiralityGradient {
+    /// The two transverse components in cyclic Cartesian order.
+    pub transverse: Vec<[f64; 2]>,
+    /// Normal wavenumbers.
+    pub normal: Vec<Complex>,
+    /// Start and end of the averaging interval.
+    pub interval: [f64; 2],
+}
+
+fn oriented_chirality_mode<const N: usize>(
+    transverse: [f64; 2],
+    normal: Complex,
+    pol: u8,
+    axis: usize,
+    interval: [f64; 2],
+) -> Result<[Jet<N>; 3]> {
+    let nr = Jet::variable(normal.re, 2);
+    let ni = Jet::variable(normal.im, 3);
+    let z = [Jet::variable(interval[0], 4), Jet::variable(interval[1], 5)];
+    let sign = 2.0 * f64::from(pol) - 1.0;
+    // The observable has a smooth limit even where the polarization gauge does not.
+    if transverse.iter().all(|&q| q == 0.0) {
+        if normal == Complex::default() {
+            return Err(Error::InvalidInput("wavevector must be nonzero".into()));
+        }
+        return Ok([
+            2.0 * sign * mean_exp(-2.0 * ni, z),
+            2.0 * sign * mean_exp(2.0 * ni, z),
+            Jet::default(),
+        ]);
+    }
+    let mut vector = [Jet::default(); 3];
+    vector[axis] = nr + Complex::i() * ni;
+    vector[(axis + 1) % 3] = Jet::variable(transverse[0], 0);
+    vector[(axis + 2) % 3] = Jet::variable(transverse[1], 1);
+    let up = crate::plane::polarization_from_inputs(vector, pol)?;
+    vector[axis] = -vector[axis];
+    let down = crate::plane::polarization_from_inputs(vector, pol)?;
+    // All six local parameters are real, so conjugation acts on their derivatives.
+    let inner = |a: [Jet<N>; 3], b: [Jet<N>; 3]| -> Jet<N> {
+        a.into_iter()
+            .zip(b)
+            .map(|(a, b)| {
+                Jet {
+                    value: a.value.conj(),
+                    derivative: a.derivative.map(|d| d.conj()),
+                } * b
+            })
+            .sum()
+    };
+    Ok([
+        2.0 * sign * inner(up, up) * mean_exp(-2.0 * ni, z),
+        2.0 * sign * inner(down, down) * mean_exp(2.0 * ni, z),
+        4.0 * sign * inner(down, up) * mean_exp(2.0 * Complex::i() * nr, z),
+    ])
+}
+
+/// Signed helicity up/down/cross forms, shape (3, modes), for any Cartesian normal.
+///
+/// The transverse components are real and follow the cyclic order after `axis`.
+/// The cross form contracts as Re(down* X up). Geometry alone is retained.
+pub fn oriented_chirality(
+    transverse: Vec<[f64; 2]>,
+    normal: Vec<Complex>,
+    polarizations: Vec<u8>,
+    axis: usize,
+    interval: [f64; 2],
+) -> Result<(DMatrix<Complex>, OrientedChiralityResidual)> {
+    if transverse.is_empty()
+        || transverse.len() != normal.len()
+        || transverse.len() != polarizations.len()
+        || axis > 2
+        || transverse.iter().flatten().any(|q| !q.is_finite())
+        || normal.iter().any(|&k| !finite(k))
+        || polarizations.iter().any(|&p| p > 1)
+        || interval.iter().any(|z| !z.is_finite())
+    {
+        return Err(Error::InvalidInput(
+            "chirality requires matching finite geometry, polarization 0/1 and axis 0/1/2".into(),
+        ));
+    }
+    let mut value = DMatrix::zeros(3, normal.len());
+    let evaluate = |(j, column): (usize, &mut [Complex])| -> Result<()> {
+        let coefficients = oriented_chirality_mode::<0>(
+            transverse[j],
+            normal[j],
+            polarizations[j],
+            axis,
+            interval,
+        )?;
+        for (out, coefficient) in column.iter_mut().zip(coefficients) {
+            *out = coefficient.value;
+            if !finite(*out) {
+                return Err(Error::InvalidInput("chirality density overflow".into()));
+            }
+        }
+        Ok(())
+    };
+    if normal.len() >= 1024 {
+        value
+            .as_mut_slice()
+            .par_chunks_mut(3)
+            .enumerate()
+            .try_for_each(evaluate)?;
+    } else {
+        value
+            .as_mut_slice()
+            .chunks_mut(3)
+            .enumerate()
+            .try_for_each(evaluate)?;
+    }
+    Ok((
+        value,
+        OrientedChiralityResidual {
+            transverse,
+            normal,
+            polarizations,
+            axis,
+            interval,
+        },
+    ))
+}
+
+impl OrientedChiralityResidual {
+    /// Compact output dimensions.
+    #[must_use]
+    pub fn shape(&self) -> (usize, usize) {
+        (3, self.normal.len())
+    }
+
+    /// Recompute and contract six local real derivatives per mode.
+    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<OrientedChiralityGradient> {
+        if cotangent.shape() != self.shape() || cotangent.iter().any(|&g| !finite(g)) {
+            return Err(Error::InvalidInput("invalid chirality cotangent".into()));
+        }
+        let evaluate = |j: usize| -> Result<[f64; 6]> {
+            let coefficients = oriented_chirality_mode::<6>(
+                self.transverse[j],
+                self.normal[j],
+                self.polarizations[j],
+                self.axis,
+                self.interval,
+            )?;
+            let g: [f64; 6] = std::array::from_fn(|p| {
+                coefficients
+                    .iter()
+                    .enumerate()
+                    .map(|(i, c)| (cotangent[(i, j)].conj() * c.derivative[p]).re)
+                    .sum()
+            });
+            if g.iter().any(|v| !v.is_finite()) {
+                return Err(Error::InvalidInput("chirality derivative overflow".into()));
+            }
+            Ok(g)
+        };
+        let local: Vec<_> = if self.normal.len() >= 1024 {
+            (0..self.normal.len())
+                .into_par_iter()
+                .map(evaluate)
+                .collect::<Result<_>>()?
+        } else {
+            (0..self.normal.len())
+                .map(evaluate)
+                .collect::<Result<_>>()?
+        };
+        let mut gradient = OrientedChiralityGradient {
+            transverse: Vec::with_capacity(local.len()),
+            normal: Vec::with_capacity(local.len()),
+            interval: [0.0; 2],
+        };
+        for g in local {
+            gradient.transverse.push([g[0], g[1]]);
+            gradient.normal.push(Complex::new(g[2], g[3]));
+            gradient.interval[0] += g[4];
+            gradient.interval[1] += g[5];
+        }
+        Ok(gradient)
+    }
+}
+
 fn internal_operator(lower: MatRef<'_, Complex>, upper: MatRef<'_, Complex>) -> DMatrix<Complex> {
     let mut value = -product_views(lower, upper);
     for i in 0..value.nrows() {
