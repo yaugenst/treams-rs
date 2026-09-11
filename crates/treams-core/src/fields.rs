@@ -215,7 +215,7 @@ pub fn spherical_wave(
     spherical_wave_impl::<true>(mode, k, position, helicity, radial)
 }
 
-fn spherical_wave_impl<const DERIVATIVES: bool>(
+pub(crate) fn spherical_wave_impl<const DERIVATIVES: bool>(
     mode: Mode,
     k: Complex,
     position: [f64; 3],

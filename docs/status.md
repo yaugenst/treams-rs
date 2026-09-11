@@ -3,6 +3,8 @@
 Active rewrite, not complete treams parity. There is no runtime dependency or
 fallback to treams, SciPy, Cython, or a Python autodiff framework.
 
+Known reference defects and accuracy limits are indexed in [upstream findings](upstream-findings.md).
+
 | Subsystem | Implemented and checked | Remaining |
 | --- | --- | --- |
 | Project | Cargo/PyO3/maturin/uv, lockfiles, just, Ruff, strict Pyrefly, Clippy, pre-commit; hosted Linux CI passing on Python 3.12 and 3.13 | Broader packaged-platform qualification |
@@ -21,7 +23,8 @@ fallback to treams, SciPy, Cython, or a Python autodiff framework.
 | Periodic scattering | Spherical Ewald sums in 1D/2D/3D and cylindrical sums in 1D/2D; periodic coupling and solves; spherical 2D and cylindrical 1D particle-to-plane channels and S matrices; complete native pullbacks and Advect reflectance gradients; direct-sum, reference, energy, Bloch/split/scale invariants | Broader combined particle/layer workflows |
 | Bloch bands | Native periodic transfer matrices, complex right eigensystems, Bloch wavenumbers/vectors; native S-matrix, period and eigenvector adjoints; complete Advect multilayer bands | Wider conditioning and branch-crossing qualification; individual degenerate modes have no derivative |
 | Global observables | Native TMatrix cd/db/chi with matrix and CD embedding-wavenumber pullbacks; thin SVD and singular-value VJP; complete Advect chiral-sphere gradients | SMatrix circular dichroism and chirality-density operators |
-| Remaining public API | Not implemented | Field-operator conveniences, EBCM, I/O and remaining observables |
+| Axisymmetric EBCM | Native sampled-surface regular/outgoing Q integrals and radius, slope, complex-wavenumber and impedance pullbacks; callable-surface convenience; complete Advect deformed-particle solve | Wider shape/order conditioning and quadrature qualification |
+| Remaining public API | Not implemented | Field-operator conveniences, I/O and remaining observables |
 
 The optimized `diff.cluster` is restricted to non-overlapping homogeneous,
 nonmagnetic spheres in vacuum with a common multipole cutoff. Its pullback covers
@@ -39,6 +42,19 @@ coexist in the same environment. It is not yet a drop-in `import treams` replace
 Python 3.12 and 3.13 are the qualification targets. Numerical observables and linear
 basis composition currently use NumPy in the thin Python layer; native kernels own
 the special functions, particle scattering and multiple-scattering solve.
+
+`ebcm.qmat` samples positive radial surfaces on fixed Gauss-Legendre nodes;
+`diff.ebcm_qmat` and `advect.ebcm_qmat` accept sampled radii and angular slopes,
+holding quadrature nodes, weights and mode labels fixed. The native reverse
+recomputes local wave derivatives without a dense output-by-parameter Jacobian.
+The default restores a missing radial area factor in upstream's integral;
+`legacy=True` explicitly reproduces that integral, including its derivative.
+Tests cover homogeneous spheres against Mie, zero scattering for identical media,
+lossless deformed-particle convergence through degree 6 and complete geometry,
+material and frequency gradients through `-solve(Q_singular, Q_regular)`.
+Callers must check quadrature and multipole convergence for their shapes. Sharp
+surfaces, shapes that are not positive radial graphs, and extreme conditioning
+are not qualified by these tests.
 
 Cylindrical T-matrix pullbacks differentiate the common input axial wavenumbers.
 Cylindrical basis expansion treats axial wavenumbers as fixed mode labels because

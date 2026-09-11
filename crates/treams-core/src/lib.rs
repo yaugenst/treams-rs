@@ -7,6 +7,7 @@ pub mod coeffs;
 pub mod conversion;
 pub mod cylinder;
 pub mod cylwaves;
+pub mod ebcm;
 pub mod fields;
 pub mod integrals;
 pub mod interaction;

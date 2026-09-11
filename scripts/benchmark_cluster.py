@@ -79,6 +79,24 @@ def worker(
                 oracle_lower = treams.SMatrices(lower, basis=oracle_basis, k0=1.3)
                 oracle_upper = treams.SMatrices(upper, basis=oracle_basis, k0=1.3)
 
+        if workload == "ebcm":
+            if particles != 1:
+                raise ValueError("EBCM benchmark uses one surface")
+            nodes, quadrature = np.polynomial.legendre.leggauss(samples)
+            theta = (nodes + 1) * np.pi / 2
+            quadrature *= np.pi / 2
+            surface_radii = 0.3 * (1 + 0.23 * np.cos(theta) ** 2)
+            surface_slopes = -0.138 * np.cos(theta) * np.sin(theta)
+            index = np.sqrt((3.1 + 0.2j) * (1.2 + 0.1j))
+            surface_ks = 1.3 * np.array([[index - 0.07, index + 0.07], [1, 1]])
+            surface_zs = [np.sqrt((1.2 + 0.1j) / (3.1 + 0.2j)), 1.0]
+            if backend in ("rust", "check"):
+                basis = SphericalWaveBasis.default(order)
+            if backend in ("treams", "check"):
+                from treams.ebcm import qmat as reference_qmat
+
+                oracle_basis = treams.SphericalWaveBasis.default(order)
+
         if workload == "slab":
             q = np.column_stack([np.linspace(0.1, 0.8, samples), np.full(samples, 0.2)])
             layer_eps = np.array(
@@ -244,6 +262,17 @@ def worker(
         eta = 0.7 if workload == "cylindrical-array" else 0
 
         def rust():
+            if workload == "ebcm":
+                return diff.ebcm_qmat(
+                    surface_radii,
+                    surface_slopes,
+                    surface_ks,
+                    surface_zs,
+                    theta=theta,
+                    weights=quadrature,
+                    out=basis,
+                    legacy=True,
+                )
             if workload == "internal-field":
                 return diff.smatrix_illuminate(lower, upper, up, down)
             if workload == "slab":
@@ -314,6 +343,14 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload == "ebcm":
+                return reference_qmat(
+                    lambda t: 0.3 * (1 + 0.23 * np.cos(t) ** 2),
+                    lambda t: -0.138 * np.cos(t) * np.sin(t),
+                    surface_ks,
+                    surface_zs,
+                    (oracle_basis.l, oracle_basis.m, oracle_basis.pol),
+                )
             if workload == "internal-field":
                 return np.asarray(oracle_lower.illuminate(up, down, smat=oracle_upper))
             if workload == "slab":
@@ -486,6 +523,7 @@ def worker(
                     if backend == "rust"
                     else None,
                     "workload": workload,
+                    "ebcm_legacy": True if workload == "ebcm" else None,
                     "ewald_eta": eta
                     if workload in ("periodic", "array", "cylindrical-array")
                     else None,
@@ -494,6 +532,7 @@ def worker(
                     in (
                         "field",
                         "internal-field",
+                        "ebcm",
                         "cylindrical-field",
                         "field-operator",
                         "conversion",
@@ -552,6 +591,7 @@ def main() -> None:
             "slab",
             "field",
             "internal-field",
+            "ebcm",
             "cylindrical-field",
             "field-operator",
             "periodic",

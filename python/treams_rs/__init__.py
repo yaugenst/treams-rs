@@ -1,6 +1,6 @@
 """T-matrix scattering with a Rust numerical core and native pullbacks."""
 
-from . import coeffs, diff, lattice
+from . import coeffs, diff, ebcm, lattice
 from ._core import (
     CylindricalWaveBasis,
     Material,
@@ -37,6 +37,7 @@ __all__ = [
     "coeffs",
     "dfield",
     "diff",
+    "ebcm",
     "efield",
     "expand",
     "expandlattice",

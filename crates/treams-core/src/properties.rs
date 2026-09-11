@@ -20,6 +20,27 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
+    fn ebcm_surface_scaling_adjoint(deformation in -0.2_f64..0.2) {
+        use crate::ebcm::{Surface, qmat};
+        let modes = vec![Mode {l:1,m:0,pol:0}, Mode {l:1,m:0,pol:1}, Mode {l:2,m:1,pol:0}];
+        let theta: Vec<_> = (0..12).map(|i| (f64::from(i)+0.5)*std::f64::consts::PI/12.0).collect();
+        let radii: Vec<_> = theta.iter().map(|t| 0.3*(1.0+deformation*t.cos().powi(2))).collect();
+        let slopes: Vec<_> = theta.iter().map(|t| -0.6*deformation*t.cos()*t.sin()).collect();
+        let ks = [[Complex::new(2.1,0.1),Complex::new(2.2,0.1)],[Complex::new(1.3,0.0);2]];
+        let zs = [Complex::new(0.7,0.01),Complex::new(1.0,0.0)];
+        let surface = Surface {theta,weights:vec![std::f64::consts::PI/12.0;12],radii:radii.clone(),slopes:slopes.clone()};
+        let (value,residual) = qmat(modes.clone(),modes,surface,ks,zs,true,false).unwrap();
+        let g=DMatrix::from_element(3,3,Complex::new(0.3,0.1));
+        let gradient=residual.pullback(&g).unwrap();
+        let lhs=gradient.radii.iter().zip(radii).map(|(a,b)|a*b).sum::<f64>()
+            +gradient.slopes.iter().zip(slopes).map(|(a,b)|a*b).sum::<f64>()
+            -gradient.ks.iter().flatten().zip(ks.iter().flatten()).map(|(a,b)|(a.conj()*b).re).sum::<f64>();
+        prop_assert!((lhs-2.0*g.dotc(&value).re).abs() < 1e-11);
+        let gz=gradient.zs.iter().zip(zs).map(|(a,b)|(a.conj()*b).re).sum::<f64>();
+        prop_assert!((gz-g.dotc(&value).re).abs() < 1e-11);
+    }
+
+    #[test]
     fn helicity_metrics_scale_adjoint(x in -0.1_f64..0.1, scale in 0.5_f64..2.0) {
         use crate::tmatrix::{Metric, metric};
         let a = DMatrix::from_row_slice(2,2,&[

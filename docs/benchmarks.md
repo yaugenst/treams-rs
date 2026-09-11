@@ -5,6 +5,41 @@ Python 3.13.1, treams 0.4.5. Rust uses the optimized build, faer and Rayon.
 These are measured local results for the implemented sphere-cluster path,
 not a performance claim about all of treams.
 
+## Axisymmetric EBCM
+
+For r(theta)=0.3(1+0.23 cos²(theta)), k0=1.3, inner eps=3.1+0.2i,
+mu=1.2+0.1i, kappa=0.07 and vacuum outside, the complete outgoing Q integral
+was compared before timing at rtol=2e-9, atol=1e-12. These measurements explicitly
+use `legacy=True` to compare the same integral as upstream, which omits a radial
+surface-area factor; the corrected default is physically checked separately.
+Rust uses 96 Gauss-Legendre nodes, while upstream uses its adaptive SciPy
+quadrature. Four matched threads, seven samples after warmup, isolated processes.
+
+| Degree | Modes | treams ms | Rust ms | Speedup | Rust reverse ms | treams / Rust peak MiB |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 3 | 30 | 284.26 | 3.54 | 80.3x | 1.99 | 83.87 / 42.18 |
+| 4 | 48 | 727.40 | 5.90 | 123.4x | 3.00 | 84.93 / 42.45 |
+
+Reverse covers every sampled radius/slope and all complex wavenumbers and
+impedances. It uses Rayon over nodes and cached waves within each node; the
+residual retains inputs only. Peak RSS through reverse stayed at the forward
+peak in these cases. Results include the native/Python boundary and residual
+creation, but exclude shape/basis setup.
+
+The degree-6 comparison failed its accuracy gate: six of 9,216 nearly zero
+entries differed by up to 4.98e-10. That comparison has not been fully diagnosed,
+so no degree-6 speedup is reported and the tolerance has not been relaxed.
+This is separate from the corrected integral's independent lossless and
+zero-contrast checks. Raw results on [redacted-host]:
+`/tmp/ebcm-legacy-l3-q96-t4.json`, `/tmp/ebcm-legacy-l4-q96-t4.json`;
+failure details: `/tmp/ebcm-l6-check.log`.
+
+```sh
+uv run --no-sync python scripts/benchmark_cluster.py --workload ebcm --particles 1 --lmax 4 --samples 96 --threads 4
+```
+
+## Finite sphere clusters
+
 | Spheres | lmax | Matrix dimension | Threads | treams ms | Rust ms | Speedup | treams / Rust peak MiB |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | 8 | 3 | 240 | 1 | 88.23 | 3.01 | 29.3× | 71.8 / 44.2 |

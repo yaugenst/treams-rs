@@ -5,6 +5,7 @@
 mod basis;
 mod channels;
 mod cylinder;
+mod ebcm;
 mod fields;
 mod lattice;
 mod linalg;
@@ -139,6 +140,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     fields::register(m)?;
     lattice::register(m)?;
     linalg::register(m)?;
+    ebcm::register(m)?;
     m.add_class::<MieContext>()?;
     m.add_function(wrap_pyfunction!(build_profile, m)?)?;
     m.add_function(wrap_pyfunction!(mie, m)?)?;

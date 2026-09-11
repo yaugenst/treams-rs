@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
 
     from ._core import CylindricalWaveBasis, SphericalWaveBasis
+    from .ebcm import Modes
 
 
 type _Values = tuple[ArrayLike, ...]
@@ -320,6 +321,36 @@ def rotation(
         return value, lambda g: (np.asarray(context.pullback(g)),)
 
     return _call((angles,), forward)
+
+
+def ebcm_qmat(
+    radii: ArrayLike,
+    slopes: ArrayLike,
+    ks: ArrayLike,
+    zs: ArrayLike,
+    *,
+    theta: ArrayLike,
+    weights: ArrayLike,
+    out: Modes,
+    in_: Modes | None = None,
+    singular: bool = True,
+    legacy: bool = False,
+) -> NDArray[np.complex128]:
+    """Axisymmetric surface integral with shape and material adjoints owned by Rust."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.ebcm_qmat(
+            *values,
+            theta=theta,
+            weights=weights,
+            out=out,
+            in_=in_,
+            singular=singular,
+            legacy=legacy,
+        )
+        return value, context.pullback
+
+    return _call((radii, slopes, ks, zs), forward)
 
 
 def tmatrix_metric(

@@ -12,6 +12,40 @@ from ._core import CylindricalWaveBasis, SphericalWaveBasis
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
 
+    from .ebcm import Modes
+
+
+def ebcm_qmat(
+    radii: ArrayLike,
+    slopes: ArrayLike,
+    ks: ArrayLike,
+    zs: ArrayLike,
+    *,
+    theta: ArrayLike,
+    weights: ArrayLike,
+    out: Modes,
+    in_: Modes | None = None,
+    singular: bool = True,
+    legacy: bool = False,
+) -> tuple[NDArray[np.complex128], _native.QContext]:
+    """Axisymmetric Q matrix and native sampled-radius/slope/medium pullback.
+
+    Polar quadrature nodes and integration weights are held fixed in reverse.
+    legacy=True omits the radial area factor, reproducing treams' integral.
+    """
+    from .ebcm import _modes
+
+    zm, zp = np.asarray(zs, dtype=np.complex128)
+    return _native.ebcm_qmat(
+        np.column_stack([theta, weights, radii, slopes]).astype(np.float64),
+        _modes(out),
+        _modes(out if in_ is None else in_),
+        np.ascontiguousarray(ks, dtype=np.complex128),
+        (complex(zm), complex(zp)),
+        singular,
+        legacy,
+    )
+
 
 def tmatrix_metric(
     operator: ArrayLike,

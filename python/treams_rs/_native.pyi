@@ -4,6 +4,21 @@ from numpy.typing import NDArray
 type ComplexArray = NDArray[np.complex128]
 type RealArray = NDArray[np.float64]
 
+class QContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[RealArray, RealArray, ComplexArray, ComplexArray]: ...
+
+def ebcm_qmat(
+    samples: RealArray,
+    to: list[tuple[int, int, int]],
+    source: list[tuple[int, int, int]],
+    ks: ComplexArray,
+    zs: tuple[complex, complex],
+    singular: bool,
+    legacy: bool,
+) -> tuple[ComplexArray, QContext]: ...
+
 class MetricContext:
     def pullback(self, cotangent: float) -> tuple[ComplexArray, RealArray]: ...
 

@@ -269,3 +269,39 @@ np.testing.assert_allclose(
 print(
     "Clean wheel: Riemann-Silberstein fields, native SVD and chirality gradient passed"
 )
+
+theta, weights = tr.ebcm._quadrature(48)
+surface_radii = 0.3 * (1 + 0.23 * np.cos(theta) ** 2)
+surface_slopes = -0.138 * np.cos(theta) * np.sin(theta)
+regular, _ = tr.diff.ebcm_qmat(
+    surface_radii,
+    surface_slopes,
+    np.full((2, 2), 1.3),
+    np.ones(2),
+    theta=theta,
+    weights=weights,
+    out=modes,
+    singular=False,
+)
+np.testing.assert_allclose(regular, 0, atol=1e-15)
+
+
+def surface_scale_norm(scale):
+    q = ad.ebcm_qmat(
+        surface_radii * scale,
+        surface_slopes * scale,
+        np.array([[2.0, 2.1], [1.3, 1.3]]) / scale,
+        [0.7, 1.0],
+        theta=theta,
+        weights=weights,
+        out=modes,
+    )
+    return anp.sum(anp.real(q * anp.conj(q)))
+
+
+np.testing.assert_allclose(
+    advect.grad(surface_scale_norm)(np.array(1.0)),
+    4 * surface_scale_norm(1.0),
+    rtol=1e-12,
+)
+print("Clean wheel: EBCM zero contrast and native surface-scale adjoint passed")
