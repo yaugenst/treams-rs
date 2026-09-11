@@ -125,3 +125,13 @@ bench-performance: build-ext-release
             uv run --no-sync python scripts/benchmark_cluster.py --workload "coordinate-${name}-forward" --samples "$samples" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/coordinate-${name}-n${samples}.json"
         done
     done
+    for name in sph_harm vsh_X vsh_Y vsh_Z vsw_M vsw_N vsw_A vsw_rM vsw_rN vsw_rA vcw_M vcw_N vcw_A vcw_rM vcw_rN vcw_rA vpw_M vpw_N vpw_A; do
+        for samples in 1 128 4096; do
+            uv run --no-sync python scripts/benchmark_cluster.py --workload "wave-${name}-forward" --samples "$samples" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/wave-${name}-n${samples}.json"
+        done
+    done
+    for name in vsw_rA vcw_rA vpw_A; do
+        for samples in 128 4096; do
+            uv run --no-sync python scripts/benchmark_cluster.py --workload "wave-${name}" --samples "$samples" --threads 4 --require-speedup 1 --require-rss-ratio 1 > "benchmarks/results/wave-adjoint-final-${name}-n${samples}.json"
+        done
+    done

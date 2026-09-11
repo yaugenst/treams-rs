@@ -21,7 +21,7 @@ gauge singularity; both values and derivatives use that limit.
 | Subsystem | Implemented and checked | Remaining |
 | --- | --- | --- |
 | Project | Cargo/PyO3/maturin/uv, lockfiles, just, Ruff, strict Pyrefly, Clippy, pre-commit; hosted Linux CI passing on Python 3.12 and 3.13 | Broader packaged-platform qualification |
-| Spherical functions | Public broadcast Bessel J/Y and incoming/outgoing Hankel values and first derivatives, cylindrical and spherical, with native argument VJPs; public integer-degree Legendre/pi/tau ufuncs and argument VJPs; public Wigner 3j and small/full D matrices, native Euler-angle VJPs, and broadcast upper-gamma/Kambe integrals; Cartesian harmonics in the core | Wider extreme-argument/order qualification; remaining angular/vector special namespace |
+| Spherical functions | Public broadcast Bessel J/Y and incoming/outgoing Hankel values and first derivatives, cylindrical and spherical, with native argument VJPs; public integer-degree Legendre/pi/tau ufuncs and argument VJPs; public Wigner 3j and small/full D matrices, native Euler-angle VJPs, and broadcast upper-gamma/Kambe integrals; Cartesian harmonics in the core | Wider extreme-argument/order qualification; noninteger-degree real Legendre functions and low-level translation coefficients |
 | Sphere coefficients | Multilayer, lossy, magnetic, chiral Mie; all continuous input VJPs | Extreme-layer-conditioning analysis |
 | Wave expansion | Regular/outgoing, helicity/parity, arbitrary spherical bases, axial and coincident regular origins; position/complex-wavenumber VJPs and shared cylindrical axial-group VJPs; spherical Euler and cylindrical axis rotations with native angle pullbacks; regular cylindrical-to-spherical and periodic spherical-to-cylindrical conversion with native pullbacks; explicit expandlattice dispatch | Remaining low-level wave-family API coverage |
 | Multipole fields | Spherical/cylindrical Cartesian waves and analytic axis limits; weighted fields and full field operators with native position/wavenumber VJPs and linear residuals; electric, magnetic, displacement, flux and Riemann-Silberstein operators; Advect magnetic and G/F samples; native weighted/full plane fields and complex-wavevector VJPs | Upstream operator-attribute machinery |
@@ -548,3 +548,29 @@ stored. Angular coordinate derivatives at axes/origins are undefined unless the
 corresponding cotangent is zero. Native property tests and Hypothesis cover
 Jacobians, chart round trips, vector-frame composition and norm preservation;
 Python checks include complete Advect objectives and context ownership.
+
+
+All eighteen local vector spherical/cylindrical/plane wave and vector harmonic
+functions are native NumPy gufuncs. Scalar spherical harmonics are also native.
+Public wave signatures retain fixed integer mode labels, real/complex angle
+loops, component-axis relocation, arbitrary output strides and empty batches.
+`diff.vector_wave` and its Advect adapter differentiate every continuous argument;
+`diff.sph_harm` / `advect.sph_harm` take theta and phi with fixed degree/order.
+Owned one-use residuals preserve input values and reduce broadcast gradients.
+
+The normalized Legendre recurrence avoids factorial overflow through degree 128
+and computes the angular components together. Cylindrical radial jets now obtain
+adjacent Bessel values in one call. Plane gufuncs reuse constant-direction
+polarizations across points; large independent batches use Rayon. Native proptest
+and Hypothesis check Cartesian reconstruction, all-argument directional adjoints,
+helicity combinations and the high-degree harmonic addition theorem. Complex
+angles, axes/origins, strided outputs, ownership and full Advect objectives are
+covered, with a separate SciPy-free clean-wheel check.
+
+
+The local-wave milestone passes 61 Rust tests, 1,512 Python tests, strict
+lint/type/rustdoc checks, and the isolated Linux wheel including optional HDF5.
+All 191 combined runtime gates and 187 applicable forward-RSS gates pass on the
+matched four-core host configuration documented in benchmarks.md. Recorded
+illumination still retains more memory than upstream's forward-only operation;
+its owned tape is required for mutation-safe reverse mode.

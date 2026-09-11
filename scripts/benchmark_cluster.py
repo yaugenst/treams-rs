@@ -30,7 +30,7 @@ def worker(
     import numpy as np
     from threadpoolctl import threadpool_info, threadpool_limits
 
-    if backend in ("rust", "check"):
+    if backend in ("rust", "check", "compare"):
         from treams_rs import (
             CylindricalWaveBasis,
             PlaneWaveBasisByComp,
@@ -44,7 +44,7 @@ def worker(
 
         if _native.build_profile() != "release":
             raise RuntimeError("benchmark requires just build-ext-release")
-    if backend in ("treams", "check"):
+    if backend in ("treams", "check", "compare"):
         import treams
 
     # Forward-only APIs return their actual result, without a benchmark-created
@@ -57,6 +57,29 @@ def worker(
         positions = np.column_stack(
             [np.arange(particles) * 0.8, np.zeros((particles, 2))]
         )
+
+        if workload.startswith("wave-"):
+            wave_name = workload.split("-")[1]
+            varying = 0.8 if samples == 1 else np.linspace(0.4, 1.2, samples)
+            wave_labels = {"degree": order, "order": 1, "polarization": 1}
+            if wave_name == "sph_harm":
+                wave_args = (1, order, 0.3, varying)
+            elif wave_name.startswith("vsh"):
+                wave_arguments = (varying, 0.3)
+                wave_args = (order, 1, *wave_arguments)
+            elif wave_name.startswith("vsw"):
+                wave_arguments = (1.2 + 0.1j, varying, 0.3)
+                wave_args = (order, 1, *wave_arguments)
+            elif wave_name.startswith("vcw"):
+                wave_arguments = (0.2, varying + 0.1j, 0.3, 0.4)
+                if not wave_name.endswith("M"):
+                    wave_arguments = (*wave_arguments, 1.3 + 0.1j)
+                wave_args = (wave_arguments[0], 1, *wave_arguments[1:])
+            else:
+                wave_arguments = (0.3 + 0.03j, 0.4, 1.2 + 0.04j, varying, 0.5, 0.6)
+                wave_args = wave_arguments
+            if wave_name.endswith("A"):
+                wave_args = (*wave_args, 1)
 
         if workload.startswith("coordinate-"):
             coordinate_name = workload.split("-")[1]
@@ -79,11 +102,11 @@ def worker(
         if workload.startswith(("cylindrical-expansion", "cylindrical-periodic")):
             vectors = np.array([[particles * 0.8]])
             bloch = np.array([0.1])
-            if backend in ("rust", "check"):
+            if backend in ("rust", "check", "compare"):
                 basis = CylindricalWaveBasis.default(
                     [0.2, -0.3], order, particles, positions
                 )
-            if backend in ("treams", "check"):
+            if backend in ("treams", "check", "compare"):
                 oracle_basis = treams.CylindricalWaveBasis.default(
                     [0.2, -0.3], order, particles, positions
                 )
@@ -105,7 +128,7 @@ def worker(
                 / np.sqrt(n)
                 for _ in range(2)
             ]
-            if backend in ("treams", "check"):
+            if backend in ("treams", "check", "compare"):
                 q = np.column_stack(
                     [np.linspace(0.1, 0.8, n // 2), np.full(n // 2, 0.2)]
                 )
@@ -143,7 +166,7 @@ def worker(
                 else 2 * degree * (degree + 2)
                 for degree in degrees
             )
-            if backend in ("rust", "check"):
+            if backend in ("rust", "check", "compare"):
                 from treams_rs import TMatrix, TMatrixC
 
                 local_tmats = [
@@ -154,7 +177,7 @@ def worker(
                 ]
                 local_bases = [tm.basis for tm in local_tmats]
                 local_arrays = [tm.array for tm in local_tmats]
-            if backend in ("treams", "check"):
+            if backend in ("treams", "check", "compare"):
                 oracle_tmats = [
                     treams.TMatrixC.cylinder([0.2, 0.4], degree, 1.3, radius, [eps, 1])
                     if cylindrical_particles
@@ -173,9 +196,9 @@ def worker(
             index = np.sqrt((3.1 + 0.2j) * (1.2 + 0.1j))
             surface_ks = 1.3 * np.array([[index - 0.07, index + 0.07], [1, 1]])
             surface_zs = [np.sqrt((1.2 + 0.1j) / (3.1 + 0.2j)), 1.0]
-            if backend in ("rust", "check"):
+            if backend in ("rust", "check", "compare"):
                 basis = SphericalWaveBasis.default(order)
-            if backend in ("treams", "check"):
+            if backend in ("treams", "check", "compare"):
                 from treams.ebcm import qmat as reference_qmat
 
                 oracle_basis = treams.SphericalWaveBasis.default(order)
@@ -195,9 +218,9 @@ def worker(
             layer_ks = np.repeat((1.3 * np.sqrt(layer_eps))[:, None], 2, axis=1)
             layer_zs = 1 / np.sqrt(layer_eps)
             layer_thickness = np.linspace(0.1, 0.4, particles)
-            if backend in ("rust", "check"):
+            if backend in ("rust", "check", "compare"):
                 basis = PlaneWaveBasisByComp.default(q)
-            if backend in ("treams", "check"):
+            if backend in ("treams", "check", "compare"):
                 oracle_basis = treams.PlaneWaveBasisByComp.default(q)
 
         if workload in (
@@ -224,10 +247,10 @@ def worker(
             amplitudes = rng.normal(size=2 * particles * order) + 1j * rng.normal(
                 size=2 * particles * order
             )
-            if backend in ("rust", "check"):
+            if backend in ("rust", "check", "compare"):
                 basis = PlaneWaveBasisByComp.default(q)
                 vectors = np.column_stack(basis.kvecs(1.3))
-            if backend in ("treams", "check"):
+            if backend in ("treams", "check", "compare"):
                 oracle_basis = treams.PlaneWaveBasisByComp.default(q)
                 oracle_vectors = np.column_stack(oracle_basis.kvecs(1.3))
 
@@ -241,40 +264,40 @@ def worker(
                 if workload == "periodic-conversion"
                 else np.linspace(-0.7, 0.7, samples)
             )
-            if backend in ("rust", "check"):
+            if backend in ("rust", "check", "compare"):
                 basis = SphericalWaveBasis.default(order)
                 source_basis = CylindricalWaveBasis.default(kz, order)
                 if workload == "periodic-conversion":
                     basis, source_basis = source_basis, basis
-            if backend in ("treams", "check"):
+            if backend in ("treams", "check", "compare"):
                 oracle_basis = treams.SphericalWaveBasis.default(order)
                 oracle_source = treams.CylindricalWaveBasis.default(kz, order)
                 if workload == "periodic-conversion":
                     oracle_basis, oracle_source = oracle_source, oracle_basis
 
         if workload in ("rotation", "plane-expansion"):
-            if backend in ("rust", "check"):
+            if backend in ("rust", "check", "compare"):
                 basis = SphericalWaveBasis.default(order, particles, positions)
-            if backend in ("treams", "check"):
+            if backend in ("treams", "check", "compare"):
                 oracle_basis = treams.SphericalWaveBasis.default(
                     order, particles, positions
                 )
 
         if workload == "plane-expansion":
             q = np.column_stack([np.linspace(0.1, 1.7, samples), np.full(samples, 0.2)])
-            if backend in ("rust", "check"):
+            if backend in ("rust", "check", "compare"):
                 source_basis = PlaneWaveBasisByComp.default(q)
                 vectors = np.column_stack(source_basis.kvecs(1.3))
-            if backend in ("treams", "check"):
+            if backend in ("treams", "check", "compare"):
                 oracle_source = treams.PlaneWaveBasisByComp.default(q)
 
         if workload == "cylindrical-plane-expansion":
             q = np.column_stack([np.full(samples, 0.2), np.linspace(0.1, 1.7, samples)])
-            if backend in ("rust", "check"):
+            if backend in ("rust", "check", "compare"):
                 basis = CylindricalWaveBasis.default([0.2], order, particles, positions)
                 source_basis = PlaneWaveBasisByComp.default(q, "zx")
                 vectors = np.column_stack(source_basis.kvecs(1.3))
-            if backend in ("treams", "check"):
+            if backend in ("treams", "check", "compare"):
                 oracle_basis = treams.CylindricalWaveBasis.default(
                     [0.2], order, particles, positions
                 )
@@ -296,7 +319,7 @@ def worker(
             bloch = np.array([0.1, 0.15])
             orders = np.array([[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]])
             q = bloch + orders @ (2 * np.pi * np.linalg.inv(vectors).T)
-            if backend in ("rust", "check"):
+            if backend in ("rust", "check", "compare"):
                 basis = SphericalWaveBasis.default(order, particles, positions)
                 ports = PlaneWaveBasisByComp.default(q)
 
@@ -320,7 +343,7 @@ def worker(
                 else 2 * order * (order + 2)
             )
             amplitudes = rng.normal(size=dimension) + 1j * rng.normal(size=dimension)
-            if backend in ("rust", "check"):
+            if backend in ("rust", "check", "compare"):
                 basis = (
                     CylindricalWaveBasis.default(
                         [0.2, -0.3], order, particles, positions
@@ -328,7 +351,7 @@ def worker(
                     if workload.startswith("cylindrical-field")
                     else SphericalWaveBasis.default(order, particles, positions)
                 )
-            if backend in ("treams", "check"):
+            if backend in ("treams", "check", "compare"):
                 oracle_basis = (
                     treams.CylindricalWaveBasis.default(
                         [0.2, -0.3], order, particles, positions
@@ -346,10 +369,10 @@ def worker(
                     bloch[0] + np.array([0, 1, -1, 2, -2]) * 2 * np.pi / vectors[0, 0],
                 ]
             )
-            if backend in ("rust", "check"):
+            if backend in ("rust", "check", "compare"):
                 basis = CylindricalWaveBasis.default([0.2], order, particles, positions)
                 ports = PlaneWaveBasisByComp.default(q, "zx")
-            if backend in ("treams", "check"):
+            if backend in ("treams", "check", "compare"):
                 oracle_ports = treams.PlaneWaveBasisByComp.default(q, "zx")
 
         # The reference cylinder sum loses accuracy for larger cells at eta=0.
@@ -362,6 +385,10 @@ def worker(
         )
 
         def rust():
+            if workload.startswith("wave-"):
+                if forward_only:
+                    return getattr(special, wave_name)(*wave_args)
+                return diff.vector_wave(*wave_arguments, kind=wave_name, **wave_labels)
             if workload.startswith("coordinate-"):
                 args = (
                     (coordinate_vector, coordinate_points)
@@ -510,6 +537,8 @@ def worker(
             return diff.cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
+            if workload.startswith("wave-"):
+                return getattr(treams.special, wave_name)(*wave_args)
             if workload.startswith("coordinate-"):
                 args = (
                     (coordinate_vector, coordinate_points)
@@ -715,13 +744,53 @@ def worker(
                 return response
             return cluster.interaction.solve()
 
-        if backend == "check":
+        if backend in ("check", "compare"):
             expected = upstream()
             actual = rust()
             if not forward_only:
                 actual = actual[0]
             np.testing.assert_allclose(actual, expected, rtol=2e-9, atol=1e-12)
-            print(json.dumps({"accuracy_check": "passed"}))
+            if backend == "check":
+                print(json.dumps({"accuracy_check": "passed"}))
+                return
+            # Tiny kernels need both implementations in the same process, with
+            # alternating order, to separate kernel cost from process/core drift.
+            batch = 1
+            while True:
+                durations = []
+                for function in (upstream, rust):
+                    start = time.perf_counter()
+                    for _ in range(batch):
+                        function()
+                    durations.append(time.perf_counter() - start)
+                if min(durations) >= 0.02:
+                    break
+                batch *= 10
+            pairs = []
+            for index in range(2 * repeats):
+                pair = {}
+                functions = (("treams", upstream), ("rust", rust))
+                for name, function in functions if index % 2 == 0 else functions[::-1]:
+                    start = time.perf_counter()
+                    for _ in range(batch):
+                        function()
+                    pair[name] = (time.perf_counter() - start) / batch
+                pairs.append(pair)
+            print(
+                json.dumps(
+                    {
+                        "method": "paired_alternating_process",
+                        "calls_per_sample": batch,
+                        "pairs_seconds": pairs,
+                        "speedup": statistics.median(
+                            p["treams"] / p["rust"] for p in pairs
+                        ),
+                        "cpu_affinity": sorted(os.sched_getaffinity(0))
+                        if hasattr(os, "sched_getaffinity")
+                        else None,
+                    }
+                )
+            )
             return
         baseline = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
         function = rust if backend == "rust" else upstream
@@ -852,6 +921,7 @@ def worker(
                             "incgamma",
                             "intkambe",
                             "coordinate-",
+                            "wave-",
                         )
                     )
                     else particle_dimension
@@ -906,6 +976,28 @@ def main() -> None:
     parser.add_argument(
         "--workload",
         choices=[
+            "wave-sph_harm-forward",
+            "wave-vsh_X-forward",
+            "wave-vsh_Y-forward",
+            "wave-vsh_Z-forward",
+            "wave-vsw_M-forward",
+            "wave-vsw_N-forward",
+            "wave-vsw_A-forward",
+            "wave-vsw_rM-forward",
+            "wave-vsw_rN-forward",
+            "wave-vsw_rA-forward",
+            "wave-vcw_M-forward",
+            "wave-vcw_N-forward",
+            "wave-vcw_A-forward",
+            "wave-vcw_rM-forward",
+            "wave-vcw_rN-forward",
+            "wave-vcw_rA-forward",
+            "wave-vpw_M-forward",
+            "wave-vpw_N-forward",
+            "wave-vpw_A-forward",
+            "wave-vsw_rA",
+            "wave-vcw_rA",
+            "wave-vpw_A",
             "wigner",
             "wigner-forward",
             "wigner-small-forward",
@@ -972,7 +1064,7 @@ def main() -> None:
         default="cluster",
     )
     parser.add_argument("--samples", "--channels", type=int, default=2048)
-    parser.add_argument("--worker", choices=["rust", "treams", "check"])
+    parser.add_argument("--worker", choices=["rust", "treams", "check", "compare"])
     parser.add_argument("--particles", "--layers", type=int, default=8)
     parser.add_argument("--lmax", type=int, default=3)
     parser.add_argument("--repeats", type=int, default=7)
@@ -989,6 +1081,8 @@ def main() -> None:
         help="Fail if Rust/upstream peak RSS exceeds this ratio",
     )
     args = parser.parse_args()
+    if hasattr(os, "sched_getaffinity"):
+        os.sched_setaffinity(0, set(sorted(os.sched_getaffinity(0))[: args.threads]))
     if args.worker:
         worker(
             args.worker,
@@ -1024,6 +1118,8 @@ def main() -> None:
             str(args.lmax),
             "--repeats",
             str(args.repeats),
+            "--threads",
+            str(args.threads),
         ]
         try:
             result = subprocess.run(
@@ -1033,19 +1129,29 @@ def main() -> None:
             raise SystemExit(error.stderr or str(error)) from error
         if backend != "check":
             results.append(json.loads(result.stdout))
+    comparison = {
+        "method": "isolated_process",
+        "speedup": results[0]["median_seconds"] / results[1]["median_seconds"],
+    }
+    # Pair every sub-millisecond workload, not just failed or borderline results.
+    # Separate processes above remain authoritative for peak RSS and adjoint costs.
+    if max(r["median_seconds"] for r in results) < 0.001:
+        command[command.index("--worker") + 1] = "compare"
+        result = subprocess.run(
+            command, env=env, check=True, capture_output=True, text=True
+        )
+        comparison = json.loads(result.stdout)
     print(
         json.dumps(
             {
                 "results": results,
-                "speedup": results[0]["median_seconds"] / results[1]["median_seconds"],
+                "timing_comparison": comparison,
+                "speedup": comparison["speedup"],
             },
             indent=2,
         )
     )
-    if (
-        results[0]["median_seconds"] / results[1]["median_seconds"]
-        < args.require_speedup
-    ):
+    if comparison["speedup"] < args.require_speedup:
         raise SystemExit(
             "Performance gate failed: Rust runtime exceeds the required ratio"
         )

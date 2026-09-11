@@ -467,15 +467,22 @@ pub fn cylindrical(order: i32, z: Complex, radial: Radial) -> Result<RadialJet> 
         }
         return Ok(result);
     }
-    let evaluate = |degree: u32| {
-        match radial {
-            Radial::Regular => complex_bessel::besselj(f64::from(degree), z),
-            Radial::Outgoing => complex_bessel::hankel1(f64::from(degree), z),
+    let sequence = match radial {
+        Radial::Regular => {
+            complex_bessel::besselj_seq(f64::from(m), z, 2, complex_bessel::Scaling::Unscaled)
         }
-        .map_err(|e| Error::SpecialFunction(e.to_string()))
+        Radial::Outgoing => {
+            complex_bessel::hankel1_seq(f64::from(m), z, 2, complex_bessel::Scaling::Unscaled)
+        }
+    }
+    .map_err(|e| Error::SpecialFunction(e.to_string()))?;
+    let [value, upper] = sequence.values.as_slice() else {
+        return Err(Error::SpecialFunction(
+            "invalid cylindrical Bessel sequence length".into(),
+        ));
     };
-    let value = sign * evaluate(m)?;
-    let first = f64::from(m) * value / z - sign * evaluate(m + 1)?;
+    let value = sign * value;
+    let first = f64::from(m) * value / z - sign * upper;
     let second = (f64::from(m).powi(2) / z.powu(2) - 1.0) * value - first / z;
     Ok(RadialJet {
         value,

@@ -487,3 +487,32 @@ np.testing.assert_allclose(
 print(
     "Clean wheel: coordinate gufuncs, owned pullbacks and vector norm gradient passed"
 )
+
+
+orders = np.arange(-20, 21)
+np.testing.assert_allclose(
+    np.sum(np.abs(tr.special.sph_harm(orders, 20, 0.3, 0.7)) ** 2),
+    41 / (4 * np.pi),
+    rtol=1e-12,
+)
+
+
+def local_wave_energy(scale):
+    value = ad.vector_wave(
+        0.3 * scale,
+        0.4 * scale,
+        1.2 * scale,
+        0.5 / scale,
+        0.7 / scale,
+        0.9 / scale,
+        kind="vpw_A",
+        polarization=1,
+    )
+    return anp.real(anp.sum(anp.conj(value) * value))
+
+
+np.testing.assert_allclose(local_wave_energy(1.0), 1.0, atol=1e-13)
+np.testing.assert_allclose(
+    advect.grad(local_wave_energy)(np.array(1.0)), 0.0, atol=1e-13
+)
+print("Clean wheel: normalized harmonics and complete local-wave scale adjoint passed")

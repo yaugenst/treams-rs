@@ -44,7 +44,10 @@ impl<const N: usize> Jet<N> {
         self.map(self.value.exp(), self.value.exp())
     }
     pub(crate) fn sqrt(self) -> Self {
-        self.map(self.value.sqrt(), 0.5 / self.value.sqrt())
+        {
+            let root = crate::complex_sqrt(self.value);
+            self.map(root, 0.5 / root)
+        }
     }
     pub(crate) fn norm(self) -> f64 {
         self.derivative

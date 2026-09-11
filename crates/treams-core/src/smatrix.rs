@@ -45,6 +45,30 @@ impl StoredBlock {
             row_major: true,
         })
     }
+    fn copy_view(matrix: MatRef<'_, Complex>) -> Self {
+        let row_major = matrix.col_stride() == 1;
+        let matrix = if row_major {
+            matrix.transpose()
+        } else {
+            matrix
+        };
+        let mut values = Vec::with_capacity(matrix.nrows() * matrix.ncols());
+        if let Some(contiguous) = matrix.try_as_col_major() {
+            for j in 0..matrix.ncols() {
+                values.extend_from_slice(contiguous.col(j).as_slice());
+            }
+        } else {
+            for j in 0..matrix.ncols() {
+                for i in 0..matrix.nrows() {
+                    values.push(matrix[(i, j)]);
+                }
+            }
+        }
+        Self {
+            values: DMatrix::from_vec(matrix.nrows(), matrix.ncols(), values),
+            row_major,
+        }
+    }
     fn view(&self) -> MatRef<'_, Complex> {
         let data = view(&self.values);
         if self.row_major {
@@ -414,13 +438,43 @@ pub fn illuminate_stored(
     upper: [StoredBlock; 4],
     incoming: [DMatrix<Complex>; 2],
 ) -> Result<([DMatrix<Complex>; 4], IlluminationResidual)> {
-    let (top, bottom, down, solve) = illumination_fields(
+    let computed = illumination_fields(
         lower.each_ref().map(StoredBlock::view),
         upper.each_ref().map(StoredBlock::view),
         incoming.each_ref().map(view),
     )?;
+    Ok(illumination_result(lower, upper, incoming, computed))
+}
+
+/// Snapshot borrowed matrices in their physical order, then retain them for reverse.
+pub fn illuminate_borrowed(
+    lower: [MatRef<'_, Complex>; 4],
+    upper: [MatRef<'_, Complex>; 4],
+    incoming: [DMatrix<Complex>; 2],
+) -> Result<([DMatrix<Complex>; 4], IlluminationResidual)> {
+    let (lower, upper) = if lower[0].nrows() >= 512 {
+        rayon::join(
+            || lower.map(StoredBlock::copy_view),
+            || upper.map(StoredBlock::copy_view),
+        )
+    } else {
+        (
+            lower.map(StoredBlock::copy_view),
+            upper.map(StoredBlock::copy_view),
+        )
+    };
+    illuminate_stored(lower, upper, incoming)
+}
+
+fn illumination_result(
+    lower: [StoredBlock; 4],
+    upper: [StoredBlock; 4],
+    incoming: [DMatrix<Complex>; 2],
+    computed: InternalFields,
+) -> ([DMatrix<Complex>; 4], IlluminationResidual) {
+    let (top, bottom, down, solve) = computed;
     let value = [top, bottom, solve.value.clone(), down.clone()];
-    Ok((
+    (
         value,
         IlluminationResidual {
             lower,
@@ -429,7 +483,7 @@ pub fn illuminate_stored(
             solve,
             down,
         },
-    ))
+    )
 }
 
 /// Illuminate borrowed scattering blocks without retaining an adjoint context.
@@ -463,7 +517,18 @@ fn illumination_fields(
         } else {
             a.transpose()
         };
-        (0..a.ncols()).any(|j| (0..a.nrows()).any(|i| !finite(a[(i, j)])))
+        if let Some(contiguous) = a.try_as_col_major() {
+            // A full contiguous scan vectorizes; early exit per scalar does not.
+            (0..a.ncols()).any(|j| {
+                contiguous
+                    .col(j)
+                    .as_slice()
+                    .iter()
+                    .fold(false, |bad, &z| bad | !finite(z))
+            })
+        } else {
+            (0..a.ncols()).any(|j| (0..a.nrows()).any(|i| !finite(a[(i, j)])))
+        }
     };
     if n == 0
         || p == 0

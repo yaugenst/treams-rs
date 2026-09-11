@@ -1070,3 +1070,32 @@ def vector_coordinates(
         return value, context.pullback
 
     return _call((vectors, points), forward)
+
+
+def vector_wave(
+    *arguments: ArrayLike,
+    kind: str,
+    degree: ArrayLike = 0,
+    order: ArrayLike = 0,
+    polarization: ArrayLike = 0,
+) -> NDArray[np.complex128]:
+    """Native low-level vector waves with all continuous arguments differentiable."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.vector_wave(
+            *values, kind=kind, degree=degree, order=order, polarization=polarization
+        )
+        return value, lambda g: tuple(context.pullback(g))
+
+    return _call(arguments, forward)
+
+
+def sph_harm(
+    theta: ArrayLike,
+    phi: ArrayLike,
+    *,
+    degree: ArrayLike,
+    order: ArrayLike,
+) -> NDArray[np.complex128]:
+    """Normalized spherical harmonic with native theta and phi pullbacks."""
+    return vector_wave(theta, phi, kind="sph_harm", degree=degree, order=order)

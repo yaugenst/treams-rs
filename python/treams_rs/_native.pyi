@@ -668,3 +668,36 @@ def vector_coordinates(
     shape: tuple[int, ...],
     input_shapes: tuple[tuple[int, ...], tuple[int, ...]],
 ) -> tuple[ComplexArray, VectorCoordinateContext]: ...
+
+sph_harm: np.ufunc
+vsh_X: np.ufunc  # noqa: N816 - upstream public function name
+vsh_Y: np.ufunc  # noqa: N816 - upstream public function name
+vsh_Z: np.ufunc  # noqa: N816 - upstream public function name
+vsw_M: np.ufunc  # noqa: N816 - upstream public function name
+vsw_N: np.ufunc  # noqa: N816 - upstream public function name
+vsw_A: np.ufunc  # noqa: N816 - upstream public function name
+vsw_rM: np.ufunc  # noqa: N816 - upstream public function name
+vsw_rN: np.ufunc  # noqa: N816 - upstream public function name
+vsw_rA: np.ufunc  # noqa: N816 - upstream public function name
+vcw_M: np.ufunc  # noqa: N816 - upstream public function name
+vcw_N: np.ufunc  # noqa: N816 - upstream public function name
+vcw_A: np.ufunc  # noqa: N816 - upstream public function name
+vcw_rM: np.ufunc  # noqa: N816 - upstream public function name
+vcw_rN: np.ufunc  # noqa: N816 - upstream public function name
+vcw_rA: np.ufunc  # noqa: N816 - upstream public function name
+vpw_M: np.ufunc  # noqa: N816 - upstream public function name
+vpw_N: np.ufunc  # noqa: N816 - upstream public function name
+vpw_A: np.ufunc  # noqa: N816 - upstream public function name
+
+class WaveContext:
+    def pullback(
+        self, cotangent: NDArray[np.complex128]
+    ) -> list[NDArray[np.complex128]]: ...
+
+def vector_wave(
+    kind: str,
+    labels: list[tuple[int, int, int]],
+    arguments: list[NDArray[np.complex128]],
+    shape: tuple[int, ...],
+    argument_shapes: list[tuple[int, ...]],
+) -> tuple[NDArray[np.complex128], WaveContext]: ...

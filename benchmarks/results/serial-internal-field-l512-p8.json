@@ -1,0 +1,127 @@
+{
+  "results": [
+    {
+      "backend": "treams",
+      "python": "3.13.1",
+      "platform": "Linux-7.2.4-200.fc44.x86_64-x86_64-with-glibc2.43",
+      "numpy_version": "2.5.3",
+      "treams_version": "0.4.5",
+      "native_sha256": null,
+      "native_profile": null,
+      "workload": "internal-field",
+      "oracle": "treams public operation",
+      "ebcm_legacy": null,
+      "ewald_eta": null,
+      "samples": 8,
+      "particles": 1,
+      "layers": null,
+      "channels": null,
+      "lmax": 512,
+      "dimension": 1024,
+      "threads": 4,
+      "median_seconds": 0.06403891400259454,
+      "peak_rss_mib": 260.44140625,
+      "baseline_rss_mib": 258.546875,
+      "samples_seconds": [
+        0.06376945599913597,
+        0.0641325859905919,
+        0.0648610250063939,
+        0.066291003007791,
+        0.06403891400259454,
+        0.06190271599916741,
+        0.06313213901012205
+      ],
+      "calls_per_timing_sample": 1,
+      "forward_includes_result_destruction": true,
+      "forward_records_adjoint": true,
+      "backward_median_seconds": null,
+      "backward_samples_seconds": [],
+      "forward_and_backward_peak_rss_mib": null,
+      "blas": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 4,
+          "prefix": "libscipy_openblas",
+          "filepath": "~/personal/treams-rs/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-f48b354e.so",
+          "version": "0.3.34.106.0",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 4,
+          "prefix": "libscipy_openblas",
+          "filepath": "~/personal/treams-rs/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-b75cc656.so",
+          "version": "0.3.29.dev",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ]
+    },
+    {
+      "backend": "rust",
+      "python": "3.13.1",
+      "platform": "Linux-7.2.4-200.fc44.x86_64-x86_64-with-glibc2.43",
+      "numpy_version": "2.5.3",
+      "treams_version": "0.4.5",
+      "native_sha256": "0504e7a3af12cb50d5e99c0e14337be8ae89011ad910c8b05fb2d4b1ad7e7827",
+      "native_profile": "release",
+      "workload": "internal-field",
+      "oracle": "treams public operation",
+      "ebcm_legacy": null,
+      "ewald_eta": null,
+      "samples": 8,
+      "particles": 1,
+      "layers": null,
+      "channels": null,
+      "lmax": 512,
+      "dimension": 1024,
+      "threads": 4,
+      "median_seconds": 0.07672087199171074,
+      "peak_rss_mib": 335.046875,
+      "baseline_rss_mib": 237.09765625,
+      "samples_seconds": [
+        0.06767556999693625,
+        0.07005640499119181,
+        0.07691647698811721,
+        0.09992138299276121,
+        0.06950657900597434,
+        0.07672087199171074,
+        0.09375324699794874
+      ],
+      "calls_per_timing_sample": 1,
+      "forward_includes_result_destruction": true,
+      "forward_records_adjoint": true,
+      "backward_median_seconds": 0.029569990991149098,
+      "backward_samples_seconds": [
+        0.029851487997802906,
+        0.03265502401336562,
+        0.03289530999609269,
+        0.028851912007667124,
+        0.029569990991149098,
+        0.027585917996475473,
+        0.027966447989456356
+      ],
+      "forward_and_backward_peak_rss_mib": 394.09375,
+      "blas": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 4,
+          "prefix": "libscipy_openblas",
+          "filepath": "~/personal/treams-rs/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-f48b354e.so",
+          "version": "0.3.34.106.0",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ]
+    }
+  ],
+  "timing_comparison": {
+    "method": "isolated_process",
+    "speedup": 0.8347000280381796
+  },
+  "speedup": 0.8347000280381796
+}

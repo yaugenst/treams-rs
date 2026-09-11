@@ -5,12 +5,13 @@ use nalgebra::DMatrix;
 use rayon::prelude::*;
 
 use crate::{
-    Complex, Error, Result, fields::FieldBasis, finite, jet::Jet, ratio, special::angular_jets,
-    waves::Mode,
+    Complex, Error, Result, complex_sqrt, fields::FieldBasis, finite, jet::Jet, ratio,
+    special::angular_jets, waves::Mode,
 };
 
 // Scale before squaring or dividing: nearly axial directions may have transverse
 // components small enough that their squares underflow while their azimuth matters.
+#[inline]
 fn algebraic_norm(values: &[Complex]) -> Complex {
     let scale = values
         .iter()
@@ -19,12 +20,12 @@ fn algebraic_norm(values: &[Complex]) -> Complex {
     if scale == 0.0 {
         return Complex::default();
     }
-    values
-        .iter()
-        .map(|v| (v / scale).powu(2))
-        .sum::<Complex>()
-        .sqrt()
-        * scale
+    // Ordinary magnitudes need no scaling. Keep the scaled formulation when
+    // squaring could underflow or overflow (including near-axis regression cases).
+    if (1e-150..=1e150).contains(&scale) {
+        return complex_sqrt(values.iter().map(|v| v * v).sum::<Complex>());
+    }
+    complex_sqrt(values.iter().map(|v| (v / scale).powu(2)).sum::<Complex>()) * scale
 }
 fn wavenumbers(vector: [Complex; 3]) -> Result<(Complex, Complex, [Complex; 2])> {
     if vector.iter().any(|&v| !finite(v)) {
@@ -37,14 +38,18 @@ fn wavenumbers(vector: [Complex; 3]) -> Result<(Complex, Complex, [Complex; 2])>
     let (transverse, xy) = if scale == 0.0 {
         (Complex::default(), [Complex::default(); 2])
     } else {
-        let scaled = [vector[0] / scale, vector[1] / scale];
-        let norm = algebraic_norm(&scaled);
+        let (scaled, factor) = if (1e-150..=1e150).contains(&scale) {
+            ([vector[0], vector[1]], 1.0)
+        } else {
+            ([vector[0] / scale, vector[1] / scale], scale)
+        };
+        let norm = complex_sqrt(scaled[0] * scaled[0] + scaled[1] * scaled[1]);
         if norm == Complex::default() {
             return Err(Error::InvalidInput(
                 "undefined polarization for a null transverse vector".into(),
             ));
         }
-        (norm * scale, scaled.map(|v| ratio(v, norm)))
+        (norm * factor, scaled.map(|v| ratio(v, norm)))
     };
     let k = algebraic_norm(&vector);
     if k == Complex::default() || !finite(k) {
@@ -95,7 +100,8 @@ impl<const N: usize> Direction<N> {
     }
 }
 
-fn polarization_jet<const N: usize>(
+#[inline]
+pub(crate) fn polarization_jet<const N: usize>(
     vector: [Complex; 3],
     pol: u8,
     helicity: bool,
@@ -109,7 +115,19 @@ fn polarization_jet<const N: usize>(
         xy: xy_jet,
     } = Direction::new(vector)?;
     let z = vector[2];
-    let (m, n) = if radial.value == Complex::default() {
+    let m = if radial.value == Complex::default() {
+        [Jet::default(), Jet::constant(-Complex::i()), Jet::default()]
+    } else {
+        [
+            Complex::i() * xy_jet[1],
+            -Complex::i() * xy_jet[0],
+            Jet::default(),
+        ]
+    };
+    if !helicity && pol == 0 {
+        return Ok(m);
+    }
+    let n = if radial.value == Complex::default() {
         let sign = if z.im == 0.0 {
             if z.re >= 0.0 { 1.0 } else { -1.0 }
         } else if z.im >= 0.0 {
@@ -117,38 +135,46 @@ fn polarization_jet<const N: usize>(
         } else {
             -1.0
         };
-        (
-            [Jet::default(), Jet::constant(-Complex::i()), Jet::default()],
-            [Jet::constant(-sign), Jet::default(), Jet::default()],
-        )
+        [Jet::constant(-sign), Jet::default(), Jet::default()]
     } else {
-        (
-            [
-                Complex::i() * xy_jet[1],
-                -Complex::i() * xy_jet[0],
-                Jet::default(),
-            ],
-            [
-                -xy_jet[0] * Jet::variable(z, 2) / wave,
-                -xy_jet[1] * Jet::variable(z, 2) / wave,
-                radial / wave,
-            ],
-        )
+        let longitudinal = Jet::variable(z, 2) / wave;
+        [
+            -xy_jet[0] * longitudinal,
+            -xy_jet[1] * longitudinal,
+            radial / wave,
+        ]
     };
     Ok(if helicity {
         std::array::from_fn(|a| {
             (n[a] + (2.0 * f64::from(pol) - 1.0) * m[a]) * std::f64::consts::FRAC_1_SQRT_2
         })
-    } else if pol == 0 {
-        m
     } else {
         n
     })
 }
 
 /// Plane-wave electric vector at the origin in treams normalization.
+#[inline]
 pub fn polarization(vector: [Complex; 3], pol: u8, helicity: bool) -> Result<[Complex; 3]> {
     Ok(polarization_jet::<0>(vector, pol, helicity)?.map(|p| p.value))
+}
+
+/// Evaluate a plane-wave field from its already normalized polarization.
+#[inline]
+pub fn field_value(
+    polarization: [Complex; 3],
+    k: [Complex; 3],
+    position: [Complex; 3],
+) -> Result<[Complex; 3]> {
+    if position.iter().any(|&v| !finite(v)) {
+        return Err(Error::InvalidInput("field position must be finite".into()));
+    }
+    let phase = (Complex::i() * (0..3).map(|a| k[a] * position[a]).sum::<Complex>()).exp();
+    let values = polarization.map(|p| p * phase);
+    if values.iter().any(|&v| !finite(v)) {
+        return Err(Error::SpecialFunction("nonfinite plane-wave field".into()));
+    }
+    Ok(values)
 }
 
 /// Chain the local Cartesian polarization derivative into solver parameters.

@@ -793,3 +793,59 @@ and retain their real contexts, and metadata explicitly records
 `forward_records_adjoint`. Both backends include result destruction. The complete
 128-case run was repeated after this correction; no accuracy or performance
 threshold was relaxed.
+
+
+## Local wave functions and strict combined qualification
+
+The release build passes all 191 runtime gates and all 187 applicable forward-RSS
+gates. The four recorded internal-illumination cases retain an owned adjoint tape
+and are deliberately not compared with upstream forward-only RSS. No accuracy,
+runtime or RSS threshold was relaxed. `just ci` passes 61 native tests and 1,512
+Python tests; a clean Linux wheel passes the SciPy-free Advect workflows and
+optional HDF5 round trip.
+
+The combined run used `taskset -c 8-11 just bench-performance`: both backends had
+the same four physical cores and four BLAS/Rayon threads. Background activity on
+the original first-four-core placement materially affected native solve timings;
+those diagnostic runs are retained alongside the final results. Use otherwise
+idle cores for reproducible qualification, rather than interpreting shared-host
+contention as a kernel regression.
+
+Every workload with isolated median times below one millisecond also runs both
+backends in one process, alternating their order over 14 paired samples. Each
+sample batches at least 20 milliseconds of work for each backend. The reported
+speedup is the median paired ratio; isolated processes remain authoritative for
+peak RSS and reverse cost. JSON retains both timing methods and all samples.
+The smallest measured speedup in the complete run is 1.013x (scalar plane M wave),
+so tiny scalar comparisons remain sensitive to CPU noise.
+
+| Forward function | 1 sample | 128 samples | 4,096 samples |
+| --- | ---: | ---: | ---: |
+| sph_harm | 1.32x | 3.94x | 15.05x |
+| vsw_rA | 1.73x | 4.59x | 20.36x |
+| vcw_rA | 1.30x | 2.33x | 9.90x |
+| vpw_A | 1.06x | 3.35x | 21.75x |
+
+| Recorded function | 128 samples | 4,096 samples | Reverse at 4,096 samples |
+| --- | ---: | ---: | ---: |
+| vsw_rA | 4.40x | 26.88x | 0.644 ms |
+| vcw_rA | 2.20x | 10.58x | 0.677 ms |
+| vpw_A | 2.08x | 18.83x | 0.191 ms |
+
+The wave kernels share normalized angular recurrences, fetch adjacent cylindrical
+Bessel values together, and reuse plane polarizations for constant directions.
+An algebraic complex square root removes trigonometric work from normalization;
+scaled fallbacks preserve extreme magnitudes and signed branch limits. Coordinate
+norms use an FMA path at ordinary magnitudes and scaled hypot at extremes.
+
+Recorded illumination preserves contiguous input order, uses two independent
+copy tasks for large stacks, and completes the snapshots before solving. This
+keeps later Python mutation safe without competing with the solve for workers.
+The contiguous finite-input scan vectorizes. Forward-only illumination continues
+to borrow inputs and retains no tape. Superseded overlap and serial-copy timings
+remain in `snapshot-*`, `serial-*` and `parallel-copy-*` JSON files.
+
+Final wave results are `wave-<function>-n<size>.json` and
+`wave-adjoint-final-<function>-n<size>.json`; each includes the native binary hash.
+These measurements qualify the listed workloads, not every possible problem size,
+conditioning regime or machine.

@@ -34,6 +34,16 @@ impl Transform {
     }
 }
 
+#[inline]
+fn radius(a: f64, b: f64) -> f64 {
+    let scale = a.abs().max(b.abs());
+    if (1e-150..=1e150).contains(&scale) {
+        a.mul_add(a, b * b).sqrt()
+    } else {
+        a.hypot(b)
+    }
+}
+
 fn validate(position: [f64; 3]) -> Result<()> {
     if position.iter().any(|v| !v.is_finite()) {
         return Err(Error::InvalidInput("coordinates must be finite".into()));
@@ -51,7 +61,7 @@ pub fn point(position: [f64; 3], transform: Transform) -> Result<[f64; 3]> {
     let [a, b, c] = position;
     Ok(match transform {
         CarToCyl | CarToPol => [
-            a.hypot(b),
+            radius(a, b),
             b.atan2(a),
             if matches!(transform, CarToPol) {
                 0.0
@@ -60,8 +70,8 @@ pub fn point(position: [f64; 3], transform: Transform) -> Result<[f64; 3]> {
             },
         ],
         CarToSph => {
-            let rho = a.hypot(b);
-            [rho.hypot(c), rho.atan2(c), b.atan2(a)]
+            let rho = radius(a, b);
+            [radius(rho, c), rho.atan2(c), b.atan2(a)]
         }
         CylToCar | PolToCar => {
             let (sin, cos) = b.sin_cos();
@@ -75,7 +85,7 @@ pub fn point(position: [f64; 3], transform: Transform) -> Result<[f64; 3]> {
                 },
             ]
         }
-        CylToSph => [a.hypot(c), a.atan2(c), b],
+        CylToSph => [radius(a, c), a.atan2(c), b],
         SphToCar => {
             let (st, ct) = b.sin_cos();
             let (sp, cp) = c.sin_cos();
@@ -102,7 +112,7 @@ pub fn point_pullback(position: [f64; 3], transform: Transform, g: [f64; 3]) -> 
     let mut result = [0.0; 3];
     match transform {
         CarToCyl | CarToPol | CarToSph => {
-            let rho = a.hypot(b);
+            let rho = radius(a, b);
             let spherical = matches!(transform, CarToSph);
             let phi_g = if spherical { g[2] } else { g[1] };
             if rho == 0.0 && (phi_g != 0.0 || if spherical { g[1] != 0.0 } else { g[0] != 0.0 }) {
@@ -114,7 +124,7 @@ pub fn point_pullback(position: [f64; 3], transform: Transform, g: [f64; 3]) -> 
                 (b / rho, a / rho)
             };
             let (radial, axial) = if spherical {
-                let r = rho.hypot(c);
+                let r = radius(rho, c);
                 if r == 0.0 && g[0] != 0.0 {
                     return Err(undefined());
                 }
@@ -156,7 +166,7 @@ pub fn point_pullback(position: [f64; 3], transform: Transform, g: [f64; 3]) -> 
             ];
         }
         CylToSph => {
-            let r = a.hypot(c);
+            let r = radius(a, c);
             if r == 0.0 && (g[0] != 0.0 || g[1] != 0.0) {
                 return Err(undefined());
             }
@@ -225,7 +235,7 @@ fn frame(position: [f64; 3], transform: Transform) -> ([[f64; 3]; 3], [[[f64; 3]
         }
         CarToSph | SphToCar => {
             let inverse = matches!(transform, SphToCar);
-            let theta = if inverse { b } else { a.hypot(b).atan2(c) };
+            let theta = if inverse { b } else { radius(a, b).atan2(c) };
             let phi = if inverse { c } else { b.atan2(a) };
             let (st, ct) = theta.sin_cos();
             let (sp, cp) = phi.sin_cos();
@@ -291,7 +301,7 @@ pub fn vector(
             [x * sin + y * cos, z, x * cos - y * sin]
         }
         CarToSph => {
-            let (st, ct) = a.hypot(b).atan2(c).sin_cos();
+            let (st, ct) = radius(a, b).atan2(c).sin_cos();
             let (sp, cp) = b.atan2(a).sin_cos();
             let radial = x * cp + y * sp;
             [radial * st + z * ct, radial * ct - z * st, -x * sp + y * cp]
@@ -344,6 +354,28 @@ pub fn vector_pullback(
 mod tests {
     #![allow(clippy::unwrap_used)] // Property failures retain reproducible inputs.
     use super::*;
+    #[test]
+    fn coordinate_norm_preserves_extreme_scales() {
+        for scale in [
+            f64::from_bits(1),
+            1e-300,
+            1e-151,
+            1e-149,
+            1.0,
+            1e149,
+            1e151,
+            1e300,
+            f64::MAX / 2.0,
+        ] {
+            for (a, b) in [(0.0, 1.0), (1.0, 0.0), (0.3, -0.4), (1.0, -1.0)] {
+                let a = a * scale;
+                let b = b * scale;
+                let expected = a.hypot(b);
+                assert!((radius(a, b) - expected).abs() <= 3.0 * f64::EPSILON * expected);
+            }
+        }
+    }
+
     use proptest::prelude::*;
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(48))]

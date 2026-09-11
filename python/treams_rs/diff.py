@@ -921,3 +921,75 @@ def vector_coordinates(
         v.shape,
         (vector.shape, position.shape),
     )
+
+
+def vector_wave(
+    *arguments: ArrayLike,
+    kind: str,
+    degree: ArrayLike = 0,
+    order: ArrayLike = 0,
+    polarization: ArrayLike = 0,
+) -> tuple[NDArray[np.complex128], _native.WaveContext]:
+    """Low-level vector wave with native VJPs to every continuous argument.
+
+    kind is a special function name (e.g. vsw_rA). Degree, order and polarization
+    are fixed labels. Arguments have the public function's order after removing
+    those labels: (kr, theta, phi) for spherical, (theta, phi) for harmonics,
+    (kz, krr, phi, z[, k]) for cylindrical and (kx, ky, kz, x, y, z) for plane waves.
+    Pullback returns one gradient per argument, reduced to its original shape.
+    """
+    values = tuple(np.asarray(v, dtype=np.complex128) for v in arguments)
+    if (
+        values
+        and isinstance(degree, (int, np.integer))
+        and isinstance(order, (int, np.integer))
+        and isinstance(polarization, (int, np.integer))
+    ):
+        shape = max((v.shape for v in values), key=len)
+        if all(
+            v.shape == shape or (v.size == 1 and v.ndim <= len(shape)) for v in values
+        ):
+            return _native.vector_wave(
+                kind,
+                [(int(degree), int(order), int(polarization))],
+                [v.ravel() for v in values],
+                shape,
+                [v.shape for v in values],
+            )
+    labels = tuple(
+        np.asarray(v, dtype=np.float64) for v in (degree, order, polarization)
+    )
+    if any(
+        np.any(~np.isfinite(v) | (v != np.floor(v)) | (np.abs(v) > 128)) for v in labels
+    ):
+        raise ValueError("wave labels must be integers in [-128, 128]")
+    broadcast = np.broadcast_arrays(*labels, *values)
+    modes = (
+        [(int(labels[0].item()), int(labels[1].item()), int(labels[2].item()))]
+        if all(v.size == 1 for v in labels)
+        else [
+            (int(ell), int(m), int(p))
+            for ell, m, p in zip(*(v.flat for v in broadcast[:3]), strict=True)
+        ]
+    )
+    return _native.vector_wave(
+        kind,
+        modes,
+        [
+            (v if v.size == 1 else cast("NDArray[np.complex128]", b)).ravel()
+            for v, b in zip(values, broadcast[3:], strict=True)
+        ],
+        broadcast[0].shape,
+        [v.shape for v in values],
+    )
+
+
+def sph_harm(
+    theta: ArrayLike,
+    phi: ArrayLike,
+    *,
+    degree: ArrayLike,
+    order: ArrayLike,
+) -> tuple[NDArray[np.complex128], _native.WaveContext]:
+    """Normalized spherical harmonic with native theta and phi pullbacks."""
+    return vector_wave(theta, phi, kind="sph_harm", degree=degree, order=order)

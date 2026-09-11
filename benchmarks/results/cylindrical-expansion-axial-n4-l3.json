@@ -19,17 +19,17 @@
       "lmax": 3,
       "dimension": 112,
       "threads": 4,
-      "median_seconds": 0.002285956099512987,
-      "peak_rss_mib": 67.171875,
-      "baseline_rss_mib": 65.3046875,
+      "median_seconds": 0.0024647768994327636,
+      "peak_rss_mib": 67.6875,
+      "baseline_rss_mib": 65.7734375,
       "samples_seconds": [
-        0.002285956099512987,
-        0.002288124099140987,
-        0.0022920542003703305,
-        0.0022816479991888627,
-        0.002284242000314407,
-        0.0022838130011223257,
-        0.002295800299907569
+        0.0024766762988292614,
+        0.002455892700527329,
+        0.0024687340002856216,
+        0.0024647768994327636,
+        0.002453429700108245,
+        0.002451151500281412,
+        0.0024738512001931667
       ],
       "calls_per_timing_sample": 10,
       "forward_includes_result_destruction": true,
@@ -66,7 +66,7 @@
       "platform": "Linux-7.2.4-200.fc44.x86_64-x86_64-with-glibc2.43",
       "numpy_version": "2.5.3",
       "treams_version": "0.4.5",
-      "native_sha256": "f8b6d3b1faaa4475ab7d1f2547ce8d58513cab4df8b5a647d6394c1e9d53fb03",
+      "native_sha256": "9be612755ce3932d1b40336033c88d42decd6b3cfc06f800c50c1dc34f42268d",
       "native_profile": "release",
       "workload": "cylindrical-expansion-axial",
       "oracle": "treams public operation",
@@ -79,32 +79,32 @@
       "lmax": 3,
       "dimension": 112,
       "threads": 4,
-      "median_seconds": 0.0005937072100641672,
-      "peak_rss_mib": 41.93359375,
-      "baseline_rss_mib": 40.88671875,
+      "median_seconds": 0.0005091365199768916,
+      "peak_rss_mib": 43.42578125,
+      "baseline_rss_mib": 41.8203125,
       "samples_seconds": [
-        0.0005944326201279182,
-        0.0005913073300325778,
-        0.0005937072100641672,
-        0.000595077229954768,
-        0.0005944294200162404,
-        0.0005857087900221814,
-        0.0005813950799347367
+        0.0004456340199976694,
+        0.00044354495999868957,
+        0.000644743250013562,
+        0.000584334930026671,
+        0.0005484217699267902,
+        0.0005091365199768916,
+        0.0004476490701199509
       ],
       "calls_per_timing_sample": 100,
       "forward_includes_result_destruction": true,
       "forward_records_adjoint": true,
-      "backward_median_seconds": 0.0006222397800593172,
+      "backward_median_seconds": 0.00041691267892019824,
       "backward_samples_seconds": [
-        0.000611690789955901,
-        0.0006137121500796638,
-        0.0006232759002887178,
-        0.0006229539707419462,
-        0.0006222397800593172,
-        0.0006118000808055513,
-        0.0006234026793390513
+        0.000467091570753837,
+        0.00042148251915932636,
+        0.00041691267892019824,
+        0.00041704031013068744,
+        0.0004149084103119094,
+        0.000407211730198469,
+        0.00041333933942951264
       ],
-      "forward_and_backward_peak_rss_mib": 42.69140625,
+      "forward_and_backward_peak_rss_mib": 44.859375,
       "blas": [
         {
           "user_api": "blas",
@@ -119,5 +119,9 @@
       ]
     }
   ],
-  "speedup": 3.850308806702757
+  "timing_comparison": {
+    "method": "isolated_process",
+    "speedup": 4.841092325383835
+  },
+  "speedup": 4.841092325383835
 }
