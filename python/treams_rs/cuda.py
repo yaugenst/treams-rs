@@ -50,10 +50,22 @@ class Device:
         return Factor(self, operator)
 
     def matmul(
-        self, left: _native.CudaMatrix, right: _native.CudaMatrix
+        self,
+        left: _native.CudaMatrix,
+        right: _native.CudaMatrix,
+        *,
+        adjoint_left: bool = False,
+        adjoint_right: bool = False,
     ) -> _native.CudaMatrix:
-        """Multiply resident matrices without a host round trip."""
-        return self._device.matmul(left, right)
+        """Multiply resident matrices, optionally conjugate-transposing either input.
+
+        Adjoint operands reuse their device storage. For a fixed sampling operator
+        ``F``, ``matmul(F, g, adjoint_left=True)`` computes the coefficient pullback
+        ``Fᴴ g`` without a transposed copy of ``F`` or a host round trip.
+        """
+        return self._device.matmul(
+            left, right, adjoint_left=adjoint_left, adjoint_right=adjoint_right
+        )
 
 
 class Factor:

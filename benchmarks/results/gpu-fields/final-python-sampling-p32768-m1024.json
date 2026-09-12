@@ -1,0 +1,116 @@
+{
+  "points": 32768,
+  "modes": 1024,
+  "precision": "complex128",
+  "point_geometry": "deterministic irregular three-dimensional cloud",
+  "operator_bytes": 1610612736,
+  "assembly_seconds": 0.27860827499534935,
+  "numpy_version": "2.5.3",
+  "scipy_version": "1.16.3",
+  "libraries": [
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 32,
+      "prefix": "libscipy_openblas",
+      "filepath": "~/personal/worktrees/treams-rs-gpu-fields/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-f48b354e.so",
+      "version": "0.3.34.106.0",
+      "threading_layer": "pthreads",
+      "architecture": "SkylakeX"
+    },
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 32,
+      "prefix": "libscipy_openblas",
+      "filepath": "~/personal/worktrees/treams-rs-gpu-fields/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-b75cc656.so",
+      "version": "0.3.29.dev",
+      "threading_layer": "pthreads",
+      "architecture": "SkylakeX"
+    }
+  ],
+  "results": [
+    {
+      "threads": 1,
+      "layout": "column-major",
+      "seconds": 0.04487524801515974,
+      "nominal_operator_read_gb_per_second": 35.890893248231265,
+      "max_abs_error": 5.902044509704017e-17
+    },
+    {
+      "threads": 1,
+      "layout": "row-major",
+      "seconds": 0.037313690001610667,
+      "nominal_operator_read_gb_per_second": 43.1641238357953,
+      "max_abs_error": 6.028641811046572e-17
+    },
+    {
+      "threads": 4,
+      "layout": "column-major",
+      "seconds": 0.02963460801402107,
+      "nominal_operator_read_gb_per_second": 54.34904808722182,
+      "max_abs_error": 5.902044509704017e-17
+    },
+    {
+      "threads": 4,
+      "layout": "row-major",
+      "seconds": 0.028311773989116773,
+      "nominal_operator_read_gb_per_second": 56.88844283015009,
+      "max_abs_error": 6.028641811046572e-17
+    },
+    {
+      "threads": 8,
+      "layout": "column-major",
+      "seconds": 0.030755707004573196,
+      "nominal_operator_read_gb_per_second": 52.36793079607993,
+      "max_abs_error": 5.902044509704017e-17
+    },
+    {
+      "threads": 8,
+      "layout": "row-major",
+      "seconds": 0.028942959004780278,
+      "nominal_operator_read_gb_per_second": 55.647825632962686,
+      "max_abs_error": 6.028641811046572e-17
+    },
+    {
+      "threads": 16,
+      "layout": "column-major",
+      "seconds": 0.0316040700126905,
+      "nominal_operator_read_gb_per_second": 50.96219364636467,
+      "max_abs_error": 5.902044509704017e-17
+    },
+    {
+      "threads": 16,
+      "layout": "row-major",
+      "seconds": 0.03092837199801579,
+      "nominal_operator_read_gb_per_second": 52.07557436593587,
+      "max_abs_error": 6.028641811046572e-17
+    },
+    {
+      "threads": 32,
+      "layout": "column-major",
+      "seconds": 0.03755670599639416,
+      "nominal_operator_read_gb_per_second": 42.88482424828833,
+      "max_abs_error": 5.902044509704017e-17
+    },
+    {
+      "threads": 32,
+      "layout": "row-major",
+      "seconds": 0.03298563600401394,
+      "nominal_operator_read_gb_per_second": 48.82769990561978,
+      "max_abs_error": 6.028641811046572e-17
+    }
+  ],
+  "python_cuda": {
+    "context_and_operator_upload_seconds": 1.1433808879810385,
+    "cold_forward_seconds": 0.02448199299396947,
+    "cold_adjoint_seconds": 0.0049961610056925565,
+    "median_forward_roundtrip_seconds": 0.0025995380128733814,
+    "median_adjoint_roundtrip_seconds": 0.002775792992906645,
+    "max_field_abs_error": 8.566953664529769e-17,
+    "max_coefficient_gradient_abs_error": 7.246142549764706e-14,
+    "resident_operator_bytes": 1610612736,
+    "scope": "Python calls including all input uploads, output downloads and native validation. Correctness assertions are outside timing windows. Forward returns every field component; adjoint uploads the complete field cotangent and returns coefficient gradients. The same operator buffer is used without a transposed copy."
+  },
+  "scope": "Cached physical sampling operator; separate prepacked CPU layouts; changing coefficient vectors; median of seven warm applications including output allocation, excluding assembly and packing. GPU timing is measured by the Rust sampling benchmark."
+}

@@ -1,0 +1,110 @@
+{
+  "actual_cpu_threads": 16,
+  "assembly_seconds": 0.069696008,
+  "coefficient_bytes": 8192,
+  "cold_application_seconds": 0.021212976,
+  "context_seconds": 0.206337144,
+  "cpu_cache_break_even_applications_vs_fused": 132.0,
+  "cpu_nominal_operator_read_gb_per_second": 53.392308704157095,
+  "cpu_row_major_pack_seconds": 0.137162739,
+  "cpu_threads": "16",
+  "device": "NVIDIA GeForce RTX 4080 SUPER",
+  "field_bytes": 786432,
+  "gpu_cache_break_even_applications_vs_fused": 41.0,
+  "gpu_cold_break_even_applications_vs_cpu_cached": 20.0,
+  "gpu_nominal_operator_read_gb_per_second": 608.0564907421809,
+  "gpu_upload_break_even_applications_vs_cpu_cached": 0.0,
+  "max_abs_error": 1.0444418402013023e-16,
+  "median_cpu_cached_seconds": 0.007541408,
+  "median_cpu_column_major_seconds": 0.007989829,
+  "median_cpu_fused_seconds": 0.009119119,
+  "median_cpu_row_major_seconds": 0.007541408,
+  "median_gpu_resident_seconds": 0.000662197,
+  "median_gpu_roundtrip_seconds": 0.000712318,
+  "modes": 512,
+  "operator_bytes": 402653184,
+  "operator_shape": [
+    49152,
+    512
+  ],
+  "operator_upload_seconds": 0.042641929,
+  "points": 16384,
+  "precision": "complex128",
+  "process_peak_resident_kib": 1225392,
+  "resident_speedup_vs_cpu_cached": 11.388465970096512,
+  "roundtrip_speedup_vs_cpu_cached": 10.587136644026966,
+  "samples": [
+    {
+      "coefficient_upload_seconds": 0.000048841,
+      "cpu_column_major_seconds": 0.008138723,
+      "cpu_fused_seconds": 0.008849812,
+      "cpu_row_major_seconds": 0.00763846,
+      "field_download_seconds": 0.000090872,
+      "gpu_resident_seconds": 0.000662988,
+      "gpu_roundtrip_seconds": 0.000724559,
+      "iteration": 1
+    },
+    {
+      "coefficient_upload_seconds": 0.000035341,
+      "cpu_column_major_seconds": 0.007989829,
+      "cpu_fused_seconds": 0.014711937,
+      "cpu_row_major_seconds": 0.00725472,
+      "field_download_seconds": 0.000091033,
+      "gpu_resident_seconds": 0.000641597,
+      "gpu_roundtrip_seconds": 0.000712318,
+      "iteration": 2
+    },
+    {
+      "coefficient_upload_seconds": 0.000050461,
+      "cpu_column_major_seconds": 0.007941478,
+      "cpu_fused_seconds": 0.010593218,
+      "cpu_row_major_seconds": 0.0072466,
+      "field_download_seconds": 0.000096293,
+      "gpu_resident_seconds": 0.000662197,
+      "gpu_roundtrip_seconds": 0.000722419,
+      "iteration": 3
+    },
+    {
+      "coefficient_upload_seconds": 0.000056312,
+      "cpu_column_major_seconds": 0.008038801,
+      "cpu_fused_seconds": 0.011241765,
+      "cpu_row_major_seconds": 0.007422684,
+      "field_download_seconds": 0.000103453,
+      "gpu_resident_seconds": 0.000672507,
+      "gpu_roundtrip_seconds": 0.00074993,
+      "iteration": 4
+    },
+    {
+      "coefficient_upload_seconds": 0.000035011,
+      "cpu_column_major_seconds": 0.008058262,
+      "cpu_fused_seconds": 0.007600229,
+      "cpu_row_major_seconds": 0.007577359,
+      "field_download_seconds": 0.000092852,
+      "gpu_resident_seconds": 0.000643547,
+      "gpu_roundtrip_seconds": 0.000705808,
+      "iteration": 5
+    },
+    {
+      "coefficient_upload_seconds": 0.000051662,
+      "cpu_column_major_seconds": 0.007905607,
+      "cpu_fused_seconds": 0.007756634,
+      "cpu_row_major_seconds": 0.00761927,
+      "field_download_seconds": 0.000093193,
+      "gpu_resident_seconds": 0.000670497,
+      "gpu_roundtrip_seconds": 0.000701458,
+      "iteration": 6
+    },
+    {
+      "coefficient_upload_seconds": 0.000032951,
+      "cpu_column_major_seconds": 0.007884037,
+      "cpu_fused_seconds": 0.009119119,
+      "cpu_row_major_seconds": 0.007541408,
+      "field_download_seconds": 0.000105943,
+      "gpu_resident_seconds": 0.000638047,
+      "gpu_roundtrip_seconds": 0.000703848,
+      "iteration": 7
+    }
+  ],
+  "scope": "Identical fixed physical sampling operator F is cached on both CPU and GPU. Each measured application uses a different host coefficient vector. Resident GPU time includes output allocation and synchronization; round trip adds coefficient upload and full field download. CPU output allocation is included. CPU speedups use the faster column-major or prepacked row-major median at the selected thread count. Cached operator assembly, CPU row packing, and initial upload are excluded from application timings and reported separately. Nominal bandwidth counts one operator read; it is not a hardware-counter measurement. VmHWM includes both host operator layouts and transfer staging, not just a production cached operator. Break-even counts credit CPU packing when its row-major path is selected, include cold first-call excess above warm resident time when specified, and are steady-median estimates and are null when no positive advantage exists.",
+  "selected_cpu_layout": "row-major"
+}

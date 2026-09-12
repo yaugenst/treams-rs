@@ -157,6 +157,10 @@ and [published-paper reproductions](paper-qualification.md) have separate,
 reproducible qualification reports. The WASM exports cover spheres, finite
 clusters, plane-wave illumination and exterior electric fields; they do not
 expose the entire Python API or adjoints. CUDA qualification uses the RTX 4080
-SUPER with complex128; the field kernel has no native pullback yet. Python
+SUPER with complex128. The fused field kernel has no native pullback yet;
+fixed sampling operators can use the qualified Hermitian matrix product for
+coefficient-only pullbacks without a second device copy. The follow-up field
+kernel and adjoint product pass nine real-device Rust tests, with focused Python
+and performance results recorded in the GPU reports. Python
 versions outside 3.12/3.13 and broader wheel-platform distribution remain
 unqualified.

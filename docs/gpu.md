@@ -87,9 +87,13 @@ TREAMS_TEST_CUDA=1 TREAMS_TEST_CUDA_TILE=1 uv run pytest tests/test_cuda.py
 cargo run -p treams-cuda --features cuda --release --example benchmark -- 4096 64 5
 ```
 
-The field kernel has measured **1.41–2.65× end-to-end speedups** over a 16-core
+The field kernel has measured **1.53–2.77× end-to-end speedups** over a prepared
 Rust CPU implementation, including point upload and field download. Initial JIT
-cost is reported separately. See the [raw field proof](../crates/treams-cuda-tile/qualification-rtx4080.json).
+cost is reported separately. See the [field proof](../benchmarks/gpu-fields-qualification.json).
+For repeated coefficient updates, [cached physical sampling operators](gpu-sampling.md)
+exercise the GPU's memory bandwidth and support the coefficient pullback with
+`device.matmul(operator, cotangent, adjoint_left=True)`. Geometry and wavevectors
+are fixed in that use case.
 
 Dense operations have important crossovers on this consumer GPU. Small solves,
 wide products and operations requiring a host round trip can be faster on the

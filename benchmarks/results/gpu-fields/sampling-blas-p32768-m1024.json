@@ -1,0 +1,103 @@
+{
+  "points": 32768,
+  "modes": 1024,
+  "precision": "complex128",
+  "operator_bytes": 1610612736,
+  "numpy_version": "2.5.3",
+  "scipy_version": "1.16.3",
+  "libraries": [
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 32,
+      "prefix": "libscipy_openblas",
+      "filepath": "~/personal/treams-rs/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-f48b354e.so",
+      "version": "0.3.34.106.0",
+      "threading_layer": "pthreads",
+      "architecture": "SkylakeX"
+    },
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 32,
+      "prefix": "libscipy_openblas",
+      "filepath": "~/personal/treams-rs/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-b75cc656.so",
+      "version": "0.3.29.dev",
+      "threading_layer": "pthreads",
+      "architecture": "SkylakeX"
+    }
+  ],
+  "results": [
+    {
+      "threads": 1,
+      "layout": "column-major",
+      "seconds": 0.04265078899334185,
+      "nominal_operator_read_gb_per_second": 37.76278877868896,
+      "max_abs_error": 6.101814309711891e-17
+    },
+    {
+      "threads": 1,
+      "layout": "row-major",
+      "seconds": 0.03512994199991226,
+      "nominal_operator_read_gb_per_second": 45.847292773897045,
+      "max_abs_error": 7.037699863806847e-17
+    },
+    {
+      "threads": 4,
+      "layout": "column-major",
+      "seconds": 0.03016965201823041,
+      "nominal_operator_read_gb_per_second": 53.38519433458384,
+      "max_abs_error": 6.101814309711891e-17
+    },
+    {
+      "threads": 4,
+      "layout": "row-major",
+      "seconds": 0.028916429000673816,
+      "nominal_operator_read_gb_per_second": 55.69888093590219,
+      "max_abs_error": 7.037699863806847e-17
+    },
+    {
+      "threads": 8,
+      "layout": "column-major",
+      "seconds": 0.03112811699975282,
+      "nominal_operator_read_gb_per_second": 51.74141230620501,
+      "max_abs_error": 6.101814309711891e-17
+    },
+    {
+      "threads": 8,
+      "layout": "row-major",
+      "seconds": 0.028845227003330365,
+      "nominal_operator_read_gb_per_second": 55.836368901310585,
+      "max_abs_error": 7.037699863806847e-17
+    },
+    {
+      "threads": 16,
+      "layout": "column-major",
+      "seconds": 0.034484935022192076,
+      "nominal_operator_read_gb_per_second": 46.70482153913073,
+      "max_abs_error": 6.101814309711891e-17
+    },
+    {
+      "threads": 16,
+      "layout": "row-major",
+      "seconds": 0.03036475699627772,
+      "nominal_operator_read_gb_per_second": 53.042174393078064,
+      "max_abs_error": 7.037699863806847e-17
+    },
+    {
+      "threads": 32,
+      "layout": "column-major",
+      "seconds": 0.033096029015723616,
+      "nominal_operator_read_gb_per_second": 48.66483333196296,
+      "max_abs_error": 6.101814309711891e-17
+    },
+    {
+      "threads": 32,
+      "layout": "row-major",
+      "seconds": 0.031910207006148994,
+      "nominal_operator_read_gb_per_second": 50.47327758449326,
+      "max_abs_error": 7.037699863806847e-17
+    }
+  ],
+  "scope": "Cached physical sampling operator; separate prepacked CPU layouts; changing coefficient vectors; median of seven warm applications including output allocation, excluding assembly and packing. GPU timing is measured by the Rust sampling benchmark."
+}

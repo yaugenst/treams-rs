@@ -64,10 +64,25 @@ impl Device {
         })
     }
 
-    fn matmul(&self, py: Python<'_>, left: &Matrix, right: &Matrix) -> PyResult<Matrix> {
+    #[pyo3(signature = (left, right, *, adjoint_left=false, adjoint_right=false))]
+    fn matmul(
+        &self,
+        py: Python<'_>,
+        left: &Matrix,
+        right: &Matrix,
+        adjoint_left: bool,
+        adjoint_right: bool,
+    ) -> PyResult<Matrix> {
         Ok(Matrix {
             value: py
-                .detach(|| self.gpu.matmul(&left.value, &right.value))
+                .detach(|| {
+                    self.gpu.matmul_with_adjoint(
+                        &left.value,
+                        &right.value,
+                        adjoint_left,
+                        adjoint_right,
+                    )
+                })
                 .map_err(error)?,
         })
     }

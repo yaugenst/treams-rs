@@ -1,0 +1,104 @@
+{
+  "points": 32768,
+  "modes": 1024,
+  "precision": "complex128",
+  "point_geometry": "deterministic irregular three-dimensional cloud",
+  "operator_bytes": 1610612736,
+  "numpy_version": "2.5.3",
+  "scipy_version": "1.16.3",
+  "libraries": [
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 32,
+      "prefix": "libscipy_openblas",
+      "filepath": "~/personal/worktrees/treams-rs-gpu-fields/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-f48b354e.so",
+      "version": "0.3.34.106.0",
+      "threading_layer": "pthreads",
+      "architecture": "SkylakeX"
+    },
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 32,
+      "prefix": "libscipy_openblas",
+      "filepath": "~/personal/worktrees/treams-rs-gpu-fields/.venv/lib/python3.13/site-packages/scipy.libs/libscipy_openblas-b75cc656.so",
+      "version": "0.3.29.dev",
+      "threading_layer": "pthreads",
+      "architecture": "SkylakeX"
+    }
+  ],
+  "results": [
+    {
+      "threads": 1,
+      "layout": "column-major",
+      "seconds": 0.04499761201441288,
+      "nominal_operator_read_gb_per_second": 35.79329355264709,
+      "max_abs_error": 5.902044509704017e-17
+    },
+    {
+      "threads": 1,
+      "layout": "row-major",
+      "seconds": 0.03505134998704307,
+      "nominal_operator_read_gb_per_second": 45.950091411468385,
+      "max_abs_error": 6.028641811046572e-17
+    },
+    {
+      "threads": 4,
+      "layout": "column-major",
+      "seconds": 0.030475809995550662,
+      "nominal_operator_read_gb_per_second": 52.848890193079114,
+      "max_abs_error": 5.902044509704017e-17
+    },
+    {
+      "threads": 4,
+      "layout": "row-major",
+      "seconds": 0.028973290987778455,
+      "nominal_operator_read_gb_per_second": 55.58956822265687,
+      "max_abs_error": 6.028641811046572e-17
+    },
+    {
+      "threads": 8,
+      "layout": "column-major",
+      "seconds": 0.031401323998579755,
+      "nominal_operator_read_gb_per_second": 51.2912365119651,
+      "max_abs_error": 5.902044509704017e-17
+    },
+    {
+      "threads": 8,
+      "layout": "row-major",
+      "seconds": 0.028943210025317967,
+      "nominal_operator_read_gb_per_second": 55.647343006913275,
+      "max_abs_error": 6.028641811046572e-17
+    },
+    {
+      "threads": 16,
+      "layout": "column-major",
+      "seconds": 0.03217579500051215,
+      "nominal_operator_read_gb_per_second": 50.056657060823625,
+      "max_abs_error": 5.902044509704017e-17
+    },
+    {
+      "threads": 16,
+      "layout": "row-major",
+      "seconds": 0.03133633197285235,
+      "nominal_operator_read_gb_per_second": 51.39761531104931,
+      "max_abs_error": 6.028641811046572e-17
+    },
+    {
+      "threads": 32,
+      "layout": "column-major",
+      "seconds": 0.03454389699618332,
+      "nominal_operator_read_gb_per_second": 46.625102436414544,
+      "max_abs_error": 5.902044509704017e-17
+    },
+    {
+      "threads": 32,
+      "layout": "row-major",
+      "seconds": 0.032460101996548474,
+      "nominal_operator_read_gb_per_second": 49.618227822305016,
+      "max_abs_error": 6.028641811046572e-17
+    }
+  ],
+  "scope": "Cached physical sampling operator; separate prepacked CPU layouts; changing coefficient vectors; median of seven warm applications including output allocation, excluding assembly and packing. GPU timing is measured by the Rust sampling benchmark."
+}

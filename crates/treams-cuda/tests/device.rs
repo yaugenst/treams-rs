@@ -115,3 +115,72 @@ fn shared_equilibration_and_implicit_pullback() {
 fn unsupported_host_returns_error_without_loading_cuda() {
     assert!(matches!(Gpu::new(0), Err(Error::Unavailable(_))));
 }
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(24))]
+    #[test]
+    #[ignore = "requires a CUDA GPU and CUDA13 shared libraries"]
+    fn rectangular_products_and_coefficient_pullback(
+        rows in 33usize..97,
+        modes in 5usize..17,
+        columns in 1usize..5,
+        seed in 0.0f64..30.0,
+    ) {
+        let gpu = Gpu::new(0).unwrap();
+        let a = matrix(rows, modes, seed);
+        let b = matrix(modes, columns, seed + 1.0);
+        let expected = &a * &b;
+        for adjoint_left in [false, true] {
+            for adjoint_right in [false, true] {
+                let left = if adjoint_left { a.adjoint() } else { a.clone() };
+                let right = if adjoint_right { b.adjoint() } else { b.clone() };
+                let actual = gpu.matmul_with_adjoint(
+                    &gpu.upload(&left).unwrap(),
+                    &gpu.upload(&right).unwrap(),
+                    adjoint_left,
+                    adjoint_right,
+                ).unwrap();
+                prop_assert_eq!(actual.shape(), (rows, columns));
+                close(&actual.download().unwrap(), &expected, 3e-12);
+            }
+        }
+
+        let delta_coefficients = matrix(modes, 1, seed + 2.0);
+        let cotangent = matrix(rows, 1, seed + 3.0);
+        let operator = gpu.upload(&a).unwrap();
+        let delta_field = gpu.matmul(
+            &operator, &gpu.upload(&delta_coefficients).unwrap(),
+        ).unwrap().download().unwrap();
+        let coefficient_pullback = gpu.matmul_with_adjoint(
+            &operator, &gpu.upload(&cotangent).unwrap(), true, false,
+        ).unwrap();
+        prop_assert_eq!(coefficient_pullback.shape(), (modes, 1));
+        let coefficient_pullback = coefficient_pullback.download().unwrap();
+        close(&coefficient_pullback, &(a.adjoint() * &cotangent), 3e-12);
+
+        // The complex Hermitian identity also verifies the native real pairing.
+        let forward_pair = cotangent.dotc(&delta_field);
+        let reverse_pair = coefficient_pullback.dotc(&delta_coefficients);
+        let scale = (cotangent.norm() * delta_field.norm()).max(1.0);
+        prop_assert!((forward_pair - reverse_pair).norm() <= 3e-12 * scale);
+    }
+}
+
+#[test]
+#[ignore = "requires a CUDA GPU and CUDA13 shared libraries"]
+fn adjointed_product_validates_effective_shape_and_owner() {
+    let gpu = Gpu::new(0).unwrap();
+    let left = gpu.upload(&matrix(5, 3, 1.0)).unwrap();
+    let right = gpu.upload(&matrix(3, 2, 2.0)).unwrap();
+    // The stored shapes multiply; the requested adjoint makes them incompatible.
+    assert!(matches!(
+        gpu.matmul_with_adjoint(&left, &right, true, false),
+        Err(Error::InvalidInput(_))
+    ));
+    let another = Gpu::new(0).unwrap();
+    let right = another.upload(&matrix(5, 2, 2.0)).unwrap();
+    assert!(matches!(
+        gpu.matmul_with_adjoint(&left, &right, true, false),
+        Err(Error::InvalidInput(_))
+    ));
+}

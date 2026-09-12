@@ -18,34 +18,82 @@ mod kernel {
         vectors: &Tensor<f64, { [-1, -1] }>,
         pol_real: &Tensor<f64, { [-1, -1] }>,
         pol_imag: &Tensor<f64, { [-1, -1] }>,
+        real_k: bool,
     ) {
         let block = get_tile_block_id().0;
         let r = points.partition(shape![B, 1]);
-        let x = r.load([block, 0]);
-        let y = r.load([block, 1]);
-        let z = r.load([block, 2]);
+        let x = r.load([block, 0]).broadcast(shape![B, 1]);
+        let y = r.load([block, 1]).broadcast(shape![B, 1]);
+        let z = r.load([block, 2]).broadcast(shape![B, 1]);
         let k = vectors.partition(shape![1, 1]);
-        let pr = pol_real.partition(shape![1, 4]);
-        let pi = pol_imag.partition(shape![1, 4]);
-        let mut result_real = 0.0f64.broadcast(shape![B, 4]);
-        let mut result_imag = 0.0f64.broadcast(shape![B, 4]);
+        let pr = pol_real.partition(shape![1, 1]);
+        let pi = pol_imag.partition(shape![1, 1]);
+        let mut xr = 0.0f64.broadcast(shape![B, 1]);
+        let mut xi = 0.0f64.broadcast(shape![B, 1]);
+        let mut yr = 0.0f64.broadcast(shape![B, 1]);
+        let mut yi = 0.0f64.broadcast(shape![B, 1]);
+        let mut zr = 0.0f64.broadcast(shape![B, 1]);
+        let mut zi = 0.0f64.broadcast(shape![B, 1]);
         for m in 0..num_tiles(&k, 0) {
-            let phase = k.load([m, 0]).broadcast(shape![B, 1]) * x
-                + k.load([m, 2]).broadcast(shape![B, 1]) * y
-                + k.load([m, 4]).broadcast(shape![B, 1]) * z;
-            let decay = k.load([m, 1]).broadcast(shape![B, 1]) * x
-                + k.load([m, 3]).broadcast(shape![B, 1]) * y
-                + k.load([m, 5]).broadcast(shape![B, 1]) * z;
-            let magnitude = exp(negf(decay));
-            let phase_real = (magnitude * cos(phase)).broadcast(shape![B, 4]);
-            let phase_imag = (magnitude * sin(phase)).broadcast(shape![B, 4]);
-            let a = pr.load([m, 0]).broadcast(shape![B, 4]);
-            let b = pi.load([m, 0]).broadcast(shape![B, 4]);
-            result_real = result_real + a * phase_real - b * phase_imag;
-            result_imag = result_imag + a * phase_imag + b * phase_real;
+            let phase = k.load([m, 0]).transpose().broadcast(shape![B, 1]) * x
+                + k.load([m, 2]).transpose().broadcast(shape![B, 1]) * y
+                + k.load([m, 4]).transpose().broadcast(shape![B, 1]) * z;
+            let magnitude: Tile<f64, { [B, 1] }> = if real_k {
+                1.0f64.broadcast(shape![B, 1])
+            } else {
+                let decay = k.load([m, 1]).transpose().broadcast(shape![B, 1]) * x
+                    + k.load([m, 3]).transpose().broadcast(shape![B, 1]) * y
+                    + k.load([m, 5]).transpose().broadcast(shape![B, 1]) * z;
+                exp(negf(decay))
+            };
+            let phase_real = magnitude * cos(phase);
+            let phase_imag = magnitude * sin(phase);
+            let a = pr.load([m, 0]).transpose().broadcast(shape![B, 1]);
+            let b = pi.load([m, 0]).transpose().broadcast(shape![B, 1]);
+            xr = fma(a, phase_real, xr, rounding::NearestEven, ftz::Disabled);
+            xr = fma(
+                negf(b),
+                phase_imag,
+                xr,
+                rounding::NearestEven,
+                ftz::Disabled,
+            );
+            xi = fma(a, phase_imag, xi, rounding::NearestEven, ftz::Disabled);
+            xi = fma(b, phase_real, xi, rounding::NearestEven, ftz::Disabled);
+            let a = pr.load([m, 1]).transpose().broadcast(shape![B, 1]);
+            let b = pi.load([m, 1]).transpose().broadcast(shape![B, 1]);
+            yr = fma(a, phase_real, yr, rounding::NearestEven, ftz::Disabled);
+            yr = fma(
+                negf(b),
+                phase_imag,
+                yr,
+                rounding::NearestEven,
+                ftz::Disabled,
+            );
+            yi = fma(a, phase_imag, yi, rounding::NearestEven, ftz::Disabled);
+            yi = fma(b, phase_real, yi, rounding::NearestEven, ftz::Disabled);
+            let a = pr.load([m, 2]).transpose().broadcast(shape![B, 1]);
+            let b = pi.load([m, 2]).transpose().broadcast(shape![B, 1]);
+            zr = fma(a, phase_real, zr, rounding::NearestEven, ftz::Disabled);
+            zr = fma(
+                negf(b),
+                phase_imag,
+                zr,
+                rounding::NearestEven,
+                ftz::Disabled,
+            );
+            zi = fma(a, phase_imag, zi, rounding::NearestEven, ftz::Disabled);
+            zi = fma(b, phase_real, zi, rounding::NearestEven, ftz::Disabled);
         }
-        real.store(result_real);
-        imag.store(result_imag);
+        let zero = 0.0f64.broadcast(shape![B, 1]);
+        let real_xy: Tile<f64, { [B, 2] }> = cat(xr, yr, 1);
+        let real_z0: Tile<f64, { [B, 2] }> = cat(zr, zero, 1);
+        let imag_xy: Tile<f64, { [B, 2] }> = cat(xi, yi, 1);
+        let imag_z0: Tile<f64, { [B, 2] }> = cat(zi, zero, 1);
+        let real_out: Tile<f64, { [B, 4] }> = cat(real_xy, real_z0, 1);
+        let imag_out: Tile<f64, { [B, 4] }> = cat(imag_xy, imag_z0, 1);
+        real.store(real_out);
+        imag.store(imag_out);
     }
 }
 
@@ -61,6 +109,7 @@ pub struct PlaneWaves {
     pol_real: Tensor<f64>,
     pol_imag: Tensor<f64>,
     modes: usize,
+    real_k: bool,
 }
 
 impl std::fmt::Debug for PlaneWaves {
@@ -133,6 +182,8 @@ impl PlaneWaves {
             .iter()
             .flat_map(|p| [p[0].im, p[1].im, p[2].im, 0.0])
             .collect();
+        // This exact identity removes attenuation work only for real wavevectors.
+        let real_k = vectors.iter().flatten().all(|k| k.im == 0.0);
         let device = Device::new(device)?;
         let stream = device.new_stream()?;
         let vectors = api::copy_host_vec_to_device(&Arc::new(wave_data))
@@ -150,6 +201,7 @@ impl PlaneWaves {
             pol_real,
             pol_imag,
             modes,
+            real_k,
         })
     }
 
@@ -186,6 +238,7 @@ impl PlaneWaves {
             &self.vectors,
             &self.pol_real,
             &self.pol_imag,
+            self.real_k,
         )
         .sync_on(&self.stream)?;
         let real = Arc::new(real).to_host_vec().sync_on(&self.stream)?;

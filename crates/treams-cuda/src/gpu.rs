@@ -197,7 +197,22 @@ impl Gpu {
 
     /// Multiply two resident matrices with NVIDIA's double-complex GEMM.
     pub fn matmul(&self, left: &DeviceMatrix, right: &DeviceMatrix) -> Result<DeviceMatrix> {
-        self.product(left, right, false, false, 1.0)
+        self.matmul_with_adjoint(left, right, false, false)
+    }
+
+    /// Multiply resident matrices, optionally conjugate-transposing either input.
+    ///
+    /// Adjoint operands share their existing storage. In particular, `Fᴴ g`
+    /// computes the coefficient pullback of a fixed sampling operator without
+    /// allocating or uploading a transposed copy of `F`.
+    pub fn matmul_with_adjoint(
+        &self,
+        left: &DeviceMatrix,
+        right: &DeviceMatrix,
+        adjoint_left: bool,
+        adjoint_right: bool,
+    ) -> Result<DeviceMatrix> {
+        self.product(left, right, adjoint_left, adjoint_right, 1.0)
     }
 
     fn scale_rows(&self, matrix: &mut DeviceMatrix, scales: &DeviceMatrix) -> Result<()> {

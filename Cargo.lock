@@ -2241,6 +2241,7 @@ dependencies = [
  "libloading 0.9.0",
  "nalgebra",
  "proptest",
+ "rayon",
  "serde_json",
  "thiserror 2.0.20",
  "treams-core",
@@ -2252,6 +2253,7 @@ version = "0.1.0"
 dependencies = [
  "cutile",
  "proptest",
+ "rayon",
  "treams-core",
 ]
 

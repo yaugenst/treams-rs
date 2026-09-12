@@ -1,0 +1,32 @@
+{
+  "base_commit": "43bb7fe34dc438a8561e4c4439ea181613830bba",
+  "branch": "gpu/plane-field-throughput",
+  "native_extension": {
+    "path": "~/personal/worktrees/treams-rs-gpu-fields/python/treams_rs/_native.cpython-313-x86_64-linux-gnu.so",
+    "sha256": "e49b2ac90634226317cf4cea527ecb86f6b7f3f4fdfe015cfdaa8a8d62b15c2e"
+  },
+  "source_sha256": {
+    "crates/treams-cuda-tile/src/plane.rs": "bf7e364ee84c66f6d762bcde4e2a2489ba779c3f8090bb7d45313483c3062987",
+    "crates/treams-cuda-tile/examples/qualify_plane.rs": "cdf9cab4c15a62b439af3725a76186ff16f14e64f6f2a68b10764146ee122adb",
+    "crates/treams-cuda-tile/examples/probe_plane.rs": "ca01a816fe86738ecb53e7b58ae5816a83dc12bbb44800808f50f3410ccd4647",
+    "crates/treams-cuda-tile/tests/plane.rs": "c828b3e285f0845e49c1f9dcd07f79c80189d836e72792fd4b4b3c991f844641",
+    "crates/treams-cuda/src/gpu.rs": "b157dfc1acf6bc68824362548291d28fa50ca58647f7e0808040228149f3b9ee",
+    "crates/treams-cuda/examples/benchmark_sampling.rs": "ebccacb9260fd3bd3743105974eb3b99d9ef5f84ffcc8ba6c16489a830c30513",
+    "crates/treams-cuda/tests/device.rs": "bfe036285c18b94973f6ce022fad7477000fce3ec69f1a7a06d7aa08ba204414",
+    "crates/treams-py/src/cuda.rs": "8c68d2ba3754a4436913677c27865d0f7948ed52b7dfac2f5259e1de1ecf8209",
+    "crates/treams-core/src/plane.rs": "fc74e47406c52d551fa27e74aed328f0eb79033471947f1475c1f6b6fa2c8226",
+    "python/treams_rs/cuda.py": "8c6ebd60a94421926cb4ff7c416cef5c6e5c5cfd636eafb68b48b6bd59de7826",
+    "python/treams_rs/_native.pyi": "a0dba5cec34410d057535939f32f97965460a04addcd43b3abc480fcd4d329b9",
+    "tests/test_cuda.py": "fdfc9395ca17c73f96834a86a8e666e67d8d2331196b096b67df384a28f17a62",
+    "scripts/benchmark_sampling_blas.py": "54b4b54da14554070985b0136a975af8a26239302cafe62ec4d65dd2b91a1e36",
+    "Cargo.lock": "74560965139c18a66b993b5ea54affdf718f287a29bdfbd7fc65190a453f1980"
+  },
+  "binaries": {
+    "/tmp/treams-cuda-probe/target/release/examples/benchmark_sampling": "1caff75625f591121a599d711be32aa2b839bfb4d9a55a1152bf38f19482a746",
+    "/tmp/treams-cuda-probe/target/release/examples/qualify_plane": "28ae973505debf6af9d3dd7f43877a2b568ac109cad639f565d9f3d0af42a8a5",
+    "/tmp/treams-cuda-probe/target/release/examples/probe_plane": "073e5c549de24279dc576ac94df3278fd08c362819b5bb78052e35c5e7fd11df"
+  },
+  "python": "3.13.1 (main, Dec 19 2024, 14:32:25) [Clang 18.1.8 ]",
+  "rustc": "rustc 1.94.0 (4a4ef493e 2026-03-02)",
+  "driver_gpu": "NVIDIA GeForce RTX 4080 SUPER, 610.57.04, 16376 MiB, 8.9"
+}

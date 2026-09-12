@@ -20,6 +20,7 @@ libloading = { version = "0.9", optional = true }
 [dev-dependencies]
 proptest = "1"
 faer.workspace = true
+rayon.workspace = true
 serde_json = "1"
 
 [lints]
@@ -27,4 +28,8 @@ workspace = true
 
 [[example]]
 name = "benchmark"
+required-features = ["cuda"]
+
+[[example]]
+name = "benchmark_sampling"
 required-features = ["cuda"]

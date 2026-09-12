@@ -16,9 +16,14 @@ treams-core = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest = "1"
+rayon.workspace = true
 
 [[example]]
 name = "qualify_plane"
+required-features = ["cuda-tile"]
+
+[[example]]
+name = "probe_plane"
 required-features = ["cuda-tile"]
 
 [lints]
