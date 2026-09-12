@@ -91,6 +91,8 @@ try {
     };
     await page.goto(url);
     await settled(0);
+    await page.evaluate(() => document.fonts.ready);
+    assert.equal(await page.locator("#experiments .nav-item").count(), 8);
     assert.equal(
       await page.locator("#pause").getAttribute("aria-label"),
       "Play animation",
@@ -131,7 +133,7 @@ try {
           }),
           controls: [
             ...document.querySelectorAll(
-              `#${kind}-controls input, #scene, #spectrum, .plot-key, .showcase-tabs button`,
+              `#${kind}-controls input, #scene, #spectrum, .plot-key, .showcase-tabs [aria-current="page"]`,
             ),
           ].map((el) => ({
             id: el.id,
@@ -147,7 +149,7 @@ try {
         layout.width <= viewport.width,
         `${kind} ${viewport.width}: no horizontal overflow (${layout.width}px)`,
       );
-      if (mobile)
+      if (mobile && viewport.height >= 720)
         assert(
           layout.height <= viewport.height,
           `${kind} ${viewport.width}: page fits viewport`,
@@ -368,6 +370,72 @@ try {
       );
       await settled(keyCount);
       await cdp.detach();
+    }
+    if (viewport.width === 390) {
+      await page.locator('#experiments [data-experiment="resonance"]').click();
+      await page.waitForFunction(
+        () => document.body.dataset.experiment === "resonance",
+      );
+      assert.equal(await page.locator("#experiments .nav-item").count(), 8);
+      assert.equal(
+        await page
+          .locator('#experiments [aria-current="page"]')
+          .getAttribute("data-experiment"),
+        "resonance",
+      );
+      assert.equal(
+        await page.evaluate(async () => {
+          const { fromHash } = await import("./model.js");
+          return fromHash(location.hash).experiment;
+        }),
+        "resonance",
+        "returning to a particle example uses the existing share-state format",
+      );
+      await page.locator('#experiments [data-experiment="crystal"]').click();
+      await settled(0);
+      assert.equal(
+        await page
+          .locator('#experiments [aria-current="page"]')
+          .getAttribute("data-experiment"),
+        "crystal",
+        "the eighth example opens directly from the shared navigation",
+      );
+    }
+    if (viewport.width === 320) {
+      await page.evaluate(() => {
+        // Model a long response time and a phone's bottom safe area.
+        document.getElementById("timing").textContent =
+          "1234 ms · selected response";
+        document.querySelector(".advanced-footer").style.paddingBottom = "34px";
+      });
+      const legend = await page.locator(".plot-key").boundingBox();
+      const controls = await page.locator(".advanced-controls").boundingBox();
+      assert(
+        legend.y + legend.height <= controls.y,
+        "wrapped readouts cannot push the legend into controls",
+      );
+      await page.mouse.move(160, 400);
+      await page.mouse.wheel(0, 500);
+      await page.waitForTimeout(150);
+      assert(
+        await page
+          .locator(".advanced-footer a")
+          .first()
+          .evaluate((link) => {
+            const bounds = link.getBoundingClientRect();
+            return (
+              bounds.top >= 0 &&
+              bounds.bottom <= innerHeight - 34 &&
+              link.contains(
+                document.elementFromPoint(
+                  bounds.x + bounds.width / 2,
+                  bounds.y + bounds.height / 2,
+                ),
+              )
+            );
+          }),
+        "the footer scrolls into view above the bottom safe area and can be tapped",
+      );
     }
     await context.close();
   }

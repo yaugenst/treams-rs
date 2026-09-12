@@ -64,6 +64,7 @@ try {
       { timeout: 30000 },
     );
   await settled();
+  await page.evaluate(() => document.fonts.ready);
   const cdp = await context.newCDPSession(page);
   const touch = (type, x, y) =>
     cdp.send("Input.dispatchTouchEvent", {
@@ -128,9 +129,13 @@ try {
         document.documentElement.scrollHeight > innerHeight ||
         document.documentElement.scrollWidth > innerWidth,
       field: document.getElementById("field").getBoundingClientRect().toJSON(),
-      controls: [...document.querySelectorAll(".primary-control input")].map(
-        (e) => e.getBoundingClientRect().toJSON(),
-      ),
+      controls: [
+        ...document.querySelectorAll(
+          "#controls, .primary-control input, #actions button",
+        ),
+      ]
+        .map((e) => e.getBoundingClientRect().toJSON())
+        .filter((rect) => rect.height > 0),
     }));
     assert(
       !layout.overflow,
@@ -376,6 +381,73 @@ try {
       "small mobile page stays in viewport",
     );
   }
+  // Emulate the safe-area padding reported by a phone with browser chrome.
+  // A short screen must also allow user scrolling all the way to the last row.
+  await page.getByRole("button", { name: "Less", exact: true }).click();
+  const safeArea = await page.addStyleTag({
+    content: "@media(max-width:620px){.lab > main{padding-bottom:34px}}",
+  });
+  await page
+    .getByRole("button", { name: "02 Find a resonance", exact: true })
+    .click();
+  for (const height of [740, 568]) {
+    await page.setViewportSize({ width: 390, height });
+    await settled();
+    await page.locator(".lab").evaluate((e) => {
+      e.scrollTop = 0;
+    });
+    if (height === 568) {
+      const controls = await page.locator("#controls").boundingBox();
+      await page.mouse.move(
+        controls.x + 10,
+        Math.min(controls.y + 20, height - 10),
+      );
+      await page.mouse.wheel(0, 500);
+    }
+    await page.waitForFunction(() => {
+      const controls = document
+        .getElementById("controls")
+        .getBoundingClientRect();
+      return controls.bottom <= innerHeight - 33;
+    });
+    const action = page.getByRole("button", {
+      name: "Quadrupole",
+      exact: true,
+    });
+    const bounds = await action.boundingBox();
+    assert(
+      bounds.y >= 0 && bounds.y + bounds.height <= height - 34,
+      "bottom action is fully reachable above the browser safe area",
+    );
+    assert(
+      await action.evaluate((e) => {
+        const r = e.getBoundingClientRect();
+        return e.contains(
+          document.elementFromPoint(r.x + r.width / 2, r.bottom - 2),
+        );
+      }),
+      "bottom of the action is hit-testable, not clipped by an ancestor",
+    );
+    await page.screenshot({ path: `output/mobile-safe-area-${height}.png` });
+  }
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.mouse.move(8, 500);
+  await page.mouse.wheel(0, 500);
+  await page.waitForFunction(
+    () =>
+      document.getElementById("controls").getBoundingClientRect().bottom <=
+      innerHeight - 33,
+  );
+  const expanded = await page.locator("#controls").boundingBox();
+  await page.mouse.move(expanded.x + 10, expanded.y + 50);
+  await page.mouse.wheel(0, 500);
+  await page.waitForFunction(() => {
+    const note = document
+      .querySelector(".science-note")
+      .getBoundingClientRect();
+    return note.bottom <= innerHeight - 34 && note.top >= 0;
+  });
+  await safeArea.evaluate((e) => e.remove());
   await context.close();
   const desktop = await browser.newPage({
     viewport: { width: 1440, height: 1000 },

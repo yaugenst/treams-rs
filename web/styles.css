@@ -124,6 +124,7 @@ nav {
   border-radius: 6px 11px 7px 12px / 10px 7px 11px 6px;
   background: none;
   text-align: left;
+  text-decoration: none;
   color: var(--muted);
   font-size: 14px;
   line-height: 1.3;
@@ -1030,7 +1031,7 @@ canvas {
 @media (max-width: 620px) {
   .lab {
     height: 100dvh;
-    overflow: hidden;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
   }
@@ -1065,9 +1066,9 @@ canvas {
   }
   main {
     margin: 0;
-    padding: 10px 16px 8px;
+    padding: 10px 16px max(8px, env(safe-area-inset-bottom));
     flex: 1;
-    min-height: 0;
+    min-height: auto;
     display: flex;
     flex-direction: column;
   }
@@ -1097,15 +1098,26 @@ canvas {
   }
   .workspace {
     flex: 1;
-    min-height: 0;
+    min-height: auto;
     gap: 8px;
   }
   .stage-column {
-    flex-shrink: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
   }
   .stage {
-    width: min(100%, calc(100dvh - 440px));
-    margin-inline: auto;
+    flex: 1;
+    width: auto;
+    min-height: 120px;
+    max-height: calc(100vw - 32px);
+    align-self: center;
+    margin-inline: 0;
+  }
+  .display-bar,
+  .readout,
+  .spectrum {
+    flex-shrink: 0;
   }
   .stage-top {
     top: 10px;
@@ -1171,10 +1183,10 @@ canvas {
     display: none;
   }
   .controls {
-    flex: 1;
-    min-height: 156px;
+    flex: 0 0 auto;
+    min-height: 0;
+    max-height: 45dvh;
     overflow-y: auto;
-    overscroll-behavior: contain;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 4px 16px;
@@ -1298,9 +1310,6 @@ canvas {
   }
   .spectrum canvas {
     height: 58px;
-  }
-  body[data-experiment="resonance"] .stage {
-    width: min(100%, calc(100dvh - 500px));
   }
 }
 

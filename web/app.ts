@@ -9,6 +9,7 @@ import {
   type Particle,
 } from "./model.js";
 import { padField, patternGain } from "./field-view.js";
+import { navigation } from "./navigation.js";
 function element<T extends HTMLElement>(id: string): T {
   const e = document.getElementById(id);
   if (!e) throw new Error(`Missing ${id}`);
@@ -52,14 +53,12 @@ const transition = document.createElement("canvas"),
 const worker = new Worker("./worker.js", { type: "module" }),
   status = element("status"),
   nav = element("experiments");
-for (const [key, preset] of Object.entries(presets)) {
-  const button = document.createElement("button");
-  button.className = "nav-item";
-  button.dataset.experiment = key;
-  button.innerHTML = `<span class="nav-number">0${nav.children.length + 1}</span>${preset.short}`;
-  button.onclick = () => select(key as Experiment);
-  nav.append(button);
-}
+const syncNavigation = navigation(
+  nav,
+  Object.fromEntries(
+    Object.keys(presets).map((key) => [key, () => select(key as Experiment)]),
+  ),
+);
 function select(experiment: Experiment) {
   stopOptimization();
   optimizationSteps = 0;
@@ -79,14 +78,8 @@ function updateControls() {
   element("description").textContent = preset.description;
   element("explanation").textContent = preset.explanation;
   element("eyebrow").textContent =
-    `EXPERIMENT 0${Object.keys(presets).indexOf(state.experiment) + 1} / 06`;
-  document.querySelectorAll<HTMLButtonElement>(".nav-item").forEach((b) => {
-    b.classList.toggle("active", b.dataset.experiment === state.experiment);
-    b.setAttribute(
-      "aria-current",
-      b.dataset.experiment === state.experiment ? "page" : "false",
-    );
-  });
+    `EXPERIMENT 0${Object.keys(presets).indexOf(state.experiment) + 1} / 08`;
+  syncNavigation(state.experiment);
   element<HTMLInputElement>("wavelength").value = String(state.wavelength);
   element("wavelength-value").textContent = `${state.wavelength.toFixed(2)} μm`;
   element<HTMLInputElement>("angle").value = String(state.angle);

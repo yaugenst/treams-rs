@@ -7,6 +7,7 @@ import {
   type Point,
   type Curve,
 } from "./advanced-physics.js";
+import { navigation } from "./navigation.js";
 const el = <T extends HTMLElement>(id: string) =>
   document.getElementById(id) as T;
 const canvas = el<HTMLCanvasElement>("scene"),
@@ -34,12 +35,16 @@ const percentage = (n: number) =>
 const status = (message: string) => {
   el("status").textContent = message;
 };
+const syncNavigation = navigation(el("experiments"), {
+  array: () => choose("array"),
+  crystal: () => choose("crystal"),
+});
 function sync() {
   const array = state.kind === "array";
   el("array-controls").hidden = !array;
   el("crystal-controls").hidden = array;
-  el("array-tab").setAttribute("aria-pressed", String(array));
-  el("crystal-tab").setAttribute("aria-pressed", String(!array));
+  syncNavigation(state.kind);
+  el("eyebrow").textContent = `EXPERIMENT ${array ? "07" : "08"} / 08`;
   el("plot-switch").hidden = array;
   el("gap-key").hidden = array;
   el("title").textContent = array
@@ -200,8 +205,6 @@ function choose(kind: "array" | "crystal") {
   history.replaceState(null, "", `#${kind}`);
   request();
 }
-el("array-tab").onclick = () => choose("array");
-el("crystal-tab").onclick = () => choose("crystal");
 el("reset").onclick = () => {
   arrayState = initialArray();
   crystalState = initialCrystal();

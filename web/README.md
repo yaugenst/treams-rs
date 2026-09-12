@@ -1,10 +1,10 @@
 # Light Lab
 
-Six static, mobile-friendly experiments using the real `treams-wasm` solver:
+Eight static, mobile-friendly experiments using the real `treams-wasm` solver:
 interacting spheres, resonances and multipoles, coherent mode mixing, core-shell
-scattering suppression, material chirality, and target-intensity optimization.
-The [advanced page](advanced.html) adds square-array diffraction and a
-one-dimensional photonic crystal.
+scattering suppression, material chirality, target-intensity optimization,
+square-array diffraction, and a one-dimensional photonic crystal. All eight share
+one experiment navigation; the periodic examples reuse [their renderer](advanced.html).
 The gradient overlay shows the analytic position derivative of the target's
 **total** electric intensity. Arrow lengths share a relative scale; they are not
 forces. Run repeats the native analytic adjoint/backtracking step and accepts only
@@ -87,15 +87,18 @@ validated when loaded and is not sent to the static server.
   Animation reuses the complex field and pauses when the tab is hidden.
   Reduced-motion preference disables autoplay.
 
-Mobile keeps the field and two primary controls together in one viewport. More
-opens the remaining settings in a separately scrolling panel. The field itself
-accepts wavelength, mode, coating and chirality gestures.
+Mobile sizes the square field around its controls and respects the bottom safe
+area. Short screens can scroll to reach the last row. More opens the remaining
+settings in a separately scrolling panel. The field itself accepts wavelength,
+mode, coating and chirality gestures.
 
 `npm run test:ui` uses Playwright with actual Chrome on macOS (or an installed
 Playwright Chromium elsewhere). It verifies touch dragging updates the rendered
 particle in two animation frames while the field is pending, all six interactions,
-visible primary controls at phone sizes, narrow layouts, sharing and the adjoint
-step. Screenshots are written to the ignored `web/output` folder.
+visible primary controls and action buttons at phone sizes, narrow layouts,
+sharing and the adjoint step. It also checks real scrolling and bottom-control
+hit testing with simulated safe-area padding, plus navigation across all eight
+examples. Screenshots are written to the ignored `web/output` folder.
 
 `npm test` exercises real WASM for all six paths, coherent coupling, helicity
 symmetry, phase-sensitive local interference with invariant mode power, link
