@@ -105,3 +105,32 @@ def test_invalid_global_default_is_rejected_and_explicit_choice_is_independent()
         assert tr.plane_wave([0, 0, 1], 0, poltype="helicity").poltype == "helicity"
     finally:
         tr.config.POLTYPE = previous
+
+
+@pytest.mark.parametrize("kind", ["sphere", "cylinder"])
+@given(radius=st.floats(0.1, 0.5), k0=st.floats(0.8, 1.8))
+def test_particle_constructors_convert_from_native_helicity_independent_of_default(
+    kind, radius, k0
+):
+    def particle(poltype=None):
+        if kind == "sphere":
+            return tr.TMatrix.sphere(
+                2, k0, radius, [(2.3, 1.1, 0.07), 1], poltype=poltype
+            )
+        return tr.TMatrixC.cylinder(
+            [0.2], 2, k0, radius, [(2.3, 1.1, 0.07), 1], poltype=poltype
+        )
+
+    previous = tr.config.POLTYPE
+    try:
+        tr.config.POLTYPE = "helicity"
+        helicity = particle()
+        expected = helicity.changepoltype("parity")
+        tr.config.POLTYPE = "parity"
+        assert_allclose(particle().array, expected.array, rtol=0, atol=0)
+        assert_allclose(particle("parity").array, expected.array, rtol=0, atol=0)
+        assert_allclose(particle("helicity").array, helicity.array, rtol=0, atol=0)
+        tr.config.POLTYPE = "invalid"
+        assert_allclose(particle("helicity").array, helicity.array, rtol=0, atol=0)
+    finally:
+        tr.config.POLTYPE = previous

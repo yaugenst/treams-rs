@@ -22,7 +22,14 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, init=False)
 class Material:
-    """Relative permittivity, permeability and chirality, in treams conventions."""
+    """Isotropic reciprocal material with relative epsilon, mu and chirality kappa.
+
+    All three parameters are dimensionless complex scalars. A single scalar
+    specifies epsilon with mu=1 and kappa=0; a tuple/list specifies
+    ``(epsilon, mu, kappa)`` with omitted trailing values taking those defaults.
+    Passing another Material copies its three values. Instances are immutable.
+    Call or iterate the object to obtain the parameters in that order.
+    """
 
     epsilon: complex
     mu: complex
@@ -49,6 +56,11 @@ class Material:
     def from_n(
         cls, n: complex = 1, impedance: complex | None = None, kappa: complex = 0
     ) -> Material:
+        """Construct epsilon=n/impedance and mu=n*impedance.
+
+        ``n`` is the mean refractive index and impedance is relative to vacuum.
+        Omitting impedance uses 1/n, giving mu=1. Kappa stays dimensionless.
+        """
         impedance = 1 / n if impedance is None else impedance
         return cls(n / impedance, n * impedance, kappa)
 
@@ -56,19 +68,32 @@ class Material:
     def from_nmp(
         cls, ns: tuple[complex, complex] = (1, 1), impedance: complex | None = None
     ) -> Material:
+        """Construct from negative/positive-helicity indices ``(n_minus, n_plus)``.
+
+        Their mean gives n and half their difference gives kappa. Omitting
+        impedance uses the same nonmagnetic convention as ``from_n``.
+        """
         return cls.from_n(sum(ns) / 2, impedance, (ns[1] - ns[0]) / 2)
 
     @property
     def n(self) -> complex:
+        """Square root of epsilon*mu, with sign chosen for nonnegative imaginary part."""
         value = cmath.sqrt(self.epsilon * self.mu)
         return -value if value.imag < 0 else value
 
     @property
     def nmp(self) -> NDArray[np.complex128]:
+        """Shape-(2,) complex128 indices for polarization labels 0 and 1.
+
+        Start from the principal square root of epsilon*mu minus/plus kappa,
+        then choose each sign for a nonnegative imaginary part. Array order is
+        negative/positive helicity; default mode bases instead list label 1 first.
+        """
         return _native.refractive_indices(self.epsilon, self.mu, self.kappa)
 
     @property
     def impedance(self) -> complex:
+        """Principal square root of mu/epsilon, relative to vacuum impedance."""
         return cmath.sqrt(self.mu / self.epsilon)
 
     @property
@@ -80,6 +105,11 @@ class Material:
         return self.kappa != 0
 
     def ks(self, k0: float) -> NDArray[np.complex128]:
+        """Return ``k0 * nmp`` in negative/positive-helicity order, shape (2,).
+
+        The vacuum angular wavenumber k0 is 2*pi/wavelength, in inverse units
+        of the lengths used elsewhere in the simulation.
+        """
         return k0 * self.nmp
 
     def kzs(
@@ -250,7 +280,14 @@ class _Basis[M: tuple[object, ...]]:
 
 
 class PlaneWaveBasisByUnitVector(_Basis[tuple[complex, complex, complex, int]]):
-    """Full complex directions satisfying q.q=1, followed by polarization 0 or 1."""
+    """Ordered plane modes ``(qx, qy, qz, pol)`` with complex unit directions.
+
+    Directions are normalized by the algebraic norm sqrt(q.q), without complex
+    conjugation; zero or null directions are invalid. Labels pol are 0 or 1 and
+    use the polarization convention of the enclosing wave/operator. This basis
+    stores directions, not dimensional wavenumbers; ``kvecs`` supplies those
+    from k0 and the medium. Exact duplicate input rows are removed in order.
+    """
 
     isglobal = True
     _labels = ("qx", "qy", "qz", "pol")
@@ -311,6 +348,11 @@ class PlaneWaveBasisByUnitVector(_Basis[tuple[complex, complex, complex, int]]):
 
     @classmethod
     def default(cls, kvecs: ArrayLike) -> PlaneWaveBasisByUnitVector:
+        """Normalize shape-(n, 3) directions and include both polarizations.
+
+        A single shape-(3,) vector is accepted. Each direction contributes
+        labels (1, 0), in that order. Complex directions allow evanescent waves.
+        """
         vectors = np.atleast_2d(np.asarray(kvecs, dtype=np.complex128))
         if vectors.shape[1] != 3:
             raise ValueError("wavevectors require shape (n, 3)")
@@ -319,6 +361,11 @@ class PlaneWaveBasisByUnitVector(_Basis[tuple[complex, complex, complex, int]]):
     def kvecs(
         self, k0: float, material: MaterialLike = 1, modetype: str | None = None
     ) -> tuple[NDArray[np.complex128], NDArray[np.complex128], NDArray[np.complex128]]:
+        """Return (kx, ky, kz), each shape (modes,), in inverse length units.
+
+        Each direction is scaled by its medium wavenumber at vacuum angular
+        wavenumber k0. Direction already fixes propagation, so modetype is unused.
+        """
         values = self.directions * Material(material).ks(k0)[self.pol, None]
         return values[:, 0], values[:, 1], values[:, 2]
 
@@ -367,7 +414,14 @@ class PlaneWaveBasisByUnitVector(_Basis[tuple[complex, complex, complex, int]]):
 
 
 class PlaneWaveBasisByComp(_Basis[tuple[float, float, int]]):
-    """Plane modes (k1, k2, pol), aligned with xy, yz or zx."""
+    """Ordered plane modes ``(k1, k2, pol)`` storing two real wavevector components.
+
+    Alignment ``xy``, ``yz`` or ``zx`` selects the stored Cartesian axes. Both
+    components have inverse length units; polarization labels are 0 or 1, with
+    convention supplied by the enclosing wave/operator. ``kvecs`` reconstructs
+    the third component from k0, material and up/down direction, including
+    evanescent waves. Exact duplicate modes are removed while preserving order.
+    """
 
     isglobal = True
     _labels = ("_k1", "_k2", "pol")
@@ -413,6 +467,11 @@ class PlaneWaveBasisByComp(_Basis[tuple[float, float, int]]):
 
     @classmethod
     def default(cls, kpars: ArrayLike, alignment: str = "xy") -> PlaneWaveBasisByComp:
+        """Include labels (1, 0) for each shape-(n, 2) transverse wavevector.
+
+        A single shape-(2,) pair is accepted. Components are real and dimensional,
+        in the Cartesian order specified by alignment (xy, yz or zx).
+        """
         values = np.atleast_2d(np.asarray(kpars, dtype=np.float64))
         if values.shape[1] != 2:
             raise ValueError("transverse wavevectors require shape (n, 2)")
@@ -524,6 +583,12 @@ class PlaneWaveBasisByComp(_Basis[tuple[float, float, int]]):
     def kvecs(
         self, k0: float, material: MaterialLike = 1, modetype: str = "up"
     ) -> tuple[NDArray[np.complex128], NDArray[np.complex128], NDArray[np.complex128]]:
+        """Return (kx, ky, kz), each shape (modes,), at vacuum wavenumber k0.
+
+        The missing normal component uses the medium's outgoing square-root
+        branch. ``modetype='down'`` reverses that component; ``'up'`` keeps it.
+        Stored transverse components remain unchanged, in inverse length units.
+        """
         if modetype not in ("up", "down"):
             raise ValueError("modetype must be up or down")
         k1, k2 = self.components.astype(np.complex128).T
@@ -600,7 +665,15 @@ class _WaveBasis[M: tuple[int, float, int, int]](_Basis[M]):
 
 
 class SphericalWaveBasis(_WaveBasis[Mode]):
-    """Modes (particle, l, m, pol), with positive helicity first by default."""
+    """Ordered modes ``(particle, l, m, pol)`` and Cartesian expansion origins.
+
+    Rows ``(l, m, pol)`` imply particle=0. Origins have shape (particles, 3) in
+    the simulation's length unit; a shape-(3,) origin is also accepted. Require
+    1 <= l <= 128, -l <= m <= l and pol in {0, 1}. Exact duplicate modes are
+    removed in order. Polarization convention belongs to the wave/operator:
+    helicity labels 0/1 mean negative/positive; parity labels mean magnetic/electric.
+    Selecting modes preserves their origin table.
+    """
 
     _labels = ("pidx", "l", "m", "pol")
     _keys = "plms"
@@ -629,12 +702,14 @@ class SphericalWaveBasis(_WaveBasis[Mode]):
 
     @staticmethod
     def defaultdim(lmax: int, nmax: int = 1) -> int:
+        """Return ``2*lmax*(lmax+2)*nmax`` channels for a complete default basis."""
         if lmax < 0 or nmax < 0:
             raise ValueError("degree and particle count must be nonnegative")
         return 2 * lmax * (lmax + 2) * nmax
 
     @staticmethod
     def defaultlmax(dim: int, nmax: int = 1) -> int:
+        """Invert ``defaultdim``; reject dimensions that omit part of a mode shell."""
         if dim < 0 or nmax < 1:
             raise ValueError(
                 "require nonnegative dimension and positive particle count"
@@ -648,6 +723,13 @@ class SphericalWaveBasis(_WaveBasis[Mode]):
     def default(
         cls, lmax: int, nmax: int = 1, positions: ArrayLike | None = None
     ) -> SphericalWaveBasis:
+        """Create complete spherical mode shells at nmax expansion origins.
+
+        Order is particle, l=1..lmax, m=-l..l, then pol=(1, 0). The dimension is
+        ``2*lmax*(lmax+2)*nmax``. Require 0 <= lmax <= 128 and nmax >= 1; lmax=0
+        makes an empty basis. Positions have shape (nmax, 3), defaulting to zeros,
+        and use the simulation's length unit.
+        """
         if not 0 <= lmax <= 128 or nmax < 1:
             raise ValueError("require 0 <= lmax <= 128 and nmax >= 1")
         return cls(
@@ -700,7 +782,14 @@ type CylindricalMode = tuple[int, float, int, int]
 
 
 class CylindricalWaveBasis(_WaveBasis[CylindricalMode]):
-    """Modes (particle, kz, m, pol), with fixed real axial mode labels."""
+    """Ordered modes ``(particle, kz, m, pol)`` around parallel z-directed axes.
+
+    Rows ``(kz, m, pol)`` imply particle=0. Kz is a finite real axial wavenumber
+    in inverse length units, |m| <= 128 and pol is 0 or 1. Cartesian expansion
+    origins have shape (particles, 3) in the matching length unit. Exact duplicate
+    modes are removed in order. Helicity labels 0/1 mean negative/positive;
+    parity labels mean magnetic/electric, as selected by the wave/operator.
+    """
 
     _labels = ("pidx", "kz", "m", "pol")
     _keys = "pzms"
@@ -729,10 +818,12 @@ class CylindricalWaveBasis(_WaveBasis[CylindricalMode]):
 
     @staticmethod
     def defaultdim(nkz: int, mmax: int, nmax: int = 1) -> int:
+        """Return ``2*nkz*(2*mmax+1)*nmax`` channels for distinct axial labels."""
         return 2 * nkz * (2 * mmax + 1) * nmax
 
     @staticmethod
     def defaultmmax(dim: int, nkz: int = 1, nmax: int = 1) -> int:
+        """Invert ``defaultdim`` for positive nkz/nmax; reject incomplete mode sets."""
         if nkz < 1 or nmax < 1:
             raise ValueError("nkz and nmax must be positive")
         order = (dim // (2 * nkz * nmax) - 1) // 2
@@ -748,6 +839,13 @@ class CylindricalWaveBasis(_WaveBasis[CylindricalMode]):
         nmax: int = 1,
         positions: ArrayLike | None = None,
     ) -> CylindricalWaveBasis:
+        """Create both polarizations of orders -mmax..mmax for each axial label.
+
+        Kzs is a scalar or one-dimensional real wavenumber array. Order is
+        particle, kz in input order, m, then pol=(1, 0); duplicate labels are
+        removed. Require 0 <= mmax <= 128 and nmax >= 1. Positions have shape
+        (nmax, 3), defaulting to zeros, in the length unit inverse to kzs.
+        """
         axial = np.atleast_1d(np.asarray(kzs, dtype=np.float64))
         if axial.ndim != 1 or not 0 <= mmax <= 128 or nmax < 1:
             raise ValueError("require a kz vector, 0 <= mmax <= 128 and nmax >= 1")

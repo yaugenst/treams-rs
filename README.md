@@ -3,6 +3,15 @@
 A personal Rust rewrite of treams, with a typed Python API and native analytic
 pullbacks. The numerical core runs without Python or an autodiff framework.
 
+For agents and scripts, start with [llms.txt](llms.txt) and the
+[agent guide](docs/agents.md). The [generated API reference](docs/api.md) exposes
+signatures and docstrings; `treams_rs.support_catalog()` reports capabilities and
+their limits, without importing optional frameworks. Run
+`python -m treams_rs --format markdown` for the installed API reference offline.
+Use the [public derivative checks](docs/testing.md) when composing
+an objective or wrapping a native pullback. Contributors start at
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
 The documented CPU rewrite is complete for the pinned treams 0.4.5 numerical
 inventory, with explicit Python objects and first-order Advect, JAX and PyTorch
 integration. See

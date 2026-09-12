@@ -1,0 +1,43 @@
+{
+  "base_commit": "43bb7fe34dc438a8561e4c4439ea181613830bba",
+  "scope": "Agent discovery, documentation, testing helpers and shared adapter diagnostics; explicit native-helicity labels fix sphere/cylinder constructors under global parity defaults. No Rust source or numerical kernel changes.",
+  "python_tests": {
+    "macos": 2072,
+    "linux": 2072,
+    "optional_gpu_skips_per_host": 6
+  },
+  "checks": [
+    "Ruff lint and format including examples",
+    "strict Pyrefly",
+    "source-generated API and llms consistency",
+    "executable documentation examples",
+    "clean release wheel without JAX, Torch, upstream or SciPy",
+    "optional HDF5 clean-wheel round trip"
+  ],
+  "native_sha256": {
+    "macos": "3fea4832613825016c9fd0c9ae40402e343e2f36a92ace564e5a8f004dea5075",
+    "linux": "5c069774b4da163986dac13ec99bf3915ac8cd282d7511fc0208a00ffeabb084"
+  },
+  "python_source_sha256": "29400263e0cbcd0ea0b04aae447b27f52a5fcf4b35cf5f551530e04ba3e14b16",
+  "benchmark_cases": [
+    {
+      "file": "cylindrical-particle-cluster-public.json",
+      "workload": "cylindrical-particle-cluster-public",
+      "speedup": 2.977740064247111,
+      "rss_ratio": 0.7016867469879519,
+      "runtime_gate": true,
+      "rss_gate": true
+    },
+    {
+      "file": "particle-cluster-public.json",
+      "workload": "particle-cluster-public",
+      "speedup": 6.5767870584867065,
+      "rss_ratio": 0.724812756704518,
+      "runtime_gate": true,
+      "rss_gate": true
+    }
+  ],
+  "existing_evidence": "The 527/525 Linux and 30/30 macOS grids, GPU, WASM and paper qualifications retain their original measured Python source hashes. They were not rerun or relabeled for this agent-usability change; native binaries are byte-identical. The two affected public particle-cluster paths are requalified above.",
+  "rust_tests": 84,
+  "catalog_source_sha256": "737d85a420b7b995f81899f40569f9d157707dfa3616c5b89ca8337c8bcd0fa0"
+}

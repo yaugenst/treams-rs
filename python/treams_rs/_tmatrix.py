@@ -51,6 +51,16 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
         material: MaterialLike = 1,
         poltype: str | None = None,
     ):
+        """Copy a finite square matrix mapping regular to outgoing coefficients.
+
+        Arr has shape (modes, modes), with outgoing rows and incident columns;
+        ``.array`` is an owned, read-only complex128 array. Basis must match the
+        matrix family and dimension; omission infers one complete origin basis
+        (with kz=0 for cylinders). K0 is the positive vacuum angular wavenumber,
+        in inverse units of basis positions. Material is the embedding medium.
+        Poltype is helicity or parity, defaulting to ``config.POLTYPE``; a chiral
+        embedding medium requires helicity.
+        """
         poltype = _resolve_poltype(poltype)
         self.array: NDArray[np.complex128] = np.array(
             arr, dtype=np.complex128, copy=True
@@ -87,10 +97,12 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
 
     @property
     def ks(self) -> NDArray[np.complex128]:
+        """Embedding wavenumbers for labels (0, 1), shape (2,), in inverse length."""
         return self.material.ks(self.k0)
 
     @property
     def isglobal(self) -> bool:
+        """Whether all represented multipoles share one expansion origin."""
         return self.basis.isglobal
 
     def __len__(self) -> int:
@@ -162,6 +174,18 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
 
     @classmethod
     def cluster(cls, tmats: Sequence[Self], positions: ArrayLike) -> Self:
+        """Assemble uncoupled particle matrices at Cartesian positions, shape (n, 3).
+
+        Tmats must be a nonempty sequence of global matrices of this family,
+        sharing k0, embedding material and polarization convention. Individual
+        mode counts may differ. Positions set each matrix's expansion origin in
+        the same length unit used for its geometry; the returned block-diagonal
+        array has dimension equal to the sum of the particle dimensions.
+
+        This constructor does not solve multiple scattering. Use
+        ``cluster.interaction.solve()`` for the full coupled response or
+        ``cluster.interaction.illuminate(incident)`` for selected illuminations.
+        """
         if not tmats:
             raise ValueError("cluster must contain at least one T-matrix")
         positions = np.asarray(positions, dtype=np.float64)
@@ -201,10 +225,21 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
 
     @property
     def interaction(self) -> _Interaction[Self]:
+        """Finite-cluster coupling with solve(), factor() and illuminate() methods.
+
+        Calling the object returns I-T*C. Solve builds the full coupled T-matrix;
+        illuminate solves only supplied incident columns; factor retains the LU
+        for repeated calls. All use the current local matrix and basis origins.
+        """
         return _Interaction(self)
 
     @property
     def latticeinteraction(self) -> _PeriodicInteraction[Self]:
+        """Periodic solve/factor/illuminate interface taking lattice and Bloch vector.
+
+        Returned responses are local periodic coefficients; isolated-particle
+        cross-section formulas do not apply to them.
+        """
         return _PeriodicInteraction(self)
 
     def changepoltype(self, poltype: str | None = None) -> Self:
@@ -314,6 +349,7 @@ class _Interaction[M: _TMatrix[Any]]:
         )
 
     def solve(self) -> M:
+        """Return the full coupled matrix ``(I - T*C)^-1 T`` in the local basis."""
         tm = self.matrix
         if tm._cluster_sizes is not None:
             local = []
@@ -356,7 +392,13 @@ class _Interaction[M: _TMatrix[Any]]:
     def illuminate(
         self, incident: ArrayLike | PlaneWave | MultipoleWave
     ) -> NDArray[np.complex128]:
-        """Compute only requested scattered coefficients, preserving vector/batch shape."""
+        """Solve ``(I-T*C) scattered = T*incident`` for requested illuminations.
+
+        Incident may be a matching PlaneWave/MultipoleWave, a shape-(modes,)
+        coefficient vector or an array (modes, illuminations). Returns complex128
+        scattered coefficients with the same vector/batch rank. A fresh factor
+        is built per call; use ``factor().solve`` for repeated right-hand sides.
+        """
         values = self.matrix._incident(incident)
         vector = values.ndim == 1
         result = self.factor().solve(values[:, None] if vector else values)
@@ -418,7 +460,13 @@ class _PeriodicInteraction[M: _TMatrix[Any]]:
 
 
 class TMatrix(_TMatrix[SphericalWaveBasis]):
-    """Spherical T-matrix with a native scattering and adjoint core."""
+    """Spherical matrix mapping regular incident coefficients to outgoing waves.
+
+    Construct from an owned square array and physical metadata, or use ``sphere``
+    and ``cluster``. Rows/columns follow the supplied SphericalWaveBasis. The
+    ``matrix @ incident`` operation returns scattered coefficients as a NumPy
+    array. Use ``diff.sphere`` or a framework adapter to record native pullbacks.
+    """
 
     _basis_type = SphericalWaveBasis
 
@@ -461,6 +509,19 @@ class TMatrix(_TMatrix[SphericalWaveBasis]):
         materials: Sequence[MaterialLike],
         poltype: str | None = None,
     ) -> TMatrix:
+        """Construct a concentric multilayer, optionally chiral sphere at the origin.
+
+        Lmax is the maximum spherical degree (1..128); k0 is the positive vacuum
+        angular wavenumber. Radii is a positive scalar or strictly increasing
+        one-dimensional sequence of layer boundaries, in units inverse to k0.
+        Materials contains one entry per layer plus the exterior medium, ordered
+        from the center outward. Each entry follows the Material constructor.
+
+        Returns a matrix with dimension ``2*lmax*(lmax+2)`` and default spherical
+        ordering (l, m, pol=(1, 0)). Poltype selects helicity/parity, defaulting to
+        ``config.POLTYPE``; parity requires an achiral exterior. This convenience
+        returns the physical object only; ``diff.sphere`` retains an adjoint context.
+        """
         poltype = _resolve_poltype(poltype)
         layers = [Material(m) for m in materials]
         if not layers:
@@ -473,11 +534,16 @@ class TMatrix(_TMatrix[SphericalWaveBasis]):
             [m.mu for m in layers],
             [m.kappa for m in layers],
         )
-        result = cls(value, k0=k0, material=layers[-1])
+        result = cls(value, k0=k0, material=layers[-1], poltype="helicity")
         return result if poltype == "helicity" else result.changepoltype(poltype)
 
     @property
     def xs_ext_avg(self) -> float:
+        """Rotationally and polarization-averaged extinction cross section, in area units.
+
+        Requires one expansion origin and a nonabsorbing propagating exterior.
+        Expand a solved cluster to a global basis before taking this average.
+        """
         if not self.isglobal:
             raise NotImplementedError("expand to a global basis before averaging")
         ks = self._propagating_ks()
@@ -485,18 +551,37 @@ class TMatrix(_TMatrix[SphericalWaveBasis]):
 
     @property
     def xs_sca_avg(self) -> float:
+        """Rotationally and polarization-averaged scattering cross section, in area units.
+
+        Requires one expansion origin and a nonabsorbing propagating exterior.
+        Expand a solved cluster to a global basis before taking this average.
+        """
         if not self.isglobal:
             raise NotImplementedError("expand to a global basis before averaging")
         ks = self._propagating_ks()
         return float(2 * np.pi * np.sum(abs(self.array / ks[:, None]) ** 2))
 
     def xs(self, illu: ArrayLike | PlaneWave, flux: float = 0.5) -> tuple[float, float]:
-        """Scattering and extinction for incident spherical coefficients."""
+        """Return (scattering, extinction) cross sections for one illumination.
+
+        Illu is a shape-(modes,) regular coefficient vector or matching PlaneWave.
+        Flux is its finite positive incident flux in the field normalization
+        (default 0.5). Results have squared length units; the embedding medium
+        must be nonabsorbing with propagating helicity wavenumbers. A solved
+        finite cluster may retain multiple expansion origins.
+        """
         return self._cross_sections(illu, flux, 2, 0.5)
 
 
 class TMatrixC(_TMatrix[CylindricalWaveBasis]):
-    """Cylindrical T-matrix with fixed axial mode labels."""
+    """Cylindrical matrix mapping regular incident coefficients to outgoing waves.
+
+    Rows/columns follow the supplied CylindricalWaveBasis, including its fixed
+    real axial wavenumbers. Use ``cylinder`` for concentric infinite cylinders
+    or ``cluster`` for parallel cylinders. Cross widths have length units.
+    ``matrix @ incident`` returns a NumPy coefficient array; ``diff.cylinder``
+    or framework adapters provide separately recorded native pullbacks.
+    """
 
     _basis_type = CylindricalWaveBasis
 
@@ -551,6 +636,21 @@ class TMatrixC(_TMatrix[CylindricalWaveBasis]):
         materials: Sequence[MaterialLike],
         poltype: str | None = None,
     ) -> TMatrixC:
+        """Construct concentric infinite cylinders around the z axis at the origin.
+
+        Kzs is a scalar or nonempty one-dimensional array of distinct finite real
+        axial wavenumbers. Mmax (0..128) includes orders -mmax..mmax. K0 is the
+        positive vacuum angular wavenumber, in the same inverse length units as
+        kzs. Radii is a positive scalar or strictly increasing sequence of layer
+        boundaries. Materials lists layers from the axis outward, followed by
+        one exterior medium; entries follow the Material constructor.
+
+        For nkz supplied axial values, the dimension is ``2*nkz*(2*mmax+1)``,
+        ordered by kz input order, then m and pol=(1, 0). Poltype selects
+        helicity/parity, defaulting to ``config.POLTYPE``; parity requires an
+        achiral exterior. Use
+        ``diff.cylinder`` when a native pullback context is required.
+        """
         poltype = _resolve_poltype(poltype)
         layers = [Material(m) for m in materials]
         if not layers:
@@ -572,11 +672,13 @@ class TMatrixC(_TMatrix[CylindricalWaveBasis]):
             k0=k0,
             basis=CylindricalWaveBasis.default(axial, mmax),
             material=layers[-1],
+            poltype="helicity",
         )
         return result if poltype == "helicity" else result.changepoltype(poltype)
 
     @property
     def krhos(self) -> NDArray[np.complex128]:
+        """Per-mode radial wavenumbers, shape (modes,), with nonnegative imaginary part."""
         values = np.sqrt(self.ks[self.basis.pol] ** 2 - self.basis.kz**2)
         return np.where(values.imag < 0, -values, values)
 

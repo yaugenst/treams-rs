@@ -35,7 +35,13 @@ dependency-lock-check:
 file-hygiene:
     uv run --no-sync pre-commit run --all-files --hook-stage manual
 
-check: file-hygiene dependency-lock-check rust-fmt-check rust-lint py-format-check py-lint py-types
+check: file-hygiene dependency-lock-check rust-fmt-check rust-lint py-format-check py-lint py-types docs-check
+
+docs:
+    uv run --no-sync python scripts/generate_agent_docs.py
+
+docs-check:
+    uv run --no-sync python scripts/generate_agent_docs.py --check
 
 test-py: build-ext
     uv run --no-sync pytest

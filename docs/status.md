@@ -90,21 +90,33 @@ lockfile validation and file hygiene. `just check-wheel` creates an isolated
 environment, checks native execution and complete Advect objectives without
 SciPy/treams, then checks optional HDF5 separately.
 
-The current implementation passes 84 Rust tests and 2,026 Python tests on Linux
+The current implementation passes 84 Rust tests and 2,072 Python tests on Linux
 and macOS, including JAX and PyTorch. Six optional hardware cases are skipped in CPU builds;
 the RTX 4080 SUPER separately passes all six Python GPU cases and five native
 GPU tests. Clean-wheel execution, optional HDF5, strict types, lint, locks and
 rustdoc pass. CI checks Python 3.12/3.13 on Linux and compiles CUDA support without
 a toolkit; a separate job compiles and numerically executes the WASM module.
 
-The current [Linux performance manifest](../benchmarks/complete-qualification.json)
+The [Linux performance manifest](../benchmarks/complete-qualification.json)
 records 527 passing runtime gates and 525 passing peak-RSS gates, tied to the
 tested native binary, Python-source and benchmark hashes (minimum speedup
 1.02x, maximum gated RSS ratio 0.912). The macOS dispatch grid passes all
-30 runtime/RSS cases on the current build (minimum speedup 1.30x, maximum RSS
+30 runtime/RSS cases on its recorded build (minimum speedup 1.30x, maximum RSS
 ratio 0.695). The requested-illumination, matrix-free, GPU and paper reports
-include their own executable/source hashes. Finite test
-coverage is not a proof of correctness or performance for all possible inputs.
+include their own executable/source hashes.
+
+The [agent-usability qualification](../benchmarks/agent-usability/qualification.json)
+adds offline source-derived API/catalog discovery, executable examples, numerical
+checking helpers and more informative adapter errors. The source documentation
+review also fixed a Python constructor defect: sphere/cylinder matrices now label
+the native helicity array explicitly before converting to a requested parity basis,
+independently of `config.POLTYPE`. Cross-default Hypothesis regressions cover both.
+No Rust source or installed native binary changed. The earlier full grids and
+GPU/WASM/paper reports retain their measured Python hashes; they were not relabeled
+or rerun for this change. Two affected public cluster paths were requalified on
+macOS: spherical 6.58x and cylindrical 2.98x faster than upstream, both with lower
+peak RSS. See [agent entry points](agents.md) and [developer checks](development.md).
+Finite test coverage is not a proof of correctness or performance for all possible inputs.
 
 The [independent fractional Legendre check](../scripts/qualify_legendre.py) covers
 530 finite value/argument-derivative cases and two expected-overflow cases against
@@ -155,7 +167,7 @@ independent high-precision reproducer in the benchmark documentation.
 The [WASM core and selected browser exports](wasm.md), [optional CUDA backend](gpu.md)
 and [published-paper reproductions](paper-qualification.md) have separate,
 reproducible qualification reports. The WASM exports cover spheres, finite
-clusters, plane-wave illumination and exterior electric fields; they do not
+clusters, plane-wave illumination and exterior scattered electric fields; they do not
 expose the entire Python API or adjoints. CUDA qualification uses the RTX 4080
 SUPER with complex128; the field kernel has no native pullback yet. Python
 versions outside 3.12/3.13 and broader wheel-platform distribution remain
