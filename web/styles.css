@@ -960,6 +960,9 @@ canvas {
   grid-template-columns: 1.6fr 1fr;
   gap: 8px;
 }
+.optimization-actions > button {
+  margin: 0;
+}
 .controls #improvement {
   display: block;
   font-size: 11px;
