@@ -45,6 +45,7 @@ constructor already retained the correct parity coupling.
 
 | Finding | Evidence and impact | Regression |
 | --- | --- | --- |
+| Exact periodic diffraction poles | At the 350 nm endpoint of the companion array spectrum, upstream substitutes `1e-20+1e-20j` for a zero radiation denominator and `1e-7` in the singular lattice expression. Its finite answer is therefore a regularized value, not an exact-threshold oracle. This is a numerical convention rather than a claim that the mathematical pole is a software defect. | [Paper qualification](paper-qualification.md) explicitly excludes the endpoint and checks four one-sided approaches, including power conservation. [Threshold tests](../tests/test_diffraction_threshold.py) separately qualify finite tangential interfaces without changing wavelength or adding a pseudoinverse. |
 | Fractional Legendre cutoff, preserved for compatibility | The real-argument docstring says it delegates to SciPy, but treams first returns zero when abs(m) > degree. For m=4, degree=2.3 and x=0.3 it returns 0; SciPy and an independent 70-digit hypergeometric evaluation give approximately -1.9871849213085072. | The rewrite preserves this zero extension, as exercised in `test_real_degree_broadcast_strides_poles_and_owned_pullback` in [fractional Legendre tests](../tests/test_fractional_legendre.py). Its qualified Ferrers domain is abs(m) <= degree; the general function beyond that range is not implemented. The `ferrers` reference in [the high-precision reproducer](../scripts/qualify_legendre.py) evaluates the unrestricted mathematical value. |
 | Subnormal Hankel orders in dependencies | With order=5e-324 and z=1+0j, SciPy 1.16.3 (reexported by treams) returns NaNs for hankel2. complex-bessel 0.2.0 also gives an incorrect finite value, about 0.97428+0.06122j instead of the zero-order limit 0.76520-0.08826j. This is a dependency defect, not a treams-specific implementation error. | `test_hankel_subnormal_order_continuous_limit` and Hypothesis reflection/derivative checks in [special tests](../tests/test_special.py). The shared native boundary maps subnormal orders to their continuous zero-order limit; reference checks use that same limit only where the SciPy oracle is broken. |
 | Near-axis spherical translation | Forming the angular coordinate through cos(theta) can round small transverse offsets to the axis, losing nonzero terms and derivatives. Cartesian evaluation is checked against a resolved-angle extrapolation down to offsets of 1e-300. The direct special API also returns zero for dipole A/B coefficients at theta=1e-10, kr=1.4+0.2i and phi=0.4; closed forms give -2.20566e-11+1.53401e-10i and 6.35401e-11+4.87093e-11i. | `test_near_axis_translation_against_resolved_angle_limit` in [invariant tests](../tests/test_invariants.py), plus `test_tiny_angle_translation_against_closed_dipole_form` in [polar translation tests](../tests/test_polar_translation.py), covering outgoing and regular coefficients down to theta=1e-100. These extend the same existing finding rather than identifying a separate defect. |
@@ -62,6 +63,23 @@ are mathematical restrictions, not automatically upstream bugs.
 `SMatrices.cd` is also a terminology caveat: upstream's second return value is
 the normalized contrast of total outgoing power T+R, although its docstring calls
 it absorption CD. The rewrite preserves this formula and names it explicitly.
+
+## Companion-paper source findings
+
+The electron-beam spectroscopy repository's cylinder notebook omits
+`.changepoltype("parity")` when pairing its helicity T matrix with parity electron
+illumination. Its own regression test includes the conversion. The unmodified
+notebook can differ by 50% in EELS; the explicit one-line repair agrees with the
+stored regression spectra. This is a companion-notebook defect, not a core
+`treams` defect. [Paper qualification](paper-qualification.md) links the immutable
+source and preserves both original and repaired execution results.
+
+The thermal-radiation reproduction also exposed severely unbalanced multipole
+linear systems. The rewrite now equilibrates these systems before LU; the
+forward and adjoint use the same scales. The original absorption tables differ
+from the reproduced spectrum by up to 0.577%, and that discrepancy is retained
+in the report. We do not classify it as a confirmed upstream bug or claim exact
+agreement with the author's stored results.
 
 ## HDF5 reproducer
 

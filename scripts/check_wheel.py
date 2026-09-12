@@ -12,7 +12,7 @@ import numpy as np
 import treams_rs as tr
 from treams_rs import advect as ad
 
-for dependency in ("treams", "scipy", "autograd", "h5py"):
+for dependency in ("treams", "scipy", "autograd", "h5py", "jax", "torch"):
     assert importlib.util.find_spec(dependency) is None, dependency
 
 cell = np.diag([1.7, 1.8])

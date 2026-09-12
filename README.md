@@ -4,14 +4,15 @@ A personal Rust rewrite of treams, with a typed Python API and native analytic
 pullbacks. The numerical core runs without Python or an autodiff framework.
 
 The documented CPU rewrite is complete for the pinned treams 0.4.5 numerical
-inventory, with explicit Python objects and first-order Advect integration. See
+inventory, with explicit Python objects and first-order Advect, JAX and PyTorch
+integration. See
 [implementation status](docs/status.md) for the API contract and qualified limits.
-The complete performance grid passes 527 runtime and 525 peak-RSS comparisons;
-[benchmarks](docs/benchmarks.md) records the inputs and two recorded-adjoint memory
+The CPU regression grid contains 527 runtime and 525 peak-RSS comparisons;
+[benchmarks](docs/benchmarks.md) records qualification, inputs and two recorded-adjoint memory
 exceptions. There is no runtime fallback to treams, SciPy or Cython.
 
 ```sh
-uv sync --locked --group dev
+uv sync --locked --group dev --extra jax --extra torch
 just verify
 just build-ext-release
 uv run pre-commit install
@@ -48,6 +49,24 @@ uv run --no-sync python scripts/benchmark_cluster.py --particles 16 --lmax 3 --t
 ```
 
 Measured scope and caveats are in [benchmarks](docs/benchmarks.md).
+
+For a few incident fields, factor once and solve only the requested columns:
+
+```python
+wave = tr.plane_wave([0, 0, 1], 1, k0=1.3)
+scattered = cluster.interaction.illuminate(wave)
+factor = cluster.interaction.factor()
+scattered_again = factor.solve(wave.expand(cluster.basis)[:, None])
+```
+
+The [large-problem guide](docs/large-problems.md) compares this dense route with
+the matrix-free sphere solver, including full physical-parameter adjoints and
+measured memory use. [JAX and PyTorch adapters](docs/adapters.md) wrap the same
+native pullbacks. The [WASM build](docs/wasm.md) runs scattering and electric
+fields in a browser. [Optional CUDA execution](docs/gpu.md) provides resident
+dense algebra and a pure Rust cuTile field kernel; CPU builds contain neither.
+[Published-paper qualification](docs/paper-qualification.md) records reproduced
+curves, original source data, numerical limits and corrections to author code.
 
 
 Optional Advect integration composes ordinary objectives around the native solver:

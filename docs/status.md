@@ -2,8 +2,8 @@
 
 The documented CPU rewrite is complete: the Rust numerical implementation and
 Python workflow layer cover the pinned `treams` 0.4.5 API inventory within the
-contracts and numerical limits below. The complete Linux performance grid and
-isolated Linux/macOS wheels pass. There is no runtime fallback to treams, SciPy
+contracts and numerical limits below. Performance measurements and platform
+qualification are recorded separately below. There is no runtime fallback to treams, SciPy
 or Cython. This is not exact emulation of the legacy ndarray annotation engine.
 
 The source reference is `1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39`.
@@ -66,12 +66,15 @@ consumption. The residual owns retained data; mutating the caller's inputs does
 not alter a recorded derivative. Rust reuses factorizations or recomputes local
 analytic derivatives without storing dense parameter Jacobians.
 
-Advect composes these numerical boundaries with user objectives. Object
-constructors themselves do not trace framework arrays: use `treams_rs.advect` for
-continuous parameters. Static basis labels, discretization sizes, quadrature
+Advect, JAX and PyTorch compose these numerical boundaries with user objectives.
+Object constructors themselves do not trace framework arrays: use the
+[framework adapters](adapters.md) for continuous parameters. Static basis labels,
+discretization sizes, quadrature
 nodes, material topology and eigenvalue ordering are not differentiated.
-Forward mode, higher derivatives, staging, checkpointing and other framework
-adapters are outside this first-order contract.
+Forward mode and higher derivatives are outside this first-order contract. JAX
+supports CPU `jit`, sequential `vmap` and checkpointing using host callbacks;
+PyTorch supports eager CPU backward and repeated backward through native
+recomputation. GPU tensors and `torch.compile` are not supported by these adapters.
 
 At normal incidence, observables with smooth limits have explicit limiting
 pullbacks. Polarization-frame derivatives at undefined directions require a
@@ -87,12 +90,21 @@ lockfile validation and file hygiene. `just check-wheel` creates an isolated
 environment, checks native execution and complete Advect objectives without
 SciPy/treams, then checks optional HDF5 separately.
 
-The complete implementation passes 73 Rust tests and 1,934 Python tests on Linux
-and macOS. Its [Linux performance manifest](../benchmarks/complete-qualification.json)
-records 527 passing runtime gates and 525 passing peak-RSS gates, all tied to the
-same native binary, Python-source and benchmark hashes. The separate macOS
-dispatch-regression grid passes 30 runtime/RSS cases. Finite test coverage is not
-a proof of correctness or performance for all possible inputs.
+The current implementation passes 84 Rust tests and 2,026 Python tests on macOS,
+including JAX and PyTorch. Six optional hardware cases are skipped in CPU builds;
+the RTX 4080 SUPER separately passes all six Python GPU cases and five native
+GPU tests. Clean-wheel execution, optional HDF5, strict types, lint, locks and
+rustdoc pass. CI checks Python 3.12/3.13 on Linux and compiles CUDA support without
+a toolkit; a separate job compiles and numerically executes the WASM module.
+
+The prior CPU milestone's [Linux performance manifest](../benchmarks/complete-qualification.json)
+records 527 passing runtime gates and 525 passing peak-RSS gates, tied to its
+native binary, Python-source and benchmark hashes. The refreshed macOS dispatch
+grid passes all 30 runtime/RSS cases on the current build (minimum speedup 1.30x,
+maximum RSS ratio 0.695). The new requested-illumination, matrix-free,
+GPU and paper reports include their own current executable/source hashes; the
+complete CPU grid is being refreshed for this implementation. Finite test
+coverage is not a proof of correctness or performance for all possible inputs.
 
 The [independent fractional Legendre check](../scripts/qualify_legendre.py) covers
 530 finite value/argument-derivative cases and two expected-overflow cases against
@@ -124,7 +136,12 @@ Ferrers function in that extended domain. Fractional complex arguments and
 fractional pi/tau are not implemented.
 
 Dense outputs and LU storage remain quadratic in channel dimension, with cubic
-factorization work. Optimized homogeneous sphere clusters require non-overlapping
+factorization work. Requested-illumination factors avoid the full interacting
+T-matrix, while the matrix-free sphere path avoids global quadratic storage in
+both forward and physical-parameter adjoint evaluation. It recomputes pair
+translations each GMRES iteration and checks the actual residual; it can be
+slower than a reused dense factor. See [large problems](large-problems.md).
+Optimized homogeneous sphere clusters require non-overlapping
 nonmagnetic spheres in vacuum; the general local-T-matrix path supports other
 materials and cutoffs. The caller must ensure enclosing particle surfaces do not
 overlap. HDF5 layout compatibility is not certification against every external
@@ -135,5 +152,11 @@ cancellation. Both implementations reach a double-precision roundoff floor; the
 strict comparison gate is retained and no degree-6 speed claim is made. See the
 independent high-precision reproducer in the benchmark documentation.
 
-CPU execution is the target. GPU, WASM/browser bindings, Python versions outside
-3.12/3.13 and broader wheel-platform distribution are separate qualification work.
+The [WASM core and selected browser exports](wasm.md), [optional CUDA backend](gpu.md)
+and [published-paper reproductions](paper-qualification.md) have separate,
+reproducible qualification reports. The WASM exports cover spheres, finite
+clusters, plane-wave illumination and exterior electric fields; they do not
+expose the entire Python API or adjoints. CUDA qualification uses the RTX 4080
+SUPER with complex128; the field kernel has no native pullback yet. Python
+versions outside 3.12/3.13 and broader wheel-platform distribution remain
+unqualified.

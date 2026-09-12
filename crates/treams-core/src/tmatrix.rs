@@ -476,6 +476,59 @@ pub fn cluster(
     epsilon: &[Complex],
     positions: &[[f64; 3]],
 ) -> Result<ClusterResidual> {
+    let ClusterParts {
+        spheres,
+        modes,
+        plan,
+        coupling,
+    } = cluster_parts(lmax, k0, radii, epsilon, positions)?;
+    let blocks = spheres.iter().map(|sphere| sphere.value.clone()).collect();
+    Ok(ClusterResidual {
+        k0,
+        positions: positions.to_vec(),
+        modes,
+        spheres,
+        plan,
+        interaction: interaction::forward_blocks(blocks, coupling)?,
+    })
+}
+
+/// Assemble and factor a sphere cluster for repeated requested illuminations.
+///
+/// The returned factor differentiates local T blocks, coupling, and incident fields.
+/// Use the matrix-free sphere residual for native physical-parameter cotangents.
+pub fn cluster_factor(
+    lmax: u32,
+    k0: f64,
+    radii: &[f64],
+    epsilon: &[Complex],
+    positions: &[[f64; 3]],
+) -> Result<crate::illumination::Factor> {
+    let parts = cluster_parts(lmax, k0, radii, epsilon, positions)?;
+    crate::illumination::Factor::from_blocks(
+        parts
+            .spheres
+            .into_iter()
+            .map(|sphere| sphere.value)
+            .collect(),
+        parts.coupling,
+    )
+}
+
+struct ClusterParts {
+    spheres: Vec<SphereResidual>,
+    modes: Vec<Mode>,
+    plan: TranslationPlan,
+    coupling: DMatrix<Complex>,
+}
+
+fn cluster_parts(
+    lmax: u32,
+    k0: f64,
+    radii: &[f64],
+    epsilon: &[Complex],
+    positions: &[[f64; 3]],
+) -> Result<ClusterParts> {
     if radii.is_empty()
         || radii.len() != epsilon.len()
         || radii.len() != positions.len()
@@ -543,14 +596,11 @@ pub fn cluster(
             }
             Ok(())
         })?;
-    let blocks = spheres.iter().map(|sphere| sphere.value.clone()).collect();
-    Ok(ClusterResidual {
-        k0,
-        positions: positions.to_vec(),
-        modes,
+    Ok(ClusterParts {
         spheres,
+        modes,
         plan,
-        interaction: interaction::forward_blocks(blocks, coupling)?,
+        coupling,
     })
 }
 

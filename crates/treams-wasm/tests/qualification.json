@@ -1,0 +1,87 @@
+{
+  "node": "v26.8.2",
+  "wasm_bytes": 493402,
+  "wasm_gzip_bytes": 176648,
+  "wasm_sha256": "4ab111c7ecf14741409ede7ab397a34cdaae4a894b21fdd0c74cbc247a0eb4d5",
+  "node_results": {
+    "passed": true,
+    "reference": {
+      "treams": "0.4.5",
+      "numpy": "2.5.3",
+      "scipy": "1.16.3"
+    },
+    "cases": [
+      {
+        "name": "multilayer_chiral_sphere",
+        "modes": 30,
+        "maximum_absolute_error": {
+          "tmatrix": 1.1723711513589254e-17,
+          "incident": 6.2803698347351005e-15,
+          "scattered": 7.911556306605241e-17,
+          "electric_field": 3.0800502607711116e-17
+        }
+      },
+      {
+        "name": "two_sphere_cluster",
+        "modes": 60,
+        "maximum_absolute_error": {
+          "tmatrix": 1.2150806165159548e-17,
+          "incident": 6.404745667978754e-15,
+          "scattered": 6.304950258199329e-17,
+          "electric_field": 3.12370669354625e-17
+        }
+      },
+      {
+        "name": "lossless_sphere",
+        "modes": 48,
+        "maximum_absolute_error": {
+          "tmatrix": 1.7780915628762273e-17,
+          "incident": 6.2803698347351005e-15,
+          "scattered": 1.2738115944464653e-16,
+          "electric_field": 4.810535519880077e-17
+        }
+      }
+    ]
+  },
+  "browser_results": {
+    "passed": true,
+    "reference": {
+      "treams": "0.4.5",
+      "numpy": "2.5.3",
+      "scipy": "1.16.3"
+    },
+    "cases": [
+      {
+        "name": "multilayer_chiral_sphere",
+        "modes": 30,
+        "maximum_absolute_error": {
+          "tmatrix": 1.1723711513589254e-17,
+          "incident": 6.2803698347351005e-15,
+          "scattered": 7.911556306605241e-17,
+          "electric_field": 3.0800502607711116e-17
+        }
+      },
+      {
+        "name": "two_sphere_cluster",
+        "modes": 60,
+        "maximum_absolute_error": {
+          "tmatrix": 1.2150806165159548e-17,
+          "incident": 6.404745667978754e-15,
+          "scattered": 6.304950258199329e-17,
+          "electric_field": 3.12370669354625e-17
+        }
+      },
+      {
+        "name": "lossless_sphere",
+        "modes": 48,
+        "maximum_absolute_error": {
+          "tmatrix": 1.7780915628762273e-17,
+          "incident": 6.2803698347351005e-15,
+          "scattered": 1.2738115944464653e-16,
+          "electric_field": 4.810535519880077e-17
+        }
+      }
+    ]
+  },
+  "browser": "Google Chrome 153.0.8010.37"
+}

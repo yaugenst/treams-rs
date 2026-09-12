@@ -1,0 +1,60 @@
+{
+  "backward_error": 3.0907089855792744e-17,
+  "cpu_threads": "2",
+  "device": "NVIDIA GeForce RTX 4080 SUPER",
+  "factor_device_bytes": 67117056,
+  "matrix_dimension": 2048,
+  "precision": "complex128",
+  "product_relative_error": 1.5849281361966884e-15,
+  "relative_error": 1.0965214374952042e-15,
+  "right_hand_sides": 512,
+  "samples": [
+    {
+      "cpu_product_seconds": 0.056448493,
+      "cpu_solve_reuse_seconds": 0.061876936,
+      "cpu_solve_seconds": 0.174425812,
+      "gpu_product_host_seconds": 0.034233275,
+      "gpu_product_resident_seconds": 0.024686853,
+      "gpu_solve_host_seconds": 0.103162188,
+      "gpu_solve_resident_seconds": 0.031273247
+    },
+    {
+      "cpu_product_seconds": 0.05786484,
+      "cpu_solve_reuse_seconds": 0.061742673,
+      "cpu_solve_seconds": 0.169706328,
+      "gpu_product_host_seconds": 0.034291887,
+      "gpu_product_resident_seconds": 0.024707613,
+      "gpu_solve_host_seconds": 0.10135865,
+      "gpu_solve_resident_seconds": 0.031275197
+    },
+    {
+      "cpu_product_seconds": 0.057681355,
+      "cpu_solve_reuse_seconds": 0.064473585,
+      "cpu_solve_seconds": 0.166198795,
+      "gpu_product_host_seconds": 0.034402299,
+      "gpu_product_resident_seconds": 0.024682063,
+      "gpu_solve_host_seconds": 0.101561876,
+      "gpu_solve_resident_seconds": 0.031335759
+    },
+    {
+      "cpu_product_seconds": 0.058511588,
+      "cpu_solve_reuse_seconds": 0.063797987,
+      "cpu_solve_seconds": 0.170423707,
+      "gpu_product_host_seconds": 0.034341348,
+      "gpu_product_resident_seconds": 0.024706643,
+      "gpu_solve_host_seconds": 0.102840869,
+      "gpu_solve_resident_seconds": 0.031273527
+    },
+    {
+      "cpu_product_seconds": 0.057773617,
+      "cpu_solve_reuse_seconds": 0.063771186,
+      "cpu_solve_seconds": 0.16865756,
+      "gpu_product_host_seconds": 0.034467112,
+      "gpu_product_resident_seconds": 0.024680993,
+      "gpu_solve_host_seconds": 0.100639262,
+      "gpu_solve_resident_seconds": 0.031275517
+    }
+  ],
+  "scope": "dense kernels, synthetic well-conditioned operator; host timings include every transfer and synchronization; resident timings include allocations and synchronization but exclude initial upload/factorization",
+  "setup_seconds": 0.19817047
+}

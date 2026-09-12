@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/treams-core", "crates/treams-py"]
+members = ["crates/treams-core", "crates/treams-py", "crates/treams-wasm", "crates/treams-cuda", "crates/treams-cuda-tile"]
 default-members = ["crates/treams-core"]
 resolver = "3"
 
@@ -11,7 +11,7 @@ license = "MIT"
 description = "T-matrix scattering with a Rust numerical core and native pullbacks"
 
 [workspace.dependencies]
-faer = { version = "0.24.4", default-features = false, features = ["std", "rayon", "linalg"] }
+faer = { version = "0.24.4", default-features = false, features = ["std", "linalg"] }
 rayon = "1"
 complex-bessel = "0.2.0"
 errorfunctions = "0.2.0"

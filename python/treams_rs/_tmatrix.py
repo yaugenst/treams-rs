@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from itertools import pairwise
 from typing import TYPE_CHECKING, Any, Self, cast, override
 
 import numpy as np
@@ -18,6 +19,8 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from numpy.typing import ArrayLike, DTypeLike, NDArray
+
+    from . import _native
 
 
 class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
@@ -336,6 +339,29 @@ class _Interaction[M: _TMatrix[Any]]:
             result, k0=tm.k0, basis=tm.basis, material=tm.material, poltype=tm.poltype
         )
 
+    def factor(self) -> _native.InteractionFactor:
+        """Factor once for repeated incident-field solves without a full response matrix.
+
+        The returned factor's solve/record methods accept complex128 arrays with
+        one incident illumination per column.
+        """
+        tm = self.matrix
+        coupling = self._coupling()
+        if tm._cluster_sizes is None:
+            return diff.factor_interaction(tm.array, coupling)
+        offsets = np.cumsum((0, *tm._cluster_sizes))
+        blocks = [tm.array[a:b, a:b] for a, b in pairwise(offsets)]
+        return diff.factor_interaction_blocks(blocks, coupling)
+
+    def illuminate(
+        self, incident: ArrayLike | PlaneWave | MultipoleWave
+    ) -> NDArray[np.complex128]:
+        """Compute only requested scattered coefficients, preserving vector/batch shape."""
+        values = self.matrix._incident(incident)
+        vector = values.ndim == 1
+        result = self.factor().solve(values[:, None] if vector else values)
+        return result[:, 0] if vector else result
+
 
 class _PeriodicInteraction[M: _TMatrix[Any]]:
     def __init__(self, matrix: M):
@@ -365,6 +391,30 @@ class _PeriodicInteraction[M: _TMatrix[Any]]:
         formulae do not apply. Use its array with incident channel coefficients.
         """
         return diff.interaction(self.matrix.array, self.coupling(a, kpar, eta=eta))[0]
+
+    def factor(
+        self, a: ArrayLike, kpar: ArrayLike, *, eta: complex = 0
+    ) -> _native.InteractionFactor:
+        """Reusable periodic factor for requested incident channel coefficients."""
+        return diff.factor_interaction(
+            self.matrix.array, self.coupling(a, kpar, eta=eta)
+        )
+
+    def illuminate(
+        self,
+        incident: ArrayLike | PlaneWave | MultipoleWave,
+        a: ArrayLike,
+        kpar: ArrayLike,
+        *,
+        eta: complex = 0,
+    ) -> NDArray[np.complex128]:
+        """Compute requested periodic response columns without the full effective T matrix."""
+        values = self.matrix._incident(incident)
+        vector = values.ndim == 1
+        result = self.factor(a, kpar, eta=eta).solve(
+            values[:, None] if vector else values
+        )
+        return result[:, 0] if vector else result
 
 
 class TMatrix(_TMatrix[SphericalWaveBasis]):

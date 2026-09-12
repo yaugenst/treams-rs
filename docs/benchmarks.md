@@ -977,3 +977,51 @@ coefficient qualification files. `benchmarks/geometry-qualification.json` record
 all 299 paths and their shared native binary hash. Mac diagnostic results retain
 their original filenames and platform metadata; they are not the Linux proof.
 The complete Linux suite and isolated wheel checks pass (68 Rust, 1,647 Python).
+
+## Dense CPU scheduling
+
+`Lu` now selects faer parallelism from the matrix size and number of requested
+right-hand sides. It uses the existing Rayon pool and never exceeds either that
+pool or faer's configured worker budget. Configurations of four or fewer workers
+retain their previous scheduling. WASM stays serial.
+
+The observed slowdown comes from scheduling fine-grained work in faer's recursive
+LU and triangular solves across too many workers. There is no BLAS thread pool
+in this path. The fix changes scheduling, not the factorization or pullback math.
+
+For larger pools the worker limit is
+`max(1, min(budget, columns / 16, max(min(rows / 512, 4), rows / 2048)))`, with
+integer division. Factorization supplies `columns = rows`; forward and adjoint
+solves supply the actual RHS count. This keeps narrow illuminations serial and
+allows larger matrices to use progressively more workers. It does not impose a
+permanent four-worker ceiling.
+
+On Ryzen 9950X with one 16-worker pool pinned to physical cores 0–15, the
+[scheduling probe](../benchmarks/results/cpu-parallelism.json) measured these medians:
+
+| Complex128 matrix / RHS | Previous factor + solve | Bounded factor + solve | Stage speedup |
+|---|---:|---:|---:|
+| 256 / 4 | 47.56 ms | 0.57 ms | 83.9× |
+| 1024 / 64 | 527.15 ms | 15.85 ms | 33.3× |
+| 2048 / 512 | 974.03 ms | 152.22 ms | 6.4× |
+| 4096 / 64 | 2725.67 ms | 483.54 ms | 5.64× |
+| 8192 / 64 | 6528.76 ms | 3279.13 ms | 1.99× |
+
+These isolate scheduling overhead; they are not end-to-end API or GPU speedup
+claims. The probe used Cargo's default release profile, a warmup and three
+samples per case. Minor unrelated background CPU activity existed on the shared
+host. Four-worker performance was already much better than the old 16-worker
+path, so GPU comparisons must include the best CPU configuration. At 8192 rows,
+factorization took 3.14 s with four workers, 3.28 s with eight and 5.03 s with
+sixteen. Sizes above 8192 were not timed; their increasing worker budget is a
+work-granularity heuristic, not a measured optimum.
+
+The checked-in probe uses the workspace release profile and verifies complete
+normal and Hermitian-adjoint equation residuals outside timing:
+
+```sh
+RAYON_NUM_THREADS=16 cargo run --release -p treams-core --example benchmark_lu -- 1024 64 2 5
+```
+
+Arguments are matrix rows, RHS columns, requested faer workers and measured
+repetitions. Compare worker counts 1, 2, 4, 8 and 16 on the same CPU affinity.

@@ -10,26 +10,30 @@ rust-fmt-check:
     cargo fmt --check --all
 
 rust-lint:
-    PYO3_PYTHON="$PWD/.venv/bin/python" cargo clippy --workspace --all-targets --all-features -- -D warnings
+    PYO3_PYTHON="$PWD/.venv/bin/python" cargo clippy --locked --workspace --all-targets -- -D warnings
+
+# Dynamic CUDA loading can be compiled without a toolkit or a GPU.
+rust-cuda-check:
+    PYO3_PYTHON="$PWD/.venv/bin/python" cargo clippy --locked -p treams-py --all-targets --features cuda -- -D warnings
 
 rust-test:
     PYO3_PYTHON="$PWD/.venv/bin/python" cargo test -p treams-core
 
 py-format-check:
-    uv run ruff format --check .
+    uv run --no-sync ruff format --check .
 
 py-lint:
-    uv run ruff check .
+    uv run --no-sync ruff check .
 
 py-types:
-    uv run pyrefly check --summarize-errors
+    uv run --no-sync pyrefly check --summarize-errors
 
 dependency-lock-check:
     uv lock --check
     cargo metadata --locked --format-version 1 --no-deps > /dev/null
 
 file-hygiene:
-    uv run pre-commit run --all-files --hook-stage manual
+    uv run --no-sync pre-commit run --all-files --hook-stage manual
 
 check: file-hygiene dependency-lock-check rust-fmt-check rust-lint py-format-check py-lint py-types
 
@@ -42,6 +46,19 @@ verify: check test
 
 ci: verify
     RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
+
+# Requires wasm32-unknown-unknown, wasm-bindgen-cli 0.2.128 and Node >=22.
+wasm-check:
+    cargo clippy --locked -p treams-wasm --target wasm32-unknown-unknown -- -D warnings
+    node scripts/check_wasm.mjs
+
+# Opt-in hardware lane: requires an NVIDIA GPU and the CUDA 13.3 cuTile toolkit.
+gpu-check:
+    PYO3_PYTHON="$PWD/.venv/bin/python" cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+    uv run --no-sync maturin develop --release --features cuda-tile
+    cargo test --locked -p treams-cuda --features cuda --release -- --ignored
+    cargo test --locked -p treams-cuda-tile --features cuda-tile --release -- --ignored
+    TREAMS_TEST_CUDA=1 TREAMS_TEST_CUDA_TILE=1 uv run --no-sync pytest tests/test_cuda.py
 
 build-wheel:
     uv run --no-sync maturin build --release --locked --out dist

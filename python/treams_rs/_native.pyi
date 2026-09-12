@@ -6,6 +6,113 @@ from numpy.typing import ArrayLike, NDArray
 type ComplexArray = NDArray[np.complex128]
 type RealArray = NDArray[np.float64]
 
+class InteractionFactor:
+    def __init__(self, local: ComplexArray, coupling: ComplexArray) -> None: ...
+    @staticmethod
+    def from_blocks(
+        local: list[ComplexArray], coupling: ComplexArray
+    ) -> InteractionFactor: ...
+    @property
+    def dimension(self) -> int: ...
+    def solve(self, incident: ComplexArray) -> ComplexArray: ...
+    def record(
+        self, incident: ComplexArray
+    ) -> tuple[ComplexArray, InteractionIlluminationContext]: ...
+
+class InteractionIlluminationContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[ComplexArray, ComplexArray, ComplexArray]: ...
+    def pullback_blocks(
+        self, cotangent: ComplexArray
+    ) -> tuple[list[ComplexArray], ComplexArray, ComplexArray]: ...
+
+type Convergence = tuple[int, float, float]
+
+def cluster_factor(
+    lmax: int, k0: float, radii: RealArray, epsilon: ComplexArray, positions: RealArray
+) -> InteractionFactor: ...
+
+class NativeSphereCluster:
+    def __init__(
+        self,
+        lmax: int,
+        k0: float,
+        radii: RealArray,
+        epsilon: ComplexArray,
+        positions: RealArray,
+    ) -> None: ...
+    @property
+    def dimension(self) -> int: ...
+    def solve(
+        self,
+        incident: ComplexArray,
+        *,
+        rtol: float = 1e-10,
+        atol: float = 0.0,
+        restart: int = 30,
+        max_iterations: int = 300,
+    ) -> tuple[ComplexArray, list[Convergence]]: ...
+    def solve_with_pullback(
+        self,
+        incident: ComplexArray,
+        *,
+        rtol: float = 1e-10,
+        atol: float = 0.0,
+        restart: int = 30,
+        max_iterations: int = 300,
+    ) -> tuple[ComplexArray, IterativeContext, list[Convergence]]: ...
+
+class IterativeContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[
+        RealArray, RealArray, ComplexArray, float, ComplexArray, list[Convergence]
+    ]: ...
+
+class CudaDevice:
+    def __init__(self, ordinal: int = 0) -> None: ...
+    @property
+    def name(self) -> str: ...
+    def synchronize(self) -> None: ...
+    def upload(self, matrix: ComplexArray) -> CudaMatrix: ...
+    def factor(self, matrix: ComplexArray) -> CudaFactor: ...
+    def matmul(self, a: CudaMatrix, b: CudaMatrix) -> CudaMatrix: ...
+
+class CudaMatrix:
+    @property
+    def shape(self) -> tuple[int, int]: ...
+    @property
+    def nbytes(self) -> int: ...
+    def numpy(self) -> ComplexArray: ...
+
+class CudaFactor:
+    @property
+    def dimension(self) -> int: ...
+    @property
+    def nbytes(self) -> int: ...
+    def solve(self, rhs: ComplexArray, *, adjoint: bool = False) -> ComplexArray: ...
+    def solve_device(self, rhs: CudaMatrix, *, adjoint: bool = False) -> CudaMatrix: ...
+    def solve_with_pullback(
+        self, rhs: ComplexArray
+    ) -> tuple[ComplexArray, CudaSolveContext]: ...
+
+class CudaSolveContext:
+    def pullback(
+        self, cotangent: ComplexArray
+    ) -> tuple[ComplexArray, ComplexArray]: ...
+
+class CudaPlaneWaves:
+    def __init__(
+        self,
+        device: int,
+        vectors: ComplexArray,
+        polarizations: NDArray[np.uint8],
+        coefficients: ComplexArray,
+        helicity: bool,
+    ) -> None: ...
+    def evaluate(self, points: RealArray) -> ComplexArray: ...
+
 class QContext:
     def pullback(
         self, cotangent: ComplexArray

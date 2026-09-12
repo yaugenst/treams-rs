@@ -39,8 +39,40 @@ jobs:
         with:
           just-version: "1.48.0"
       - name: Install dependencies
-        run: uv sync --locked --group dev --python '${{ matrix.python-version }}'
+        run: |
+          uv sync --locked --group dev --extra jax --python '${{ matrix.python-version }}'
+          uv pip install --index-url https://download.pytorch.org/whl/cpu 'torch==2.14.0+cpu'
       - name: Verify
         run: just ci
+      - name: Compile optional CUDA without a toolkit
+        run: just rust-cuda-check
       - name: Verify clean wheel
         run: just check-wheel
+
+  wasm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@89428adc381502888d30f3ce6abbb7ea52739d01
+        with:
+          toolchain: "1.94.0"
+          components: clippy
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f
+        with:
+          node-version: "24"
+      - uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6
+        with:
+          just-version: "1.48.0"
+      - name: Install matching WASM bindings tool
+        run: cargo install wasm-bindgen-cli --version 0.2.128 --locked
+      - name: Compile and qualify browser module
+        run: just wasm-check
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: treams-wasm
+          path: target/wasm-pkg/
+          if-no-files-found: error

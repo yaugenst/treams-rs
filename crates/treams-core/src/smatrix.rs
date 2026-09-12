@@ -954,6 +954,24 @@ pub fn fresnel(
     {
         return Err(Error::InvalidInput("Fresnel inputs must be finite".into()));
     }
+    if ks[0] == ks[1]
+        && kz[0] == kz[1]
+        && z[0] == z[1]
+        && z[0] != Complex::default()
+        && ks[0].iter().all(|&k| k != Complex::default())
+        && kz[0].contains(&Complex::default())
+    {
+        // Identical media have no boundary. This is the exact continuation of
+        // transmission through a grazing channel, whose Fresnel formula is 0/0.
+        let value = std::array::from_fn(|b| {
+            if b == 0 || b == 3 {
+                DMatrix::identity(2, 2)
+            } else {
+                DMatrix::zeros(2, 2)
+            }
+        });
+        return Ok(FresnelResidual { ks, kz, z, value });
+    }
     let values = fresnel_values::<0>(
         ks.map(|r| r.map(Jet::constant)),
         kz.map(|r| r.map(Jet::constant)),
@@ -984,6 +1002,17 @@ impl FresnelResidual {
         });
         let z = std::array::from_fn(|i| Jet::variable(self.z[i], 8 + i));
         let values = fresnel_values(ks, kz, z);
+        if values
+            .iter()
+            .flatten()
+            .flatten()
+            .flatten()
+            .any(|v| !v.finite())
+        {
+            return Err(Error::InvalidInput(
+                "Fresnel derivative is undefined for this grazing-channel limit".into(),
+            ));
+        }
         let mut result = [Complex::default(); 10];
         for (b, block) in g.iter().enumerate() {
             for i in 0..2 {
@@ -1009,9 +1038,11 @@ type BoundaryJets<const N: usize> = [[Jet<N>; 4]; 4];
 
 pub(crate) fn normal_component<const N: usize>(k: Jet<N>, q: [Jet<N>; 2]) -> Result<Jet<N>> {
     let mut normal = (k * k - q[0] * q[0] - q[1] * q[1]).sqrt();
-    if normal.value == Complex::default() {
+    // A grazing wave still has finite tangential fields. Only the derivative
+    // of its square-root dispersion is singular, not the forward interface.
+    if N > 0 && normal.value == Complex::default() {
         return Err(Error::InvalidInput(
-            "interface at exact diffraction threshold requires a limiting formulation".into(),
+            "interface derivative is undefined at an exact diffraction threshold".into(),
         ));
     }
     if normal.value.im < 0.0 || (normal.value.im == 0.0 && normal.value.re < 0.0) {
@@ -1082,7 +1113,7 @@ pub struct InterfaceResidual {
     z: [Complex; 2],
     q: [f64; 2],
     axis: usize,
-    inverse: InterfaceMatrix,
+    inverse: Option<InterfaceMatrix>,
     /// Four helicity scattering blocks, with polarization order (0,1).
     pub value: Blocks,
 }
@@ -1111,8 +1142,21 @@ pub fn interface(
         axis,
     )?;
     let matrix = InterfaceMatrix::from_fn(|i, j| lhs[i][j].value);
-    let inverse = matrix.lu().try_inverse().ok_or(Error::Singular)?;
-    let result = inverse * InterfaceMatrix::from_fn(|i, j| rhs[i][j].value);
+    let matched_grazing = ks[0] == ks[1]
+        && z[0] == z[1]
+        && ks[0]
+            .iter()
+            .any(|&k| k * k - q[0] * q[0] - q[1] * q[1] == Complex::default());
+    let inverse = if matched_grazing {
+        None
+    } else {
+        Some(matrix.lu().try_inverse().ok_or(Error::Singular)?)
+    };
+    // The same medium on both sides is transparent, including at grazing
+    // incidence, where tangential matching alone cannot distinguish the ports.
+    let result = inverse.map_or_else(InterfaceMatrix::identity, |inverse| {
+        inverse * InterfaceMatrix::from_fn(|i, j| rhs[i][j].value)
+    });
     let value = std::array::from_fn(|block| {
         DMatrix::from_fn(2, 2, |i, j| {
             result[(2 * (block / 2) + i, 2 * (block % 2) + j)]
@@ -1142,7 +1186,12 @@ impl InterfaceResidual {
         let cotangent = InterfaceMatrix::from_fn(|i, j| g[2 * (i / 2) + j / 2][(i % 2, j % 2)]);
         let value =
             InterfaceMatrix::from_fn(|i, j| self.value[2 * (i / 2) + j / 2][(i % 2, j % 2)]);
-        let adjoint = self.inverse.adjoint() * cotangent;
+        let inverse = self.inverse.ok_or_else(|| {
+            Error::InvalidInput(
+                "interface derivative is undefined at an exact diffraction threshold".into(),
+            )
+        })?;
+        let adjoint = inverse.adjoint() * cotangent;
         let operator = -adjoint * value.adjoint();
         let ks = std::array::from_fn(|i| {
             std::array::from_fn(|j| Jet::<8>::variable(self.ks[i][j], 2 * i + j))
@@ -1174,6 +1223,32 @@ impl InterfaceResidual {
             [result[4], result[5]],
             [result[6].re, result[7].re],
         ))
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)] // Invalid results fail and shrink the property.
+mod threshold_tests {
+    use proptest::prelude::*;
+
+    use super::{Complex, DMatrix, interface};
+
+    proptest! {
+        #[test]
+        fn identical_media_remain_transparent_at_cutoff(k in 0.1..10.0, z in 0.2..3.0) {
+            let ks = [[Complex::new(k, 0.0), Complex::new(1.3 * k, 0.1)]; 2];
+            let residual = interface(ks, [Complex::new(z, 0.0); 2], [k, 0.0], 2).unwrap();
+            for (b, value) in residual.value.iter().enumerate() {
+                let expected = if b == 0 || b == 3 {
+                    DMatrix::identity(2, 2)
+                } else {
+                    DMatrix::zeros(2, 2)
+                };
+                prop_assert_eq!(value, &expected);
+            }
+            let cotangent = residual.value.clone();
+            prop_assert!(residual.pullback(&cotangent, true).is_err());
+        }
     }
 }
 

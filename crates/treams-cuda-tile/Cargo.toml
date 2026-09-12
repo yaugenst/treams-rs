@@ -1,0 +1,25 @@
+[package]
+name = "treams-cuda-tile"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Optional double-precision cuTile kernels for treams-rs"
+
+[features]
+default = []
+cuda-tile = ["dep:cutile", "dep:treams-core"]
+
+[target.'cfg(target_os = "linux")'.dependencies]
+cutile = { version = "=0.3.1", optional = true }
+treams-core = { workspace = true, optional = true }
+
+[dev-dependencies]
+proptest = "1"
+
+[[example]]
+name = "qualify_plane"
+required-features = ["cuda-tile"]
+
+[lints]
+workspace = true

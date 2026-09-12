@@ -1,6 +1,6 @@
 """T-matrix scattering with a Rust numerical core and native pullbacks."""
 
-from . import coeffs, config, cw, diff, ebcm, lattice, misc, pw, special, sw
+from . import coeffs, config, cw, diff, ebcm, iterative, lattice, misc, pw, special, sw
 from ._array import PhysicsArray
 from ._core import (
     CylindricalWaveBasis,
@@ -90,6 +90,7 @@ __all__ = [
     "ffield",
     "gfield",
     "hfield",
+    "iterative",
     "lattice",
     "misc",
     "permute",

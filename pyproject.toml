@@ -15,6 +15,8 @@ classifiers = ["Development Status :: 3 - Alpha", "Programming Language :: Rust"
 
 [project.optional-dependencies]
 advect = ["advect>=0.2.0,<0.3"]
+jax = ["jax>=0.9,<0.10"]
+torch = ["torch>=2.7,<3"]
 io = [
     "h5py>=3,<4",
 ]

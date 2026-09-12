@@ -1,0 +1,145 @@
+{
+  "recorded_at": "2026-09-12T03:14:45.214814+00:00",
+  "case": {
+    "particles": 1024,
+    "lmax": 1,
+    "columns": 1,
+    "strength": "weak",
+    "threads": 4,
+    "repeats": 3,
+    "warmup": 1,
+    "rtol": 1e-10,
+    "restart": 30,
+    "max_iterations": 300,
+    "dense_limit": 3072,
+    "oracle_limit": 768
+  },
+  "dimension": 6144,
+  "dense_skipped_reason": "dimension 6144 exceeds explicit dense limit 3072; no same-size dense comparison claimed",
+  "oracle_relative_error": null,
+  "comparison_reference": "recorded matrix-free forward; independent large-case gradient finite differences and invariants only",
+  "comparison_relative_errors": {
+    "matrix-free/forward/value": 0.0,
+    "matrix-free/adjoint/value": 0.0,
+    "matrix-free/adjoint/radii": 0.0,
+    "matrix-free/adjoint/positions": 0.0,
+    "matrix-free/adjoint/epsilon": 0.0,
+    "matrix-free/adjoint/k0": 0.0,
+    "matrix-free/adjoint/incident": 0.0
+  },
+  "measurements": [
+    {
+      "native_sha256": "3fea4832613825016c9fd0c9ae40402e343e2f36a92ace564e5a8f004dea5075",
+      "python_source_sha256": "23c1e0a468d2f24dc64d0d82a0f97b2524dbb2ba0c2f7c48b7f74116e06f2a86",
+      "benchmark_sha256": "a5bd815c86d9d359e60995fc066cf2854ebaa046ad45b0ba14d4ce3d41b26dad",
+      "backend": "matrix-free",
+      "phase": "forward",
+      "native_profile": "release",
+      "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+      "python": "3.13.12",
+      "numpy": "2.5.3",
+      "treams": "0.4.5",
+      "affinity": null,
+      "threadpools": [],
+      "threads": 4,
+      "common_input_setup_seconds": 0.004674833005992696,
+      "setup_seconds": [
+        0.00697620798018761,
+        0.007258917001308873,
+        0.0069217089912854135
+      ],
+      "fresh_seconds": [
+        3.4070915409829468,
+        3.3769359170109965,
+        3.3584439999831375
+      ],
+      "reuse_seconds": [
+        3.3212498750071973,
+        3.320130833017174,
+        3.3690325420175213
+      ],
+      "backward_seconds": [],
+      "setup_median_seconds": 0.00697620798018761,
+      "fresh_median_seconds": 3.3769359170109965,
+      "reuse_median_seconds": 3.3212498750071973,
+      "backward_median_seconds": null,
+      "baseline_rss_mib": 40.03125,
+      "peak_rss_mib": 43.265625,
+      "additional_peak_rss_mib": 3.234375,
+      "forward_convergence": [
+        [
+          6,
+          1.8102802387671655e-12,
+          0.21568623457410613
+        ]
+      ],
+      "adjoint_convergence": [],
+      "numerical": {}
+    },
+    {
+      "native_sha256": "3fea4832613825016c9fd0c9ae40402e343e2f36a92ace564e5a8f004dea5075",
+      "python_source_sha256": "23c1e0a468d2f24dc64d0d82a0f97b2524dbb2ba0c2f7c48b7f74116e06f2a86",
+      "benchmark_sha256": "a5bd815c86d9d359e60995fc066cf2854ebaa046ad45b0ba14d4ce3d41b26dad",
+      "backend": "matrix-free",
+      "phase": "adjoint",
+      "native_profile": "release",
+      "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+      "python": "3.13.12",
+      "numpy": "2.5.3",
+      "treams": "0.4.5",
+      "affinity": null,
+      "threadpools": [],
+      "threads": 4,
+      "common_input_setup_seconds": 0.0047864999796729535,
+      "setup_seconds": [
+        0.006731125002261251,
+        0.006703208986436948,
+        0.006776500027626753
+      ],
+      "fresh_seconds": [
+        3.3815649170137476,
+        3.42568424998899,
+        3.3426042920036707
+      ],
+      "reuse_seconds": [],
+      "backward_seconds": [
+        4.451504750002641,
+        4.403716125001665,
+        4.410919165995438
+      ],
+      "setup_median_seconds": 0.006731125002261251,
+      "fresh_median_seconds": 3.3815649170137476,
+      "reuse_median_seconds": null,
+      "backward_median_seconds": 4.410919165995438,
+      "baseline_rss_mib": 39.796875,
+      "peak_rss_mib": 44.921875,
+      "additional_peak_rss_mib": 5.125,
+      "forward_convergence": [
+        [
+          6,
+          1.8102802387671655e-12,
+          0.21568623457410613
+        ]
+      ],
+      "adjoint_convergence": [
+        [
+          6,
+          3.666942712064284e-12,
+          0.43302351831963887
+        ]
+      ],
+      "numerical": {
+        "translation_ward_absolute": 1.6797327544855263e-19,
+        "scale_ward_absolute": 2.220446049250313e-16,
+        "illumination_ward_absolute": -8.743006318923108e-16,
+        "radius_direction_fd": 0.0018743471383309007,
+        "radius_direction_adjoint": 0.0018743470972968493,
+        "radius_direction_relative_error": 2.1892450674147775e-08
+      }
+    }
+  ],
+  "selected_assembly": "Forward/reuse use native diff.cluster_factor. Complete physical adjoints compose sphere/expansion contexts with block LU and include their generic assembly and retained memory.",
+  "peak_rss_scope": "Each backend and forward/adjoint phase in separate fresh process. Includes imports, common inputs, warmup, repeated fresh and reused operations; excludes finite-difference validation after capture.",
+  "timing_scope": "Fresh includes geometry/local coefficients/coupling/factor setup plus requested solve. Reuse keeps the full T, selected LU, or matrix-free geometry. Common plane-wave input construction excluded and reported separately. Python result destruction excluded.",
+  "complete": true
+}

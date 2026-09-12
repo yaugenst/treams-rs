@@ -1,0 +1,177 @@
+{
+  "recorded_at": "2026-09-12T03:16:29.367581+00:00",
+  "case": {
+    "particles": 1024,
+    "lmax": 1,
+    "columns": 1,
+    "strength": "weak",
+    "threads": 4,
+    "repeats": 3,
+    "warmup": 1,
+    "rtol": 1e-10,
+    "restart": 30,
+    "max_iterations": 300,
+    "dense_limit": 3072,
+    "oracle_limit": 768
+  },
+  "dimension": 6144,
+  "dense_skipped_reason": "dimension 6144 exceeds explicit dense limit 3072; no same-size dense comparison claimed",
+  "oracle_relative_error": null,
+  "comparison_reference": "recorded matrix-free forward; independent large-case gradient finite differences and invariants only",
+  "comparison_relative_errors": {
+    "matrix-free/forward/value": 0.0,
+    "matrix-free/adjoint/value": 0.0,
+    "matrix-free/adjoint/radii": 0.0,
+    "matrix-free/adjoint/positions": 0.0,
+    "matrix-free/adjoint/epsilon": 0.0,
+    "matrix-free/adjoint/k0": 0.0,
+    "matrix-free/adjoint/incident": 0.0
+  },
+  "measurements": [
+    {
+      "native_sha256": "5c069774b4da163986dac13ec99bf3915ac8cd282d7511fc0208a00ffeabb084",
+      "python_source_sha256": "23c1e0a468d2f24dc64d0d82a0f97b2524dbb2ba0c2f7c48b7f74116e06f2a86",
+      "benchmark_sha256": "a5bd815c86d9d359e60995fc066cf2854ebaa046ad45b0ba14d4ce3d41b26dad",
+      "backend": "matrix-free",
+      "phase": "forward",
+      "native_profile": "release",
+      "platform": "Linux-7.2.4-200.fc44.x86_64-x86_64-with-glibc2.43",
+      "python": "3.13.1",
+      "numpy": "2.5.3",
+      "treams": "0.4.5",
+      "affinity": [
+        8,
+        9,
+        10,
+        11
+      ],
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 4,
+          "prefix": "libscipy_openblas",
+          "filepath": "~/personal/treams-rs/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-f48b354e.so",
+          "version": "0.3.34.106.0",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ],
+      "threads": 4,
+      "common_input_setup_seconds": 0.004124159982893616,
+      "setup_seconds": [
+        0.008573059021728113,
+        0.008519146998878568,
+        0.008548218000214547
+      ],
+      "fresh_seconds": [
+        2.1945499760040548,
+        2.1916915600013454,
+        2.190398406004533
+      ],
+      "reuse_seconds": [
+        2.190373354998883,
+        2.1701401750033256,
+        2.177594243985368
+      ],
+      "backward_seconds": [],
+      "setup_median_seconds": 0.008548218000214547,
+      "fresh_median_seconds": 2.1916915600013454,
+      "reuse_median_seconds": 2.177594243985368,
+      "backward_median_seconds": null,
+      "baseline_rss_mib": 43.15625,
+      "peak_rss_mib": 46.5703125,
+      "additional_peak_rss_mib": 3.4140625,
+      "forward_convergence": [
+        [
+          6,
+          1.8102805826890083e-12,
+          0.2156862345741058
+        ]
+      ],
+      "adjoint_convergence": [],
+      "numerical": {}
+    },
+    {
+      "native_sha256": "5c069774b4da163986dac13ec99bf3915ac8cd282d7511fc0208a00ffeabb084",
+      "python_source_sha256": "23c1e0a468d2f24dc64d0d82a0f97b2524dbb2ba0c2f7c48b7f74116e06f2a86",
+      "benchmark_sha256": "a5bd815c86d9d359e60995fc066cf2854ebaa046ad45b0ba14d4ce3d41b26dad",
+      "backend": "matrix-free",
+      "phase": "adjoint",
+      "native_profile": "release",
+      "platform": "Linux-7.2.4-200.fc44.x86_64-x86_64-with-glibc2.43",
+      "python": "3.13.1",
+      "numpy": "2.5.3",
+      "treams": "0.4.5",
+      "affinity": [
+        8,
+        9,
+        10,
+        11
+      ],
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 4,
+          "prefix": "libscipy_openblas",
+          "filepath": "~/personal/treams-rs/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-f48b354e.so",
+          "version": "0.3.34.106.0",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ],
+      "threads": 4,
+      "common_input_setup_seconds": 0.004166820988757536,
+      "setup_seconds": [
+        0.008385994005948305,
+        0.008359674015082419,
+        0.00840423398767598
+      ],
+      "fresh_seconds": [
+        2.175654650985962,
+        2.172350794018712,
+        2.1784208260069136
+      ],
+      "reuse_seconds": [],
+      "backward_seconds": [
+        2.8372268190141767,
+        2.826383619016269,
+        2.821855449001305
+      ],
+      "setup_median_seconds": 0.008385994005948305,
+      "fresh_median_seconds": 2.175654650985962,
+      "reuse_median_seconds": null,
+      "backward_median_seconds": 2.826383619016269,
+      "baseline_rss_mib": 43.7421875,
+      "peak_rss_mib": 47.8984375,
+      "additional_peak_rss_mib": 4.15625,
+      "forward_convergence": [
+        [
+          6,
+          1.8102805826890083e-12,
+          0.2156862345741058
+        ]
+      ],
+      "adjoint_convergence": [
+        [
+          6,
+          3.666942549150796e-12,
+          0.4330235183196384
+        ]
+      ],
+      "numerical": {
+        "translation_ward_absolute": 2.2088048866772724e-19,
+        "scale_ward_absolute": 2.220446049250313e-16,
+        "illumination_ward_absolute": -8.604228440844963e-16,
+        "radius_direction_fd": 0.0018743471383655952,
+        "radius_direction_adjoint": 0.0018743470972968474,
+        "radius_direction_relative_error": 2.1910961877933633e-08
+      }
+    }
+  ],
+  "selected_assembly": "Forward/reuse use native diff.cluster_factor. Complete physical adjoints compose sphere/expansion contexts with block LU and include their generic assembly and retained memory.",
+  "peak_rss_scope": "Each backend and forward/adjoint phase in separate fresh process. Includes imports, common inputs, warmup, repeated fresh and reused operations; excludes finite-difference validation after capture.",
+  "timing_scope": "Fresh includes geometry/local coefficients/coupling/factor setup plus requested solve. Reuse keeps the full T, selected LU, or matrix-free geometry. Common plane-wave input construction excluded and reported separately. Python result destruction excluded.",
+  "complete": true
+}

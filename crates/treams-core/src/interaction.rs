@@ -82,12 +82,12 @@ pub(crate) fn product_adjoint_right_into(
 }
 
 #[derive(Clone, Debug)]
-enum LocalMatrix {
+pub(crate) enum LocalMatrix {
     Dense(DMatrix<Complex>),
     Blocks(Vec<DMatrix<Complex>>),
 }
 impl LocalMatrix {
-    fn dimension(&self) -> usize {
+    pub(crate) fn dimension(&self) -> usize {
         match self {
             Self::Dense(m) => m.nrows(),
             Self::Blocks(blocks) => blocks.iter().map(DMatrix::nrows).sum(),
@@ -109,7 +109,7 @@ impl LocalMatrix {
             }
         }
     }
-    fn apply(&self, right: &DMatrix<Complex>, adjoint: bool) -> DMatrix<Complex> {
+    pub(crate) fn apply(&self, right: &DMatrix<Complex>, adjoint: bool) -> DMatrix<Complex> {
         let mut result = DMatrix::zeros(self.dimension(), right.ncols());
         let blocks = match self {
             Self::Dense(m) => std::slice::from_ref(m),
@@ -156,16 +156,16 @@ pub struct InteractionResidual {
 
 /// Solve a multiple-scattering system, retaining its LU factorization.
 pub fn forward(local: DMatrix<Complex>, coupling: DMatrix<Complex>) -> Result<InteractionResidual> {
-    if !local.is_square()
-        || local.nrows() == 0
-        || local.shape() != coupling.shape()
-        || local.iter().chain(coupling.iter()).any(|z| !finite(*z))
-    {
+    factor(local_dense(local)?, coupling)
+}
+
+pub(crate) fn local_dense(local: DMatrix<Complex>) -> Result<LocalMatrix> {
+    if !local.is_square() || local.nrows() == 0 || local.iter().any(|&z| !finite(z)) {
         return Err(Error::InvalidInput(
-            "local and coupling must be finite equally sized nonempty square matrices".into(),
+            "local matrix must be finite, square and nonempty".into(),
         ));
     }
-    factor(LocalMatrix::Dense(local), coupling)
+    Ok(LocalMatrix::Dense(local))
 }
 
 /// Solve a cluster without storing or multiplying the zero off-diagonal local blocks.
@@ -173,6 +173,10 @@ pub(crate) fn forward_blocks(
     blocks: Vec<DMatrix<Complex>>,
     coupling: DMatrix<Complex>,
 ) -> Result<InteractionResidual> {
+    factor(local_blocks(blocks)?, coupling)
+}
+
+pub(crate) fn local_blocks(blocks: Vec<DMatrix<Complex>>) -> Result<LocalMatrix> {
     if blocks.is_empty()
         || blocks
             .iter()
@@ -182,7 +186,13 @@ pub(crate) fn forward_blocks(
             "local blocks must be finite nonempty square matrices".into(),
         ));
     }
-    let local = LocalMatrix::Blocks(blocks);
+    Ok(LocalMatrix::Blocks(blocks))
+}
+
+pub(crate) fn operator(
+    local: &LocalMatrix,
+    coupling: &DMatrix<Complex>,
+) -> Result<DMatrix<Complex>> {
     if coupling.shape() != (local.dimension(), local.dimension())
         || coupling.iter().any(|z| !finite(*z))
     {
@@ -190,13 +200,13 @@ pub(crate) fn forward_blocks(
             "invalid cluster coupling matrix".into(),
         ));
     }
-    factor(local, coupling)
+    let mut operator = -local.apply(coupling, false);
+    operator.set_diagonal(&(operator.diagonal().add_scalar(Complex::new(1.0, 0.0))));
+    Ok(operator)
 }
 
 fn factor(local: LocalMatrix, coupling: DMatrix<Complex>) -> Result<InteractionResidual> {
-    let mut operator = -local.apply(&coupling, false);
-    operator.set_diagonal(&(operator.diagonal().add_scalar(Complex::new(1.0, 0.0))));
-    let lu = Lu::new(operator)?;
+    let lu = Lu::new(operator(&local, &coupling)?)?;
     let mut value = local.dense();
     lu.solve_in_place(view_mut(&mut value));
     if value.iter().any(|z| !finite(*z)) {

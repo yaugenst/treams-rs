@@ -4,7 +4,7 @@
 use nalgebra::DMatrix;
 use numpy::{
     IntoPyArray, PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2,
-    ndarray::{Array2, ArrayView2},
+    ndarray::{Array2, ArrayView2, ShapeBuilder},
 };
 use pyo3::{exceptions::PyValueError, prelude::*};
 use rayon::prelude::*;
@@ -24,6 +24,16 @@ pub(crate) fn matrix<'py>(
 ) -> Bound<'py, PyArray2<Complex>> {
     Array2::from_shape_fn(value.shape(), |(i, j)| value[(i, j)]).into_pyarray(py)
 }
+
+pub(crate) fn owned_matrix(
+    py: Python<'_>,
+    value: DMatrix<Complex>,
+) -> PyResult<Bound<'_, PyArray2<Complex>>> {
+    let shape = value.shape();
+    Ok(Array2::from_shape_vec(shape.f(), Vec::from(value.data))
+        .map_err(|err| PyValueError::new_err(err.to_string()))?
+        .into_pyarray(py))
+}
 pub(crate) fn from_array(value: PyReadonlyArray2<'_, Complex>) -> PyResult<DMatrix<Complex>> {
     let a = value.as_array();
     if a.iter().any(|z| !z.re.is_finite() || !z.im.is_finite()) {
@@ -35,7 +45,7 @@ pub(crate) fn from_array(value: PyReadonlyArray2<'_, Complex>) -> PyResult<DMatr
 pub(crate) fn matrix_from_view(a: ArrayView2<'_, Complex>) -> DMatrix<Complex> {
     // Tile the NumPy-to-column-major copy so large C-order inputs do not walk
     // one cache line per element. Both tiles fit in the CPU's L1 data cache.
-    if a.strides()[0] == 1
+    if a.t().is_standard_layout()
         && let Some(data) = a.as_slice_memory_order()
     {
         return DMatrix::from_column_slice(a.nrows(), a.ncols(), data);

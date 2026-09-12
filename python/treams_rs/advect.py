@@ -268,6 +268,18 @@ def particle_cluster(
     return _call((positions, ks, *local), forward)
 
 
+def illuminate(
+    local: ArrayLike, coupling: ArrayLike, incident: ArrayLike
+) -> NDArray[np.complex128]:
+    """Differentiate only the requested incident columns of a scattering solve."""
+
+    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+        value, context = diff.illuminate(values[0], values[1], values[2])
+        return value, context.pullback
+
+    return _call((local, coupling, incident), forward)
+
+
 def interaction(local: ArrayLike, coupling: ArrayLike) -> NDArray[np.complex128]:
     """Differentiable solve of (I - T C) X = T."""
 

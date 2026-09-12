@@ -1,0 +1,80 @@
+{
+  "retrieved": "2026-09-12",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/tfp-photonics/treams/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples/array_spheres.py",
+      "sha256": "f5d64545a7e91fad4fec6a0f141cac670e5a74b29692c02235af2a5f0fc4c004",
+      "role": "Original companion example spectrum reproduced."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/tfp-photonics/treams/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples/band_structure.py",
+      "sha256": "94ca143c0308efdc7b1f2b2649604933eeaeef9d585700da919cb4352e61f8a8",
+      "role": "Original companion example; band_structure.py inspected but not reproduced in this suite."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/tfp-photonics/treams/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples/slab.py",
+      "sha256": "01ac874ced6e3f20a01a989060e2bacec0e2b2efd911e96a016aebd5a74b4e50",
+      "role": "Original companion example spectrum reproduced."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/tfp-photonics/treams/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples/sphere.py",
+      "sha256": "423e957cddd0b9d07a6abf5b29d872403ec75e368a4ef44274df8d275fe6f84b",
+      "role": "Original companion example spectrum reproduced."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/tfp-photonics/treams_ebeam/9aa9974d0e56c60873dc880f11557e622d233ea9/src/treams_ebeam/illumination.py",
+      "sha256": "4405c07c38aa29ffc0613efbbf0a57f2c1cc730f33f18a4177f24193b36e2a7d",
+      "role": "Original author code inspected; numerical reference values extracted from sphere and cylinder tests only."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/tfp-photonics/treams_ebeam/9aa9974d0e56c60873dc880f11557e622d233ea9/src/treams_ebeam/observables_cylindrical.py",
+      "sha256": "b9226408e81d107bae8f9d12d24175b4f35e5a8b0d2d3d307873fd2734eebee4",
+      "role": "Original author code inspected; numerical reference values extracted from sphere and cylinder tests only."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/tfp-photonics/treams_ebeam/9aa9974d0e56c60873dc880f11557e622d233ea9/src/treams_ebeam/observables_spherical.py",
+      "sha256": "dfdd3e772f2009846f126165d4ae26cc02bc7554c38e86ec12e3947a81ac241b",
+      "role": "Original author code inspected; numerical reference values extracted from sphere and cylinder tests only."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/tfp-photonics/treams_ebeam/9aa9974d0e56c60873dc880f11557e622d233ea9/tests/test_cl_eels_cluster.py",
+      "sha256": "4891da22f6d498cc575aabc446e69a894c1f696da5cefde9af93877cbec05b60",
+      "role": "Original author code inspected; numerical reference values extracted from sphere and cylinder tests only."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/tfp-photonics/treams_ebeam/9aa9974d0e56c60873dc880f11557e622d233ea9/tests/test_cl_eels_cylinder.py",
+      "sha256": "fc9a1a83e212a7d5e553dbb08fb078d825033679237b633a9238f3c01d4df344",
+      "role": "Original author code inspected; numerical reference values extracted from sphere and cylinder tests only."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/tfp-photonics/treams_ebeam/9aa9974d0e56c60873dc880f11557e622d233ea9/tests/test_cl_eels_sphere.py",
+      "sha256": "1ce4c9056f387e679b5d5d391c67c5576f06bad8d74744b9c632ed489d1a93c1",
+      "role": "Original author code inspected; numerical reference values extracted from sphere and cylinder tests only."
+    },
+    {
+      "url": "https://arxiv.org/src/2309.03182v1",
+      "sha256": "1c50639a137de42559f3cef447a0ad8dfe1cb9bab433172222a3a62ede3cf862",
+      "role": "Read ancillary inventory and Appendix F; no ellipsoid.h5 dataset exists in this archive."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/tfp-photonics/treams_ebeam/9aa9974d0e56c60873dc880f11557e622d233ea9/docs/sphere.ipynb",
+      "sha256": "a447fb3649f66d1dac21e4c03ebaa1b02cff44602ffcde0bb39ad4505cbe71fd",
+      "role": "Original full200point notebook grid and constants reproduced."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/tfp-photonics/treams_ebeam/9aa9974d0e56c60873dc880f11557e622d233ea9/docs/cylinder.ipynb",
+      "sha256": "8bdba4dbacf204e30caca3251feea7a7573c9b7ba8d009ae662f0d544aaa3b44",
+      "role": "Original full200point notebook grid and constants reproduced."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/tfp-photonics/treams_ebeam/9aa9974d0e56c60873dc880f11557e622d233ea9/src/treams_ebeam/__init__.py",
+      "sha256": "971be3dcd3c547b8cf47d81f0182897fba0088641285cc67955aa66f266306b9",
+      "role": "Original addon used to execute author notebook numerical cells."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/tfp-photonics/treams_ebeam/9aa9974d0e56c60873dc880f11557e622d233ea9/src/treams_ebeam/observables.py",
+      "sha256": "f860ddc6bc386b809f533cc34571243d54a906567654ea84636843c355f5241f",
+      "role": "Original addon used to execute author notebook numerical cells."
+    }
+  ]
+}

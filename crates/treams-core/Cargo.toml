@@ -16,6 +16,11 @@ nalgebra.workspace = true
 num-complex.workspace = true
 thiserror.workspace = true
 
+# faer's native thread pool uses atomic-wait, which cannot target the browser.
+# Rayon iterators in this crate use Rayon's supported serial WASM fallback.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+faer = { workspace = true, features = ["rayon"] }
+
 [dev-dependencies]
 proptest = "1"
 

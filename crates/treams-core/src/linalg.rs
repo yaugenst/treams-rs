@@ -18,22 +18,172 @@ use crate::{
     ratio,
 };
 
+/// Positive diagonal scales for the equivalent operator `R A C`.
+///
+/// A normal solve scales its right-hand side by `row` and its solution by
+/// `column`. A conjugate-transpose solve uses the opposite order. These scales
+/// are numerical coordinates, not additional inputs to the implicit derivative.
+#[derive(Clone, Debug)]
+pub struct Equilibration {
+    /// Left (equation) scale.
+    pub row: Vec<f64>,
+    /// Right (unknown) scale.
+    pub column: Vec<f64>,
+}
+
+/// Equilibrate severely unbalanced finite square operators in place.
+///
+/// Small-argument, high-order multipole operators can have unit diagonal and
+/// off-diagonal entries exceeding `1e20`. Their unscaled LU loses accuracy even
+/// when the equivalent equilibrated system is well conditioned. The existing
+/// validation scan also measures scale spread; ordinary operators are untouched.
+pub fn equilibrate(operator: &mut DMatrix<Complex>) -> Result<Option<Equilibration>> {
+    let n = operator.nrows();
+    if n == 0 || !operator.is_square() {
+        return Err(Error::InvalidInput(
+            "require a finite nonempty square operator".into(),
+        ));
+    }
+    let relative_floor = f64::EPSILON.sqrt();
+    let mut minimum = f64::INFINITY;
+    let mut maximum = 0.0_f64;
+    for &z in operator.iter() {
+        if !finite(z) {
+            return Err(Error::InvalidInput(
+                "require a finite nonempty square operator".into(),
+            ));
+        }
+        let magnitude = z.re.abs().max(z.im.abs());
+        if magnitude > 0.0 {
+            minimum = minimum.min(magnitude);
+        }
+        maximum = maximum.max(magnitude);
+    }
+    if maximum > 0.0
+        && (minimum / maximum >= relative_floor
+            || (0..n).all(|i| {
+                let z = operator[(i, i)];
+                z.re.abs().max(z.im.abs()) / maximum >= relative_floor
+            }))
+    {
+        return Ok(None);
+    }
+    // Only potentially unbalanced operators allocate scratch or need another
+    // pass. Isolated tiny entries do not by themselves require equilibration.
+    let mut row = vec![0.0_f64; n];
+    let mut column_min = f64::INFINITY;
+    for values in operator.as_slice().chunks_exact(n) {
+        let mut column_max = 0.0_f64;
+        for (row_max, &z) in row.iter_mut().zip(values) {
+            let magnitude = z.re.abs().max(z.im.abs());
+            *row_max = row_max.max(magnitude);
+            column_max = column_max.max(magnitude);
+        }
+        column_min = column_min.min(column_max);
+    }
+    let row_min = row.iter().copied().fold(f64::INFINITY, f64::min);
+    if row_min == 0.0 || column_min == 0.0 {
+        return Err(Error::Singular);
+    }
+    if row_min / maximum >= relative_floor && column_min / maximum >= relative_floor {
+        return Ok(None);
+    }
+    if column_min < row_min {
+        // Scale the more disparate axis first. Otherwise normalizing large rows
+        // can underflow an entire small column before it gets its own scale.
+        // Transposition swaps the two measured spreads, so this recurses once.
+        operator.transpose_mut();
+        let result = equilibrate(operator);
+        operator.transpose_mut();
+        return result.map(|scales| {
+            scales.map(|scales| Equilibration {
+                row: scales.column,
+                column: scales.row,
+            })
+        });
+    }
+    let inverse = |value: f64| {
+        value
+            .clamp(f64::MIN_POSITIVE, f64::MIN_POSITIVE.recip())
+            .recip()
+    };
+    for value in &mut row {
+        *value = inverse(*value);
+    }
+    let mut column = Vec::with_capacity(n);
+    for values in operator.as_mut_slice().chunks_exact_mut(n) {
+        let mut column_max = 0.0_f64;
+        for (value, &scale) in values.iter_mut().zip(&row) {
+            *value *= scale;
+            column_max = column_max.max(value.re.abs().max(value.im.abs()));
+        }
+        let scale = inverse(column_max);
+        column.push(scale);
+        for value in values {
+            *value *= scale;
+        }
+    }
+    Ok(Some(Equilibration { row, column }))
+}
+
+fn scale_rows(mut matrix: MatMut<'_, Complex>, scales: &[f64]) {
+    for j in 0..matrix.ncols() {
+        for (i, &scale) in scales.iter().enumerate() {
+            matrix[(i, j)] *= scale;
+        }
+    }
+}
+
+// Recursive LU and triangular solves schedule many narrow panels. On large
+// Rayon pools their task overhead dominates long before all workers are useful.
+// Keep the established <=4-worker profile; scale larger pools by panel width.
+#[cfg(not(target_arch = "wasm32"))]
+fn lu_threads(rows: usize, columns: usize, budget: usize) -> usize {
+    if budget <= 4 {
+        return budget;
+    }
+    // ponytail: calibrated through 8192 complex128 rows on Ryzen 9950X;
+    // allow more workers above that range as the per-panel work grows.
+    (rows / 512)
+        .min(4)
+        .max(rows / 2048)
+        .min(columns / 16)
+        .clamp(1, budget)
+}
+
+fn lu_parallelism(rows: usize, columns: usize) -> faer::Par {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let configured = faer::get_global_parallelism();
+        if configured.degree() == 1 {
+            return faer::Par::Seq;
+        }
+        let budget = configured.degree().min(rayon::current_num_threads());
+        match lu_threads(rows, columns, budget) {
+            1 => faer::Par::Seq,
+            threads => faer::Par::rayon(threads),
+        }
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = (rows, columns);
+        faer::Par::Seq
+    }
+}
+
 /// Packed pivoted LU: overwrite the operator and share its triangular storage.
 #[derive(Clone, Debug)]
 pub(crate) struct Lu {
     factors: DMatrix<Complex>,
     permutation: Perm<usize>,
+    equilibration: Option<Equilibration>,
 }
 
 impl Lu {
     pub(crate) fn new(mut factors: DMatrix<Complex>) -> Result<Self> {
         let n = factors.nrows();
-        if n == 0 || !factors.is_square() || factors.iter().any(|&z| !finite(z)) {
-            return Err(Error::InvalidInput(
-                "require a finite nonempty square operator".into(),
-            ));
-        }
-        let par = faer::get_global_parallelism();
+        let equilibration = equilibrate(&mut factors)?;
+        let par = lu_parallelism(n, n);
         let mut forward = vec![0usize; n];
         let mut inverse = vec![0usize; n];
         factor::lu_in_place(
@@ -54,6 +204,7 @@ impl Lu {
         }
         Ok(Self {
             factors,
+            equilibration,
             permutation: Perm::new_checked(
                 forward.into_boxed_slice(),
                 inverse.into_boxed_slice(),
@@ -62,14 +213,17 @@ impl Lu {
         })
     }
 
-    pub(crate) fn solve_in_place(&self, rhs: MatMut<'_, Complex>) {
-        let par = faer::get_global_parallelism();
+    pub(crate) fn solve_in_place(&self, mut rhs: MatMut<'_, Complex>) {
         let columns = rhs.ncols();
+        let par = lu_parallelism(self.factors.nrows(), columns);
+        if let Some(scales) = &self.equilibration {
+            scale_rows(rhs.as_mut(), &scales.row);
+        }
         lu_solve::solve_in_place(
             view(&self.factors),
             view(&self.factors),
             self.permutation.as_ref(),
-            rhs,
+            rhs.as_mut(),
             par,
             MemStack::new(&mut MemBuffer::new(lu_solve::solve_in_place_scratch::<
                 usize,
@@ -78,17 +232,23 @@ impl Lu {
                 self.factors.nrows(), columns, par
             ))),
         );
+        if let Some(scales) = &self.equilibration {
+            scale_rows(rhs, &scales.column);
+        }
     }
 
-    pub(crate) fn solve_adjoint_in_place(&self, rhs: MatMut<'_, Complex>) {
-        let par = faer::get_global_parallelism();
+    pub(crate) fn solve_adjoint_in_place(&self, mut rhs: MatMut<'_, Complex>) {
         let columns = rhs.ncols();
+        let par = lu_parallelism(self.factors.nrows(), columns);
+        if let Some(scales) = &self.equilibration {
+            scale_rows(rhs.as_mut(), &scales.column);
+        }
         lu_solve::solve_transpose_in_place_with_conj(
             view(&self.factors),
             view(&self.factors),
             self.permutation.as_ref(),
             Conj::Yes,
-            rhs,
+            rhs.as_mut(),
             par,
             MemStack::new(&mut MemBuffer::new(
                 lu_solve::solve_transpose_in_place_scratch::<usize, Complex>(
@@ -98,6 +258,9 @@ impl Lu {
                 ),
             )),
         );
+        if let Some(scales) = &self.equilibration {
+            scale_rows(rhs, &scales.row);
+        }
     }
 }
 
@@ -350,5 +513,114 @@ impl EigenResidual {
             return Err(Error::Singular);
         }
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod conditioning_tests {
+    #![allow(clippy::unwrap_used)] // proptest retains failing scaled systems.
+    use super::*;
+    use proptest::prelude::*;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    proptest! {
+        #[test]
+        fn lu_scheduling_respects_worker_and_rhs_budgets(
+            rows in 1_usize..100_000,
+            columns in 1_usize..100_000,
+            budget in 1_usize..128,
+        ) {
+            let threads = lu_threads(rows, columns, budget);
+            prop_assert!((1..=budget).contains(&threads));
+            if budget <= 4 {
+                prop_assert_eq!(threads, budget);
+            } else if columns < 32 {
+                prop_assert_eq!(threads, 1);
+            }
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn solve_and_adjoint_are_invariant_to_equation_and_unknown_units(
+            exponent in 30_i32..400,
+            a in -0.5_f64..0.5,
+            b in -0.5_f64..0.5,
+        ) {
+            let h = DMatrix::from_row_slice(2, 2, &[
+                Complex::new(2.0, 1.0), Complex::new(0.5, -0.25),
+                Complex::new(-0.25, 0.5), Complex::new(3.0, -1.0),
+            ]);
+            let row = [2.0_f64.powi(-exponent), 2.0_f64.powi(exponent)];
+            let column = [2.0_f64.powi(exponent / 2), 2.0_f64.powi(-exponent / 2)];
+            let operator = DMatrix::from_fn(2, 2, |i, j| h[(i, j)] / row[i] / column[j]);
+            let y = DMatrix::from_row_slice(2, 2, &[
+                Complex::new(1.0 + a, b), Complex::new(a, 1.0 + b),
+                Complex::new(-1.0 + b, a), Complex::new(1.0 + b, -a),
+            ]);
+            let hy = &h * &y;
+            let rhs = DMatrix::from_fn(2, 2, |i, j| hy[(i, j)] / row[i]);
+            let residual = solve_owned(operator, rhs).unwrap();
+            for j in 0..2 {
+                for i in 0..2 {
+                    prop_assert!((residual.value[(i, j)] / column[i] - y[(i, j)]).norm() < 2e-14);
+                }
+            }
+            let hz = h.adjoint() * &y;
+            let cotangent = DMatrix::from_fn(2, 2, |i, j| hz[(i, j)] / column[i]);
+            let adjoint = residual.adjoint_rhs(cotangent).unwrap();
+            for j in 0..2 {
+                for i in 0..2 {
+                    prop_assert!((adjoint[(i, j)] / row[i] - y[(i, j)]).norm() < 2e-14);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn ordinary_operator_is_not_modified() {
+        let mut operator = DMatrix::from_row_slice(
+            2,
+            2,
+            &[
+                Complex::new(2.0, 1.0),
+                Complex::new(0.5, -0.25),
+                Complex::new(-0.25, 0.5),
+                Complex::new(3.0, -1.0),
+            ],
+        );
+        let original = operator.clone();
+        assert!(equilibrate(&mut operator).unwrap().is_none());
+        assert_eq!(operator, original);
+        operator[(0, 1)] = Complex::from(2.0_f64.powi(-100));
+        assert!(equilibrate(&mut operator).unwrap().is_none());
+        operator *= Complex::from(2.0_f64.powi(-600));
+        assert!(equilibrate(&mut operator).unwrap().is_none());
+    }
+
+    #[test]
+    fn extreme_column_units_do_not_underflow_during_row_scaling() {
+        let high = 2.0_f64.powi(600);
+        let low = high.recip();
+        let operator = DMatrix::from_row_slice(
+            2,
+            2,
+            &[
+                Complex::from(high),
+                Complex::from(low),
+                Complex::from(high),
+                Complex::from(2.0 * low),
+            ],
+        );
+        let rhs = DMatrix::from_column_slice(2, 1, &[Complex::from(1.0), Complex::from(2.0)]);
+        let residual = solve_owned(operator, rhs).unwrap();
+        assert_eq!(residual.value[(0, 0)], Complex::default());
+        assert_eq!(residual.value[(1, 0)], Complex::from(high));
+        // A^H [1, -1] = [0, -low], with both exact adjoint coordinates finite.
+        let cotangent =
+            DMatrix::from_column_slice(2, 1, &[Complex::default(), Complex::from(-low)]);
+        let adjoint = residual.adjoint_rhs(cotangent).unwrap();
+        assert_eq!(adjoint[(0, 0)], Complex::from(1.0));
+        assert_eq!(adjoint[(1, 0)], Complex::from(-1.0));
     }
 }

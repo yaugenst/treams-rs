@@ -699,6 +699,58 @@ def particle_cluster(
     )
 
 
+def factor_interaction(
+    local: ArrayLike, coupling: ArrayLike
+) -> _native.InteractionFactor:
+    """Own and factor I - T C once, then solve only requested incident columns."""
+    return _native.InteractionFactor(
+        np.asarray(local, dtype=np.complex128),
+        np.asarray(coupling, dtype=np.complex128),
+    )
+
+
+def cluster_factor(
+    lmax: int, k0: float, radii: ArrayLike, epsilon: ArrayLike, positions: ArrayLike
+) -> _native.InteractionFactor:
+    """Native sphere-pair assembly and reusable requested-illumination LU.
+
+    Same homogeneous nonmagnetic vacuum spheres as cluster(). This static factor
+    avoids a full local block-diagonal array and full interacting T-matrix. Its
+    recorded VJP returns local-block, coupling and incident cotangents; use the
+    iterative sphere solver for physical radius/material/position pullbacks.
+    """
+    return _native.cluster_factor(
+        lmax,
+        k0,
+        np.ascontiguousarray(radii, dtype=np.float64),
+        np.ascontiguousarray(epsilon, dtype=np.complex128),
+        np.asarray(positions, dtype=np.float64),
+    )
+
+
+def factor_interaction_blocks(
+    local: Sequence[ArrayLike], coupling: ArrayLike
+) -> _native.InteractionFactor:
+    """Reusable factor retaining local particle matrices as separate dense blocks."""
+    return _native.InteractionFactor.from_blocks(
+        [np.asarray(block, dtype=np.complex128) for block in local],
+        np.asarray(coupling, dtype=np.complex128),
+    )
+
+
+def illuminate(
+    local: ArrayLike, coupling: ArrayLike, incident: ArrayLike
+) -> tuple[NDArray[np.complex128], _native.InteractionIlluminationContext]:
+    """Solve (I - T C) scattered = T incident for channel-by-illumination columns.
+
+    The VJP returns (local, coupling, incident) cotangents. No full interacting
+    T-matrix is computed. Use factor_interaction to reuse the LU across calls.
+    """
+    return factor_interaction(local, coupling).record(
+        np.asarray(incident, dtype=np.complex128)
+    )
+
+
 def interaction(
     local: ArrayLike, coupling: ArrayLike
 ) -> tuple[NDArray[np.complex128], _native.InteractionContext]:
