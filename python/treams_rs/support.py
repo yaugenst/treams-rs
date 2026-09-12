@@ -363,8 +363,8 @@ def support_catalog() -> dict[str, Any]:
             "wasm": {
                 "distribution": "separate JavaScript/TypeScript build, not a Python backend",
                 "runtime": "not applicable to this Python installation",
-                "scope": "layered/chiral spheres, finite sphere clusters, illumination, exterior scattered electric fields",
-                "limits": "serial; no exposed periodic/internal-field/adjoint APIs; no WebGPU; regular cluster expansion is not a total plane-wave field",
+                "scope": "layered/chiral spheres, interacting or independent finite clusters, illumination, direct incident and exterior scattered electric fields, fixed-target total-intensity radius/position gradient",
+                "limits": "serial; fixed-target geometry objective only, no generic pullbacks or periodic/internal-field APIs; no WebGPU; regular cluster expansion is not a total plane-wave field",
                 "enable": "just wasm-check; see docs/wasm.md",
             },
         },

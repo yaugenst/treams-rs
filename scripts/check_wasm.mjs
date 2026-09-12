@@ -33,7 +33,7 @@ const report = {
   wasm_bytes: binary.length,
   wasm_gzip_bytes: gzipSync(binary, {level: 9}).length,
   wasm_sha256: createHash("sha256").update(binary).digest("hex"),
-  node_results: verify(module.ScatteringSystem, reference),
+  node_results: verify(module.ScatteringSystem, reference, module),
 };
 
 if (process.argv[2] === "--browser") {
@@ -57,12 +57,12 @@ if (process.argv[2] === "--browser") {
       response.setHeader("Content-Type", "text/html");
       response.end(`<!doctype html><title>treams WASM qualification</title><pre id="result">Running</pre>
 <script type="module">
-import init, {ScatteringSystem} from './treams_wasm.js';
+import init, * as wasm from './treams_wasm.js';
 import {verify} from './verify.mjs';
 try {
   await init();
   const reference = await (await fetch('./reference.json')).json();
-  const result = verify(ScatteringSystem, reference);
+  const result = verify(wasm.ScatteringSystem, reference, wasm);
   document.querySelector('#result').textContent = JSON.stringify(result);
   await fetch('/result', {method:'POST', body:JSON.stringify(result)});
 } catch (e) { await fetch('/result', {method:'POST',body:JSON.stringify({passed:false,error:String(e)})}); }

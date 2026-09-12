@@ -74,12 +74,15 @@ factor reuse wins the currently measured triangular solves. Read the [measured
 GPU results](gpu.md), including warmup/transfers, before choosing a backend.
 
 The [WASM qualification](wasm.md) exercises Node and Chrome against the same Rust
-core. It exposes sphere and finite-cluster scattering, repeated illumination and
-exterior scattered electric fields. The regular `electric_field(..., false)`
+core. It exposes sphere and interacting/independent finite-cluster scattering,
+repeated illumination, direct incident plane waves and exterior scattered electric
+fields. `cluster_target_gradient` returns one fixed target's total intensity and
+analytic radius/position derivatives; it is not a generic pullback API. The regular `electric_field(..., false)`
 expansion sums all local origins: passing a cluster's plane-wave coefficients
 counts the incident plane wave once per origin. It is not a physical total-field
-constructor. Periodic systems, internal fields and adjoints are not JS exports;
-CUDA support is separate from browser execution.
+constructor. Use `direct_plane_field` plus the scattered field for a cluster's
+total field. Periodic systems, internal fields and generic pullbacks are not JS
+exports; CUDA support is separate from browser execution.
 
 For numerical trust, consult [status](status.md), [paper qualification](paper-qualification.md)
 and [upstream findings](upstream-findings.md). Recorded performance proofs retain

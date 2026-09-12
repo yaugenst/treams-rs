@@ -246,3 +246,7 @@ bench-power:
 
 # Run all performance suites sequentially on the same otherwise idle CPU set.
 bench-all: bench-performance bench-geometry bench-lattice bench-api bench-power
+
+# Build the static browser lab after qualifying the shared WASM bindings.
+web-check: wasm-check
+    cd web && npm ci && npm run format:check && npm test

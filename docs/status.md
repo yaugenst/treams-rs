@@ -167,8 +167,12 @@ independent high-precision reproducer in the benchmark documentation.
 The [WASM core and selected browser exports](wasm.md), [optional CUDA backend](gpu.md)
 and [published-paper reproductions](paper-qualification.md) have separate,
 reproducible qualification reports. The WASM exports cover spheres, finite
-clusters, plane-wave illumination and exterior scattered electric fields; they do not
-expose the entire Python API or adjoints. CUDA qualification uses the RTX 4080
+clusters, direct plane-wave illumination, exterior scattered electric fields,
+and the analytic radius/position gradient of total intensity at a fixed target.
+The [six browser experiments](../web/README.md) use these exports without Python,
+including coherent uncoupled comparison and a gradient overlay with accepted
+ascent steps. Generic pullback exports and the entire Python API are not exposed.
+CUDA qualification uses the RTX 4080
 SUPER with complex128; the field kernel has no native pullback yet. Python
 versions outside 3.12/3.13 and broader wheel-platform distribution remain
 unqualified.
