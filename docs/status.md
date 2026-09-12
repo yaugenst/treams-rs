@@ -114,7 +114,7 @@ independently of `config.POLTYPE`. Cross-default Hypothesis regressions cover bo
 No Rust source or installed native binary changed. The earlier full grids and
 GPU/WASM/paper reports retain their measured Python hashes; they were not relabeled
 or rerun for this change. Two affected public cluster paths were requalified on
-macOS: spherical 6.58x and cylindrical 2.98x faster than upstream, both with lower
+macOS: spherical 7.20x and cylindrical 1.56x faster than upstream, both with lower
 peak RSS. See [agent entry points](agents.md) and [developer checks](development.md).
 Finite test coverage is not a proof of correctness or performance for all possible inputs.
 

@@ -11,7 +11,6 @@ import ast
 import copy
 import hashlib
 import inspect
-from importlib import metadata
 from operator import itemgetter
 from pathlib import Path
 from typing import Any
@@ -22,6 +21,8 @@ __all__ = ["support_catalog"]
 
 
 def _version(name: str) -> str | None:
+    from importlib import metadata
+
     try:
         return metadata.version(name)
     except metadata.PackageNotFoundError:

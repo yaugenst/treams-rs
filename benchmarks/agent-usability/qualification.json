@@ -18,26 +18,26 @@
     "macos": "3fea4832613825016c9fd0c9ae40402e343e2f36a92ace564e5a8f004dea5075",
     "linux": "5c069774b4da163986dac13ec99bf3915ac8cd282d7511fc0208a00ffeabb084"
   },
-  "python_source_sha256": "29400263e0cbcd0ea0b04aae447b27f52a5fcf4b35cf5f551530e04ba3e14b16",
+  "python_source_sha256": "037ab7386ffe8c6c660b235a9ab7cd40babdc431db36bb90314e758f36699712",
   "benchmark_cases": [
     {
       "file": "cylindrical-particle-cluster-public.json",
       "workload": "cylindrical-particle-cluster-public",
-      "speedup": 2.977740064247111,
-      "rss_ratio": 0.7016867469879519,
+      "speedup": 1.5644059627027445,
+      "rss_ratio": 0.7008099094807051,
       "runtime_gate": true,
       "rss_gate": true
     },
     {
       "file": "particle-cluster-public.json",
       "workload": "particle-cluster-public",
-      "speedup": 6.5767870584867065,
-      "rss_ratio": 0.724812756704518,
+      "speedup": 7.199666188461108,
+      "rss_ratio": 0.7293427230046948,
       "runtime_gate": true,
       "rss_gate": true
     }
   ],
   "existing_evidence": "The 527/525 Linux and 30/30 macOS grids, GPU, WASM and paper qualifications retain their original measured Python source hashes. They were not rerun or relabeled for this agent-usability change; native binaries are byte-identical. The two affected public particle-cluster paths are requalified above.",
   "rust_tests": 84,
-  "catalog_source_sha256": "737d85a420b7b995f81899f40569f9d157707dfa3616c5b89ca8337c8bcd0fa0"
+  "catalog_source_sha256": "7b2e9d79c6e94dda5ac519cca084f40d0ebe18b422f57af7690f1c15a96d56ca"
 }
