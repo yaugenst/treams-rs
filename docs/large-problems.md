@@ -1,7 +1,7 @@
 # Requested illuminations and larger clusters
 
 Use `diff.cluster_factor` when several illuminations share a geometry and its
-dense LU factorization fits in memory. Use `iterative.SphereCluster` when avoiding
+dense LU factorization fits in memory. Use [`iterative.SphereCluster`](iterative.md) when avoiding
 the dense coupling and factorization matters more than repeated-solve latency.
 Both compute only the incident columns requested by the caller.
 

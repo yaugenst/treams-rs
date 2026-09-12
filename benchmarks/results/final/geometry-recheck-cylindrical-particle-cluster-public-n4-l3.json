@@ -21,17 +21,17 @@
       "lmax": 3,
       "dimension": 128,
       "threads": 4,
-      "median_seconds": 0.00441973939887248,
-      "peak_rss_mib": 72.41015625,
-      "baseline_rss_mib": 67.703125,
+      "median_seconds": 0.004268117900937796,
+      "peak_rss_mib": 72.2890625,
+      "baseline_rss_mib": 67.81640625,
       "samples_seconds": [
-        0.004573048400925472,
-        0.00441973939887248,
-        0.004332446100306697,
-        0.004371116097900085,
-        0.004316325602121651,
-        0.004501450600218959,
-        0.004802379399188794
+        0.004249520399025641,
+        0.004270017999806442,
+        0.004255123599432409,
+        0.0042877454980043694,
+        0.004268117900937796,
+        0.004256401699967683,
+        0.00427503910032101
       ],
       "calls_per_timing_sample": 10,
       "forward_includes_result_destruction": true,
@@ -68,8 +68,8 @@
       "platform": "Linux-7.2.4-200.fc44.x86_64-x86_64-with-glibc2.43",
       "numpy_version": "2.5.3",
       "treams_version": "0.4.5",
-      "native_sha256": "6cef4fecc137b953350ba13096fe836198187335860a3237aa33bfba54996f53",
-      "python_source_sha256": "e978c1b85d560fd8dab37a0cc754286c2f360bed48726e85d299841478c60833",
+      "native_sha256": "5c069774b4da163986dac13ec99bf3915ac8cd282d7511fc0208a00ffeabb084",
+      "python_source_sha256": "23c1e0a468d2f24dc64d0d82a0f97b2524dbb2ba0c2f7c48b7f74116e06f2a86",
       "benchmark_sha256": "fc97b9a86201129c7a5309d3f6c40c768446e69a9df39c155b382a27fed5b239",
       "native_profile": "release",
       "workload": "cylindrical-particle-cluster-public",
@@ -83,19 +83,19 @@
       "lmax": 3,
       "dimension": 128,
       "threads": 4,
-      "median_seconds": 0.0011315133998868988,
-      "peak_rss_mib": 47.77734375,
-      "baseline_rss_mib": 44.6796875,
+      "median_seconds": 0.0015953441994497552,
+      "peak_rss_mib": 48.24609375,
+      "baseline_rss_mib": 45.07421875,
       "samples_seconds": [
-        0.0011799151700688526,
-        0.0010970684900530614,
-        0.001208343309990596,
-        0.0011315133998868988,
-        0.0011301880600512958,
-        0.001178469930018764,
-        0.0010840421399916523
+        0.0015157531976001336,
+        0.0012480489996960387,
+        0.0021968610992189495,
+        0.0015953441994497552,
+        0.0012700516992481426,
+        0.0018321053998079152,
+        0.0016488786990521477
       ],
-      "calls_per_timing_sample": 100,
+      "calls_per_timing_sample": 10,
       "forward_includes_result_destruction": true,
       "forward_records_adjoint": false,
       "backward_median_seconds": null,
@@ -117,7 +117,7 @@
   ],
   "timing_comparison": {
     "method": "isolated_process",
-    "speedup": 3.9060424731286947
+    "speedup": 2.6753586482527707
   },
-  "speedup": 3.9060424731286947
+  "speedup": 2.6753586482527707
 }

@@ -21,17 +21,17 @@
       "lmax": 3,
       "dimension": 4096,
       "threads": 4,
-      "median_seconds": 0.07964535098290071,
-      "peak_rss_mib": 66.99609375,
-      "baseline_rss_mib": 66.69140625,
+      "median_seconds": 0.07928230601828545,
+      "peak_rss_mib": 67.29296875,
+      "baseline_rss_mib": 66.53125,
       "samples_seconds": [
-        0.07965590100502595,
-        0.07964519000961445,
-        0.07965575100388378,
-        0.07964535098290071,
-        0.07961329899262637,
-        0.07966894100536592,
-        0.07956158800516278
+        0.07932080602040514,
+        0.07915314199635759,
+        0.07920714397914708,
+        0.07918492201133631,
+        0.07994435299769975,
+        0.07928230601828545,
+        0.07940924799186178
       ],
       "calls_per_timing_sample": 1,
       "forward_includes_result_destruction": true,
@@ -68,8 +68,8 @@
       "platform": "Linux-7.2.4-200.fc44.x86_64-x86_64-with-glibc2.43",
       "numpy_version": "2.5.3",
       "treams_version": "0.4.5",
-      "native_sha256": "6cef4fecc137b953350ba13096fe836198187335860a3237aa33bfba54996f53",
-      "python_source_sha256": "e978c1b85d560fd8dab37a0cc754286c2f360bed48726e85d299841478c60833",
+      "native_sha256": "5c069774b4da163986dac13ec99bf3915ac8cd282d7511fc0208a00ffeabb084",
+      "python_source_sha256": "23c1e0a468d2f24dc64d0d82a0f97b2524dbb2ba0c2f7c48b7f74116e06f2a86",
       "benchmark_sha256": "fc97b9a86201129c7a5309d3f6c40c768446e69a9df39c155b382a27fed5b239",
       "native_profile": "release",
       "workload": "lattice-dsumsw2d_shift-forward",
@@ -83,19 +83,19 @@
       "lmax": 3,
       "dimension": 4096,
       "threads": 4,
-      "median_seconds": 0.005625163999502547,
-      "peak_rss_mib": 44.62890625,
-      "baseline_rss_mib": 42.86328125,
+      "median_seconds": 0.005650850012898445,
+      "peak_rss_mib": 45.03125,
+      "baseline_rss_mib": 43.2421875,
       "samples_seconds": [
-        0.005878317801398225,
-        0.005620419900515117,
-        0.005616090798866935,
-        0.005814947100589052,
-        0.005625163999502547,
-        0.006025149699416943,
-        0.0056233660026919095
+        0.006142613012343645,
+        0.005650178994983435,
+        0.005675439984770492,
+        0.00564122898504138,
+        0.0056377589935436845,
+        0.005650850012898445,
+        0.005697740009054542
       ],
-      "calls_per_timing_sample": 10,
+      "calls_per_timing_sample": 1,
       "forward_includes_result_destruction": true,
       "forward_records_adjoint": false,
       "backward_median_seconds": null,
@@ -117,7 +117,7 @@
   ],
   "timing_comparison": {
     "method": "isolated_process",
-    "speedup": 14.158760702789113
+    "speedup": 14.030155788477531
   },
-  "speedup": 14.158760702789113
+  "speedup": 14.030155788477531
 }

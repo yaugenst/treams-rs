@@ -30,3 +30,9 @@ and `lpmv0` endpoint series and recurrence, with scaled high-order arithmetic an
 analytic argument derivatives. The BSD-3-Clause SciPy developer notice and the
 original Zhang/Jin attribution are retained in `LICENSE.xsf`. XSF and SciPy are
 not runtime dependencies.
+
+The optional CUDA backend uses `cudarc` 0.19.9 under its MIT license, retained in
+`LICENSE.cudarc`. The optional cuTile field kernel uses NVIDIA's `cutile`,
+`cutile-compiler`, `cutile-ir`, `cutile-macro`, and `cuda-core` crates under
+Apache-2.0; the NVIDIA copyright and Apache license are retained in
+`LICENSE.cutile`. These dependencies are excluded from default CPU builds.

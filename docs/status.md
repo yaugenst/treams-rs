@@ -90,20 +90,20 @@ lockfile validation and file hygiene. `just check-wheel` creates an isolated
 environment, checks native execution and complete Advect objectives without
 SciPy/treams, then checks optional HDF5 separately.
 
-The current implementation passes 84 Rust tests and 2,026 Python tests on macOS,
-including JAX and PyTorch. Six optional hardware cases are skipped in CPU builds;
+The current implementation passes 84 Rust tests and 2,026 Python tests on Linux
+and macOS, including JAX and PyTorch. Six optional hardware cases are skipped in CPU builds;
 the RTX 4080 SUPER separately passes all six Python GPU cases and five native
 GPU tests. Clean-wheel execution, optional HDF5, strict types, lint, locks and
 rustdoc pass. CI checks Python 3.12/3.13 on Linux and compiles CUDA support without
 a toolkit; a separate job compiles and numerically executes the WASM module.
 
-The prior CPU milestone's [Linux performance manifest](../benchmarks/complete-qualification.json)
-records 527 passing runtime gates and 525 passing peak-RSS gates, tied to its
-native binary, Python-source and benchmark hashes. The refreshed macOS dispatch
-grid passes all 30 runtime/RSS cases on the current build (minimum speedup 1.30x,
-maximum RSS ratio 0.695). The new requested-illumination, matrix-free,
-GPU and paper reports include their own current executable/source hashes; the
-complete CPU grid is being refreshed for this implementation. Finite test
+The current [Linux performance manifest](../benchmarks/complete-qualification.json)
+records 527 passing runtime gates and 525 passing peak-RSS gates, tied to the
+tested native binary, Python-source and benchmark hashes (minimum speedup
+1.02x, maximum gated RSS ratio 0.912). The macOS dispatch grid passes all
+30 runtime/RSS cases on the current build (minimum speedup 1.30x, maximum RSS
+ratio 0.695). The requested-illumination, matrix-free, GPU and paper reports
+include their own executable/source hashes. Finite test
 coverage is not a proof of correctness or performance for all possible inputs.
 
 The [independent fractional Legendre check](../scripts/qualify_legendre.py) covers

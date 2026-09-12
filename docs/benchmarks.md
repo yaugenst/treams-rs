@@ -8,7 +8,7 @@ waves, finite and periodic scattering, fields, planar stacks, power observables
 and recorded native pullbacks. The [qualification manifest](../benchmarks/complete-qualification.json)
 contains every command, result path and build fingerprint; [raw results](../benchmarks/results/final/)
 retain all timing samples and process measurements. The lowest measured speedup
-is 1.02x and the largest gated RSS ratio is 0.914x. The two recorded-adjoint RSS
+is 1.02x and the largest gated RSS ratio is 0.912x. The two recorded-adjoint RSS
 exceptions are described below; there is no universal all-input speed guarantee.
 
 Run `just bench-all` after installing the locked development dependencies. Each
@@ -22,8 +22,8 @@ runs below. Native binary, Python source and benchmark hashes identify each resu
 Two recorded internal-illumination cases at 1,024 channels retain owned inputs
 needed for arbitrary amplitude pullbacks and exceed upstream's forward-only RSS.
 Their runtime gates remain strict. With one/eight incident columns, recorded
-forward speedups are 1.38x/1.27x and peak RSS is 1.75x/1.51x upstream. The matching
-forward-only calls achieve 1.75x/1.77x speedups with 0.91x upstream RSS. Upstream has
+forward speedups are 1.40x/1.28x and peak RSS is 1.56x/1.75x upstream. The matching
+forward-only calls achieve 1.83x/1.71x speedups with 0.91x/0.91x upstream RSS. Upstream has
 no equivalent reverse pass; reverse timings are reported separately, never treated
 as an upstream speed comparison.
 
@@ -35,13 +35,13 @@ exponential. Current Linux examples:
 | Operation | Input size | Speedup | Rust / upstream peak RSS |
 | --- | ---: | ---: | ---: |
 | Cartesian to spherical coordinates | 1 | 1.83x | 0.65x |
-| Cartesian to spherical vector components | 1 | 1.62x | 0.66x |
-| Plane-wave M field | 1 | 4.12x | 0.65x |
-| Cylindrical rotation | 128 | 1.13x | 0.66x |
-| Two-dimensional cell volume | 1 | 2.47x | 0.65x |
-| Two-dimensional reciprocal cell | 1 | 2.20x | 0.65x |
-| EBCM, degree 3 / 96 quadrature nodes | 30 modes | 83.18x | 0.53x |
-| EBCM, degree 4 / 96 quadrature nodes | 48 modes | 128.22x | 0.53x |
+| Cartesian to spherical vector components | 1 | 1.58x | 0.65x |
+| Plane-wave M field | 1 | 3.84x | 0.66x |
+| Cylindrical rotation | 128 | 1.13x | 0.65x |
+| Two-dimensional cell volume | 1 | 2.56x | 0.65x |
+| Two-dimensional reciprocal cell | 1 | 1.98x | 0.65x |
+| EBCM, degree 3 / 96 quadrature nodes | 30 modes | 83.89x | 0.53x |
+| EBCM, degree 4 / 96 quadrature nodes | 48 modes | 127.85x | 0.53x |
 
 The EBCM rows use the explicit legacy integral for like-for-like timing; the
 corrected surface element and its physical checks are described below.
