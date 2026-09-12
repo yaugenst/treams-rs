@@ -1343,7 +1343,10 @@ def worker(
                     "forward_and_backward_peak_rss_mib": backward_peak
                     if backward_times
                     else None,
-                    "blas": threadpool_info(),
+                    "blas": [
+                        {**pool, "filepath": Path(pool["filepath"]).name}
+                        for pool in threadpool_info()
+                    ],
                 }
             )
         )

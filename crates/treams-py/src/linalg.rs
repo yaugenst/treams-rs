@@ -5,7 +5,7 @@ use treams_core::{Complex, linalg};
 
 use crate::{
     error,
-    tmatrix::{from_array, matrix},
+    tmatrix::{from_array, matrix, owned_matrix},
 };
 
 type MatrixPair<'py> = (Bound<'py, PyArray2<Complex>>, Bound<'py, PyArray2<Complex>>);
@@ -38,7 +38,7 @@ impl SolveContext {
             .take()
             .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
         let (a, b) = py.detach(move || residual.pullback(g)).map_err(error)?;
-        Ok((matrix(py, &a), matrix(py, &b)))
+        Ok((owned_matrix(py, a)?, owned_matrix(py, b)?))
     }
 }
 
@@ -98,7 +98,7 @@ impl EigenContext {
         let g = py
             .detach(move || residual.pullback(&values, vectors))
             .map_err(error)?;
-        Ok(matrix(py, &g))
+        owned_matrix(py, g)
     }
 }
 
@@ -162,7 +162,7 @@ impl SingularContext {
             .take()
             .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
         let gradient = py.detach(move || residual.pullback(&g)).map_err(error)?;
-        Ok(matrix(py, &gradient))
+        owned_matrix(py, gradient)
     }
 }
 

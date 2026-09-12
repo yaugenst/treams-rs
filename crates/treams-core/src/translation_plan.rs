@@ -146,11 +146,7 @@ impl TranslationPlan {
                 )? / crate::lattice::normalization(l, m))
             })
             .collect::<Result<Vec<_>>>()?;
-        Ok(self
-            .entries
-            .iter()
-            .map(|terms| terms.iter().map(|t| t.weight * table[t.index]).sum())
-            .collect())
+        Ok(self.evaluate_table(&table))
     }
 
     pub(crate) fn pullback_periodic(

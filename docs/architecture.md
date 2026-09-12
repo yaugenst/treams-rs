@@ -6,10 +6,10 @@ solves, observables, and the corresponding analytic derivatives.
 
 The PyO3 crate validates array dimensions and physical inputs at entry, releases
 the GIL for numerical work, and transfers arrays and opaque residuals. Python
-provides typed physics objects and convenient operations. During development,
-`treams_rs` coexists with the upstream `treams` reference package. Public naming,
-normalization, helicity ordering, and basis ordering follow treams. Full import
-compatibility is a release decision after numerical and API parity is verified.
+provides typed physics objects and convenient operations. `treams_rs`
+coexists with the upstream `treams` reference package. Public naming, normalization,
+helicity ordering, and basis ordering follow treams. The explicit-object Python
+contract and supported differences are defined in the [capability reference](status.md).
 
 The differentiation contract is `forward(parameters) -> (outputs, residual)`
 and `pullback(residual, output_cotangents) -> input_cotangents`. The native
@@ -35,7 +35,8 @@ translation plans and the native real-pairing convention.
 `treams-wasm` uses the same core with serial dense algebra and selected JavaScript
 exports. `treams-cuda` and `treams-cuda-tile` are optional crates: CPU/WASM builds
 contain neither GPU dependency. cuBLAS/cuSOLVER supply complex128 dense algebra;
-cuTile supplies the fused plane-wave field kernel. Operator assembly, wave
+cuTile supplies the fused plane-wave field kernel. Fixed sampling operators reuse
+the resident Hermitian product for coefficient pullbacks. Operator assembly, wave
 polarization and equilibration remain shared core mathematics. GPU memory
 ownership and transfers are explicit, and no backend silently lowers precision.
 

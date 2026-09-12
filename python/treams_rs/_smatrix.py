@@ -96,9 +96,7 @@ class SMatrices:
             self.material = (Material(material[0]), Material(material[1]))
         else:
             self.material = (Material(material), Material(material))
-        if poltype not in ("helicity", "parity") or (
-            poltype == "parity" and any(m.ischiral for m in self.material)
-        ):
+        if poltype == "parity" and any(m.ischiral for m in self.material):
             raise ValueError("invalid polarization type for embedding media")
         self.poltype, self.k0, self.basis = poltype, float(k0), basis
         self.array.flags.writeable = False
@@ -145,9 +143,7 @@ class SMatrices:
         if len(materials) != 2:
             raise ValueError("an interface requires two materials, below then above")
         below, above = (Material(m) for m in materials)
-        if poltype not in ("helicity", "parity") or (
-            poltype == "parity" and (below.ischiral or above.ischiral)
-        ):
+        if poltype == "parity" and (below.ischiral or above.ischiral):
             raise ValueError("invalid polarization type for embedding media")
         ks = np.array([below.ks(k0), above.ks(k0)])
         zs = np.array([below.impedance, above.impedance])
@@ -273,9 +269,7 @@ class SMatrices:
             groups.setdefault((x, y), []).append(i)
         if all(len(indices) == 2 for indices in groups.values()):
             media = [Material(m) for m in materials]
-            if poltype not in ("helicity", "parity") or (
-                poltype == "parity" and any(m.ischiral for m in media)
-            ):
+            if poltype == "parity" and any(m.ischiral for m in media):
                 raise ValueError("invalid polarization type for embedding media")
             compact, _ = diff.layer_stack(
                 [m.ks(k0) for m in media],
@@ -588,9 +582,7 @@ def chirality_density(
     """
     poltype = _resolve_poltype(poltype)
     medium = Material(material)
-    if poltype not in ("helicity", "parity") or (
-        poltype == "parity" and medium.ischiral
-    ):
+    if poltype == "parity" and medium.ischiral:
         raise ValueError("invalid polarization type for the medium")
     normal = basis.kvecs(k0, medium)[basis.normal_axis]
     if basis.alignment != "xy":

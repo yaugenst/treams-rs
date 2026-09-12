@@ -6,6 +6,7 @@ import argparse
 import json
 import statistics
 import time
+from pathlib import Path
 
 import numpy as np
 import scipy
@@ -151,7 +152,10 @@ def main() -> None:
                 "assembly_seconds": assembly_seconds,
                 "numpy_version": np.__version__,
                 "scipy_version": scipy.__version__,
-                "libraries": threadpool_info(),
+                "libraries": [
+                    {**pool, "filepath": Path(pool["filepath"]).name}
+                    for pool in threadpool_info()
+                ],
                 "results": results,
                 "python_cuda": gpu_results,
                 "scope": "Cached physical sampling operator; separate prepacked CPU "

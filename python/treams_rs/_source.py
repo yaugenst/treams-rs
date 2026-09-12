@@ -45,9 +45,7 @@ class MultipoleWave(_WaveFields):
         if modetype not in ("regular", "singular"):
             raise ValueError("multipole mode type must be regular or singular")
         self.material = Material(material)
-        if poltype not in ("helicity", "parity") or (
-            poltype == "parity" and self.material.ischiral
-        ):
+        if poltype == "parity" and self.material.ischiral:
             raise ValueError("invalid polarization type for embedding medium")
         self.basis, self.k0, self.modetype, self.poltype = (
             basis,

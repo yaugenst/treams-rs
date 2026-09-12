@@ -75,7 +75,7 @@ multipole convergence for arbitrary spheres.
 
 ## Results
 
-The final grid contains nine cases and 46 isolated worker measurements. The Mac
+The qualification grid contains nine cases and 46 isolated worker measurements. The Mac
 was an Apple M3 (8 cores, 24 GiB RAM), with four numerical workers. Linux used
 an AMD Ryzen 9 9950X, with four workers pinned to CPUs 8–11. Both used the same
 Python sources, benchmark, complex128 precision and GMRES tolerance `1e-10`.

@@ -471,9 +471,7 @@ def expansion_with_context(
         raise ValueError(
             "context requires two medium wavenumbers, one per polarization"
         )
-    if poltype not in ("helicity", "parity") or (
-        poltype == "parity" and wavenumbers[0] != wavenumbers[1]
-    ):
+    if poltype == "parity" and wavenumbers[0] != wavenumbers[1]:
         raise ValueError("invalid polarization type for embedding medium")
     components = np.atleast_1d(kpar)
     dim = (

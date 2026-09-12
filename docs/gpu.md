@@ -7,8 +7,8 @@ operations; `cuda-tile` also enables the pure Rust field kernel described in
 automatic CPU/GPU fallback.
 
 NVIDIA's [CUDA Rust announcement](https://developer.nvidia.com/blog/introducing-cuda-rust-two-tracks-for-writing-gpu-kernels/)
-recommends the Tile model first. We use cuTile's Rust kernel/JIT path for fused
-plane-wave superposition, where we can avoid a large intermediate field operator.
+describes Tile and SIMT programming models. The cuTile Rust kernel/JIT path
+evaluates fused plane-wave superposition without a large intermediate operator.
 Dense LU and matrix multiplication use NVIDIA's existing numerical libraries
 through Rust bindings. Reimplementing those libraries in a new kernel would add
 work without a demonstrated benefit. The alternative cuda-oxide SIMT track
@@ -25,9 +25,9 @@ linear-solve pullback. The pairing remains
 On Linux with an NVIDIA driver and CUDA 13 libraries:
 
 ```sh
-uv run maturin develop --release --features cuda
+uv run --no-sync maturin develop --release --features cuda
 # Also compile the Rust field kernel; needs CUDA 13.3 headers/tileiras and libclang:
-uv run maturin develop --release --features cuda-tile
+uv run --no-sync maturin develop --release --features cuda-tile
 ```
 
 Dense execution requires `libcuda.so.1`, `libcublas.so.13`, and
@@ -61,7 +61,9 @@ operator_bar, rhs_bar = context.pullback(cotangent)
 report owned resident arrays, excluding the allocator and temporary library
 workspace. A dense operator gradient still costs O(n²) storage; use a requested
 RHS solve and contract its adjoint directly when a full operator gradient is not
-needed. The field kernel currently supports forward evaluation only.
+needed. The fused cuTile field kernel supports forward evaluation only. A fixed
+sampling matrix supports a coefficient pullback through a resident Hermitian
+product, as shown in [repeated sampling](gpu-sampling.md).
 
 ```python
 expansion = cuda.PlaneWaves(wavevectors, polarizations, coefficients)
@@ -83,7 +85,7 @@ also cover sphere-cluster scattering and the pure Rust field path.
 ```sh
 cargo test -p treams-cuda --features cuda --release -- --ignored
 cargo test -p treams-cuda-tile --features cuda-tile --release -- --ignored
-TREAMS_TEST_CUDA=1 TREAMS_TEST_CUDA_TILE=1 uv run pytest tests/test_cuda.py
+TREAMS_TEST_CUDA=1 TREAMS_TEST_CUDA_TILE=1 uv run --no-sync pytest tests/test_cuda.py
 cargo run -p treams-cuda --features cuda --release --example benchmark -- 4096 64 5
 ```
 

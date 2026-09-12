@@ -1,14 +1,27 @@
 # Framework adapters
 
-The optional JAX and PyTorch adapters compose Rust forward operations and analytic
-first-order pullbacks. They do not implement numerical derivatives in Python.
-Install either `treams-rs[jax]` or `treams-rs[torch]`; importing `treams_rs` needs
-neither dependency. Advect remains available separately as `treams-rs[advect]`.
+The optional Advect, JAX, and PyTorch adapters compose Rust forward operations and
+analytic first-order pullbacks. They do not implement numerical derivatives in
+Python. Install the corresponding `treams-rs[advect]`, `treams-rs[jax]`, or
+`treams-rs[torch]` extra; importing the core package needs none of these frameworks.
 
-The direct conveniences are `sphere`, `bessel`, `solve`, `interaction` and
-`illuminate` in both modules. `wrap` exposes any existing `diff` operation through the same small
-boundary, including operations returning several arrays. Static basis metadata,
+JAX and PyTorch expose `sphere`, `bessel`, `solve`, `interaction`, and `illuminate`
+conveniences. Their `wrap` function exposes any existing `diff` operation through
+the same boundary, including operations returning several arrays. Static basis metadata,
 mode labels and algorithm options belong in the recording function's closure.
+
+## Advect
+
+Import `treams_rs.advect` alongside `advect.numpy` to compose native numerical
+operations with ordinary array objectives. The [README example](../README.md#differentiation)
+optimizes sphere radii in a cluster; the [API reference](api.md#treams_rsadvect)
+lists the direct native operations and gradient argument ordering.
+
+Advect uses the native one-use residual contract. A new forward call is required
+for another VJP. Forward mode, higher derivatives, staging, checkpointing, and
+Jacobian helpers that repeatedly invoke one residual are unsupported. Use
+[gradient checks](testing.md) to qualify complete objectives independently of the
+framework's trace.
 
 ## JAX
 

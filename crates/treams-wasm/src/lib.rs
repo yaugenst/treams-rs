@@ -1,6 +1,11 @@
 //! Browser bindings for double-precision multipole scattering and electric fields.
 #![allow(clippy::indexing_slicing)] // Fixed-width records and helicity labels validated at entry.
 
+mod crystal;
+mod metasurface;
+pub use crystal::{crystal_field, crystal_spectrum};
+pub use metasurface::metasurface;
+
 use nalgebra::{DMatrix, DVector};
 use treams_core::{
     Complex, basis::Basis, coeffs::Material, fields, plane, special::Radial, tmatrix, waves,

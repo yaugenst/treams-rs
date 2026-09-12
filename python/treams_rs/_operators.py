@@ -147,12 +147,7 @@ def expand(
     poltype = _resolve_poltype(poltype)
     destination, source = basis if isinstance(basis, tuple) else (basis, basis)
     medium = Material(material)
-    if (
-        not np.isfinite(k0)
-        or k0 <= 0
-        or poltype not in ("helicity", "parity")
-        or (poltype == "parity" and medium.ischiral)
-    ):
+    if not np.isfinite(k0) or k0 <= 0 or (poltype == "parity" and medium.ischiral):
         raise ValueError(
             "invalid frequency or embedding medium for the polarization type"
         )
@@ -262,12 +257,7 @@ def translate(
     medium = Material(material)
     if offsets.ndim == 0 or offsets.shape[-1] != 3 or not np.isfinite(offsets).all():
         raise ValueError("translations require finite Cartesian displacements (..., 3)")
-    if (
-        not np.isfinite(k0)
-        or k0 <= 0
-        or poltype not in ("helicity", "parity")
-        or (poltype == "parity" and medium.ischiral)
-    ):
+    if not np.isfinite(k0) or k0 <= 0 or (poltype == "parity" and medium.ischiral):
         raise ValueError(
             "invalid frequency or embedding medium for the polarization type"
         )
@@ -595,12 +585,7 @@ def expandlattice(
     if lattice is None or kpar is None:
         raise ValueError("periodic expansion requires a lattice and Bloch vector")
     medium = Material(material)
-    if (
-        not np.isfinite(k0)
-        or k0 <= 0
-        or poltype not in ("helicity", "parity")
-        or (poltype == "parity" and medium.ischiral)
-    ):
+    if not np.isfinite(k0) or k0 <= 0 or (poltype == "parity" and medium.ischiral):
         raise ValueError(
             "invalid frequency or embedding medium for the polarization type"
         )

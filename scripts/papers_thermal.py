@@ -238,7 +238,7 @@ def main():
         else version("treams"),
         "upstream_reference_path": None
         if args.upstream_reference is None
-        else str(args.upstream_reference),
+        else args.upstream_reference.name,
         "upstream_reference_sha256": None
         if args.upstream_reference is None
         else hashlib.sha256(args.upstream_reference.read_bytes()).hexdigest(),

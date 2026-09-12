@@ -15,7 +15,7 @@
     "base_commit": "43bb7fe34dc438a8561e4c4439ea181613830bba",
     "branch": "gpu/plane-field-throughput",
     "native_extension": {
-      "path": "~/personal/worktrees/treams-rs-gpu-fields/python/treams_rs/_native.cpython-313-x86_64-linux-gnu.so",
+      "path": "python/treams_rs/_native.cpython-313-x86_64-linux-gnu.so",
       "sha256": "e49b2ac90634226317cf4cea527ecb86f6b7f3f4fdfe015cfdaa8a8d62b15c2e"
     },
     "source_sha256": {
@@ -35,9 +35,9 @@
       "Cargo.lock": "74560965139c18a66b993b5ea54affdf718f287a29bdfbd7fc65190a453f1980"
     },
     "binaries": {
-      "/tmp/treams-cuda-probe/target/release/examples/benchmark_sampling": "1caff75625f591121a599d711be32aa2b839bfb4d9a55a1152bf38f19482a746",
-      "/tmp/treams-cuda-probe/target/release/examples/qualify_plane": "28ae973505debf6af9d3dd7f43877a2b568ac109cad639f565d9f3d0af42a8a5",
-      "/tmp/treams-cuda-probe/target/release/examples/probe_plane": "073e5c549de24279dc576ac94df3278fd08c362819b5bb78052e35c5e7fd11df"
+      "target/release/examples/benchmark_sampling": "1caff75625f591121a599d711be32aa2b839bfb4d9a55a1152bf38f19482a746",
+      "target/release/examples/qualify_plane": "28ae973505debf6af9d3dd7f43877a2b568ac109cad639f565d9f3d0af42a8a5",
+      "target/release/examples/probe_plane": "073e5c549de24279dc576ac94df3278fd08c362819b5bb78052e35c5e7fd11df"
     },
     "python": "3.13.1 (main, Dec 19 2024, 14:32:25) [Clang 18.1.8 ]",
     "rustc": "rustc 1.94.0 (4a4ef493e 2026-03-02)",
@@ -234,7 +234,7 @@
     "Sampling warm speedup requires matrix memory and sufficient setup amortization; first-use is slower than prepared CPU sums"
   ],
   "raw_sha256": {
-    "benchmarks/results/gpu-fields/baseline-binary.sha256": "af7df614e3ceecd6218ef5266113ac7ecba2d5d5967b108884ab9222db523d92",
+    "benchmarks/results/gpu-fields/baseline-binary.sha256": "299e64b943a04afca6d8a6ded61d649f298e3153dc2cf337f2e7353ff93ecacc",
     "benchmarks/results/gpu-fields/baseline-m1024-p262144-t16.json": "5a72245e0fff27323bbbfb874151756998c9bf55128f6d74728e3f2188c0d35f",
     "benchmarks/results/gpu-fields/baseline-m1024-p262144-t4.json": "2670c29ab4dab1c2a45b87aad889c71db6cfe644d0dca566aa1a93b7e39ed37d",
     "benchmarks/results/gpu-fields/baseline-m1024-p262144-t8.json": "0bc404adca0c63d2c23495de14a461a534775b80f5710c7aea2f5a8ff2fe5e6d",
@@ -244,7 +244,7 @@
     "benchmarks/results/gpu-fields/baseline-m64-p16384-t16.json": "2f8eafb6f66618ad6e6d13156addaf55b9a7b78635b78ff188a258d0a2d321e4",
     "benchmarks/results/gpu-fields/baseline-m64-p16384-t4.json": "9c835b05ae7e74ad4a4a59a285ea9589906d83910b05f31b4cff96e9a55e51b5",
     "benchmarks/results/gpu-fields/baseline-m64-p16384-t8.json": "cda7e6e180a3928ee62704f693ee93a6dcb4142fde1feb8a6a1b5fd5d30674ac",
-    "benchmarks/results/gpu-fields/final-binary.sha256": "92c9e552cbf8bf8ec177ab07f2a91b3029debc238732dc649772336a0f3c5b33",
+    "benchmarks/results/gpu-fields/final-binary.sha256": "6e86186fd3c23d1194162e16969d60e1a637f7a58cc9a1d42f91bcc63f36dbb8",
     "benchmarks/results/gpu-fields/final-lossless-m1024-p262144-t16.json": "a524eaea7e69b80433006d80a1b386e3d78f40d90c878e7ec33a64e348deea82",
     "benchmarks/results/gpu-fields/final-lossless-m1024-p262144-t32.json": "a6187024a8304d312e5c966bc56d817401c68e5ac81f70d08f8c2c26eff878df",
     "benchmarks/results/gpu-fields/final-m1024-p262144-t16.json": "ba4ea6208892a4018a340a8c66f7b47fb3ba316edac48bfad9463856b5390159",
@@ -253,12 +253,12 @@
     "benchmarks/results/gpu-fields/final-m256-p131072-t32.json": "00caad9f6238b6ff526a5b9ca355d9aed90ca371dcbc7fcc561bf0620b73d43e",
     "benchmarks/results/gpu-fields/final-m64-p16384-t16.json": "9d3a7136c0336ff93308427b00c4949eee50170b6a36b7fd99a3629864f55cf3",
     "benchmarks/results/gpu-fields/final-m64-p16384-t32.json": "4bd1b2f3d9d46b20d055e56fb215a144810e86f1c2ab00c0bbc2a66ef1cbd9b2",
-    "benchmarks/results/gpu-fields/final-provenance.json": "b9bab64138b68573023ef2ad1f62580fdfd150051b469ccb93e2709c6d1124df",
-    "benchmarks/results/gpu-fields/final-python-sampling-p16384-m512.json": "60faef94c735187a2249b7d20dd87a07b54fc4bdd09c84a074c7ae917b6c9ca6",
-    "benchmarks/results/gpu-fields/final-python-sampling-p32768-m1024.json": "72f4e655de6800c9cf02fe0502b160f98912923e1561b0f58e4911dbfc3d5d33",
-    "benchmarks/results/gpu-fields/final-sampling-binary.sha256": "e663236c5e37cc9f1738ae2d1de65577da0b94e456baf14f66fcfb1dc4819aa9",
-    "benchmarks/results/gpu-fields/final-sampling-blas-p16384-m512.json": "593d19d92895186f0f756b0fe47d77744c38755405a8385198ec515dc926e189",
-    "benchmarks/results/gpu-fields/final-sampling-blas-p32768-m1024.json": "1a735c4e1e7cfb10a7ab83ed3b787d9bc5bcca2e31740b9e59db8bb47fa79e2c",
+    "benchmarks/results/gpu-fields/final-provenance.json": "458e38648dfa527baba70d74b0d4ab62e8a3e9767663c09fc1e6b53c69103e18",
+    "benchmarks/results/gpu-fields/final-python-sampling-p16384-m512.json": "c14c7c5f6a0724598838e5fa279c0ea4aaad0082aaef808a23e5e86189dc50e6",
+    "benchmarks/results/gpu-fields/final-python-sampling-p32768-m1024.json": "28ac97d9db2783d9f8de9377370bd73e5ae73a042209e90d6d15282eea3bb367",
+    "benchmarks/results/gpu-fields/final-sampling-binary.sha256": "f5fcc775298d070a4fc51e4cbb991850f6c89cc6559e1093ff1549021b72f017",
+    "benchmarks/results/gpu-fields/final-sampling-blas-p16384-m512.json": "16e122a0374488545f5e2b68893e76029bef4d5b3f0bc169e4c4dec2edf20baa",
+    "benchmarks/results/gpu-fields/final-sampling-blas-p32768-m1024.json": "df80100c1ab1be1432e6eca476d180aa115e0b8aeaa2106f4448f1dc4884212e",
     "benchmarks/results/gpu-fields/final-sampling-p16384-m512-t1.json": "b95828626d927bd1b6d64829378579e66b3332ee073c359bf6fb47b3391edc56",
     "benchmarks/results/gpu-fields/final-sampling-p16384-m512-t16.json": "e24ba50c1119a9d98329776583a8dfae1987655e071559f55ea24aa132aff6e7",
     "benchmarks/results/gpu-fields/final-sampling-p16384-m512-t32.json": "bd144d2827c8a2f7e702157efbe03c71b6e0467feea2efa98a5c4418c4d6c6ce",
@@ -274,7 +274,7 @@
     "benchmarks/results/gpu-fields/fma-m1024-p262144-v0-t32.jsonl": "861eed2f5dd82eca8db509ca1bf3e072a6ee2fec85a698e478744e712f5f33d0",
     "benchmarks/results/gpu-fields/fma-m1024-p262144-v1-t32.jsonl": "4e9a6ab44d69970c37b40880f2722f68ff98961b7b326593f4b0fc172441f1c5",
     "benchmarks/results/gpu-fields/fma-m1024-p262144-v3-t32.jsonl": "14577c8a3de73a99378f94870e0f4db2d7caa9673c0e2b3f1d6bb78d584d64fc",
-    "benchmarks/results/gpu-fields/matched-baseline-binary.sha256": "2a8aacde15cb1b23e3ab55c415d01ca66771bca4037733f650723a78e89b0739",
+    "benchmarks/results/gpu-fields/matched-baseline-binary.sha256": "63e7b3f07dfe22e5d33e37882f7e1776d84713500df094a2574aab72a0c1cc2c",
     "benchmarks/results/gpu-fields/matched-baseline-m1024-p262144-t16.json": "6c696b0aa39de8a700c754bc65d93468ec821756fc1a01e6993dd27b1cd7d93d",
     "benchmarks/results/gpu-fields/matched-baseline-m1024-p262144-t32.json": "38ced56f7cc6aa2da59b74624996db40851236c479df6d684d9539d2a3a07530",
     "benchmarks/results/gpu-fields/matched-baseline-m256-p131072-t16.json": "fe7d8df5197f0ebd355b01c0638acb4a3655b9969c4b1e78462dcc24880d5ea6",
@@ -284,9 +284,9 @@
     "benchmarks/results/gpu-fields/probe-m1024-p262144-t16.jsonl": "7604c92519a6dfa5af6f73e7d9749bb7315fcaa225cbeee80307da08c8f71117",
     "benchmarks/results/gpu-fields/probe-m256-p131072-t16.jsonl": "07b48dc07bb0a453800aa349d970df936e751d10bb5b0b7ab5b2027d95eb738d",
     "benchmarks/results/gpu-fields/probe-m64-p16384-t16.jsonl": "5ec5955a82481c6c9936a58005bca76d87606929502e9e91174bcf84f510b2f9",
-    "benchmarks/results/gpu-fields/sampling-binary.sha256": "d8e502a26bc97b51486cbfb010642601098d5246a2cbeb1968988c0c52e6548c",
-    "benchmarks/results/gpu-fields/sampling-blas-p16384-m512.json": "d6d86afd969751337fa046d0dbd307bc7984814ec8b6c5be0732e88bc14c61b1",
-    "benchmarks/results/gpu-fields/sampling-blas-p32768-m1024.json": "90c286f5d4b6eb658ff04630f1c31d9b076ba7b0583ad803ef22e3073c330ed5",
+    "benchmarks/results/gpu-fields/sampling-binary.sha256": "a2aa62c67433d2591177b4152cfc24cc4bd1e8f77c20f88e4862e2418923bead",
+    "benchmarks/results/gpu-fields/sampling-blas-p16384-m512.json": "1f9ddad0ded83047a461b43925bc5d5a8181cb08b8bc50d01ebc0c4eca41922e",
+    "benchmarks/results/gpu-fields/sampling-blas-p32768-m1024.json": "cdfaa5e962457cb2d1df2dcdaa105d731b97265a0ab689e9d8076ce2885956cc",
     "benchmarks/results/gpu-fields/sampling-p16384-m512-t1.json": "fbea132753f5e7f2733b5630511273557c8ff0b0d44978ba9d163935d786db35",
     "benchmarks/results/gpu-fields/sampling-p16384-m512-t16.json": "39f74e169cab62c8156999da05f16d470ffbd05dc82c24206d8a7195d0f29788",
     "benchmarks/results/gpu-fields/sampling-p16384-m512-t32.json": "a69fd6b10a63ec82ffee58b7c80ae34a0f6e2a88da4f5cf551be1d4400f9a6ac",

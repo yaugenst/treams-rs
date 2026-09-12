@@ -261,7 +261,7 @@ impl InteractionContext {
             .take()
             .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
         let (local, coupling) = py.detach(move || residual.pullback(&g)).map_err(error)?;
-        Ok((matrix(py, &local), matrix(py, &coupling)))
+        Ok((owned_matrix(py, local)?, owned_matrix(py, coupling)?))
     }
 }
 
@@ -474,7 +474,7 @@ impl MetricContext {
         let (gradient, ks) = py
             .detach(move || residual.pullback(cotangent))
             .map_err(error)?;
-        Ok((matrix(py, &gradient), ks.to_vec().into_pyarray(py)))
+        Ok((owned_matrix(py, gradient)?, ks.to_vec().into_pyarray(py)))
     }
 }
 

@@ -3,6 +3,8 @@
 Six static, mobile-friendly experiments using the real `treams-wasm` solver:
 interacting spheres, resonances and multipoles, coherent mode mixing, core-shell
 scattering suppression, material chirality, and target-intensity optimization.
+The [advanced page](advanced.html) adds square-array diffraction and a
+one-dimensional photonic crystal.
 The gradient overlay shows the analytic position derivative of the target's
 **total** electric intensity. Arrow lengths share a relative scale; they are not
 forces. Run repeats the native analytic adjoint/backtracking step and accepts only
@@ -18,7 +20,7 @@ steps from intensity 0.955903 to 2.191525, then stalls near target clearance.
 
 ## Run
 
-From the repository root, with the toolchain in `docs/wasm.md` installed:
+From the repository root, with the [WASM toolchain](../docs/wasm.md) installed:
 
 ```sh
 node scripts/check_wasm.mjs
@@ -31,11 +33,17 @@ python3 -m http.server 8780 --bind 127.0.0.1 --directory dist
 Open `http://127.0.0.1:8780/`. Python here only serves static files. All simulation,
 analytic differentiation and optimization execute as Rust/WASM in a browser
 module worker. There is no Python, remote solve, CUDA or WebGPU in the page.
-`just web-check` also runs WASM Clippy and formatting. CI runs the same browser
-numerical checks after its WASM qualification job.
+`just web-check` also runs WASM Clippy and formatting. CI runs the browser
+numerical and touch-interaction checks after building and qualifying WASM.
 
 The build copies the generated binding package from `target/wasm-pkg`; generated
-bindings, dependencies and `dist` are ignored. Native sliders and buttons provide
+bindings, dependencies and `dist` are ignored. It also creates `NOTICES.txt` from
+the project licenses and selected WASM dependency graph, plus
+`RUST-STDLIB-NOTICES.html` from the pinned Rust toolchain. Registry packages that
+omit license files use the commit-pinned texts in `dependency-licenses.json`;
+license texts are read locally. Cargo may fetch locked registry packages missing
+from a cold cache; the build does not fetch licenses from upstream websites.
+Native sliders and buttons provide
 keyboard operation; precise position inputs are an alternative to dragging.
 Share copies the complete experiment into the URL fragment. The fragment is
 validated when loaded and is not sent to the static server.
@@ -72,8 +80,9 @@ validated when loaded and is not sent to the static server.
   updates are coarser than settled views; stale calculations never overwrite
   newer requested settings. Particle outlines and live controls track input
   immediately. The previous field is dimmed while a solve is pending, and actual
-  new fields crossfade in; intermediate frames are presentation, not extra solves. Animation reuses the complex field, and pauses its
-  work when the tab is hidden. Reduced-motion preference disables autoplay.
+  new fields crossfade in; intermediate frames are presentation, not extra solves.
+  Animation reuses the complex field and pauses when the tab is hidden.
+  Reduced-motion preference disables autoplay.
 
 Mobile keeps the field and two primary controls together in one viewport. More
 opens the remaining settings in a separately scrolling panel. The field itself
@@ -94,30 +103,52 @@ actual Chrome. Finite differences appear only in tests.
 
 The supported agent browser API is feature-detected as `document.modelContext`.
 It exposes read/configure/improve tools sharing the visible state and solver.
-The available Chrome preview lacks that API, so live WebMCP registration and
-execution remain unverified; ordinary browser operation is unaffected.
+Live WebMCP registration and execution are not part of the qualified browser
+baseline; ordinary browser operation does not require that API.
 
-## Private preview
+## Advanced experiments
 
-The current preview is served from
-`~/personal/previews/treams-light-lab` on [redacted-host]:
+Open `advanced.html`, or use **Advanced** beside the Light Lab title. Both views
+use the same Rust/WASM module in a worker. The selected point is calculated first;
+the spectrum follows. Square-array sweeps yield between samples and discard stale
+work after a new input, keeping controls responsive.
 
-- loopback-only static HTTP: `127.0.0.1:8781`;
-- persistent user service: `treams-light-lab.service`;
-- Tailscale HTTPS: `https://localhost:8446/`.
+- **Metasurface:** a square array of lossless achiral spheres in vacuum, index 3.5,
+  order 4, radius 0.12–0.23 μm, spacing 0.65–1.10 μm, wavelength 0.65–1.65 μm, and
+  incidence 0–45°. The display shows diffraction directions and normalized order
+  powers, not a computed near-field image. Every propagating order contributes to
+  R/T; exact grazing thresholds appear as gaps. Actual WASM matches 558 order-4
+  reference samples within `5.71e-14`. The order-4/order-6 cutoff audit found a
+  maximum reflectance difference of 0.00320049; finite sampling does not establish
+  that bound throughout the continuous slider domain.
+- **Photonic crystal:** the exact normal-incidence, lossless one-dimensional
+  layered model. The finite stack spectrum and complex Ex field use all coherent
+  internal reflections; the band diagram describes the infinite crystal. A/B
+  indices are 1.45 and 1.45–3.5; filling is 0.1–0.9, the finite stack has 1–20
+  periods, and frequency is `a/lambda` in 0.08–0.65. The evanescent Bloch quantity
+  describes amplitude attenuation per period, not intensity decay.
 
-Tailscale Serve is used, not Funnel. Existing Serve ports are preserved.
-Only built static assets are deployed. To update after a successful build:
+[Export contracts and numerical qualification](../docs/wasm.md#periodic-showcases)
+record the broader native input bounds, fixture errors, and sampled cutoff audit.
+`npm test` includes both advanced numerical paths; `npm run test:ui` also exercises
+the advanced page. The general Python periodic API and periodic gradients are not
+exposed by these browser helpers.
 
-```sh
-rsync -az --exclude='*.d.ts' web/dist/ \
-  localhost:~/personal/previews/treams-light-lab/
-```
+## Deploy
 
-The service is a task-owned user unit outside chezmoi management. Disable this
-preview without changing other hosted services:
+Build and test the site as above, then upload the **contents of `web/dist/`** to a
+static HTTPS host. Keep both HTML pages, their JavaScript/CSS files, and `wasm/`
+in their existing relative layout. TypeScript declarations (`*.d.ts`) are
+not needed at runtime. Keep both generated notice files with the deployment.
+No build service, Python runtime, backend API, database,
+or repository access is required on the host.
 
-```sh
-ssh localhost \
-  'tailscale serve --https=8446 off; systemctl --user disable --now treams-light-lab.service'
-```
+Configure the host to serve JavaScript with a JavaScript MIME type and `.wasm`
+with `application/wasm`. The worker and WASM files use the same origin as the
+page; this serial build needs no cross-origin isolation headers. Open the deployed
+HTTPS URL on a phone and check a particle drag, a wavelength change, and an
+optimization step before sharing it.
+
+The Share button preserves the selected experiment and its parameters in the
+URL fragment. Access control belongs to the static host; the page itself does
+not authenticate visitors.

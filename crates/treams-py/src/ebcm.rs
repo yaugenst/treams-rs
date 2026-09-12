@@ -5,7 +5,7 @@ use treams_core::{Complex, ebcm, waves::Mode};
 
 use crate::{
     error,
-    tmatrix::{from_array, matrix},
+    tmatrix::{from_array, owned_matrix},
 };
 
 #[pyclass]
@@ -88,7 +88,7 @@ fn ebcm_qmat<'py>(
         .detach(move || ebcm::qmat(modes(to), modes(source), surface, ks, zs, singular, legacy))
         .map_err(error)?;
     Ok((
-        matrix(py, &value),
+        owned_matrix(py, value)?,
         QContext {
             residual: Some(residual),
         },

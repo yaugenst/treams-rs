@@ -1,9 +1,8 @@
 # Upstream findings
 
 Findings from comparison with treams 0.4.5 and the reference source pinned in
-architecture.md. These are reproduced behavior, not claims that all current
-upstream branches remain affected. No upstream issues or maintainer messages
-have been sent from this project.
+[architecture](architecture.md). These findings describe the pinned reference;
+they do not establish whether later upstream versions remain affected.
 
 The skew-cell omission is also tracked upstream in
 [issue #14](https://github.com/tfp-photonics/treams/issues/14), which was open when
@@ -14,7 +13,7 @@ Two further existing reports are reproduced and covered here:
 [evanescent scattering widths (#20)](https://github.com/tfp-photonics/treams/issues/20)
 and [chiral-sphere parity coupling (#27)](https://github.com/tfp-photonics/treams/issues/27).
 The cross-width check also caught the same mistake in the rewrite; both illuminated
-and averaged widths now exclude closed radiation channels. The rewrite's sphere
+and averaged widths exclude closed radiation channels. The rewrite's sphere
 constructor already retained the correct parity coupling.
 
 ## Behavioral defects
@@ -75,7 +74,7 @@ stored regression spectra. This is a companion-notebook defect, not a core
 source and preserves both original and repaired execution results.
 
 The thermal-radiation reproduction also exposed severely unbalanced multipole
-linear systems. The rewrite now equilibrates these systems before LU; the
+linear systems. The rewrite equilibrates these systems before LU; the
 forward and adjoint use the same scales. The original absorption tables differ
 from the reproduced spectrum by up to 0.577%, and that discrepancy is retained
 in the report. We do not classify it as a confirmed upstream bug or claim exact

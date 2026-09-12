@@ -502,7 +502,7 @@ def smatrix_tr(
     fixed_q=True because the plane polarization gauge has no direction derivative.
     """
     poltype = _resolve_poltype(poltype)
-    if poltype not in ("helicity", "parity") or modetype not in ("up", "down"):
+    if modetype not in ("up", "down"):
         raise ValueError("invalid polarization or propagation direction")
     value, context = _native.smatrix_transmittance(
         np.asarray(matrices, dtype=np.complex128),
@@ -576,8 +576,6 @@ def spherical_channels(
     incidence the azimuth is undefined; set fixed_q for derivatives at fixed incidence.
     """
     poltype = _resolve_poltype(poltype)
-    if poltype not in ("helicity", "parity"):
-        raise ValueError("invalid polarization type")
     pols = np.asarray(polarizations)
     if not np.all((pols == 0) | (pols == 1)):
         raise ValueError("polarizations must be 0 or 1")
@@ -670,8 +668,6 @@ def particle_cluster(
     poltype = _resolve_poltype(poltype)
     if len(local) != len(bases) or not bases:
         raise ValueError("one local matrix and basis required per particle")
-    if poltype not in ("helicity", "parity"):
-        raise ValueError("invalid polarization type")
     family = type(bases[0])
     modes: list[tuple[int, float, int, int]] = []
     arrays = []
@@ -779,8 +775,6 @@ def expansion(
     values = np.asarray(ks, dtype=np.complex128)
     if values.shape != (2,):
         raise ValueError("ks must contain negative and positive helicity wavenumbers")
-    if poltype not in ("helicity", "parity"):
-        raise ValueError("invalid polarization type")
     if isinstance(destination, CylindricalWaveBasis) and isinstance(
         source, CylindricalWaveBasis
     ):
@@ -869,7 +863,7 @@ def field_operator(
     """
     poltype = _resolve_poltype(poltype)
     values = np.asarray(ks, dtype=np.complex128)
-    if values.shape != (2,) or poltype not in ("helicity", "parity"):
+    if values.shape != (2,):
         raise ValueError("require two medium wavenumbers and a valid polarization type")
     args = (
         basis.positions.tolist(),
@@ -903,8 +897,6 @@ def field(
     values = np.asarray(ks, dtype=np.complex128)
     if values.shape != (2,):
         raise ValueError("ks must contain negative and positive helicity wavenumbers")
-    if poltype not in ("helicity", "parity"):
-        raise ValueError("invalid polarization type")
     args = (
         basis.positions.tolist(),
         np.ascontiguousarray(coefficients, dtype=np.complex128),
@@ -974,8 +966,6 @@ def plane_field(
     where a full direction derivative is undefined in the upstream convention.
     """
     poltype = _resolve_poltype(poltype)
-    if poltype not in ("helicity", "parity"):
-        raise ValueError("invalid polarization type")
     pols = np.asarray(polarizations)
     if not np.all((pols == 0) | (pols == 1)):
         raise ValueError("polarizations must be 0 or 1")
@@ -1005,8 +995,6 @@ def plane_expansion(
     At axial propagation, fixed_vectors enables origin gradients at fixed incidence.
     """
     poltype = _resolve_poltype(poltype)
-    if poltype not in ("helicity", "parity"):
-        raise ValueError("invalid polarization type")
     pols = np.asarray(polarizations)
     if not np.all((pols == 0) | (pols == 1)):
         raise ValueError("polarizations must be 0 or 1")
@@ -1046,8 +1034,6 @@ def cylindrical_channels(
     q[:,0] cotangents are zero. fixed_q also holds kx constant.
     """
     poltype = _resolve_poltype(poltype)
-    if poltype not in ("helicity", "parity"):
-        raise ValueError("invalid polarization type")
     pols = np.asarray(polarizations)
     if not np.all((pols == 0) | (pols == 1)):
         raise ValueError("polarizations must be 0 or 1")
@@ -1129,8 +1115,6 @@ def periodic_conversion(
     diffraction orders satisfy kz=kpar+2*pi*n/period.
     """
     poltype = _resolve_poltype(poltype)
-    if poltype not in ("helicity", "parity"):
-        raise ValueError("invalid polarization type")
     return _native.periodic_conversion(
         list(destination.modes),
         list(source.modes),
@@ -1157,8 +1141,6 @@ def plane_permutation(
     poltype = _resolve_poltype(poltype)
     if n != int(n):
         raise ValueError("number of permutations must be integer")
-    if poltype not in ("helicity", "parity"):
-        raise ValueError("invalid polarization type")
     return _native.plane_permutation(
         np.asarray(vectors, dtype=np.complex128),
         np.asarray(polarizations, dtype=np.float64),
@@ -1292,8 +1274,6 @@ def spherical_translation(
     poltype = _resolve_poltype(poltype)
     if len(destination) != 3 or len(source) != 3:
         raise ValueError("each mode requires degree, order and polarization")
-    if poltype not in ("helicity", "parity"):
-        raise ValueError("poltype must be helicity or parity")
     arguments = tuple(np.asarray(v, dtype=np.complex128) for v in (kr, theta, phi))
     if all(isinstance(v, (int, np.integer)) for v in (*destination, *source)):
         shape = max((v.shape for v in arguments), key=len)

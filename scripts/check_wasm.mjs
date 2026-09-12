@@ -4,7 +4,7 @@ import {spawn, spawnSync} from "node:child_process";
 import {createHash} from "node:crypto";
 import {mkdtemp, readFile, rm, writeFile} from "node:fs/promises";
 import {createServer} from "node:http";
-import {tmpdir} from "node:os";
+import {homedir, tmpdir} from "node:os";
 import {dirname, join, resolve} from "node:path";
 import {fileURLToPath, pathToFileURL} from "node:url";
 import {gzipSync} from "node:zlib";
@@ -14,26 +14,40 @@ if (process.argv.length !== 2 && !(process.argv.length === 4 && process.argv[2] 
   throw new Error("usage: node scripts/check_wasm.mjs [--browser /path/to/chrome]");
 }
 const pkg = join(root, "target/wasm-pkg");
+const flags = (process.env.CARGO_ENCODED_RUSTFLAGS ?? (process.env.RUSTFLAGS ?? "").trim().split(/\s+/).join("\x1f")).split("\x1f").filter(Boolean);
+const buildPaths = [homedir(), process.env.CARGO_HOME, process.env.RUSTUP_HOME, root].filter(Boolean).map(path => resolve(path));
+for (const path of buildPaths) flags.push(`--remap-path-prefix=${path}=/build`);
+const env = {...process.env, CARGO_ENCODED_RUSTFLAGS: flags.join("\x1f")};
 for (const command of [
   ["cargo", "build", "--locked", "--release", "-p", "treams-wasm", "--target", "wasm32-unknown-unknown"],
   ["wasm-bindgen", "--target", "web", "--out-dir", pkg, join(root, "target/wasm32-unknown-unknown/release/treams_wasm.wasm")],
 ]) {
-  const result = spawnSync(command[0], command.slice(1), {cwd: root, stdio: "inherit"});
+  const result = spawnSync(command[0], command.slice(1), {cwd: root, stdio: "inherit", env});
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 await writeFile(join(pkg, "package.json"), '{"type":"module"}\n');
 const binary = await readFile(join(pkg, "treams_wasm_bg.wasm"));
+if (buildPaths.some(path => binary.includes(Buffer.from(path)))) {
+  throw new Error("WASM contains a local build path despite compiler path remapping");
+}
 const module = await import(pathToFileURL(join(pkg, "treams_wasm.js")));
 await module.default({module_or_path: binary});
 const {verify} = await import("../crates/treams-wasm/tests/verify.mjs");
+const {verifyMetasurface, verifyMetasurfaceConvergence} = await import("../crates/treams-wasm/tests/metasurface-verify.mjs");
+const {verifyCrystal} = await import("../crates/treams-wasm/tests/crystal-verify.mjs");
 const reference = JSON.parse(await readFile(join(root, "crates/treams-wasm/tests/reference.json"), "utf8"));
 const report = {
   node: process.version,
   wasm_bytes: binary.length,
   wasm_gzip_bytes: gzipSync(binary, {level: 9}).length,
   wasm_sha256: createHash("sha256").update(binary).digest("hex"),
-  node_results: verify(module.ScatteringSystem, reference, module),
+  node_results: {
+    ...verify(module.ScatteringSystem, reference, module),
+    metasurface: verifyMetasurface(module),
+    metasurface_convergence: verifyMetasurfaceConvergence(module, JSON.parse(await readFile(join(root, "crates/treams-wasm/tests/metasurface-convergence.json"), "utf8"))),
+    crystal: verifyCrystal(module),
+  },
 };
 
 if (process.argv[2] === "--browser") {
@@ -42,6 +56,8 @@ if (process.argv[2] === "--browser") {
     ["/treams_wasm.js", ["text/javascript", join(pkg, "treams_wasm.js")]],
     ["/treams_wasm_bg.wasm", ["application/wasm", join(pkg, "treams_wasm_bg.wasm")]],
     ["/verify.mjs", ["text/javascript", join(root, "crates/treams-wasm/tests/verify.mjs")]],
+    ["/metasurface-verify.mjs", ["text/javascript", join(root, "crates/treams-wasm/tests/metasurface-verify.mjs")]],
+    ["/crystal-verify.mjs", ["text/javascript", join(root, "crates/treams-wasm/tests/crystal-verify.mjs")]],
     ["/reference.json", ["application/json", join(root, "crates/treams-wasm/tests/reference.json")]],
   ]);
   const completed = Promise.withResolvers();
@@ -59,10 +75,16 @@ if (process.argv[2] === "--browser") {
 <script type="module">
 import init, * as wasm from './treams_wasm.js';
 import {verify} from './verify.mjs';
+import {verifyMetasurface} from './metasurface-verify.mjs';
+import {verifyCrystal} from './crystal-verify.mjs';
 try {
   await init();
   const reference = await (await fetch('./reference.json')).json();
-  const result = verify(wasm.ScatteringSystem, reference, wasm);
+  const result = {
+    ...verify(wasm.ScatteringSystem, reference, wasm),
+    metasurface: verifyMetasurface(wasm),
+    crystal: verifyCrystal(wasm),
+  };
   document.querySelector('#result').textContent = JSON.stringify(result);
   await fetch('/result', {method:'POST', body:JSON.stringify(result)});
 } catch (e) { await fetch('/result', {method:'POST',body:JSON.stringify({passed:false,error:String(e)})}); }

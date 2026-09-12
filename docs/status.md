@@ -1,10 +1,9 @@
-# Implementation status
+# Capabilities and numerical limits
 
-The documented CPU rewrite is complete: the Rust numerical implementation and
-Python workflow layer cover the pinned `treams` 0.4.5 API inventory within the
-contracts and numerical limits below. Performance measurements and platform
-qualification are recorded separately below. There is no runtime fallback to treams, SciPy
-or Cython. This is not exact emulation of the legacy ndarray annotation engine.
+The Rust numerical implementation and Python workflow layer cover the pinned
+`treams` 0.4.5 API inventory within the contracts and numerical limits below.
+There is no runtime fallback to treams, SciPy, or Cython. The Python interface
+uses explicit objects rather than the legacy ndarray annotation engine.
 
 The source reference is `1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39`.
 The inventory contains 182 public functions/classes across the package and its
@@ -69,8 +68,8 @@ analytic derivatives without storing dense parameter Jacobians.
 Advect, JAX and PyTorch compose these numerical boundaries with user objectives.
 Object constructors themselves do not trace framework arrays: use the
 [framework adapters](adapters.md) for continuous parameters. Static basis labels,
-discretization sizes, quadrature
-nodes, material topology and eigenvalue ordering are not differentiated.
+discretization sizes, quadrature nodes, material topology, and eigenvalue ordering
+are not differentiated.
 Forward mode and higher derivatives are outside this first-order contract. JAX
 supports CPU `jit`, sequential `vmap` and checkpointing using host callbacks;
 PyTorch supports eager CPU backward and repeated backward through native
@@ -90,14 +89,13 @@ lockfile validation and file hygiene. `just check-wheel` creates an isolated
 environment, checks native execution and complete Advect objectives without
 SciPy/treams, then checks optional HDF5 separately.
 
-The current implementation passes 84 Rust tests and 2,072 Python tests on Linux
-and macOS, including JAX and PyTorch. Ten optional hardware cases are skipped in
-CPU builds; the RTX 4080 SUPER separately passes all ten Python GPU cases and
-nine native GPU tests. The integrated CUDA build passes 2,080 Python tests on
-Linux, with two CPU-only checks skipped. Clean-wheel execution, optional HDF5,
-strict types, lint, locks and
-rustdoc pass. CI checks Python 3.12/3.13 on Linux and compiles CUDA support without
-a toolkit; a separate job compiles and numerically executes the WASM module.
+Recorded CPU qualification passed 84 Rust tests and 2,072 Python tests on Linux
+and macOS, including JAX and PyTorch. The integrated CUDA build passed 2,080
+Python tests on Linux, including all ten hardware cases, with two CPU-only checks
+skipped. Clean-wheel execution, optional HDF5, strict types, lint, locks, and
+rustdoc also passed. CI checks Python 3.12/3.13 on Linux and compiles CUDA support
+without a toolkit; a separate job compiles and numerically executes the WASM
+module and browser experiments.
 
 The [Linux performance manifest](../benchmarks/complete-qualification.json)
 records 527 passing runtime gates and 525 passing peak-RSS gates, tied to the
@@ -107,26 +105,25 @@ tested native binary, Python-source and benchmark hashes (minimum speedup
 ratio 0.695). The requested-illumination, matrix-free, GPU and paper reports
 include their own executable/source hashes.
 
-The [agent-usability qualification](../benchmarks/agent-usability/qualification.json)
-adds offline source-derived API/catalog discovery, executable examples, numerical
-checking helpers and more informative adapter errors. The source documentation
-review also fixed a Python constructor defect: sphere/cylinder matrices now label
-the native helicity array explicitly before converting to a requested parity basis,
-independently of `config.POLTYPE`. Cross-default Hypothesis regressions cover both.
-No Rust source or installed native binary changed. The earlier full grids and
-GPU/WASM/paper reports retain their measured Python hashes; they were not relabeled
-or rerun for this change. Two affected public cluster paths were requalified on
-macOS: spherical 7.20x and cylindrical 1.56x faster than upstream, both with lower
-peak RSS. See [agent entry points](agents.md) and [developer checks](development.md).
-Finite test coverage is not a proof of correctness or performance for all possible inputs.
+The [API and adapter qualification](../benchmarks/agent-usability/qualification.json)
+checks offline discovery, executable examples, numerical checking helpers, and
+adapter diagnostics. Sphere/cylinder constructors explicitly label native
+helicity data before conversion to the requested polarization basis;
+cross-default Hypothesis regressions cover `config.POLTYPE` independence.
+The associated Python change left native binaries unchanged. Earlier full grids
+and GPU/WASM/paper reports retain their measured Python hashes and were not
+rerun or relabelled for that change. The two affected public cluster paths were
+requalified on macOS: spherical 7.20× and cylindrical 1.56× faster than upstream,
+both with lower peak RSS. Each report describes its tested build; these records
+are not a claim that every later revision reruns every performance grid.
 
 The [independent fractional Legendre check](../scripts/qualify_legendre.py) covers
 530 finite value/argument-derivative cases and two expected-overflow cases against
 70-digit hypergeometric calculations. Its largest finite relative error was
 2.17e-13; [raw results](../benchmarks/results/fractional-legendre-physical.json)
-record the installed native binary hash. Physical checks elsewhere cover energy
-conservation, reciprocity,
-translation/rotation identities, scaling, limiting behavior and complete
+record the installed native binary hash. Physical checks also cover energy
+conservation, reciprocity, translation/rotation identities, scaling, limiting
+behavior, and complete
 objective derivatives. Finite differences are test oracles, never pullbacks.
 
 Performance qualification uses an optimized extension, matched thread budgets,
@@ -134,9 +131,9 @@ isolated correctness/timing/RSS workers and alternating calibrated timings for
 small calls. Every measured forward path must be at least as fast and have no
 higher peak RSS than upstream. Recorded internal illumination has two explicitly
 listed high-dimension RSS exceptions because its owned reverse data is compared
-with an upstream forward-only computation; its runtime and all corresponding forward RSS gates
-remain strict. Raw results, exact scope and older milestones are in
-[benchmarks](benchmarks.md). Finite measurements do not establish a universal
+with an upstream forward-only computation; its runtime and all corresponding
+forward RSS gates remain strict. Raw results, exact scope, and historical
+measurements are in [benchmarks](benchmarks.md). Finite measurements do not establish a universal
 speed or memory guarantee for every input.
 
 ## Numerical and platform limits
@@ -166,23 +163,30 @@ cancellation. Both implementations reach a double-precision roundoff floor; the
 strict comparison gate is retained and no degree-6 speed claim is made. See the
 independent high-precision reproducer in the benchmark documentation.
 
-The [WASM core and selected browser exports](wasm.md), [optional CUDA backend](gpu.md)
-and [published-paper reproductions](paper-qualification.md) have separate,
-reproducible qualification reports. The WASM exports cover spheres, finite
-clusters, direct plane-wave illumination, exterior scattered electric fields,
-and the analytic radius/position gradient of total intensity at a fixed target.
-The [six browser experiments](../web/README.md) use these exports without Python,
-including coherent uncoupled comparison and a gradient overlay with accepted
-ascent steps. The optimization experiment can run those steps automatically,
-animate accepted moves, pause, or advance once; it stops when its constrained
-search finds no improving step. Browser rendering uses smooth particle masks with display-only
-texture padding; isolated multipoles show their own score/spectrum and a labelled,
-optional contrast boost. Generic pullback exports and the entire Python API are not exposed.
-CUDA qualification uses the RTX 4080 SUPER with complex128. The fused field
-kernel has no native pullback yet; fixed sampling operators can use the qualified
-Hermitian matrix product for coefficient-only pullbacks without a second device
-copy. The follow-up field kernel and adjoint product pass nine real-device Rust
-tests, with focused Python and performance results recorded in the GPU reports.
-Python
-versions outside 3.12/3.13 and broader wheel-platform distribution remain
-unqualified.
+## Browser and GPU qualification
+
+The [WASM guide](wasm.md), [CUDA guide](gpu.md), and
+[published-application reproductions](paper-qualification.md) link separate
+qualification reports. WASM exports cover spheres, finite clusters, direct
+plane-wave illumination, exterior scattered electric fields, and the analytic
+radius/position gradient of total intensity at a fixed target. The
+[browser experiments](../web/README.md) use those exports for interactive fields,
+multipole spectra, coherent comparisons, and constrained adjoint ascent.
+Additional forward-only helpers expose infinite square arrays of passive achiral
+spheres (order at most 4; exact diffraction thresholds excluded), and lossless
+normal-incidence one-dimensional crystal spectra and internal Ex fields. These
+are bounded workflows, not general periodic-system or pullback APIs.
+Display interpolation and contrast controls do not alter scientific samples or
+scores; their conventions and browser checks are documented with the experiments.
+
+CUDA qualification uses an RTX 4080 SUPER with complex128. Dense solves have
+native pullbacks. Fixed sampling operators reuse the resident Hermitian product
+for coefficient-only pullbacks without a second operator copy. The fused field
+kernel is forward-only; GPU geometry/wavevector pullbacks and automatic framework
+GPU routing are unsupported. Nine native GPU tests and ten Python GPU tests were
+qualified on hardware, with errors, timing scope, and binary/source hashes in the
+GPU reports.
+
+Python versions outside 3.12/3.13 and broader wheel-platform distribution remain
+unqualified. A passing finite test set does not establish correctness or
+performance for every parameter choice.

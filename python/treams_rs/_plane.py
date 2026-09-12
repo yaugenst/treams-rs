@@ -45,9 +45,7 @@ class PlaneWave(_WaveFields):
         self.direction.flags.writeable = False
         self.k0 = float(k0)
         self.material = Material(material)
-        if poltype not in ("helicity", "parity") or (
-            poltype == "parity" and self.material.ischiral
-        ):
+        if poltype == "parity" and self.material.ischiral:
             raise ValueError("invalid polarization type for embedding medium")
         self.poltype = poltype
         polarization = np.asarray(pol, dtype=np.complex128)

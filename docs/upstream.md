@@ -22,14 +22,13 @@ dimensions, S-matrix composition, fields, EBCM, observables and basis metadata.
 The main difficulty is numerical convention and conditioning, not source volume.
 Complex square-root branches, helicity ordering, normalization, small-argument
 limits, multipole cancellation and lattice convergence all require independent
-qualification. Rust can preserve the Python constructors and numerical results
-through PyO3 without reproducing the ndarray subclass implementation internally.
-The current API uses explicit arrays to avoid silently carrying physical metadata
+qualification. The Rust implementation preserves supported Python constructors and numerical
+results through PyO3. Its API uses explicit arrays to avoid silently carrying physical metadata
 through arbitrary NumPy operations. The legacy ndarray annotation engine is
 outside this explicit-object API; supported workflow differences are listed in
 [implementation status](status.md).
 
-Native pullbacks can own the entire solver calculation. Framework adapters then
+Native pullbacks own the numerical solver calculation. Framework adapters then
 compose a user's objective and translate cotangent conventions. Having a native
 pullback does not automatically provide higher-order derivatives, batching or
 accelerator support. Those remain separate contracts.

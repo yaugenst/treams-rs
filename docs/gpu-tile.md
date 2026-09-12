@@ -29,7 +29,7 @@ backend, not a CPU fallback.
 
 ## Measured result
 
-[Latest qualification](../benchmarks/gpu-fields-qualification.json) uses an RTX
+[Field qualification](../benchmarks/gpu-fields-qualification.json) uses an RTX
 4080 SUPER and Ryzen 9950X. Both CPU and GPU retain coefficient-weighted
 polarizations; the CPU also receives the exact real-wave shortcut. The stronger
 CPU comparison was selected from 16 and 32 workers on all 16 physical cores.
@@ -53,8 +53,7 @@ these three shapes. Ordinary background host services remained running; no
 competing GPU compute process was observed.
 
 The [initial qualification](../crates/treams-cuda-tile/qualification-rtx4080.json)
-is retained for provenance. The follow-up adds a stronger CPU baseline and a
-controlled kernel probe. For the largest case, the original kernel took 78.1 ms;
+is retained for provenance. The field report includes a prepared CPU baseline and a controlled kernel probe. For the largest case, the original kernel took 78.1 ms;
 separate component accumulation took 65.8 ms, and explicit f64 FMA reduced that
 to 57.9 ms before transfers and host processing. Tiling the mode reduction was
 slower than separate component accumulation and was not adopted. Retaining
@@ -65,7 +64,7 @@ accounted for about 4 ms in that decomposition.
 
 Use Linux, stable Rust 1.94+, an NVIDIA GPU with compute capability at least 8.0,
 and CUDA Toolkit 13.3. The build requires the CUDA and cuRAND headers and
-libclang for binding generation. Kernel JIT requires `tileiras`; the current
+libclang for binding generation. Kernel JIT requires `tileiras`; the pinned
 cuTile compiler requires version 13.2 or newer. Set `CUDA_TOOLKIT_PATH` to the
 toolkit root and put its `bin` and `lib` directories on `PATH` and
 `LD_LIBRARY_PATH`. No system installation is required.
@@ -94,7 +93,7 @@ improvements that would also benefit the CPU.
 
 ## Choice of NVIDIA Rust track
 
-The requested [NVIDIA CUDA Rust article](https://developer.nvidia.com/blog/introducing-cuda-rust-two-tracks-for-writing-gpu-kernels/)
+The [NVIDIA CUDA Rust article](https://developer.nvidia.com/blog/introducing-cuda-rust-two-tracks-for-writing-gpu-kernels/)
 recommends starting with Tile and using SIMT where explicit thread and memory
 control is needed. This regular field computation fits Tile and does not need
 cuda-oxide's pinned nightly compiler. Numerical work remains `f64`; the tensor

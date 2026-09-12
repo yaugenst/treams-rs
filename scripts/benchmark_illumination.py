@@ -285,7 +285,10 @@ def worker(args) -> None:
                     "affinity": sorted(os.sched_getaffinity(0))
                     if hasattr(os, "sched_getaffinity")
                     else None,
-                    "threadpools": threadpool_info(),
+                    "threadpools": [
+                        {**pool, "filepath": Path(pool["filepath"]).name}
+                        for pool in threadpool_info()
+                    ],
                     "threads": threads,
                     "common_input_setup_seconds": common_setup,
                     "setup_seconds": setup_times,

@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0c1424" />
+    <meta
+      name="description"
+      content="Explore infinite metasurfaces and photonic bandgaps with real electromagnetic calculations in your browser."
+    />
+    <title>Beyond one particle · treams</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./advanced.css" />
+  </head>
+  <body class="advanced">
+    <header class="advanced-header">
+      <a class="brand" href="./"
+        ><span class="brand-symbol" aria-hidden="true">∿</span
+        ><span>treams</span></a
+      >
+      <a class="back-link" href="./">← Light lab</a>
+    </header>
+    <main>
+      <nav class="showcase-tabs" aria-label="Advanced experiments">
+        <button id="array-tab" aria-pressed="true">
+          07 Infinite metasurface
+        </button>
+        <button id="crystal-tab" aria-pressed="false">08 Open a bandgap</button>
+      </nav>
+      <div class="advanced-heading">
+        <div>
+          <p class="eyebrow">BEYOND ONE PARTICLE</p>
+          <h1 id="title">A small cell. An infinite surface.</h1>
+          <p id="subtitle">
+            Every particle hears every other particle. Change their spacing.
+          </p>
+        </div>
+        <button
+          id="pause"
+          class="icon-button"
+          aria-label="Pause animation"
+          aria-pressed="false"
+        >
+          Ⅱ
+        </button>
+      </div>
+      <div class="advanced-workspace">
+        <section
+          class="advanced-stage"
+          aria-label="Calculated response and visualization"
+        >
+          <div class="scene-wrap">
+            <canvas
+              id="scene"
+              role="img"
+              aria-label="Infinite square array and calculated reflected and transmitted beams"
+            ></canvas>
+            <span id="scene-label" class="scene-label"
+              >SQUARE ARRAY · SCHEMATIC GEOMETRY</span
+            >
+            <span id="status" class="compute-status" role="status"
+              >Loading solver…</span
+            >
+            <span id="scene-note" class="scene-note"
+              >Beam width shows computed power. Geometry repeats
+              infinitely.</span
+            >
+          </div>
+          <div class="advanced-readout">
+            <div>
+              <span id="first-label">REFLECTED</span
+              ><strong id="first-value">—</strong>
+            </div>
+            <div>
+              <span id="second-label">TRANSMITTED</span
+              ><strong id="second-value">—</strong>
+            </div>
+            <div class="readout-note">
+              <span id="response-note">Rust + WebAssembly</span
+              ><small id="timing"></small>
+            </div>
+          </div>
+          <div class="plot-bar">
+            <span id="plot-label">POWER SPECTRUM</span>
+            <div id="plot-switch" hidden>
+              <button id="power-plot" aria-pressed="true">Power</button
+              ><button id="bloch-plot" aria-pressed="false">Bloch</button>
+            </div>
+            <span class="plot-hint">Drag to tune</span>
+          </div>
+          <svg
+            id="spectrum"
+            viewBox="0 0 600 130"
+            preserveAspectRatio="none"
+            role="slider"
+            tabindex="0"
+            aria-label="Wavelength"
+            aria-valuemin="0.65"
+            aria-valuemax="1.65"
+            aria-valuenow="1.25"
+          ></svg>
+          <div class="plot-key" id="plot-key">
+            <span class="reflection-key">Reflection</span
+            ><span class="transmission-key">Transmission</span
+            ><span id="gap-key" hidden>Shaded: infinite bandgap</span>
+          </div>
+        </section>
+        <aside class="advanced-controls" aria-label="Experiment controls">
+          <div class="controls-title">
+            <span>YOUR EXPERIMENT</span
+            ><button id="reset" class="text-button">Reset</button>
+          </div>
+          <div id="array-controls">
+            <div class="advanced-control wide">
+              <label for="wavelength"
+                >Wavelength
+                <output id="wavelength-value">1.55 μm</output></label
+              ><input
+                id="wavelength"
+                type="range"
+                min="0.65"
+                max="1.65"
+                step="0.005"
+                value="1.55"
+              />
+            </div>
+            <div class="control-pair">
+              <div class="advanced-control">
+                <label for="period"
+                  >Spacing <output id="period-value">0.80 μm</output></label
+                ><input
+                  id="period"
+                  type="range"
+                  min="0.65"
+                  max="1.1"
+                  step="0.005"
+                  value="0.8"
+                />
+              </div>
+              <div class="advanced-control">
+                <label for="radius"
+                  >Radius <output id="radius-value">0.23 μm</output></label
+                ><input
+                  id="radius"
+                  type="range"
+                  min="0.12"
+                  max="0.23"
+                  step="0.005"
+                  value="0.23"
+                />
+              </div>
+            </div>
+            <div class="advanced-control">
+              <label for="angle"
+                >Incident angle <output id="angle-value">0°</output></label
+              ><input
+                id="angle"
+                type="range"
+                min="0"
+                max="45"
+                step="1"
+                value="0"
+              />
+            </div>
+          </div>
+          <div id="crystal-controls" hidden>
+            <div class="advanced-control wide">
+              <label for="frequency"
+                >Frequency a / λ
+                <output id="frequency-value">0.270</output></label
+              ><input
+                id="frequency"
+                type="range"
+                min="0.08"
+                max="0.65"
+                step="0.001"
+                value="0.27"
+              />
+            </div>
+            <div class="control-pair">
+              <div class="advanced-control">
+                <label for="index"
+                  >Index contrast
+                  <output id="index-value">2.60 / 1.45</output></label
+                ><input
+                  id="index"
+                  type="range"
+                  min="1.45"
+                  max="3.5"
+                  step="0.025"
+                  value="2.6"
+                />
+              </div>
+              <div class="advanced-control">
+                <label for="fill"
+                  >A layer fraction <output id="fill-value">64%</output></label
+                ><input
+                  id="fill"
+                  type="range"
+                  min="0.1"
+                  max="0.9"
+                  step="0.01"
+                  value="0.64"
+                />
+              </div>
+            </div>
+            <div class="advanced-control">
+              <label for="periods"
+                >Number of periods <output id="periods-value">8</output></label
+              ><input
+                id="periods"
+                type="range"
+                min="1"
+                max="20"
+                step="1"
+                value="8"
+              />
+            </div>
+          </div>
+          <details class="advanced-explanation">
+            <summary>
+              Inside the experiment <span aria-hidden="true">+</span>
+            </summary>
+            <div id="explanation"></div>
+          </details>
+        </aside>
+      </div>
+      <footer class="advanced-footer">
+        <span>Small models. Infinite possibilities.</span
+        ><a href="./NOTICES.txt">Licenses</a
+        ><a
+          href="https://tfp-photonics.github.io/treams/"
+          target="_blank"
+          rel="noreferrer"
+          >Explore the science ↗</a
+        >
+      </footer>
+    </main>
+    <script type="module" src="./advanced.js"></script>
+  </body>
+</html>

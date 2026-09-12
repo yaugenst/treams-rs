@@ -96,7 +96,7 @@ replace the author's endpoint or claim an exact endpoint/derivative formulation.
 The article's quasi-BIC Figure 5 is **not reproduced** here. Appendix F supplies
 the algorithm, but `ellipsoid.h5` is absent from the retrieved
 [arXiv ancillary archive](https://arxiv.org/src/2309.03182v1/anc).
-The publisher supplement returned HTTP 403 during this investigation. Replacing
+The recorded retrieval of the publisher supplement returned HTTP 403. Replacing
 the unavailable FEM matrix by another ellipsoid model would be a different
 qualification, so no Figure 5 claim is made.
 

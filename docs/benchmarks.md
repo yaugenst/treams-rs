@@ -1,12 +1,16 @@
-# Scattering and field benchmarks
+# CPU scattering and field benchmarks
 
-## Qualification of the complete implementation
+For optional GPU measurements and their precision/setup limits, see
+[GPU opportunities](gpu-opportunities.md) and [cached GPU sampling](gpu-sampling.md).
+[WASM qualification](wasm.md) covers the browser exports separately.
 
-The complete grid passes all 527 runtime comparisons and 525 peak-RSS comparisons
+## Reference qualification
+
+The reference grid passed all 527 runtime comparisons and 525 peak-RSS comparisons
 against treams 0.4.5. It covers scalar and batched functions, geometry, local
 waves, finite and periodic scattering, fields, planar stacks, power observables
 and recorded native pullbacks. The [qualification manifest](../benchmarks/complete-qualification.json)
-contains every command, result path and build fingerprint; [raw results](../benchmarks/results/final/)
+records the commands, result paths and build fingerprints; [raw results](../benchmarks/results/final/)
 retain all timing samples and process measurements. The lowest measured speedup
 is 1.02x and the largest gated RSS ratio is 0.912x. The two recorded-adjoint RSS
 exceptions are described below; there is no universal all-input speed guarantee.
@@ -15,8 +19,8 @@ Run `just bench-all` after installing the locked development dependencies. Each
 case first checks numerical agreement, then benchmarks both implementations in
 separate processes with four threads each. Sub-millisecond calls use fourteen
 alternating paired timings with batches calibrated to at least 20 ms. The strict
-threshold is speedup >= 1 and Rust peak RSS <= upstream peak RSS. The final run
-uses CPU affinity 8-11 on the Ryzen 9 9950X host; this differs from some historical
+threshold is speedup >= 1 and Rust peak RSS <= upstream peak RSS. The reference run
+used CPU affinity 8-11 on the Ryzen 9 9950X host; this differs from some historical
 runs below. Native binary, Python source and benchmark hashes identify each result.
 
 Two recorded internal-illumination cases at 1,024 channels retain owned inputs
@@ -27,10 +31,9 @@ forward-only calls achieve 1.83x/1.71x speedups with 0.91x/0.91x upstream RSS. U
 no equivalent reverse pass; reverse timings are reported separately, never treated
 as an upstream speed comparison.
 
-The dispatch regressions were fixed at shared native boundaries, preserving the
-NumPy broadcasting, output-buffer and subclass paths. Cylindrical rotation now
-uses a real sine/cosine pair for its unit phase instead of a general complex
-exponential. Current Linux examples:
+Shared native dispatch preserves NumPy broadcasting, output-buffer and subclass
+paths. Cylindrical rotation uses a real sine/cosine pair for its unit phase
+instead of a general complex exponential. Selected Linux results:
 
 | Operation | Input size | Speedup | Rust / upstream peak RSS |
 | --- | ---: | ---: | ---: |
@@ -46,7 +49,7 @@ exponential. Current Linux examples:
 The EBCM rows use the explicit legacy integral for like-for-like timing; the
 corrected surface element and its physical checks are described below.
 
-A separate [macOS qualification](../benchmarks/mac-qualification.json) passes all
+A separate [macOS qualification](../benchmarks/mac-qualification.json) passed all
 30 scalar/batched regression cases for these boundaries. Its lowest measured
 speedup is 1.30x and largest RSS ratio is 0.70x. The complete Linux grid is the
 broader qualification; the macOS subset is not a full-platform parity claim.
@@ -55,16 +58,30 @@ Peak RSS includes imports and allocator retention. These measurements qualify th
 listed inputs on this CPU, not every size, host or conditioning regime. Numerical
 accuracy gates remain independent of timing gates.
 
+## Evidence provenance
+
+Historical artifact paths have been neutralized to remove user and machine
+identifiers. Manifest digests of redacted raw JSON files were refreshed to match
+the redistributed bytes. Numerical results, timing samples, and recorded source,
+native-library, and benchmark-executable fingerprints remain unchanged. This
+metadata cleanup did not rerun or requalify the historical measurements.
+
 ## Historical measurements
 
-The sections below retain earlier measurements and the reasoning behind numerical
-and performance changes. Their binary hashes and workload limits matter; they are
-not interchangeable with qualification of the latest build.
+The following measurements document individual kernels and the effects of specific
+optimizations. They use different historical builds and benchmark protocols,
+identified by the cited artifacts. Their qualification counts and test totals
+describe those builds, not the current source tree. Use the reference manifest
+above for the broader CPU comparison.
 
-Measured on [redacted-host], AMD Ryzen 9 9950X (16 physical cores), Linux x86-64,
-Python 3.13.1, treams 0.4.5. Rust uses the optimized build, faer and Rayon.
+Unless stated otherwise, the host was an AMD Ryzen 9 9950X (16 physical cores),
+Linux x86-64, Python 3.13.1 and treams 0.4.5. Rust used an optimized build, faer
+and Rayon. Unqualified result filenames below refer to
+[`benchmarks/results/`](../benchmarks/results/). Several exploratory timings were
+not archived; those sections say so explicitly. Their printed summaries are
+historical observations, not independently inspectable raw evidence.
 
-## Axisymmetric EBCM
+### Axisymmetric EBCM
 
 For r(theta)=0.3(1+0.23 cos²(theta)), k0=1.3, inner eps=3.1+0.2i,
 mu=1.2+0.1i, kappa=0.07 and vacuum outside, the complete outgoing Q integral
@@ -86,7 +103,7 @@ peak in these cases. Results include the native/Python boundary and residual
 creation, but exclude shape/basis setup.
 
 The degree-6 strict comparison fails on six of 9,216 nearly zero entries,
-with differences up to 4.98e-10. This is now diagnosed as cancellation in both
+with differences up to 4.98e-10. The discrepancy comes from cancellation in both
 implementations: all affected entries have m=0 and odd l_out+l_in, so their
 integrands are odd under theta -> pi-theta for this equatorially symmetric surface.
 Their exact integrals vanish. An independent m=0 spherical-wave calculation at
@@ -106,16 +123,16 @@ Reproduce this diagnostic with
 `uv run --no-sync --with mpmath python scripts/qualify_ebcm_cancellation.py`.
 All eight m=0 degree-1/3 to degree-6 entries, their high-precision results, quadrature
 samples and condition estimates are recorded in
-`benchmarks/results/ebcm-l6-cancellation.json`.
-Earlier timing results on [redacted-host]:
-`/tmp/ebcm-legacy-l3-q96-t4.json`, `/tmp/ebcm-legacy-l4-q96-t4.json`;
-strict failure details: `/tmp/ebcm-l6-check.log`.
+[the cancellation diagnostic](../benchmarks/results/ebcm-l6-cancellation.json).
+The raw degree-3/4 timings and original strict-failure log were temporary
+measurements and are not archived. The independent cancellation diagnostic is
+archived; the timing table remains a historical summary.
 
 ```sh
 uv run --no-sync python scripts/benchmark_cluster.py --workload ebcm --particles 1 --lmax 4 --samples 96 --threads 4
 ```
 
-## Finite sphere clusters
+### Finite sphere clusters
 
 | Spheres | lmax | Matrix dimension | Threads | treams ms | Rust ms | Speedup | treams / Rust peak MiB |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -128,10 +145,10 @@ uv run --no-sync python scripts/benchmark_cluster.py --workload ebcm --particles
 | 8 | 5 | 560 | 4 | 691.96 | 12.69 | 54.5× | 100.2 / 64.5 |
 | 32 | 3 | 960 | 4 | 1636.14 | 43.41 | 37.7× | 156.4 / 113.6 |
 
-After switching the shared solve to packed in-place LU, matched-four-thread
-rechecks remain faster and smaller than upstream: dimension 240 takes 2.19 ms
-versus 89.95 ms (41.0x; 46.6 versus 75.0 MiB), and dimension 960 takes 35.63 ms
-versus 1641.15 ms (46.1x; 100.9 versus 159.0 MiB). These are fresh comparisons,
+With packed in-place LU, matched-four-thread rechecks were faster and smaller
+than upstream: dimension 240 took 2.19 ms versus 89.95 ms
+(41.0x; 46.6 versus 75.0 MiB), and dimension 960 took 35.63 ms
+versus 1641.15 ms (46.1x; 100.9 versus 159.0 MiB). These are separate comparisons,
 not controlled speed ratios against the older Rust measurements above. Full raw
 results are in `benchmarks/results/packed-lu-cluster-d{240,960}.json`.
 
@@ -162,7 +179,7 @@ Reproduce after `uv sync --locked --group dev` and `just build-ext-release`:
 uv run --no-sync python scripts/benchmark_cluster.py --particles 16 --lmax 3 --threads 4
 ```
 
-## Batched spherical fields
+### Batched spherical fields
 
 The same harness accepts `--workload field --samples 2048`. It compares weighted
 outgoing electric fields, including a retained native pullback context, against
@@ -196,13 +213,13 @@ Raw results: `field-operator-n4-l3-p2048-t4.json` and
 The cylindrical workload uses four origins, orders -3 through 3, axial labels
 0.2 and -0.3 and both helicities (112 modes), with the same 2,048 points and four
 threads. It measures 47.57 ms forward versus treams' 502.92 ms (10.57x), 64.24 ms
-reverse, and 41.64 versus 94.11 MiB forward peak RSS. The initial implementation
-took 138.96 ms forward; reusing the radial value and its first two derivatives
-across adjacent orders removed repeated Bessel calls. The forward residual remains
+reverse, and 41.64 versus 94.11 MiB forward peak RSS. Without radial reuse, the
+implementation took 138.96 ms forward; sharing the radial value and its first two
+derivatives across adjacent orders removed repeated Bessel calls. The forward residual remains
 linear in modes plus samples. Both versions and raw samples are recorded in
 `cylindrical-fields*-n4-l3-p2048-t4.json`. Reproduce with `--workload cylindrical-field`.
 
-## Periodic sphere arrays and adjoints
+### Periodic sphere arrays and adjoints
 
 The periodic workload includes local sphere coefficients, the 2D Ewald coupling,
 and the full interacting response matrix, retaining every native pullback context.
@@ -221,20 +238,20 @@ four- and nine-sphere cases, respectively. These include the dense adjoint solve
 all particle pullbacks, and both origin sets, medium wavenumbers, Bloch vector and
 lattice geometry. Peak process RSS through the reverse pass was 43.4 and 60.0 MiB.
 Reverse timings exclude preparing a fresh forward context and use a fixed complex
-output cotangent. That earlier benchmark spent about ten forward evaluations'
-time on one complete periodic reverse pass; recomputation keeps residual memory
-small, but reverse runtime still needs optimization. No derivative speedup over
-Dreams or another autodiff implementation has been measured.
+output cotangent. That benchmark spent about ten forward evaluations'
+time on one complete periodic reverse pass. Recomputation kept residual memory
+small; the S-matrix measurements below include shared Ewald derivatives. No
+derivative speedup over Dreams or another autodiff implementation has been measured.
 
 Raw results: `periodic-n4-l3-t1.json`, `periodic-adjoint-n4-l3-t4.json`, and
-`periodic-adjoint-n9-l3-t4.json` in `benchmarks/results`. The harness now records
+`periodic-adjoint-n9-l3-t4.json` in `benchmarks/results`. The harness records
 native reverse timings separately from the forward comparison:
 
 ```sh
 uv run --no-sync python scripts/benchmark_cluster.py --workload periodic --particles 4 --lmax 3 --threads 4
 ```
 
-## Complete periodic S matrices
+### Complete periodic S matrices
 
 The `array` workload adds plane-wave incidence and radiation into ten ports
 (zero and four first diffraction orders, both polarizations). Correctness checks
@@ -258,7 +275,7 @@ and `array-n*-l3-t*.json`. Derivative speed relative to Dreams remains unmeasure
 uv run --no-sync python scripts/benchmark_cluster.py --workload array --particles 9 --lmax 3 --threads 4
 ```
 
-## Multipole rotations
+### Multipole rotations
 
 For two spherical origins and all degrees through 8 (320 modes), the complete
 rotation takes 0.510 ms versus treams' 5.597 ms (10.98x) with four matched threads.
@@ -268,7 +285,7 @@ blocks for an analytic Euler-angle reverse pass. Raw samples and binary identity
 are in `rotation-n2-l8-t4.json`; reproduce with
 `--workload rotation --particles 2 --lmax 8 --threads 4`.
 
-## Cylindrical-to-spherical conversion
+### Cylindrical-to-spherical conversion
 
 Release, four matched threads, one common origin, spherical lmax=12 (336 modes),
 32 axial wavenumbers between -0.7 and 0.7 and cylindrical mmax=12 (1,600 modes).
@@ -277,14 +294,15 @@ treams takes 23.13 ms and Rust 3.34 ms: **6.92x** on this case. The native pullb
 for arbitrary origin and complex-wavenumber cotangents takes 5.80 ms; forward peak
 RSS is 73.9 MiB versus 55.9 MiB. Seven samples after warmup, isolated processes.
 
-The first implementation took 20.48 ms forward and 23.63 ms reverse. Skipping
-analytically zero azimuthal orders at coincident transverse origins reduced those
+Without azimuthal selection, the same workload took 20.48 ms forward and
+23.63 ms reverse. Skipping analytically zero azimuthal orders at coincident
+transverse origins reduced those
 times without suppressing adjacent-order position derivatives. This measurement
 covers common-origin conversion; it does not establish displaced-origin speedup.
-Raw results: `/tmp/conversion-before-l12-k32-t4.json` and
-`/tmp/conversion-l12-k32-t4.json` on [redacted-host].
+The raw conversion timings, including the baseline, were temporary measurements
+and are not archived. These values are retained as a historical summary.
 
-## Plane fields and direct NumPy buffer transfer
+### Plane fields and direct NumPy buffer transfer
 
 Four matched threads, 128 plane modes (64 transverse vectors, both polarizations),
 4,096 Cartesian samples, including propagating and evanescent waves at k0=1.3.
@@ -295,10 +313,11 @@ Every benchmark first compares the full result against upstream.
 | Weighted plane field | 139.37 ms | 1.95 ms | 71.5x | 3.58 ms | 88.3 / 42.1 MiB |
 | Full plane field operator | 137.13 ms | 2.70 ms | 50.7x | 9.76 ms | 88.1 / 65.7 MiB |
 
-The initial weighted reverse pass took 6.10 ms. Contracting polarization
-cotangents over all samples before differentiating each mode reduced it to 3.58 ms.
-The initial full operator took 13.32 ms forward and 89.4 MiB peak RSS: transferring
-the owned Rust buffer directly to NumPy removes that extra copy. Its final reverse
+Without the shared contraction, the weighted reverse pass took 6.10 ms.
+Contracting polarization cotangents over all samples before differentiating each
+mode reduced it to 3.58 ms. The copying implementation of the full operator took
+13.32 ms forward and 89.4 MiB peak RSS. Transferring the owned Rust buffer directly
+to NumPy removes that extra copy. The reverse
 pass packs the returned stride layout with a bulk copy and still accepts arbitrary
 cotangent strides. These are complete Python/native boundary timings, including
 input conversion, output transfer and residual creation. No output Jacobian is
@@ -309,13 +328,11 @@ spherical origins, lmax=3 and 2,048 points gives 823.02 / 42.83 ms (19.2x), with
 75.81 ms reverse and 97.1 / 53.5 MiB forward peak RSS. The earlier copying path used
 64.2 MiB for Rust. Weighted multipole fields already avoid the full operator.
 
-Raw results on [redacted-host]: `/tmp/plane-field-d128-p4096-t4.json`,
-`/tmp/plane-operator-packed-d128-p4096-t4.json` and
-`/tmp/field-operator-zero-copy-n4-l3-p2048-t4.json`. Development baselines include
-`/tmp/plane-field-before-d128-p4096-t4.json` and
-`/tmp/plane-operator-d128-p4096-t4.json`.
+The raw timings for these plane fields, packed operators, buffer transfers and
+copying baselines were temporary measurements and are not archived. The values
+here are historical summaries.
 
-## Plane-to-spherical illumination
+### Plane-to-spherical illumination
 
 Four matched threads, two spherical origins, lmax=8 (320 modes), and 64 transverse
 vectors with both polarizations (128 plane modes). At k0=1.3 the directions include
@@ -325,9 +342,10 @@ pass, including all origin and full complex-wavevector cotangents, takes 1.23 ms
 Forward peak RSS is 67.5 / 40.2 MiB. Rust shares the normalized direction across
 multipoles, uses Rayon over incident modes, and transfers the output buffer to
 NumPy without retaining it in the residual. Seven samples after warmup.
-Raw result: `/tmp/plane-expansion-before-n2-l8-k64-t4.json` on [redacted-host].
+The raw timing was a temporary measurement and is not archived; these values
+are a historical summary.
 
-## Complete cylindrical arrays
+### Complete cylindrical arrays
 
 Four matched threads, one-dimensional arrays along x, kz=0.2, k0=1.3,
 radii 0.15–0.25, permittivity 4+0.1j, spacing 0.8 and period 0.8N.
@@ -351,11 +369,11 @@ Rust forward and reverse times in the four-cylinder automatic-split baseline
 gradients remain separate and are checked by independent perturbations. No dense
 parameter Jacobian is retained. Results do not imply this speedup for every array.
 
-Raw results on [redacted-host]: `/tmp/cylindrical-array-converged-n4-m5-t4.json`
-and `/tmp/cylindrical-array-converged-n9-m3-t4.json`. Reproduce with
+The raw converged-array timings were temporary measurements and are not archived.
+The historical workload can be rerun with
 `--workload cylindrical-array --particles 9 --lmax 3 --threads 4 --repeats 7`.
 
-## Cylindrical plane illumination and phase reuse
+### Cylindrical plane illumination and phase reuse
 
 Four origins, mmax=12 (200 cylindrical modes), kz=0.2, and 128 transverse
 vectors with both polarizations (256 plane modes). Four matched threads, seven
@@ -363,18 +381,17 @@ samples after warmup, complete matrix checked against treams. Rust takes 0.220 m
 versus 6.376 ms (**28.9x**); the native origin/transverse-wavevector reverse takes
 0.446 ms. Forward peak RSS is 39.9 MiB versus 67.7 MiB.
 
-The initial implementation took 0.377 ms forward and 0.537 ms reverse. Reusing
-each origin phase across its multipoles reduced both. The same change improves
+Without phase reuse, the implementation took 0.377 ms forward and 0.537 ms
+reverse. Reusing each origin phase across its multipoles reduced both. The same change improves
 spherical plane illumination: the previously described two-origin, lmax=8 case
-now takes 0.494 ms versus 14.143 ms (**28.6x**), with 1.163 ms reverse.
+measured 0.494 ms versus 14.143 ms (**28.6x**), with 1.163 ms reverse.
 Cylindrical axial labels remain fixed in these gradients.
 
-Raw results: `/tmp/cylindrical-plane-expansion-n4-m12-k128-t4.json` and
-`/tmp/plane-expansion-phases-n2-l8-k64-t4.json` on [redacted-host]. The cylindrical
-case uses `--workload cylindrical-plane-expansion --particles 4 --lmax 12
---samples 128 --threads 4 --repeats 7`.
+The raw phase-reuse timings were temporary measurements and are not archived.
+The cylindrical workload uses `--workload cylindrical-plane-expansion --particles 4
+--lmax 12 --samples 128 --threads 4 --repeats 7`.
 
-## Compact planar multilayers
+### Compact planar multilayers
 
 Four interior layers, alternating permittivities 2.3+0.1j and 1.7+0.05j in
 vacuum, thicknesses 0.1–0.4, k0=1.3, transverse qx=0.1–0.8 and qy=0.2.
@@ -393,18 +410,18 @@ They exclude packing a dense cotangent into its independent channel blocks.
 The native solve and retained residual scale linearly with channel count;
 materializing the legacy dense output still costs quadratic time and memory.
 For objectives on selected transmission/reflection channels, the compact Advect
-API avoids that output expansion. Partial-polarization slab bases currently use
+API avoids that output expansion. Partial-polarization slab bases use
 the general projected composition path instead of this optimization.
 
 Profiling the earlier dense implementation put most slab time in generic
 S-matrix composition. A preliminary single-layer, 256-mode case improved from
 about 23 ms to 1.5 ms after solving channels independently. The table above is the
 subsequent isolated four-layer measurement, not that preliminary timing.
-Raw results: `/tmp/slab-l4-q128-t4.json` and `/tmp/slab-l4-q512-t4.json` on
-[redacted-host]. Reproduce with `--workload slab --layers 4 --channels 512
+The raw slab timings were temporary measurements and are not archived.
+Rerun the historical workload with `--workload slab --layers 4 --channels 512
 --threads 4 --repeats 7`.
 
-## Periodic spherical-to-cylindrical conversion
+### Periodic spherical-to-cylindrical conversion
 
 One common origin, lmax=mmax=12, 336 spherical inputs and 1,600 cylindrical
 outputs across 32 axial diffraction orders. Wavenumber 1.3, period 200 and Bloch
@@ -418,19 +435,19 @@ per-output axial wavenumbers and period. Forward peak RSS is **48.5 MiB** versus
 geometry only. Axis selection eliminates zero coefficients while retaining
 adjacent azimuthal orders for their nonzero position derivatives.
 
-Raw result: `/tmp/periodic-conversion-n1-l12-k32-t4.json` on [redacted-host].
-Reproduce with `--workload periodic-conversion --particles 1 --lmax 12
+The raw conversion timing was a temporary measurement and is not archived.
+Rerun the historical workload with `--workload periodic-conversion --particles 1 --lmax 12
 --samples 32 --threads 4 --repeats 7`. This is conversion timing, excluding
 particle construction and the periodic interaction solve.
 
-## Dense internal illumination
+### Dense internal illumination
 
 Two general dense S matrices, four matched threads, seven samples after warmup.
 Random complex reflections scale as 0.1/sqrt(N), with identity transmission plus
 similarly sized perturbations; seed 81. All four fields are checked against treams
 before timing. Construction of the supplied S matrices is excluded.
 
-These refreshed measurements use batches lasting at least 20 ms per sample and
+These measurements use batches lasting at least 20 ms per sample and
 include destruction of returned fields and residuals. Reverse samples aggregate
 the same number of fresh contexts, with forward preparation outside the timer.
 Earlier tables in this document used individual calls and excluded forward result
@@ -478,7 +495,7 @@ The harness accepts `--require-speedup` and `--require-rss-ratio` for other
 workloads. Timing gates are separate from shared hosted correctness CI.
 Here lmax is only a size argument: the dense matrix has 2*lmax modes.
 
-## Compact plane permutations
+### Compact plane permutations
 
 Cyclic Cartesian-axis transforms return both output polarizations for each input
 mode, shape (2, N). The reference is `treams.pw.permute_xyz` broadcast to the same
@@ -500,7 +517,7 @@ on the full plane-field operator (128 modes, 4096 samples). It takes 1.81 ms ver
 138.43 ms upstream (76.55x), with 9.77 ms reverse and forward peak RSS of 67.5 versus
 89.5 MiB. The result is in `plane-transform-check-field-n128.json`.
 
-## Plane translation phases
+### Plane translation phases
 
 Compact exp(i k.r) tables at 4096 displacements, including propagating and
 evanescent wavevectors. Both backends receive precomputed vectors; the reference
@@ -520,12 +537,12 @@ forward-plus-reverse peak from 235.1 to 172.3 MiB and reverse time from 79.33 to
 imports, output tables and cotangents. These measurements cover the compact phase
 kernel, not an entire scattering solve or the dense masked translation operator.
 
-Raw results are `/tmp/treams-plane-phases-borrow-n128-t4.json` and
-`/tmp/treams-plane-phases-borrow-n1024-t4.json` on [redacted-host]. Reproduce with
+The raw phase-table timings were temporary measurements and are not archived.
+Rerun the historical workload with
 `--workload plane-phases --particles 16 --lmax 32 --samples 4096 --threads 4`;
 the number of plane modes is 2*particles*lmax. The smaller case uses 8 and 8.
 
-## Oriented chirality forms
+### Oriented chirality forms
 
 Compact signed-helicity up/down/cross coefficients, averaged from -0.2 to 0.7
 along x, including propagating and evanescent waves. The independent reference
@@ -545,7 +562,7 @@ interval endpoints; the residual stores only input geometry. Large mode sets use
 Rayon. Raw results: `benchmarks/results/oriented-chirality-l{64,512}.json`.
 Reproduce with `--workload oriented-chirality --particles 1 --lmax 512 --threads 4`.
 
-## Heterogeneous particle clusters and block adjoints
+### Heterogeneous particle clusters and block adjoints
 
 Spherical particles with alternating cutoffs 3 and 4, radii 0.15–0.25,
 permittivity 4+0.1j, vacuum wavenumber 1.3, and spacing 0.8. Local particle
@@ -579,7 +596,7 @@ Raw results: `particle-cluster{-public,}-n{4,16}-l3.json` and
 Use `--workload particle-cluster` or `--workload particle-cluster-public` with
 `--particles 16 --lmax 3 --threads 4` to reproduce the heterogeneous cases.
 
-## Broadcast Bessel functions
+### Broadcast Bessel functions
 
 Outgoing cylindrical Hankel H1 of order 3 at 128 or 4096 complex arguments,
 uniform real part 0.6–8.0 and imaginary part 0.2. Results and first derivatives
@@ -597,10 +614,10 @@ Release, four matched threads, seven batched samples including result destructio
 | 128 | H1 derivative | Recorded | 93.36 | 48.76 | 1.91x | 62.43 |
 | 4096 | H1 derivative | Recorded | 3034.26 | 882.62 | 3.44x | 1389.10 |
 
-An initial 128-value measurement failed the runtime gate (65.59 us versus 61.08 us).
-Parallel evaluation now starts at 64 values, and ordinary forward calls borrow
+A 128-value baseline failed the runtime gate (65.59 us versus 61.08 us).
+Parallel evaluation starts at 64 values, and ordinary forward calls borrow
 inputs without creating an unused residual. Both forward-only and recorded cases
-pass. Separate runs have scheduling variability, so the small differences between
+passed. Separate runs have scheduling variability, so the small differences between
 recorded and ordinary forward numbers are not evidence that recording is free.
 Rust peak RSS was 39.8–41.0 MiB versus 64.9–65.4 MiB upstream for these cases.
 Scalar call overhead and other special-function families are not qualified by
@@ -610,8 +627,7 @@ Raw results: `benchmarks/results/bessel{,-derivative}{,-forward}-n{128,4096}.jso
 Use `--workload bessel-forward --samples 4096 --particles 1 --lmax 3 --threads 4`;
 the other workload names match the result filenames. All use the same accuracy gate.
 
-
-## Heterogeneous cylindrical clusters
+### Heterogeneous cylindrical clusters
 
 Alternating azimuthal cutoffs 3/4, two fixed axial channels (0.2, 0.4), release
 extension and matched four threads. Local cylinder construction is outside both
@@ -628,26 +644,25 @@ The public path includes cluster construction and the interaction solve.
 The native 512-mode run peaks at 83.0 MiB through reverse. Parallel cylindrical
 translation contractions reduced its reverse from 59.38 to 25.60 ms in the same
 benchmark; the 128-mode reverse fell from 3.01 to 1.30 ms. The serial measurements
-were exploratory; committed JSON files contain the final qualified implementation.
+were exploratory; committed JSON files contain the qualified measurements.
 Raw data: `benchmarks/results/cylindrical-particle-cluster{,-public}-n{4,16}-l3.json`.
-All four correctness, runtime and forward-RSS gates pass and are included in
+All four correctness, runtime and forward-RSS gates passed and are included in
 `just bench-performance`.
 
-
-## Scalar overhead and NumPy ufunc qualification
+### Scalar overhead and NumPy ufunc qualification
 
 A scalar outgoing Hankel call exposed a Python-dispatch regression: an exploratory
-measurement gave 1.94 us versus upstream's 0.82 us. Native scalar entry points now
+measurement gave 1.94 us versus upstream's 0.82 us. Native scalar entry points
 skip temporary arrays and broadcasting. Array calls use actual NumPy ufunc loops,
 retaining NumPy's output allocation, masks, broadcasting and overlap handling.
-The Rust complex-Hankel derivative now obtains its adjacent orders in one library
+The Rust complex-Hankel derivative obtains its adjacent orders in one library
 sequence evaluation, using the [Bessel derivative recurrence](https://dlmf.nist.gov/10.6.ii).
 No numerical tolerance was relaxed.
 
 The following release results use the same independent-process, four-thread,
 seven-batch timing protocol, including output/context destruction. Scalar arguments
 are Python values at z=1.3+0.2i; arrays cover Re(z)=0.6..8 with Im(z)=0.2.
-Order is 3. All twelve correctness/runtime/forward-RSS gates pass. This supersedes
+Order is 3. All twelve correctness/runtime/forward-RSS gates passed. This supersedes
 the earlier Bessel implementation's table above; its historical JSON is retained.
 
 | Values | Operation | Path | Upstream us | Rust us | Speedup | Reverse us |
@@ -672,10 +687,10 @@ limited to measured workloads, not every input, machine or thread count.
 Raw files are `benchmarks/results/ufunc-bessel{,-derivative}{,-forward}-n{1,128,4096}.json`.
 `just bench-performance` runs all twelve cases with the same required ratios.
 
-## Public angular functions and complete performance gate
+### Public angular functions
 
-The complete `just bench-performance` recipe passed all 50 runtime gates on
-[redacted-host] with four matched threads after the angular/basis changes.
+The angular-function qualification passed all 50 runtime gates in its
+`just bench-performance` snapshot, with four matched threads.
 Ordinary forward paths and the special-function/particle adjoint recordings also
 passed the peak-RSS gates. Recorded internal illumination retains additional
 owned inputs and is intentionally measured separately from its ordinary forward
@@ -718,14 +733,14 @@ The 18 `angular-*.json` files in [raw results](../benchmarks/results/) record ev
 sample, native-extension hash, Python/NumPy version, thread configuration and
 reverse peak RSS. The other 32 recipe results were refreshed in the same run.
 
+### Wigner elements, Euler pullbacks and public Ewald integrals
 
-## Wigner elements, Euler pullbacks and public Ewald integrals
-
-The complete `just bench-performance` recipe passed all 68 runtime gates after
-this change, including the 50 earlier workloads and 18 new cases. The preceding
-angular table records the run saved in commit 4f41708; the current raw JSON files
-were refreshed by this larger run. The same RSS qualification applies: ordinary
-forward and special-function/particle recording paths must use no more peak RSS
+The Wigner/Ewald qualification passed all 68 runtime gates in its
+`just bench-performance` snapshot, including 50 angular/baseline workloads and
+18 Wigner/Ewald cases. The preceding angular table records the run saved in
+commit 4f41708; the raw JSON files were refreshed by the 68-case run. The same RSS
+qualification applies: ordinary forward and special-function/particle recording
+paths must use no more peak RSS
 than upstream; retained internal-illumination adjoint inputs are measured separately.
 
 Individual Wigner elements use the [Jacobi recurrence](https://dlmf.nist.gov/18.9.E2),
@@ -761,13 +776,14 @@ Kambe order is -2 and eta=0.7+0.1j. Units below are microseconds.
 | wigner | 128 | 39.724 | 24.048 | 1.65x | 22.380 |
 | wigner | 4096 | 2357.991 | 144.681 | 16.30x | 274.425 |
 
-Peak RSS spans 39.9–41.5 MiB for Rust versus 64.2–65.8 MiB for upstream. All native hashes, timing samples, reverse measurements and environment details are in the corresponding [raw results](../benchmarks/results/).
+Peak RSS spans 39.9–41.5 MiB for Rust versus 64.2–65.8 MiB for upstream. Native
+hashes, timing samples, reverse measurements and environment details are in the
+corresponding [raw results](../benchmarks/results/).
 
+### Cylindrical axial field derivatives
 
-## Cylindrical axial field derivatives
-
-On the same release build, four particles, order 3 and four threads, both the
-existing reverse and optional per-mode axial reverse pass upstream accuracy,
+For four particles, order 3 and four threads on the measured release build,
+both the ordinary reverse and optional per-mode axial reverse passed accuracy,
 forward-runtime and forward-RSS gates. The forward is identical for both choices;
 recording adds no axial derivative table. Timings in milliseconds:
 
@@ -782,20 +798,19 @@ The pre-change baseline at `ce0bde4` measured 3.172/47.935 ms forward and
 4.197/62.601 ms reverse for 128/2048 samples. Subsequent fixed-path runs measured
 3.093–3.120/48.038–49.549 ms forward; these short successive runs vary by a few
 percent and do not establish a change at that scale. Axial reverse remains about
-4.2/65.7 ms while computing one additional derivative per mode. The four new gates
-are included in `just bench-performance` (72 total); the prior 68-gate combined
-run and these four additions are recorded separately, not claimed as one run.
+4.2/65.7 ms while computing one additional derivative per mode. The four field
+cases brought the historical `just bench-performance` snapshot to 72 gates. Its 68-gate combined run and the
+four field cases are recorded separately, not claimed as one run.
 
-
-## Shared axial derivatives of finite and periodic cylindrical expansions
+### Shared axial derivatives of finite and periodic cylindrical expansions
 
 Four or sixteen particles, two axial groups, order 3 and four threads. Each
-accuracy-checked case passes forward-runtime and peak-RSS gates against treams.
+accuracy-checked case passed forward-runtime and peak-RSS gates against treams.
 Periodic comparisons use the same explicit Ewald split eta=0.7 in both solvers.
 At period 12.8, upstream's automatic split differs from the converged result by
 up to 0.007466 in this matrix; explicit eta=0.5/0.8/1.0 agrees with Rust to about
 1.5e-11 or better. The native automatic split also agrees with those values.
-The existing scalar split regression now covers both periods 7.2 and 12.8.
+The scalar split regression covers both periods 7.2 and 12.8.
 
 | Workload | Particles | Upstream forward ms | Rust forward ms | Speedup | Rust reverse ms | Rust / upstream RSS MiB |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -810,25 +825,25 @@ The existing scalar split regression now covers both periods 7.2 and 12.8.
 
 The `-axial` cases evaluate the same forward and request the additional grouped
 axial gradient in reverse. Periodic reverse reuses the same Ewald derivatives,
-without retaining an axial Jacobian. These eight additions bring the reproducible
-`just bench-performance` recipe to 80 gates. They were run separately from the
-previous 68-gate combined run and the four field gates above.
+without retaining an axial Jacobian. The eight cases brought the historical
+`just bench-performance` snapshot to 80 gates. They were run separately from the
+68-gate combined run and the four field cases above.
 
-
-The existing complete four-cylinder array path also passes its runtime/RSS gate:
-4.729 to 4.511 ms forward and 12.138 to 11.760 ms reverse before/after this change,
-with measured peak RSS 42.5/43.9 MiB. This is a short same-host check rather than
+The complete four-cylinder array path also passed its runtime/RSS gate:
+4.729 to 4.511 ms forward and 12.138 to 11.760 ms reverse without/with the grouped
+axial derivative, with measured peak RSS 42.5/43.9 MiB. This is a short same-host check rather than
 a claim that the optional derivative improves the unchanged forward algorithm.
-Raw baselines and new runs are saved as `cylindrical-array-{before,after}-axial.json`.
+Raw baseline and grouped-derivative runs are saved as
+`cylindrical-array-{before,after}-axial.json`.
 
-## Coordinate transformations
+### Coordinate transformations
 
-All eight point and eight vector-frame conversions now use native NumPy gufuncs
+All eight point and eight vector-frame conversions use native NumPy gufuncs
 with analytic pullbacks. Component strides, NumPy broadcasting and output buffers
 are supported. Direct factored rotations avoid temporary matrices; a constant
 broadcast vector is retained once in an adjoint context.
 
-All 128 combined performance gates passed with the release build, including 48
+The coordinate qualification passed 128 combined performance gates, including 48
 coordinate comparisons at 1, 128 and 65,536 points. Every case first checks values
 against upstream; the gates require forward speedup >= 1 and peak forward RSS no
 higher than upstream. Representative forward speedups:
@@ -845,7 +860,7 @@ Raw samples, RSS and binary identities are in `coordinate-*-n*.json`. These
 submicrosecond scalar differences remain sensitive to machine noise; the larger
 arrays expose the numerical throughput advantage more clearly.
 
-The benchmark's forward-only helpers now return the actual result directly.
+The benchmark's forward-only helpers return the actual result directly.
 Previously only the Rust helper added and destroyed a dummy `(value, None)`
 residual tuple, which biased small operations. Recorded operations still return
 and retain their real contexts, and metadata explicitly records
@@ -853,15 +868,14 @@ and retain their real contexts, and metadata explicitly records
 128-case run was repeated after this correction; no accuracy or performance
 threshold was relaxed.
 
+### Local wave functions
 
-## Local wave functions and strict combined qualification
-
-The release build passes all 191 runtime gates and all 187 applicable forward-RSS
-gates. The four recorded internal-illumination cases retain an owned adjoint tape
-and are deliberately not compared with upstream forward-only RSS. No accuracy,
-runtime or RSS threshold was relaxed. `just ci` passes 61 native tests and 1,512
-Python tests; a clean Linux wheel passes the SciPy-free Advect workflows and
-optional HDF5 round trip.
+The local-wave qualification passed all 191 runtime gates and all 187 applicable
+forward-RSS gates. The four recorded internal-illumination cases retained an owned
+adjoint tape and were deliberately not compared with upstream forward-only RSS. No accuracy,
+runtime or RSS threshold was relaxed. That build also passed 61 native tests and
+1,512 Python tests through the then-current `just ci` recipe; its clean Linux wheel
+passed SciPy-free Advect workflows and the optional HDF5 round trip.
 
 The combined run used `taskset -c 8-11 just bench-performance`: both backends had
 the same four physical cores and four BLAS/Rayon threads. Background activity on
@@ -909,10 +923,9 @@ Final wave results are `wave-<function>-n<size>.json` and
 These measurements qualify the listed workloads, not every possible problem size,
 conditioning regime or machine.
 
+### Coefficient namespaces and integral adjoints
 
-## Coefficient namespaces and integral adjoints
-
-The coefficient release passes all 257 runtime gates and all 253 applicable
+The coefficient qualification passed all 257 runtime gates and all 253 applicable
 forward-RSS gates on the same four-core Linux configuration. The four recorded
 internal-illumination cases retain the existing RSS exemption described above.
 The smallest measured speedup is 1.006x for scalar cw.rotate; this remains a
@@ -927,30 +940,29 @@ The result manifest and native SHA256 are in `benchmarks/coefficient-qualificati
 | pw.permute_xyz | 3.592x | 1.367x | 10.028x |
 | pw.translate | 2.223x | 1.226x | 1.236x |
 
-Cylindrical coefficient arrays now use the radial kernel's 64-element Rayon
+Cylindrical coefficient arrays use the radial kernel's 64-element Rayon
 threshold; scalar Python numbers bypass NumPy dispatch. Plane-coordinate
 permutations share normalization factors and retain the scaled axis/extreme
 branches. Plane phases evaluate one exponential and one sine/cosine pair. Kambe
-recording avoids redundant broadcasts and recurrence setup. Raw initial failures
+recording avoids redundant broadcasts and recurrence setup. Raw baseline failures
 and targeted rechecks remain alongside the passing combined results.
 
-Paired timing now calibrates each backend's batch independently to at least
+Paired timing calibrates each backend's batch independently to at least
 20 milliseconds. This avoids oversampling the slower backend when the speedup
 is large. Both backends still receive 14 alternating paired samples, with
 per-call timings and independent-process RSS measurements. The first 91 cases
 were retained from the preceding calibration method at the identical native
 SHA256; the other 166 used independent batch sizes, recorded explicitly in JSON.
-The manifest records this completed case-boundary resume.
+The manifest records which cases used each calibration method.
 
-The release passes 65 native tests, 1,611 Python tests, strict lint/type/rustdoc
-checks and isolated Linux wheel checks including Advect and optional HDF5.
+The measured build passed 65 native tests, 1,611 Python tests, strict
+lint/type/rustdoc checks and isolated Linux wheel checks including Advect and
+optional HDF5.
 
+### Lattice geometry and material branches
 
-## Lattice geometry and material branches
-
-All 42 added geometry cases and the preceding 257 cases pass on the updated
-release build: 299 runtime gates and 295 applicable forward-RSS gates, with no
-threshold changes. Both backends used CPU cores 8-11 and four BLAS/Rayon threads.
+The geometry qualification passed 42 geometry cases and 257 regression cases:
+299 runtime gates and 295 applicable forward-RSS gates, with no threshold changes. Both backends used CPU cores 8-11 and four BLAS/Rayon threads.
 The smallest measured runtime margin is 1.005x for scalar cw.rotate; scalar
 comparisons remain sensitive to CPU noise. The largest applicable RSS ratio
 is 0.912. The unchanged four recorded illumination cases remain RSS-exempt.
@@ -976,18 +988,20 @@ regression rechecks have the `geometry-recheck-` prefix, preserving the previous
 coefficient qualification files. `benchmarks/geometry-qualification.json` records
 all 299 paths and their shared native binary hash. Mac diagnostic results retain
 their original filenames and platform metadata; they are not the Linux proof.
-The complete Linux suite and isolated wheel checks pass (68 Rust, 1,647 Python).
+The measured build passed the Linux suite and isolated wheel checks
+(68 Rust, 1,647 Python).
 
 ## Dense CPU scheduling
 
-`Lu` now selects faer parallelism from the matrix size and number of requested
+`Lu` selects faer parallelism from the matrix size and number of requested
 right-hand sides. It uses the existing Rayon pool and never exceeds either that
 pool or faer's configured worker budget. Configurations of four or fewer workers
 retain their previous scheduling. WASM stays serial.
 
-The observed slowdown comes from scheduling fine-grained work in faer's recursive
-LU and triangular solves across too many workers. There is no BLAS thread pool
-in this path. The fix changes scheduling, not the factorization or pullback math.
+Scheduling fine-grained work in faer's recursive LU and triangular solves across
+too many workers caused the measured slowdown. This path has no BLAS thread
+pool. The worker limit changes scheduling without changing factorization or
+pullback mathematics.
 
 For larger pools the worker limit is
 `max(1, min(budget, columns / 16, max(min(rows / 512, 4), rows / 2048)))`, with

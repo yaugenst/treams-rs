@@ -106,7 +106,10 @@ impl ArrayContext {
             .take()
             .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
         let (response, channels) = py.detach(move || residual.pullback(&g)).map_err(error)?;
-        Ok((crate::tmatrix::matrix(py, &response), array(py, &channels)))
+        Ok((
+            crate::tmatrix::owned_matrix(py, response)?,
+            array_owned(py, channels)?,
+        ))
     }
 }
 #[pyfunction]
@@ -166,7 +169,7 @@ impl SMatrixContext {
             .take()
             .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
         let (lower, upper) = py.detach(move || residual.pullback(&g)).map_err(error)?;
-        Ok((array(py, &lower), array(py, &upper)))
+        Ok((array_owned(py, lower)?, array_owned(py, upper)?))
     }
 }
 
@@ -273,7 +276,7 @@ fn chirality_density<'py>(
         .detach(move || smatrix::chirality_density(ks, normal, interval))
         .map_err(error)?;
     Ok((
-        crate::tmatrix::matrix(py, &value),
+        crate::tmatrix::owned_matrix(py, value)?,
         ChiralityContext {
             residual: Some(residual),
         },
@@ -399,8 +402,8 @@ impl IlluminationContext {
         Ok((
             array_owned(py, lower)?,
             array_owned(py, upper)?,
-            crate::tmatrix::matrix(py, &up),
-            crate::tmatrix::matrix(py, &down),
+            crate::tmatrix::owned_matrix(py, up)?,
+            crate::tmatrix::owned_matrix(py, down)?,
         ))
     }
 }
@@ -514,7 +517,7 @@ impl SMatrixPeriodicContext {
             .take()
             .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
         let result = py.detach(move || residual.pullback(&g)).map_err(error)?;
-        Ok(array(py, &result))
+        array_owned(py, result)
     }
 }
 
@@ -526,7 +529,7 @@ fn smatrix_periodic<'py>(
     let smats = from_array(smats)?;
     let (value, residual) = py.detach(move || smatrix::periodic(smats)).map_err(error)?;
     Ok((
-        crate::tmatrix::matrix(py, &value),
+        crate::tmatrix::owned_matrix(py, value)?,
         SMatrixPeriodicContext {
             residual: Some(residual),
         },
@@ -568,7 +571,7 @@ impl BandContext {
         let (smats, period) = py
             .detach(move || residual.pullback(&g, vectors))
             .map_err(error)?;
-        Ok((array(py, &smats), period))
+        Ok((array_owned(py, smats)?, period))
     }
 }
 

@@ -1,8 +1,8 @@
 # Agent quickstart
 
-Use `treams_rs`, alongside the upstream package when developing. Start at
-[`llms.txt`](../llms.txt); every link refers to this repository revision.
-No public site or authentication token is needed for local documentation.
+Start at [`llms.txt`](../llms.txt); every link refers to this repository revision.
+For development, `treams_rs` can coexist with the upstream reference package.
+Local documentation works offline.
 
 With an installed wheel and no checkout, inspect the exact installed API offline:
 
@@ -44,7 +44,7 @@ Choose the path around the output you need:
 | Native derivatives | `diff` and returned `.pullback` methods | First order; static mode counts/labels/topology; real Hermitian pairing |
 | Composed objective derivatives | `advect`, `jax`, `torch` submodules | Optional CPU frameworks; read [adapter contracts](adapters.md) before wrapping |
 | Browser execution | `crates/treams-wasm` JavaScript/TypeScript | Direct WASM; no Python or server; serial exported subset |
-| Explicit NVIDIA execution | `cuda.Device`, `cuda.PlaneWaves` | Opt-in compilation; explicit ownership/transfers; current fields have no pullback |
+| Explicit NVIDIA execution | `cuda.Device`, `cuda.PlaneWaves` | Opt-in compilation and explicit transfers; dense solve and fixed-operator coefficient pullbacks; fused fields are forward-only |
 
 A complete sphere calculation requires only NumPy and the installed extension:
 
@@ -70,19 +70,21 @@ or composed scalar objective without requiring an autodiff framework.
 Ordinary Python calls run on the CPU. `compiled: true` for CUDA establishes build
 support, not the presence of a compatible driver, CUDA libraries or free device
 memory; construct `cuda.Device()` explicitly. Dense GPU results are mixed, and CPU
-factor reuse wins the currently measured triangular solves. Read the [measured
+factor reuse wins the measured triangular solves. Read the [measured
 GPU results](gpu.md), including warmup/transfers, before choosing a backend.
 
 The [WASM qualification](wasm.md) exercises Node and Chrome against the same Rust
 core. It exposes sphere and interacting/independent finite-cluster scattering,
 repeated illumination, direct incident plane waves and exterior scattered electric
 fields. `cluster_target_gradient` returns one fixed target's total intensity and
-analytic radius/position derivatives; it is not a generic pullback API. The regular `electric_field(..., false)`
-expansion sums all local origins: passing a cluster's plane-wave coefficients
+analytic radius/position derivatives; it is not a generic pullback API. The
+regular `electric_field(..., false)` expansion sums all local origins: passing a cluster's plane-wave coefficients
 counts the incident plane wave once per origin. It is not a physical total-field
 constructor. Use `direct_plane_field` plus the scattered field for a cluster's
-total field. Periodic systems, internal fields and generic pullbacks are not JS
-exports; CUDA support is separate from browser execution.
+total field. Separate forward-only helpers expose bounded square-array
+diffraction and lossless normal-incidence crystal spectra/internal Ex fields.
+General periodic-system objects, particle-interior fields, and generic pullbacks
+are not JS exports; CUDA support is separate from browser execution.
 
 For numerical trust, consult [status](status.md), [paper qualification](paper-qualification.md)
 and [upstream findings](upstream-findings.md). Recorded performance proofs retain

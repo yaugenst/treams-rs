@@ -1,5 +1,18 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
+# Keep local build paths out of distributed binaries, including dependency panics.
+export CARGO_ENCODED_RUSTFLAGS := ```
+    python3 - <<'PY'
+    import os
+    from pathlib import Path
+    flags = os.environ.get("CARGO_ENCODED_RUSTFLAGS", "\x1f".join(os.environ.get("RUSTFLAGS", "").split())).split("\x1f")
+    for path in (Path.home(), os.environ.get("CARGO_HOME"), os.environ.get("RUSTUP_HOME"), Path.cwd()):
+        if path:
+            flags.append(f"--remap-path-prefix={Path(path).resolve()}=/build")
+    print("\x1f".join(filter(None, flags)))
+    PY
+    ```
+
 build-ext:
     uv run --no-sync maturin develop -m crates/treams-py/Cargo.toml
 
@@ -17,7 +30,7 @@ rust-cuda-check:
     PYO3_PYTHON="$PWD/.venv/bin/python" cargo clippy --locked -p treams-py --all-targets --features cuda -- -D warnings
 
 rust-test:
-    PYO3_PYTHON="$PWD/.venv/bin/python" cargo test -p treams-core
+    PYO3_PYTHON="$PWD/.venv/bin/python" cargo test -p treams-core -p treams-wasm
 
 py-format-check:
     uv run --no-sync ruff format --check .
@@ -76,8 +89,12 @@ check-wheel: build-wheel
     from pathlib import Path
     import subprocess
     import tempfile
+    from zipfile import ZipFile
 
     wheel = max(Path("dist").glob("*.whl"), key=lambda p: p.stat().st_mtime).resolve()
+    with ZipFile(wheel) as archive:
+        for name in archive.namelist():
+            assert str(Path.home()).encode() not in archive.read(name), f"Local home directory in wheel: {name}"
     with tempfile.TemporaryDirectory(prefix="treams-wheel-") as env:
         python = str(Path(env) / "bin/python")
         subprocess.run(["uv", "venv", "--python", ".venv/bin/python", env], check=True)

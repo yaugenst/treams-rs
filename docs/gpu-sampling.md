@@ -6,8 +6,8 @@ on the GPU gives a larger acceleration than repeatedly evaluating every phase.
 This is useful for beam shaping or repeated illuminations when the matrix fits
 in memory and enough applications amortize its construction and upload.
 
-The follow-up qualification on an RTX 4080 SUPER and Ryzen 9950X measured the
-following warm applications. Every GPU round trip includes coefficient upload,
+Qualification on an RTX 4080 SUPER and Ryzen 9950X measured the following warm
+applications. Every GPU round trip includes coefficient upload,
 output allocation, synchronization, and downloading all three field components.
 CPU timings include output allocation. Both processors can reuse the same `F`.
 

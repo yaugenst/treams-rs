@@ -43,6 +43,10 @@ locked = true
 python-source = "python"
 module-name = "treams_rs._native"
 
+[tool.maturin.sbom]
+# Generated local-package identifiers embed build paths; retain Cargo.lock as provenance.
+rust = false
+
 [tool.uv]
 required-version = "==0.12.3"
 

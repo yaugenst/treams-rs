@@ -38,6 +38,15 @@ tests cover broadcasting, noncontiguous arrays and the public workflow. See
 [public testing helpers](testing.md) for checking a composed objective or custom
 recording function. Finite differences belong in qualification, never execution.
 
+The `just` recipes and `scripts/check_wasm.mjs` remap local checkout, home, and
+configured Cargo/Rustup paths in compiled binaries to neutral build paths. The
+WASM qualification also checks the resulting binary for those original prefixes.
+Direct `cargo` or `maturin` invocations do not inherit this guarantee; use the
+documented build entry points when preparing distributable artifacts. Wheel
+qualification scans the complete archive for local paths. Maturin's generated
+Rust SBOM is disabled because its workspace package identifiers contain absolute
+paths; `Cargo.lock` remains the dependency source of truth.
+
 Rust owns numerical work and analytic pullbacks. PyO3 owns the Python/native
 boundary; Python owns physics metadata, user semantics and framework convention
 conversion. Keep the native pairing `dL = Re(vdot(cotangent, direction))` and
@@ -76,17 +85,22 @@ optional HDF5 interchange.
 
 `just wasm-check` requires the WASM target, matching wasm-bindgen CLI and Node;
 the [WASM guide](wasm.md) gives setup and a real-browser check. The shared Rust
-core compiles for WASM, but its JavaScript API is a serial subset without native
-pullbacks or periodic systems. Inspect actual browser rendering when changing an
+core compiles for WASM. Its serial JavaScript API includes an analytic
+radius/position gradient of intensity at a fixed target, bounded square-array
+diffraction, and exact normal-incidence lossless crystal spectra/fields. Generic
+pullback and periodic-object APIs remain outside that export boundary. Inspect
+actual browser rendering when changing an
 interactive example; a Node numerical check is not visual verification.
 
 `just rust-cuda-check` compiles the dynamically loaded dense backend without a
 toolkit. Executing `just gpu-check` requires the NVIDIA driver and CUDA 13.3
 cuTile toolchain described in [GPU setup](gpu.md). It replaces the installed
 extension with a CUDA-enabled release build. Neither a CPU check nor a WASM
-check qualifies GPU execution. Framework adapters currently accept CPU arrays;
-CUDA field evaluation has no pullback. Keep CUDA dependencies out of default
-CPU/WASM builds.
+check qualifies GPU execution. Framework adapters accept CPU arrays. The fused
+CUDA field kernel is forward-only; a fixed sampling operator supports
+coefficient pullbacks through its Hermitian matrix product. Geometry/wavevector
+GPU pullbacks and automatic framework GPU routing are unsupported. Keep CUDA
+dependencies out of default CPU/WASM builds.
 
 For performance changes, build with `just build-ext-release` and run the affected
 benchmark on an otherwise idle host. Correctness checks rebuild a development
@@ -98,4 +112,4 @@ problem size.
 
 State checks run, checks not run and remaining gaps when handing off a change.
 Keep [status](status.md) consistent with verified support. Report push, PR and
-comment state separately; this repository remains private.
+comment state separately.

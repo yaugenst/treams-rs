@@ -4,10 +4,10 @@
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "npm run build && node check.mjs",
+    "test": "npm run build && node check.mjs && node advanced-check.mjs",
     "build": "node build.mjs --bindings && tsc && node build.mjs",
     "format:check": "prettier --check *.ts *.mjs *.html *.css *.json",
-    "test:ui": "node ui-check.mjs"
+    "test:ui": "node ui-check.mjs && node advanced-ui-check.mjs"
   },
   "devDependencies": {
     "playwright": "1.63.0",

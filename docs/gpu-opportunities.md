@@ -7,8 +7,8 @@ large matrix to this GPU: the tested persistent triangular solves were slower
 than the optimized CPU solves, and large dense factorizations were near parity.
 See [the recorded dense qualification](../benchmarks/gpu-qualification.json).
 
-The follow-up improved the existing field kernel by 12–22% in warm host-to-host
-time and qualified [repeated sampling](gpu-sampling.md) at 7.12–7.74× versus the
+The optimized field kernel takes 12–22% less warm host-to-host time than its
+recorded baseline. [Repeated sampling](gpu-sampling.md) achieves 7.12–7.74× versus the
 strongest prepared CPU alternative tested. Setup and operator memory limit the
 latter to workloads with enough reuse. That establishes a concrete larger win;
 it does not establish a similar gain for dense factorization or all scattering
@@ -20,7 +20,7 @@ hypotheses to qualify, not measured speedup claims.
 
 | Opportunity | Concrete workload | What would change | Main limitation |
 | --- | --- | --- | --- |
-| Plane-field throughput and repeated sampling | Many plane modes evaluated at a large set of points, or changing illumination coefficients at fixed points | The loop and resident sampling/pullback are now qualified; batching many coefficients and reducing scalar objectives on-device remain opportunities | Expensive double-precision exponentials/trigonometry in the fused path; cached operator memory, setup, and transfer costs in the sampling path |
+| Plane-field throughput and repeated sampling | Many plane modes evaluated at a large set of points, or changing illumination coefficients at fixed points | The fused loop and resident sampling/coefficient pullback are qualified; batching many coefficients and reducing scalar objectives on-device remain opportunities | Expensive double-precision exponentials/trigonometry in the fused path; cached operator memory, setup, and transfer costs in the sampling path |
 | Spherical/cylindrical field maps and their pullbacks | Large near-field maps or objectives sampled around many particles | Fuse field evaluation and native cotangent contractions over samples; reuse radial/angular values shared by modes | Complex special functions, axis/origin cases, recurrence stability and gradient reductions need numerical qualification |
 | Matrix-free particle interaction and adjoint | Many low-order particles with a few requested illuminations | Generate and contract translation blocks on the GPU, retaining Krylov vectors and reductions there | Pair work is still quadratic; repeated radial evaluation and poor convergence can dominate; a GPU does not fix the preconditioner |
 | Many independent spectra or geometries | Large batches of small or medium scattering problems, preferably sharing mode order and topology | Batch operator construction, solves and reduced observables; transfer inputs and final observables | Each frequency/geometry generally changes the factorization; uploading CPU-built matrices alone leaves much of the work on the host |
@@ -53,4 +53,4 @@ optimization of the complex128 path. Iterative refinement can only be relied on
 when high-precision residuals and convergence checks establish the requested
 accuracy. Resonances and ill-conditioned high-order multipoles are particularly
 important counterexamples to a blanket lower-precision policy. No such precision
-change is part of this investigation.
+change is implemented.

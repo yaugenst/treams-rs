@@ -51,7 +51,7 @@
           "internal_api": "openblas",
           "num_threads": 4,
           "prefix": "libscipy_openblas",
-          "filepath": "~/personal/treams-rs/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-f48b354e.so",
+          "filepath": "libscipy_openblas64_-f48b354e.so",
           "version": "0.3.34.106.0",
           "threading_layer": "pthreads",
           "architecture": "SkylakeX"
@@ -115,7 +115,7 @@
           "internal_api": "openblas",
           "num_threads": 4,
           "prefix": "libscipy_openblas",
-          "filepath": "~/personal/treams-rs/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-f48b354e.so",
+          "filepath": "libscipy_openblas64_-f48b354e.so",
           "version": "0.3.34.106.0",
           "threading_layer": "pthreads",
           "architecture": "SkylakeX"
