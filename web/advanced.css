@@ -31,15 +31,18 @@
 }
 .showcase-tabs button {
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 12px 8px 13px 6px;
   padding: 13px 18px;
   background: transparent;
   color: var(--muted);
 }
 .showcase-tabs button[aria-pressed="true"] {
   color: var(--accent);
-  background: #eabc7910;
-  border-color: #eabc7955;
+  background: #d74b3f08;
+  border-color: #c13b3290;
+  text-decoration: underline;
+  text-decoration-style: wavy;
+  text-underline-offset: 5px;
 }
 .advanced-heading {
   display: flex;
@@ -69,14 +72,14 @@
   position: relative;
   overflow: hidden;
   height: clamp(280px, 32vw, 400px);
-  border: 1px solid #35425a;
-  border-radius: 18px;
-  background: radial-gradient(
-    ellipse at 48% 54%,
-    #162d40 0,
-    #0b1626 53%,
-    #080f1f 100%
-  );
+  border: 1px solid #213a6399;
+  border-radius: 18px 14px 20px 12px;
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(#2463c509 1px, transparent 1px),
+    linear-gradient(90deg, #2463c509 1px, transparent 1px);
+  background-size: 24px 24px;
+  box-shadow: 2px 2px 0 #213a6315;
 }
 .scene-wrap canvas {
   width: 100%;
@@ -101,7 +104,7 @@
   right: 14px;
   top: 15px;
   padding-left: 8px;
-  background: #0b1424b8;
+  background: #fffdf7e8;
   color: var(--accent);
   max-width: 50%;
   text-align: right;
@@ -202,7 +205,7 @@
   height: 2px;
   margin-right: 5px;
   vertical-align: middle;
-  background: #32465b;
+  background: var(--text);
 }
 .plot-key .reflection-key::before {
   background: var(--accent);
@@ -212,13 +215,18 @@
 }
 #gap-key::before {
   height: 8px;
-  background: #eabc792c;
+  background: repeating-linear-gradient(
+    135deg,
+    #f0ca5470 0 2px,
+    #f0ca5425 2px 5px
+  );
 }
 .advanced-controls {
   border: 1px solid var(--line);
-  background: #111e31;
+  background: var(--panel);
   padding: 21px;
-  border-radius: 17px;
+  border-radius: 17px 11px 16px 9px;
+  box-shadow: 2px 3px 0 #213a6310;
   align-self: start;
 }
 .advanced-controls .controls-title {
@@ -464,10 +472,10 @@
     right: 8px;
     max-height: 170px;
     overflow-y: auto;
-    background: #17263c;
-    border: 1px solid #425672;
+    background: var(--bg);
+    border: 1px solid var(--line);
     border-radius: 9px;
-    box-shadow: 0 -5px 30px #0005;
+    box-shadow: 2px -3px 12px #213a631c;
     padding: 6px 12px 12px;
     z-index: 2;
   }

@@ -284,13 +284,13 @@ function drawPlot() {
     for (let i = 0; i < curve.axis.length; i++)
       max = Math.max(max, curve.values[i * curve.stride + 3]!);
   const y = (v: number) => 109 - (v / max) * 100;
-  let markup = "";
+  let markup = `<defs><pattern id="bandgap-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><rect width="7" height="7" fill="#f0ca5425"/><path d="M0 0V7" stroke="#d7ac3790" stroke-width="1"/></pattern></defs>`;
   if (state.kind === "crystal" && curve)
     for (let i = 0; i < curve.axis.length - 1; i++)
       if (curve.values[i * 5 + 3]! > 1e-7)
-        markup += `<rect x="${x(curve.axis[i]!)}" y="8" width="${x(curve.axis[i + 1]!) - x(curve.axis[i]!) + 0.2}" height="101" fill="#eabc7919"/>`;
+        markup += `<rect x="${x(curve.axis[i]!)}" y="8" width="${x(curve.axis[i + 1]!) - x(curve.axis[i]!) + 0.2}" height="101" fill="url(#bandgap-hatch)"/>`;
   for (const v of [0, max / 2, max])
-    markup += `<path d="M30 ${y(v)}H592" stroke="#263449"/><text x="23" y="${y(v) + 3}" text-anchor="end" fill="#8498af" font-size="9">${v.toFixed(v === 0 ? 0 : 1)}</text>`;
+    markup += `<path d="M30 ${y(v)}H592" stroke="#213a6326"/><text x="23" y="${y(v) + 3}" text-anchor="end" fill="#637080" font-size="9">${v.toFixed(v === 0 ? 0 : 1)}</text>`;
   if (curve) {
     for (let line = 0; line < 2; line++) {
       let path = "",
@@ -309,12 +309,12 @@ function drawPlot() {
         path += `${move ? "M" : "L"}${x(curve.axis[i]!).toFixed(2)} ${y(value).toFixed(2)}`;
         move = false;
       }
-      markup += `<path d="${path}" fill="none" stroke="${line ? "#7ed5e2" : "#eabc79"}" stroke-width="2.2" stroke-linejoin="round" opacity="${pending ? 0.35 : 1}"/>`;
+      markup += `<path d="${path}" fill="none" stroke="${line ? "#2463c5" : "#d74b3f"}" stroke-width="2.2" stroke-linejoin="round" opacity="${pending ? 0.35 : 1}"/>`;
     }
   }
   const marker = x(selected(state));
-  markup += `<path d="M${marker} 6V111" stroke="#f0f4f7" stroke-width="1.5"/><circle cx="${marker}" cy="6" r="3" fill="#f0f4f7"/>`;
-  markup += `<text x="30" y="127" fill="#a4b4c8" font-size="10">${lo}</text><text x="312" y="127" text-anchor="middle" fill="#a4b4c8" font-size="10">${state.kind === "array" ? "Wavelength · μm" : "Frequency · a / λ"}</text><text x="592" y="127" text-anchor="end" fill="#a4b4c8" font-size="10">${hi}</text>`;
+  markup += `<path d="M${marker} 6V111" stroke="#213a63" stroke-width="1.5"/><circle cx="${marker}" cy="6" r="3" fill="#213a63"/>`;
+  markup += `<text x="30" y="127" fill="#637080" font-size="10">${lo}</text><text x="312" y="127" text-anchor="middle" fill="#637080" font-size="10">${state.kind === "array" ? "Wavelength · μm" : "Frequency · a / λ"}</text><text x="592" y="127" text-anchor="end" fill="#637080" font-size="10">${hi}</text>`;
   plot.innerHTML = markup;
 }
 function line(points: [number, number][], color: string, width = 1) {
@@ -349,7 +349,7 @@ function arrow(
   );
   ctx.fill();
   const t = (phase / (2 * Math.PI)) % 1;
-  ctx.fillStyle = "#f0f4f7";
+  ctx.fillStyle = "#fffdf7";
   ctx.beginPath();
   ctx.arc(
     start[0] + (end[0] - start[0]) * t,
@@ -380,23 +380,28 @@ function draw() {
       for (let i = 4; i >= -4; i--) {
         const [x, y] = project(i * p, j * p);
         if (x < -radius || x > w + radius || y < 25 || y > h - 20) continue;
-        const glow = ctx.createRadialGradient(
-          x - radius * 0.25,
-          y - radius * 0.4,
-          0,
-          x,
-          y,
-          radius,
-        );
-        glow.addColorStop(0, "#5894a9");
-        glow.addColorStop(0.4, "#285368");
-        glow.addColorStop(1, "#11273c");
-        ctx.fillStyle = glow;
+        ctx.fillStyle = "#fffdf7";
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = i === 0 && j === 0 ? "#afdeea" : "#5a879974";
+        ctx.strokeStyle = i === 0 && j === 0 ? "#213a63" : "#213a6380";
         ctx.lineWidth = i === 0 && j === 0 ? 1.5 : 0.7;
+        ctx.stroke();
+        ctx.save();
+        ctx.clip();
+        ctx.beginPath();
+        for (let offset = -radius; offset < radius * 2; offset += 5) {
+          ctx.moveTo(x + offset, y + radius * 0.1);
+          ctx.lineTo(x + offset - radius, y + radius);
+        }
+        ctx.strokeStyle = "#213a6338";
+        ctx.lineWidth = 0.7;
+        ctx.stroke();
+        ctx.restore();
+        ctx.beginPath();
+        ctx.ellipse(x + 0.7, y - 0.4, radius, radius * 0.97, 0.15, 0.1, 5.6);
+        ctx.strokeStyle = "#213a6338";
+        ctx.lineWidth = 0.7;
         ctx.stroke();
       }
     ctx.setLineDash([4, 4]);
@@ -408,7 +413,7 @@ function draw() {
         project(-p / 2, p / 2),
         project(-p / 2, -p / 2),
       ],
-      "#eabc79a8",
+      "#d74b3fc0",
     );
     ctx.setLineDash([]);
     const theta = (state.angle * Math.PI) / 180,
@@ -417,7 +422,7 @@ function draw() {
       project(-0.35 - Math.sin(theta) * d, 0, -Math.cos(theta) * d),
       project(-0.35, 0),
       1,
-      "#c8d7e5",
+      "#213a63",
     );
     if (data) {
       const a = data.values;
@@ -426,11 +431,11 @@ function draw() {
           kx = a[at + 2]!,
           ky = a[at + 3]!,
           kz = a[at + 4]!;
-        arrow(center, project(kx * d, ky * d, -kz * d), a[at + 5]!, "#eabc79");
-        arrow(center, project(kx * d, ky * d, kz * d), a[at + 6]!, "#7ed5e2");
+        arrow(center, project(kx * d, ky * d, -kz * d), a[at + 5]!, "#d74b3f");
+        arrow(center, project(kx * d, ky * d, kz * d), a[at + 6]!, "#2463c5");
       }
     }
-    ctx.fillStyle = "#cfdeea";
+    ctx.fillStyle = "#213a63";
     ctx.font = "10px system-ui";
     ctx.fillText(`a = ${p.toFixed(3)} μm`, 13, h - 30);
   } else {
@@ -442,9 +447,9 @@ function draw() {
       bottom = h - 32,
       mid = (top + bottom) / 2;
     for (let i = 0; i < n; i++) {
-      ctx.fillStyle = "#314b6860";
+      ctx.fillStyle = "#213a630c";
       ctx.fillRect(x(i), top, x(i + state.fill) - x(i), bottom - top);
-      ctx.fillStyle = `rgba(85,182,196,${0.13 + ((state.index - 1.45) / 2.05) * 0.3})`;
+      ctx.fillStyle = `rgba(240,202,84,${0.12 + ((state.index - 1.45) / 2.05) * 0.3})`;
       ctx.fillRect(
         x(i + state.fill),
         top,
@@ -456,7 +461,7 @@ function draw() {
           [x(i), top],
           [x(i), bottom],
         ],
-        "#6dacc438",
+        "#213a6338",
       );
     }
     let amplitude = 1;
@@ -474,9 +479,9 @@ function draw() {
           [left, mid - v * yScale],
           [right, mid - v * yScale],
         ],
-        "#69869b40",
+        "#213a6338",
       );
-      ctx.fillStyle = "#8ba4b8";
+      ctx.fillStyle = "#637080";
       ctx.font = "9px system-ui";
       if (v !== 0 || h >= 140) ctx.fillText(String(v), 6, mid - v * yScale + 3);
     }
@@ -491,14 +496,18 @@ function draw() {
               data.field[2 * i + 1]! * Math.sin(phase)) *
               yScale,
         ]);
-      ctx.globalAlpha = pending ? 0.3 : 1;
-      ctx.shadowColor = "#7ed5e2";
-      ctx.shadowBlur = 8;
-      line(points, "#8be0e8", 2);
-      ctx.shadowBlur = 0;
-      ctx.globalAlpha = 1;
+      // Clip one calculated trace at zero: red is positive, blue negative.
+      for (const positive of [true, false]) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, positive ? 0 : mid, w, positive ? mid : h - mid);
+        ctx.clip();
+        ctx.globalAlpha = pending ? 0.3 : 1;
+        line(points, positive ? "#d74b3f" : "#2463c5", 2);
+        ctx.restore();
+      }
     }
-    ctx.fillStyle = "#bdd2e0";
+    ctx.fillStyle = "#213a63";
     ctx.font = "10px system-ui";
     ctx.fillText("air", x(-0.9), h - 28);
     ctx.fillText(`${n} periods`, w * 0.44, h - 28);

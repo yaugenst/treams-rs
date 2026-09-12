@@ -38,11 +38,14 @@ numerical and touch-interaction checks after building and qualifying WASM.
 
 The build copies the generated binding package from `target/wasm-pkg`; generated
 bindings, dependencies and `dist` are ignored. It also creates `NOTICES.txt` from
-the project licenses and selected WASM dependency graph, plus
+the project licenses, bundled Kalam font license, and selected WASM dependency graph, plus
 `RUST-STDLIB-NOTICES.html` from the pinned Rust toolchain. Registry packages that
 omit license files use the commit-pinned texts in `dependency-licenses.json`;
 license texts are read locally. Cargo may fetch locked registry packages missing
 from a cold cache; the build does not fetch licenses from upstream websites.
+The paper-and-ink presentation uses a bundled handwritten heading font, blue–white–red
+signed wave fields, and a white-to-blue sequential intensity scale. Fonts and
+styles load locally; the page makes no font-provider requests.
 Native sliders and buttons provide
 keyboard operation; precise position inputs are an alternative to dragging.
 Share copies the complete experiment into the URL fragment. The fragment is
@@ -137,7 +140,7 @@ exposed by these browser helpers.
 ## Deploy
 
 Build and test the site as above, then upload the **contents of `web/dist/`** to a
-static HTTPS host. Keep both HTML pages, their JavaScript/CSS files, and `wasm/`
+static HTTPS host. Keep both HTML pages, their JavaScript/CSS files, `fonts/`, and `wasm/`
 in their existing relative layout. TypeScript declarations (`*.d.ts`) are
 not needed at runtime. Keep both generated notice files with the deployment.
 No build service, Python runtime, backend API, database,

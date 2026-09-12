@@ -178,6 +178,9 @@ normal-incidence one-dimensional crystal spectra and internal Ex fields. These
 are bounded workflows, not general periodic-system or pullback APIs.
 Display interpolation and contrast controls do not alter scientific samples or
 scores; their conventions and browser checks are documented with the experiments.
+The paper-and-ink browser presentation retains the qualified WASM binary. Its
+wave palettes, particle motion, and both advanced showcases pass the browser
+interaction checks at phone and desktop sizes; native iOS Safari remains unqualified.
 
 CUDA qualification uses an RTX 4080 SUPER with complex128. Dense solves have
 native pullbacks. Fixed sampling operators reuse the resident Hermitian product

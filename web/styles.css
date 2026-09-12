@@ -1,14 +1,22 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&family=Manrope:wght@400;500;600;650;700;750;800&display=swap");
+/* Kalam Regular, Latin subset: https://github.com/google/fonts/tree/main/ofl/kalam
+   SIL Open Font License: ./fonts/OFL.txt */
+@font-face {
+  font-family: "Kalam";
+  src: url("./fonts/Kalam-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
 :root {
-  color-scheme: dark;
-  --bg: #0c1424;
-  --panel: #111e31;
-  --line: #263449;
-  --muted: #a4b4c8;
-  --text: #f0f4f7;
-  --accent: #eabc79;
-  --cyan: #7ed5e2;
-  font-family: "DM Sans", system-ui, sans-serif;
+  color-scheme: light;
+  --bg: #fffdf7;
+  --panel: #ffffff;
+  --line: #9daabd;
+  --muted: #637080;
+  --text: #213a63;
+  --accent: #c13b32;
+  --cyan: #2463c5;
+  font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 16px;
 }
 * {
@@ -16,7 +24,11 @@
 }
 body {
   margin: 0;
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(#2463c507 1px, transparent 1px),
+    linear-gradient(90deg, #2463c507 1px, transparent 1px);
+  background-size: 24px 24px;
   color: var(--text);
 }
 button,
@@ -62,7 +74,7 @@ button:disabled {
 }
 .rail {
   padding: 32px 20px;
-  border-right: 1px solid var(--line);
+  border-right: 1px dashed var(--line);
   display: flex;
   flex-direction: column;
   gap: 32px;
@@ -73,9 +85,9 @@ button:disabled {
   align-items: center;
   text-decoration: none;
   font:
-    750 26px "Manrope",
-    sans-serif;
-  letter-spacing: -1px;
+    400 26px "Kalam",
+    cursive;
+  letter-spacing: -0.4px;
 }
 .brand-symbol {
   font-size: 46px;
@@ -86,8 +98,8 @@ button:disabled {
   display: block;
   margin-top: 2px;
   font:
-    500 11px "DM Sans",
-    sans-serif;
+    500 11px ui-monospace,
+    monospace;
   letter-spacing: 3.3px;
   color: var(--muted);
 }
@@ -109,7 +121,7 @@ nav {
   width: 100%;
   padding: 14px 12px;
   border: 1px solid transparent;
-  border-radius: 11px;
+  border-radius: 6px 11px 7px 12px / 10px 7px 11px 6px;
   background: none;
   text-align: left;
   color: var(--muted);
@@ -117,32 +129,35 @@ nav {
   line-height: 1.3;
 }
 .nav-item:hover {
-  background: #152238;
+  background: #2463c509;
   color: var(--text);
 }
 .nav-item.active {
-  background: #eabc7911;
-  border-color: #eabc7933;
+  background: #d74b3f09;
+  border-color: #d74b3f88;
   color: var(--accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 5px;
 }
 .nav-number {
   font:
-    500 12px "DM Sans",
-    sans-serif;
+    500 12px ui-monospace,
+    monospace;
   color: inherit;
-  opacity: 0.7;
 }
 .rail-footer {
   margin-top: auto;
   padding: 30px 10px 8px;
+  font-family: "Kalam", cursive;
   font-size: 14px;
   line-height: 1.6;
-  color: #7c8da5;
+  color: #637080;
 }
 .little-orbit {
   display: block;
   font-size: 42px;
-  color: #6c8a9d;
+  color: #2463c5;
   margin-bottom: 9px;
 }
 main {
@@ -166,10 +181,10 @@ main {
   margin: 0 0 10px;
 }
 h1 {
-  font-family: "Manrope", sans-serif;
+  font-family: "Kalam", cursive;
   font-size: clamp(25px, 2.55vw, 38px);
-  font-weight: 600;
-  letter-spacing: -1.3px;
+  font-weight: 400;
+  letter-spacing: -0.4px;
   line-height: 1.2;
   margin: 0 0 11px;
 }
@@ -184,7 +199,7 @@ h1 {
   flex: 0 0 44px;
   width: 44px;
   height: 44px;
-  border-radius: 50%;
+  border-radius: 47% 53% 46% 54% / 54% 46% 55% 45%;
   border: 1px solid var(--line);
   background: none;
   font-size: 24px;
@@ -204,10 +219,11 @@ h1 {
 .stage {
   position: relative;
   aspect-ratio: 1.13;
-  border: 1px solid #35425a;
-  border-radius: 17px;
+  border: 1px solid #213a63;
+  border-radius: 8px 12px 7px 10px / 11px 7px 12px 8px;
+  box-shadow: 2px 3px 0 #213a6312;
   overflow: hidden;
-  background: #080f1f;
+  background: #fffdf7;
   isolation: isolate;
   min-height: 280px;
 }
@@ -232,13 +248,15 @@ canvas {
   top: 20px;
 }
 .stage-label {
+  font-family: ui-monospace, monospace;
   font-size: 10px;
   letter-spacing: 1.5px;
-  color: #c1cad7;
+  color: #213a63;
+  background: #fffdf7d9;
 }
 .stage-top #status {
   font-size: 11px;
-  color: #a8bdcc;
+  color: #213a63;
   text-align: right;
 }
 .stage-bottom {
@@ -249,20 +267,22 @@ canvas {
   align-items: center;
   gap: 7px;
   font-size: 12px;
-  color: #a7b9cb;
+  color: #213a63;
+  background: #fffdf7ed;
+  border-radius: 3px;
 }
 .legend-ramp {
   width: 72px;
   height: 4px;
   border-radius: 4px;
-  background: linear-gradient(90deg, #71cdec, #14213b, #f2b56c);
+  background: linear-gradient(90deg, #2463c5, #fffdf7, #d74b3f);
 }
 .legend-ramp.intensity {
-  background: linear-gradient(90deg, #10182c, #287a9b, #d8e2b4, #ffdc9d);
+  background: linear-gradient(90deg, #fffdf7, #2463c5 55%, #213a63);
 }
 .stage-caption {
   font-size: 11px;
-  color: #a7b9cb;
+  color: #213a63;
   margin-left: auto;
   margin-right: 4px;
 }
@@ -270,9 +290,9 @@ canvas {
   pointer-events: auto;
   height: 34px;
   min-width: 34px;
-  background: #101c2bd9;
-  border: 1px solid #4c6174;
-  border-radius: 50%;
+  background: #fffdf7e8;
+  border: 1px solid #637080;
+  border-radius: 47% 53% 46% 54% / 54% 46% 55% 45%;
   font-size: 13px;
 }
 .display-bar {
@@ -286,8 +306,8 @@ canvas {
   display: inline-flex;
   padding: 4px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  background: #0e1a2c;
+  border-radius: 5px 9px 6px 10px / 8px 5px 9px 6px;
+  background: #fffdf7;
 }
 .segmented button {
   border: 0;
@@ -299,8 +319,9 @@ canvas {
   white-space: nowrap;
 }
 .segmented button.selected {
-  background: #29374d;
+  background: #f0ca5440;
   color: var(--text);
+  box-shadow: inset 0 -2px 0 #c13b32;
 }
 .drag-hint {
   font-size: 12px;
@@ -323,8 +344,8 @@ canvas {
 }
 .readout strong {
   font:
-    500 29px "Manrope",
-    sans-serif;
+    500 29px ui-monospace,
+    monospace;
   letter-spacing: -1px;
   margin-right: 9px;
 }
@@ -334,15 +355,17 @@ canvas {
 }
 .controls {
   border: 1px solid var(--line);
-  border-radius: 15px;
+  border-radius: 8px 14px 9px 16px / 14px 9px 13px 8px;
   padding: 22px;
-  background: linear-gradient(140deg, #142135, #111c2d);
+  background: var(--panel);
+  box-shadow: 3px 3px 0 #213a630d;
 }
 .controls-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: 10px;
+  font-family: ui-monospace, monospace;
   letter-spacing: 1.4px;
   margin-bottom: 28px;
   color: var(--muted);
@@ -368,6 +391,7 @@ canvas {
 }
 .control-group output {
   color: var(--accent);
+  font-family: ui-monospace, monospace;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
@@ -382,7 +406,7 @@ canvas {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
-  color: #8597b0;
+  color: #637080;
 }
 .explanation {
   border-top: 1px solid var(--line);
@@ -421,7 +445,7 @@ canvas {
 .science-note {
   font-size: 11px;
   line-height: 1.65;
-  color: #8799b0;
+  color: #637080;
   margin: 18px 0 0;
 }
 .footer {
@@ -432,7 +456,7 @@ canvas {
   margin-top: 24px;
   padding-top: 18px;
   font-size: 11px;
-  color: #8597b0;
+  color: #637080;
 }
 .footer a {
   text-decoration: none;
@@ -445,11 +469,11 @@ canvas {
   bottom: 30px;
   left: 50%;
   transform: translateX(-50%);
-  border: 1px solid #4b6275;
+  border: 1px solid #637080;
   padding: 12px 22px;
   border-radius: 12px;
-  box-shadow: 0 10px 45px #0006;
-  background: #203349;
+  box-shadow: 0 10px 45px #213a6320;
+  background: #fffdf7;
   color: var(--text);
   font-size: 14px;
   z-index: 20;
@@ -458,24 +482,25 @@ canvas {
 .primary-button {
   width: 100%;
   min-height: 44px;
-  border: 1px solid #ecc58e;
-  border-radius: 9px;
-  color: #142134;
-  background: var(--accent);
+  border: 1px solid #213a63;
+  border-radius: 5px 9px 6px 8px / 8px 5px 9px 6px;
+  color: #213a63;
+  background: #f0ca54;
+  box-shadow: 1px 2px 0 #213a6330;
   font-weight: 600;
   font-size: 14px;
 }
 .secondary-button {
   width: 100%;
   min-height: 42px;
-  border: 1px solid #4b607b;
-  border-radius: 9px;
+  border: 1px solid #637080;
+  border-radius: 5px 9px 6px 8px / 8px 5px 9px 6px;
   background: transparent;
   font-size: 13px;
   margin-top: 10px;
 }
 .secondary-button[aria-pressed="true"] {
-  background: #eabc7922;
+  background: #d74b3f10;
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -488,7 +513,7 @@ canvas {
   touch-action: none;
 }
 .equation {
-  font-family: "Manrope", sans-serif;
+  font-family: "Kalam", cursive;
   color: var(--accent);
   text-align: center;
   letter-spacing: 4px;
@@ -504,13 +529,15 @@ canvas {
   flex: 1;
   min-height: 40px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #0f1a2c;
+  border-radius: 5px 9px 6px 8px / 8px 5px 9px 6px;
+  background: #fffdf7;
   font-size: 13px;
 }
 .mode-choice button.active {
   border-color: var(--accent);
   color: var(--accent);
+  background: #d74b3f09;
+  box-shadow: inset 0 -2px 0 #c13b32;
 }
 @media (min-width: 1600px) {
   .lab {
@@ -667,7 +694,7 @@ canvas {
   }
   .stage {
     aspect-ratio: 1.04;
-    border-radius: 14px;
+    border-radius: 8px 12px 7px 10px / 11px 7px 12px 8px;
     min-height: 0;
   }
   .stage-top {
@@ -719,7 +746,7 @@ canvas {
   .controls {
     margin-top: 1px;
     padding: 20px;
-    border-radius: 13px;
+    border-radius: 8px 14px 9px 16px / 14px 9px 13px 8px;
   }
   .controls-title {
     font-size: 10px;
@@ -802,7 +829,7 @@ canvas {
 }
 .timing {
   font-size: 11px;
-  color: #92a7bb;
+  color: #637080;
   text-align: right;
   max-width: 85px;
   line-height: 1.5;
@@ -833,7 +860,7 @@ canvas {
 .position-row input {
   width: 100%;
   height: 44px;
-  background: #0b1829;
+  background: #fffdf7;
   border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--text);
@@ -942,12 +969,12 @@ canvas {
   position: absolute;
   top: 43px;
   left: 14px;
-  border: 1px solid #48565e;
-  border-radius: 6px;
+  border: 1px solid #637080;
+  border-radius: 4px 7px 5px 8px;
   padding: 6px 8px;
   min-height: 36px;
-  background: #0c1424d9;
-  color: #eabc79;
+  background: #fffdf7ed;
+  color: #c13b32;
   font: inherit;
   font-size: 11px;
   cursor: pointer;
@@ -976,11 +1003,11 @@ canvas {
   bottom: 0;
   width: 100%;
   height: 3px;
-  background: linear-gradient(90deg, transparent, #7ed5e2, transparent);
+  background: linear-gradient(90deg, transparent, #2463c5, transparent);
   animation: field-progress 1.4s ease-in-out infinite;
 }
 .stage-top #status {
-  background: #0c1424b8;
+  background: #fffdf7ed;
   border-radius: 4px;
   padding: 4px 5px;
 }
@@ -1152,14 +1179,14 @@ canvas {
     grid-template-columns: 1fr 1fr;
     gap: 4px 16px;
     padding: 0 14px 12px;
-    border-radius: 12px;
+    border-radius: 8px 14px 9px 16px / 14px 9px 13px 8px;
     align-content: start;
     scrollbar-width: thin;
   }
   .controls-title {
     position: sticky;
     top: 0;
-    background: #142135;
+    background: #ffffff;
     z-index: 1;
     grid-column: 1/-1;
     order: -2;
@@ -1280,9 +1307,9 @@ canvas {
 .stage-caption {
   display: block;
   font-size: 12px;
-  color: #d4e8ed;
+  color: #213a63;
   padding: 4px 6px;
-  background: #0c1424a8;
+  background: #fffdf7ed;
   border-radius: 4px;
 }
 .stage.calculating {

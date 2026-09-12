@@ -95,6 +95,12 @@ async function writeNotices() {
       );
     }
   }
+  sections.push(
+    `Kalam Regular — SIL Open Font License
+Source: https://github.com/google/fonts/tree/main/ofl/kalam
+
+${await readFile("fonts/OFL.txt", "utf8")}`,
+  );
   const toolchain = execFileSync("rustc", ["--print", "sysroot"], {
     cwd: "..",
     encoding: "utf8",
@@ -129,5 +135,6 @@ if (process.argv.includes("--bindings")) {
   ])
     await cp(file, `dist/${file}`);
   await cp("wasm", "dist/wasm", { recursive: true });
+  await cp("fonts", "dist/fonts", { recursive: true });
   await writeNotices();
 }

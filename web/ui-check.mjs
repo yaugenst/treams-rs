@@ -103,7 +103,7 @@ try {
   );
   assert.deepEqual(
     immediate.pixel,
-    [11, 24, 41, 255],
+    [255, 253, 247, 255],
     "particle must already be drawn under the finger before field completion",
   );
   await page.screenshot({ path: "output/mobile-drag.png" });
@@ -440,12 +440,12 @@ try {
   const motion = await desktop.evaluate(() => window.motionCheck);
   assert.notDeepEqual(
     motion.first,
-    [11, 24, 41, 255],
+    [255, 253, 247, 255],
     "particle has not jumped to the accepted endpoint in the first frame",
   );
   assert.deepEqual(
     motion.last,
-    [11, 24, 41, 255],
+    [255, 253, 247, 255],
     "particle animates into the accepted endpoint",
   );
   await desktop.screenshot({ path: "output/desktop-optimization.png" });

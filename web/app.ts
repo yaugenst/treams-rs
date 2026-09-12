@@ -797,7 +797,7 @@ function draw() {
     canvas.height = Math.round(height * dpr);
   }
   context.setTransform(dpr, 0, 0, dpr, 0, 0);
-  context.fillStyle = "#080f1f";
+  context.fillStyle = "#fffdf7";
   context.fillRect(0, 0, width, height);
   const span = 3.2;
   const s = state;
@@ -814,15 +814,15 @@ function draw() {
       sin = Math.sin(phase);
     for (let i = 0; i < n * n; i++) {
       const offset = i * 6;
-      let r = 8,
-        g = 15,
-        b = 31;
+      let r = 255,
+        g = 253,
+        b = 247;
       if (Number.isFinite(field[offset])) {
         if (display === "phase") {
           const value =
               (field[offset + 4]! * c + field[offset + 5]! * sin) * gain,
             t = Math.abs(Math.tanh(value * 1.5));
-          const color = value > 0 ? [245, 176, 98] : [83, 182, 221];
+          const color = value > 0 ? [215, 75, 63] : [36, 99, 197];
           r += t * (color[0]! - r);
           g += t * (color[1]! - g);
           b += t * (color[2]! - b);
@@ -834,8 +834,8 @@ function draw() {
               Math.log1p(intensity * gain ** 2) / Math.log(8),
             ),
             a = t < 0.55 ? t / 0.55 : (t - 0.55) / 0.45;
-          const start = t < 0.55 ? [8, 15, 31] : [38, 136, 161],
-            end = t < 0.55 ? [38, 136, 161] : [255, 224, 166];
+          const start = t < 0.55 ? [255, 253, 247] : [36, 99, 197],
+            end = t < 0.55 ? [36, 99, 197] : [33, 58, 99];
           r = start[0]! + a * (end[0]! - start[0]!);
           g = start[1]! + a * (end[1]! - start[1]!);
           b = start[2]! + a * (end[2]! - start[2]!);
@@ -880,22 +880,49 @@ function draw() {
   particles.forEach((p, i) => {
     if (s.experiment === "shell") {
       circle(p.x, p.y, p.radius + s.shell);
-      context.fillStyle = "#153147";
+      context.fillStyle = "#e2eafb";
       context.fill();
-      context.strokeStyle = "#7ed5e2";
+      context.strokeStyle = "#2463c5";
       context.lineWidth = 1;
       context.stroke();
     }
     circle(p.x, p.y, p.radius);
-    context.fillStyle = "#0b1829";
+    context.fillStyle = "#fffdf7";
     context.fill();
-    context.strokeStyle = "#d5e4ef";
+    context.strokeStyle = "#213a63";
     context.lineWidth = 1.3;
     context.stroke();
-    context.font = "12px system-ui,sans-serif";
+    const cx = (p.x / span + 0.5) * width,
+      cy = (0.5 - p.y / span) * height,
+      radius = (p.radius / span) * width;
+    context.save();
+    context.clip();
+    context.strokeStyle = "#213a6338";
+    context.lineWidth = 0.7;
+    context.beginPath();
+    for (let line = -2; line <= 4; line++) {
+      context.moveTo(cx - radius, cy + line * radius * 0.4);
+      context.lineTo(cx - radius * 0.45, cy + (line - 0.7) * radius * 0.4);
+    }
+    context.stroke();
+    context.restore();
+    context.beginPath();
+    context.ellipse(
+      cx + 0.8,
+      cy - 0.5,
+      radius + 1,
+      radius + 0.3,
+      -0.2,
+      0.2,
+      5.7,
+    );
+    context.strokeStyle = "#213a6355";
+    context.lineWidth = 0.7;
+    context.stroke();
+    context.font = "16px Kalam, cursive";
     context.textAlign = "center";
     context.textBaseline = "middle";
-    context.fillStyle = "#b4cbdc";
+    context.fillStyle = "#213a63";
     context.fillText(
       String(i + 1),
       (p.x / span + 0.5) * width,
@@ -905,7 +932,7 @@ function draw() {
   if (s.experiment === "design") {
     const x = (s.target[0] / span + 0.5) * width,
       y = (0.5 - s.target[1] / span) * height;
-    context.strokeStyle = "#fff0c9";
+    context.strokeStyle = "#c13b32";
     context.lineWidth = 1.5;
     context.beginPath();
     context.arc(x, y, 9, 0, 2 * Math.PI);
@@ -941,13 +968,13 @@ function draw() {
             (0.5 - p.y / span) * height,
           );
           context.rotate(angle);
-          context.strokeStyle = "#040b14";
+          context.strokeStyle = "#fffdf7";
           context.lineWidth = 5;
           context.beginPath();
           context.moveTo(r + 4, 0);
           context.lineTo(r + 4 + arrow, 0);
           context.stroke();
-          context.strokeStyle = "#b6f5c7";
+          context.strokeStyle = "#213a63";
           context.lineWidth = 2.5;
           context.beginPath();
           context.moveTo(r + 4, 0);
@@ -965,7 +992,7 @@ function draw() {
     context.save();
     context.translate(width * 0.13, height * 0.8);
     context.rotate(-a);
-    context.strokeStyle = "#eabc79";
+    context.strokeStyle = "#213a63";
     context.lineWidth = 1.5;
     context.beginPath();
     context.moveTo(-15, 0);
@@ -1017,7 +1044,7 @@ function drawSpectrum() {
   let max = 0;
   for (let i = 1; i < values.length; i += 2) max = Math.max(max, values[i]!);
   max *= 1.15;
-  ctx.strokeStyle = "#263449";
+  ctx.strokeStyle = "#213a6324";
   ctx.lineWidth = 1;
   for (let i = 1; i < 4; i++) {
     ctx.beginPath();
@@ -1032,16 +1059,16 @@ function drawSpectrum() {
     if (i === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   }
-  ctx.strokeStyle = "#eabc79";
+  ctx.strokeStyle = "#c13b32";
   ctx.lineWidth = 2;
   ctx.stroke();
   const x = ((state.wavelength - 1.1) / 1.4) * w;
-  ctx.strokeStyle = "#7ed5e2";
+  ctx.strokeStyle = "#2463c5";
   ctx.beginPath();
   ctx.moveTo(x, 4);
   ctx.lineTo(x, h - 4);
   ctx.stroke();
-  ctx.fillStyle = "#a4b4c8";
+  ctx.fillStyle = "#637080";
   ctx.font = "11px system-ui";
   ctx.fillText(`Qsca · max ${max.toFixed(1)}`, 7, 13);
 }

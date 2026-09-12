@@ -194,7 +194,7 @@ try {
       }
       if (kind === "crystal") {
         const fieldSpan = await page.locator("#scene").evaluate((canvas) => {
-          // The bright cyan field trace must have room to show its oscillation.
+          // The blue/red field trace must have room to show its oscillation.
           const pixels = canvas
             .getContext("2d")
             .getImageData(0, 0, canvas.width, canvas.height).data;
@@ -203,10 +203,12 @@ try {
             for (let x = 0; x < canvas.width; x++) {
               const at = 4 * (y * canvas.width + x);
               if (
-                pixels[at] > 100 &&
-                pixels[at] < 160 &&
-                pixels[at + 1] > 195 &&
-                pixels[at + 2] > 205 &&
+                ((pixels[at] < 80 &&
+                  pixels[at + 1] < 130 &&
+                  pixels[at + 2] > 175) ||
+                  (pixels[at] > 190 &&
+                    pixels[at + 1] < 110 &&
+                    pixels[at + 2] < 100)) &&
                 pixels[at + 3] > 220
               ) {
                 rows.push(y);
