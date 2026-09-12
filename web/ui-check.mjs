@@ -1,0 +1,269 @@
+import assert from "node:assert/strict";
+import { createServer } from "node:http";
+import { readFile, mkdir } from "node:fs/promises";
+import { resolve, extname, sep } from "node:path";
+import { chromium } from "playwright";
+const root = resolve("dist");
+const server = createServer(async (req, res) => {
+  try {
+    const pathname = decodeURIComponent(
+      new URL(req.url, "http://localhost").pathname,
+    );
+    const path = resolve(
+      root,
+      `.${pathname === "/" ? "/index.html" : pathname}`,
+    );
+    if (!path.startsWith(root + sep)) throw new Error("outside root");
+    const data = await readFile(path);
+    res.setHeader(
+      "Content-Type",
+      {
+        ".html": "text/html",
+        ".js": "text/javascript",
+        ".css": "text/css",
+        ".wasm": "application/wasm",
+      }[extname(path)] ?? "application/octet-stream",
+    );
+    res.end(data);
+  } catch {
+    res.writeHead(404).end();
+  }
+});
+await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+const localUrl = `http://127.0.0.1:${server.address().port}/`;
+const browser = await chromium.launch({
+  headless: true,
+  ...(process.platform === "darwin"
+    ? {
+        executablePath:
+          process.env.CHROME ??
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+      }
+    : {}),
+});
+await mkdir("output", { recursive: true });
+try {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 1,
+    reducedMotion: "reduce",
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
+  const page = await context.newPage(),
+    errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto(localUrl);
+  const settled = () =>
+    page.waitForFunction(
+      () =>
+        document.getElementById("status").textContent === "" &&
+        document.getElementById("metric").textContent !== "—",
+      null,
+      { timeout: 30000 },
+    );
+  await settled();
+  const cdp = await context.newCDPSession(page);
+  const touch = (type, x, y) =>
+    cdp.send("Input.dispatchTouchEvent", {
+      type,
+      touchPoints: type === "touchEnd" ? [] : [{ x, y }],
+    });
+  const field = page.locator("#field"),
+    box = await field.boundingBox();
+  const start = {
+    x: box.x + box.width * (0.5 - 0.43 / 3.2),
+    y: box.y + box.height / 2,
+  };
+  const destination = { x: start.x - 30, y: start.y - 50 };
+  await touch("touchStart", start.x, start.y);
+  await touch("touchMove", destination.x, destination.y);
+  const immediate = await page.evaluate(async ({ x, y }) => {
+    await new Promise((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(resolve)),
+    );
+    const canvas = document.getElementById("field"),
+      rect = canvas.getBoundingClientRect();
+    const pixel = [
+      ...canvas
+        .getContext("2d")
+        .getImageData(
+          Math.round(((x - rect.left + 10) * canvas.width) / rect.width),
+          Math.round(((y - rect.top) * canvas.height) / rect.height),
+          1,
+          1,
+        ).data,
+    ];
+    return { status: document.getElementById("status").textContent, pixel };
+  }, destination);
+  assert(
+    immediate.status,
+    "field should still be catching up during immediate drag feedback",
+  );
+  assert.deepEqual(
+    immediate.pixel,
+    [11, 24, 41, 255],
+    "particle must already be drawn under the finger before field completion",
+  );
+  await page.screenshot({ path: "output/mobile-drag.png" });
+  await touch("touchEnd");
+  await settled();
+  console.log(
+    "Touch drag: particle moves in two animation frames while field is pending.",
+  );
+  const names = [
+    "01 Shape the light",
+    "02 Find a resonance",
+    "03 Mix the waves",
+    "04 Add a shell",
+    "05 Flip the light",
+    "06 Let it improve",
+  ];
+  for (const name of names) {
+    await page.getByRole("button", { name, exact: true }).click();
+    await settled();
+    const layout = await page.evaluate(() => ({
+      overflow:
+        document.documentElement.scrollHeight > innerHeight ||
+        document.documentElement.scrollWidth > innerWidth,
+      field: document.getElementById("field").getBoundingClientRect().toJSON(),
+      controls: [...document.querySelectorAll(".primary-control input")].map(
+        (e) => e.getBoundingClientRect().toJSON(),
+      ),
+    }));
+    assert(
+      !layout.overflow,
+      `${name}: page must not scroll away from the field`,
+    );
+    for (const rect of [layout.field, ...layout.controls])
+      assert(
+        rect.top >= 0 &&
+          rect.bottom <= 844 &&
+          rect.left >= 0 &&
+          rect.right <= 390,
+        `${name}: field and primary controls fit together`,
+      );
+    if (name.startsWith("02")) {
+      const b = await field.boundingBox();
+      await touch("touchStart", b.x + b.width * 0.3, b.y + b.height * 0.5);
+      await touch("touchMove", b.x + b.width * 0.65, b.y + b.height * 0.5);
+      assert.equal(await page.locator("#wavelength").inputValue(), "2.01");
+      await touch("touchEnd");
+      await settled();
+      await page.screenshot({ path: "output/mobile-resonance.png" });
+    }
+    if (name.startsWith("03")) {
+      const before = await field.evaluate((c) => c.toDataURL());
+      const b = await field.boundingBox();
+      await touch("touchStart", b.x + b.width * 0.5, b.y + b.height * 0.5);
+      await touch("touchMove", b.x + b.width * 0.75, b.y + b.height * 0.3);
+      await touch("touchEnd");
+      await settled();
+      assert.equal(
+        await page.locator("#control-relative-phase").inputValue(),
+        "90",
+      );
+      assert.equal(
+        await page.locator("#control-quadrupole-share").inputValue(),
+        "70",
+      );
+      assert.notEqual(await field.evaluate((c) => c.toDataURL()), before);
+    }
+    if (name.startsWith("04")) {
+      assert.equal(await page.locator("#metric").textContent(), "18%");
+      const b = await field.boundingBox();
+      await touch(
+        "touchStart",
+        b.x + b.width * (0.5 + 0.29 / 3.2),
+        b.y + b.height * 0.5,
+      );
+      await touch(
+        "touchMove",
+        b.x + b.width * (0.5 + 0.4 / 3.2),
+        b.y + b.height * 0.5,
+      );
+      await touch("touchEnd");
+      await settled();
+      assert(
+        Math.abs(
+          Number(await page.locator("#control-shell-thickness").inputValue()) -
+            0.17,
+        ) < 0.006,
+      );
+    }
+    if (name.startsWith("05")) {
+      const before = await page.locator("#metric").textContent();
+      await page
+        .getByRole("button", { name: "Helicity +", exact: true })
+        .click();
+      await settled();
+      assert.notEqual(await page.locator("#metric").textContent(), before);
+    }
+    if (name.startsWith("06")) {
+      const before = parseFloat(await page.locator("#metric").textContent());
+      await page.getByRole("button", { name: "Improve the focus" }).click();
+      await settled();
+      assert(parseFloat(await page.locator("#metric").textContent()) > before);
+      await page.screenshot({ path: "output/mobile-gradient.png" });
+    }
+    console.log(`${name}: visible controls and live interaction passed.`);
+  }
+  await page
+    .getByRole("button", { name: "Copy a link to this experiment" })
+    .click();
+  assert(new URL(page.url()).hash.length > 100);
+  await page.reload();
+  await settled();
+  assert.equal(
+    await page.locator("#title").textContent(),
+    "Give light a destination",
+  );
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page
+    .getByRole("slider", { name: "Refractive index", exact: true })
+    .press("ArrowRight");
+  await settled();
+  const sticky = await field.boundingBox();
+  assert(
+    sticky.y >= 0 && sticky.y + sticky.height < 844,
+    "advanced controls retain visible field",
+  );
+  for (const size of [
+    { width: 375, height: 667 },
+    { width: 320, height: 568 },
+  ]) {
+    await page.setViewportSize(size);
+    await page.getByRole("button", { name: "01 Shape the light" }).click();
+    await settled();
+    assert(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollHeight <= innerHeight &&
+          document.documentElement.scrollWidth <= innerWidth,
+      ),
+      "small mobile page stays in viewport",
+    );
+  }
+  await context.close();
+  const desktop = await browser.newPage({
+    viewport: { width: 1440, height: 1000 },
+    reducedMotion: "reduce",
+  });
+  await desktop.goto(localUrl);
+  await desktop.waitForFunction(
+    () => document.getElementById("status").textContent === "",
+  );
+  await desktop.getByRole("button", { name: "03 Mix the waves" }).click();
+  await desktop.waitForFunction(
+    () => document.getElementById("status").textContent === "",
+  );
+  await desktop.screenshot({ path: "output/desktop-mixer.png" });
+  assert.deepEqual(errors, [], "no page exceptions");
+  console.log(
+    "Share/reload, advanced controls, narrow phones and desktop render passed.",
+  );
+} finally {
+  await browser.close();
+  await new Promise((resolve) => server.close(resolve));
+}

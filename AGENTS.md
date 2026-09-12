@@ -7,13 +7,23 @@ credential helper for Git; scope GitHub CLI authentication to `[redacted]`. Foll
 Rust owns numerical execution and derivatives; Python owns user semantics and
 framework adapters. Autodiff frameworks compose the native forward/pullback.
 
-- Rust core: `crates/treams-core`; PyO3 bindings: `crates/treams-py`.
-- Typed Python API: `python/treams_rs`; upstream is a development oracle only.
+## Route the task
+
+- For using the package, start at [llms.txt](llms.txt) and
+  [the agent guide](docs/agents.md). Discover current capabilities through
+  `treams_rs.support_catalog()` and signatures through [the API reference](docs/api.md).
+- For implementation, read [the development guide](docs/development.md) and the
+  nearest scoped `AGENTS.md`: [Rust/bindings](crates/AGENTS.md) or
+  [Python/adapters](python/AGENTS.md). Follow the relevant source and test route;
+  do not survey unrelated subsystems.
+- Read [architecture](docs/architecture.md) before changing the numerical boundary.
+  The catalog and generated API documentation must come from their source data;
+  do not introduce a second capability registry or edit generated lists by hand.
+
+## Numerical and API contract
+
 - Preserve treams conventions and supported Python workflows; track parity in
   `docs/status.md`. Unsupported behavior must not silently invoke upstream.
-- Read `docs/architecture.md` before changing the numerical boundary.
-- Use `uv`, `maturin`, and `just`. `just verify` is the authoritative gate.
-- Rust: rustfmt and Clippy with warnings denied. Python: Ruff and strict Pyrefly.
 - Implement complete numerical paths with reference, physical-invariant, and
   gradient checks. Never use finite differences as production pullbacks.
 - Establish strong Rust tests using proptest for meaningful physical and algebraic
@@ -22,5 +32,14 @@ framework adapters. Autodiff frameworks compose the native forward/pullback.
   properties such as checking only that a result is finite.
 - Keep dependencies and modules minimal; do not copy Photonoodle subsystems
   that have no use here. Preserve upstream license and scientific attribution.
+
+## Verification
+
+- Use `uv`, `maturin`, and `just`. Run focused checks while iterating;
+  `just verify` is the authoritative CPU gate. Applicable WASM, CUDA, wheel and
+  performance lanes are listed in [the development guide](docs/development.md).
+- Rust: rustfmt and Clippy with warnings denied. Python: Ruff and strict Pyrefly.
 - Build the optimized extension before reporting performance.
 - Update `docs/status.md` with verified coverage and remaining gaps.
+- At completion, state what was verified, what was not, and remaining gaps.
+  Report Git push, pull-request and comment state separately when changed.

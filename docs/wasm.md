@@ -2,8 +2,8 @@
 
 The complete Rust core compiles for `wasm32-unknown-unknown`. The separate
 `treams-wasm` crate exposes double-precision layered/chiral spheres, interacting
-sphere clusters, plane-wave illumination, and Cartesian electric fields to
-JavaScript. It shares the CPU numerical implementations; Python, NumPy, CUDA,
+sphere clusters, plane-wave illumination, Cartesian electric fields, and a
+fixed-target intensity gradient to JavaScript. It shares the CPU numerical implementations; Python, NumPy, CUDA,
 and server computation are absent from this build.
 
 The browser build runs serially. Native builds retain exactly the existing
@@ -40,12 +40,15 @@ two-sphere cluster (including the dense LU solve), and a 48-mode lossless sphere
 The checks compare every T-matrix entry, incident and scattered amplitude, and
 sampled electric-field component. They also verify the lossless optical theorem,
 field linearity, direction normalization, output ownership, and invalid-input
-errors. Regenerate the independent fixtures with
+errors. Further checks compare analytic radius/position gradients for both
+helicities against central differences (maximum absolute error `6.0e-11`),
+joint translation invariance, direct incident illumination, and independently
+assembled coherent uncoupled-sphere fields. Regenerate the independent fixtures with
 `uv run --script scripts/generate_wasm_reference.py`.
 
 The [qualification report](../crates/treams-wasm/tests/qualification.json) records
-Node 26 and Chrome 153 results. This build is **493,402 bytes (482 KiB)**, or
-**176,648 bytes (173 KiB) gzip**, excluding the generated JavaScript glue and
+Node 26 and Chrome 153 results. This build is **623,014 bytes (608 KiB)**, or
+**228,390 bytes (223 KiB) gzip**, excluding the generated JavaScript glue and
 TypeScript declarations. Maximum absolute differences from upstream were
 `1.8e-17` for T matrices, `6.5e-15` for incident coefficients, and `4.9e-17` for
 sampled electric fields. These are finite fixture checks, not an accuracy claim
@@ -94,7 +97,31 @@ responsive. The same imports and calculations work there; return the field with
 
 The JavaScript interface currently covers the workflows above, not every Python
 method. Its cluster constructor forms the full dense T matrix. It does not yet
-expose native pullbacks, periodic systems, internal fields, CUDA/WebGPU, or a
+expose generic native pullbacks, periodic systems, internal fields, CUDA/WebGPU, or a
 multithreaded browser runtime. WASM32 and browser memory limits still apply;
 sampled outgoing fields are valid outside the particles. GPU execution in the
 native package does not imply GPU execution in a browser.
+
+## Direct fields and analytic target gradients
+
+`direct_plane_field(k0, direction, helicity, points)` evaluates a unit-amplitude
+vacuum plane wave directly. Add it **once** to the outgoing field for total fields.
+For a cluster, each local regular expansion returned by `plane_wave` represents
+the same incoming wave; summing their regular fields would multiply that wave
+by the number of origins.
+
+`ScatteringSystem.independent_cluster(...)` accepts the same arguments as
+`cluster` and builds the independent local response. It disables repeated
+scattering while retaining coherent interference when the outgoing fields are
+summed. This is useful for controlled comparisons.
+
+`cluster_target_gradient(lmax, k0, radii, epsilon, positions, direction, helicity,
+target)` returns `[J, ...N_radius_gradients, ...3N_xyz_position_gradients]`, where
+`J = |E_incident(target) + E_scattered(target)|²`. It holds frequency, material,
+illumination and the world-space target fixed. The native analytic pullback
+includes coupling, incident expansion phases, and outgoing expansion origins.
+There is no finite differencing in production and no Python/autodiff runtime.
+
+The [Light Lab](../web/README.md) uses these exports in six mobile-friendly
+experiments, with a gradient-arrow overlay and accepted adjoint ascent steps.
+It is a static website: the browser worker does all numerical computation.

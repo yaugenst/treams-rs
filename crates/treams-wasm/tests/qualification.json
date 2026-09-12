@@ -1,8 +1,8 @@
 {
   "node": "v26.8.2",
-  "wasm_bytes": 493402,
-  "wasm_gzip_bytes": 176648,
-  "wasm_sha256": "4ab111c7ecf14741409ede7ab397a34cdaae4a894b21fdd0c74cbc247a0eb4d5",
+  "wasm_bytes": 623014,
+  "wasm_gzip_bytes": 228390,
+  "wasm_sha256": "a5a1807acc6652a1114753391a7504b1fed507329fb8acd5d7f629e7aee13868",
   "node_results": {
     "passed": true,
     "reference": {
@@ -19,7 +19,8 @@
           "incident": 6.2803698347351005e-15,
           "scattered": 7.911556306605241e-17,
           "electric_field": 3.0800502607711116e-17
-        }
+        },
+        "sparse_field_invariants": true
       },
       {
         "name": "two_sphere_cluster",
@@ -29,7 +30,8 @@
           "incident": 6.404745667978754e-15,
           "scattered": 6.304950258199329e-17,
           "electric_field": 3.12370669354625e-17
-        }
+        },
+        "sparse_field_invariants": true
       },
       {
         "name": "lossless_sphere",
@@ -39,9 +41,26 @@
           "incident": 6.2803698347351005e-15,
           "scattered": 1.2738115944464653e-16,
           "electric_field": 4.810535519880077e-17
-        }
+        },
+        "sparse_field_invariants": true
       }
-    ]
+    ],
+    "helpers": {
+      "direct_plane_field": true,
+      "independent_cluster": true,
+      "analytic_gradient": [
+        {
+          "helicity": 0,
+          "parameter_count": 8,
+          "maximum_absolute_error": 5.947416170659636e-11
+        },
+        {
+          "helicity": 1,
+          "parameter_count": 8,
+          "maximum_absolute_error": 5.991210652589452e-11
+        }
+      ]
+    }
   },
   "browser_results": {
     "passed": true,
@@ -59,7 +78,8 @@
           "incident": 6.2803698347351005e-15,
           "scattered": 7.911556306605241e-17,
           "electric_field": 3.0800502607711116e-17
-        }
+        },
+        "sparse_field_invariants": true
       },
       {
         "name": "two_sphere_cluster",
@@ -69,7 +89,8 @@
           "incident": 6.404745667978754e-15,
           "scattered": 6.304950258199329e-17,
           "electric_field": 3.12370669354625e-17
-        }
+        },
+        "sparse_field_invariants": true
       },
       {
         "name": "lossless_sphere",
@@ -79,9 +100,26 @@
           "incident": 6.2803698347351005e-15,
           "scattered": 1.2738115944464653e-16,
           "electric_field": 4.810535519880077e-17
-        }
+        },
+        "sparse_field_invariants": true
       }
-    ]
+    ],
+    "helpers": {
+      "direct_plane_field": true,
+      "independent_cluster": true,
+      "analytic_gradient": [
+        {
+          "helicity": 0,
+          "parameter_count": 8,
+          "maximum_absolute_error": 5.947416170659636e-11
+        },
+        {
+          "helicity": 1,
+          "parameter_count": 8,
+          "maximum_absolute_error": 5.991210652589452e-11
+        }
+      ]
+    }
   },
   "browser": "Google Chrome 153.0.8010.37"
 }

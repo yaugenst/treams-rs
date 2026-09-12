@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0c1424" />
+    <meta
+      name="description"
+      content="Six hands-on experiments in how particles shape light. Explore real electromagnetic scattering, right on your device."
+    />
+    <title>Light lab · treams</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="lab">
+      <aside class="rail">
+        <a class="brand" href="#"
+          ><span class="brand-symbol" aria-hidden="true">∿</span
+          ><span>treams<span class="brand-sub">LIGHT LAB</span></span></a
+        >
+        <p class="nav-caption">EXPLORE THE LIGHT</p>
+        <nav id="experiments" aria-label="Experiments"></nav>
+        <div class="rail-footer">
+          <span class="little-orbit" aria-hidden="true">◌</span> A little room
+          for<br />big wave ideas.
+        </div>
+      </aside>
+      <main>
+        <header class="experiment-heading">
+          <div>
+            <p id="eyebrow" class="eyebrow">EXPERIMENT 01 / 06</p>
+            <h1 id="title">Move the particles</h1>
+            <p id="description">
+              Bring two particles together. Watch the space between them.
+            </p>
+          </div>
+          <button
+            id="share"
+            class="icon-button"
+            aria-label="Copy a link to this experiment"
+            title="Copy link"
+          >
+            ↗
+          </button>
+        </header>
+        <div class="workspace">
+          <section class="stage-column" aria-label="Field visualization">
+            <div class="stage" id="stage">
+              <canvas
+                id="field"
+                aria-label="Electric field through the centre of three-dimensional spheres"
+                role="img"
+              ></canvas>
+              <div class="stage-top">
+                <span class="stage-label" id="field-label"
+                  >TOTAL FIELD · Re(Ez)</span
+                ><span id="status" role="status">Starting the experiment…</span>
+              </div>
+              <div class="stage-bottom">
+                <div class="field-legend">
+                  <span id="legend-start">−</span
+                  ><span class="legend-ramp" id="legend-ramp"></span
+                  ><span id="legend-end">+</span>
+                </div>
+                <span class="stage-caption" id="live-parameter">λ 1.65 μm</span
+                ><button
+                  id="play"
+                  class="canvas-button"
+                  aria-label="Pause field animation"
+                >
+                  Ⅱ
+                </button>
+              </div>
+            </div>
+            <div class="display-bar">
+              <div class="segmented" aria-label="Field display">
+                <button
+                  data-display="phase"
+                  class="selected"
+                  aria-pressed="true"
+                >
+                  Wave motion</button
+                ><button data-display="intensity" aria-pressed="false">
+                  Intensity
+                </button>
+              </div>
+              <span class="drag-hint" id="drag-hint"
+                >Drag a particle to move it</span
+              >
+            </div>
+            <div class="readout">
+              <div>
+                <span class="metric-label" id="metric-label"
+                  >PEAK SAMPLED INTENSITY</span
+                ><strong id="metric">—</strong
+                ><span class="metric-unit" id="metric-unit"
+                  >relative to incident light</span
+                >
+              </div>
+              <span id="timing" class="timing"></span>
+            </div>
+            <p class="metric-detail" id="metric-detail"></p>
+            <div id="spectrum" class="spectrum" hidden></div>
+          </section>
+          <aside
+            class="controls"
+            id="controls"
+            aria-label="Experiment controls"
+          >
+            <div class="controls-title">
+              <span>YOUR EXPERIMENT</span
+              ><button
+                id="more-controls"
+                class="text-button"
+                aria-expanded="false"
+              >
+                More</button
+              ><button id="reset" class="text-button">Reset</button>
+            </div>
+            <div id="parameters"></div>
+            <div class="control-group">
+              <label for="wavelength"
+                >Wavelength
+                <output id="wavelength-value">1.65 μm</output></label
+              ><input
+                id="wavelength"
+                type="range"
+                min="1.1"
+                max="2.5"
+                step="0.01"
+                value="1.65"
+              />
+              <div class="range-ends">
+                <span>Shorter</span><span>Longer</span>
+              </div>
+            </div>
+            <div class="control-group" id="angle-group">
+              <label for="angle"
+                >Light direction <output id="angle-value">0°</output></label
+              ><input
+                id="angle"
+                type="range"
+                min="-180"
+                max="180"
+                step="1"
+                value="0"
+              />
+              <div class="range-ends"><span>↙</span><span>↗</span></div>
+            </div>
+            <div id="actions"></div>
+            <details class="explanation">
+              <summary>
+                What am I looking at?<span aria-hidden="true">+</span>
+              </summary>
+              <div id="explanation"></div>
+            </details>
+            <p class="science-note">
+              Wave motion shows Re(Ez). Intensity shows |E|², with a fixed
+              colour scale. Particle interiors are masked. All lengths are in
+              μm; material dispersion is held constant.
+            </p>
+          </aside>
+        </div>
+        <footer class="footer">
+          <span>Made of waves, understood by playing.</span
+          ><a
+            href="https://tfp-photonics.github.io/treams/"
+            target="_blank"
+            rel="noreferrer"
+            >Explore the science ↗</a
+          >
+        </footer>
+      </main>
+    </div>
+    <div id="toast" role="status" class="toast" hidden></div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

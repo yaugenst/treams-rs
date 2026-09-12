@@ -26,7 +26,10 @@ def input_array(value: object) -> Array:
 
 def require_dtype(dtype: np.dtype[Any]) -> None:
     if dtype not in (np.dtype(np.float64), np.dtype(np.complex128)):
-        raise TypeError("native adapters require float64 or complex128 parameters")
+        raise TypeError(
+            "native adapters require float64 or complex128 parameters; "
+            f"received {dtype}. Cast the parameter explicitly before calling."
+        )
 
 
 def execute(
@@ -39,7 +42,10 @@ def execute(
         for value in (output if multiple else (output,))
     )
     if not arrays:
-        raise ValueError("a native operation must return at least one array")
+        raise ValueError(
+            "a native operation must return at least one array; "
+            "received an empty output tuple"
+        )
     return arrays, context if callable(context) else context.pullback, multiple
 
 
@@ -59,12 +65,20 @@ def gradients(
     # A list can itself represent one gradient (e.g. native Euler angles).
     values = result if isinstance(result, tuple) else (result,)
     if len(values) != len(primals):
-        raise ValueError("pullback must return one gradient per dynamic parameter")
+        raise ValueError(
+            "pullback must return one gradient per dynamic parameter; "
+            f"expected {len(primals)} gradients, received {len(values)}. "
+            "Return a tuple in dynamic parameter order."
+        )
     output: list[Array] = []
-    for value, primal in zip(values, primals, strict=True):
+    for index, (value, primal) in enumerate(zip(values, primals, strict=True)):
         array = np.asarray(value)
         if array.shape != primal.shape:
-            raise ValueError("pullback gradient shape must match its dynamic parameter")
+            raise ValueError(
+                "pullback gradient shape must match its dynamic parameter; "
+                f"parameter[{index}] expected shape {primal.shape}, "
+                f"received {array.shape}"
+            )
         if conjugate:
             array = np.conjugate(array)
         output.append(
