@@ -15,7 +15,11 @@ scope.onmessage = async (
     await ready;
     const improved = event.data.improve ? improve(event.data.state) : undefined;
     const result = simulate(id, improved?.state ?? event.data.state, n);
-    result.improvement = improved?.message;
+    if (improved)
+      result.improvement = {
+        message: improved.message,
+        accepted: improved.accepted,
+      };
     scope.postMessage(result, [result.field.buffer]);
   } catch (error) {
     scope.postMessage({

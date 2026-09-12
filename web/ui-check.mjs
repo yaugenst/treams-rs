@@ -234,10 +234,109 @@ try {
     }
     if (name.startsWith("06")) {
       const before = parseFloat(await page.locator("#metric").textContent());
-      await page.getByRole("button", { name: "Improve the focus" }).click();
+      await page
+        .getByRole("button", { name: "Step once", exact: true })
+        .click();
       await settled();
       assert(parseFloat(await page.locator("#metric").textContent()) > before);
       await page.screenshot({ path: "output/mobile-gradient.png" });
+      for (const id of ["run-optimization", "improve", "improvement"]) {
+        const bounds = await page.locator(`#${id}`).boundingBox();
+        assert(
+          bounds && bounds.y >= 0 && bounds.y + bounds.height <= 844,
+          `${id} is visible beside the field on mobile`,
+        );
+      }
+      await page.getByRole("button", { name: "Reset", exact: true }).click();
+      await settled();
+      const positions = () =>
+        page
+          .locator(".position-row input")
+          .evaluateAll((inputs) => inputs.map((input) => input.value));
+      const initialPositions = await positions();
+      await page
+        .getByRole("button", { name: "Run optimization", exact: true })
+        .click();
+      await page.getByRole("button", { name: "Pause", exact: true }).click();
+      await settled();
+      assert.deepEqual(
+        await positions(),
+        initialPositions,
+        "Pause discards the in-flight proposed move",
+      );
+      await page
+        .getByRole("button", { name: "Run optimization", exact: true })
+        .click();
+      await page.waitForFunction(() =>
+        /Step [2-9]/.test(document.getElementById("improvement").textContent),
+      );
+      assert.notDeepEqual(
+        await positions(),
+        initialPositions,
+        "Run moves the particles automatically",
+      );
+      await page.screenshot({ path: "output/mobile-optimization-running.png" });
+      await page.waitForFunction(
+        () =>
+          document
+            .getElementById("improvement")
+            .textContent.includes("No improving step fits"),
+        null,
+        { timeout: 45000 },
+      );
+      await settled();
+      assert(
+        parseFloat(await page.locator("#metric").textContent()) > 2 * before,
+      );
+      assert.equal(
+        await page.locator("#run-optimization").getAttribute("aria-pressed"),
+        "false",
+      );
+      await page.waitForTimeout(1200);
+      await settled();
+      assert.equal(
+        await page.locator("#run-optimization").getAttribute("aria-pressed"),
+        "false",
+        "stopped run does not restart after final refinement",
+      );
+      await page.screenshot({ path: "output/mobile-optimization-stopped.png" });
+      await page.getByRole("button", { name: "Reset", exact: true }).click();
+      await settled();
+      await page
+        .getByRole("button", { name: "Run optimization", exact: true })
+        .click();
+      await page.locator("#wavelength").fill("1.8");
+      await page.locator("#wavelength").dispatchEvent("change");
+      await settled();
+      assert.equal(
+        await page.locator("#run-optimization").getAttribute("aria-pressed"),
+        "false",
+        "manual controls interrupt the run",
+      );
+      assert.deepEqual(
+        await positions(),
+        initialPositions,
+        "manual edit discards stale optimization geometry",
+      );
+      await page.getByRole("button", { name: "Reset", exact: true }).click();
+      await settled();
+      await page.locator("#run-optimization").focus();
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(() =>
+        document.getElementById("improvement").textContent.startsWith("Step 1"),
+      );
+      assert.equal(
+        await page.evaluate(() => document.activeElement.id),
+        "run-optimization",
+        "keyboard focus survives accepted steps",
+      );
+      await page.keyboard.press("Enter");
+      await settled();
+      assert.equal(
+        await page.locator("#run-optimization").getAttribute("aria-pressed"),
+        "false",
+        "keyboard can pause after a step",
+      );
     }
     console.log(`${name}: visible controls and live interaction passed.`);
   }
@@ -300,6 +399,56 @@ try {
     () => document.getElementById("status").textContent === "",
   );
   await desktop.screenshot({ path: "output/desktop-mixer.png" });
+  await desktop.emulateMedia({ reducedMotion: "no-preference" });
+  await desktop.getByRole("button", { name: "06 Let it improve" }).click();
+  await desktop.waitForFunction(
+    () => document.getElementById("status").textContent === "",
+  );
+  await desktop.evaluate(() => {
+    window.motionCheck = new Promise((resolve) =>
+      document.addEventListener(
+        "lab-result",
+        async () => {
+          const canvas = document.getElementById("field");
+          const values = [
+            ...document.querySelectorAll(".position-row input"),
+          ].map((input) => Number(input.value));
+          const x = values[0],
+            y = values[1],
+            dx = x + 0.43,
+            dy = y,
+            length = Math.hypot(dx, dy);
+          const radius = 0.23 - (6 * 3.2) / canvas.width;
+          const px = Math.round(
+            (0.5 + (x + (dx / length) * radius) / 3.2) * canvas.width,
+          );
+          const py = Math.round(
+            (0.5 - (y + (dy / length) * radius) / 3.2) * canvas.height,
+          );
+          const sample = () => [
+            ...canvas.getContext("2d").getImageData(px, py, 1, 1).data,
+          ];
+          const first = sample();
+          await new Promise((r) => setTimeout(r, 260));
+          resolve({ first, last: sample() });
+        },
+        { once: true },
+      ),
+    );
+  });
+  await desktop.getByRole("button", { name: "Step once", exact: true }).click();
+  const motion = await desktop.evaluate(() => window.motionCheck);
+  assert.notDeepEqual(
+    motion.first,
+    [11, 24, 41, 255],
+    "particle has not jumped to the accepted endpoint in the first frame",
+  );
+  assert.deepEqual(
+    motion.last,
+    [11, 24, 41, 255],
+    "particle animates into the accepted endpoint",
+  );
+  await desktop.screenshot({ path: "output/desktop-optimization.png" });
   assert.deepEqual(errors, [], "no page exceptions");
   console.log(
     "Share/reload, advanced controls, narrow phones and desktop render passed.",

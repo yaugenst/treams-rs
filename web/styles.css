@@ -955,6 +955,17 @@ canvas {
 .contrast-button[hidden] {
   display: none;
 }
+.optimization-actions {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 8px;
+}
+.controls #improvement {
+  display: block;
+  font-size: 11px;
+  line-height: 1.4;
+  margin: 6px 0;
+}
 .stage.calculating:after {
   content: "";
   position: absolute;

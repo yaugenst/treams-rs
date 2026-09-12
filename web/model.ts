@@ -35,7 +35,7 @@ export interface Result {
   spectrum: Float64Array;
   gradient: Float64Array;
   milliseconds: number;
-  improvement?: string;
+  improvement?: { message: string; accepted: boolean };
 }
 export const presets: Record<
   Experiment,
@@ -81,7 +81,7 @@ export const presets: Record<
     short: "Let it improve",
     description: "Place a target. Let the particles work towards it.",
     explanation:
-      "The objective is the total electric-field intensity at the target. A native analytic adjoint finds how moving each particle changes that objective. Improve takes an accepted step uphill, keeping radii fixed and particles apart. This is a local search, so different starting points lead to different outcomes.",
+      "The objective is the total electric-field intensity at the target. A native analytic adjoint finds how moving each particle changes that objective. Run follows accepted steps uphill until no further step fits; pause or try one step at a time. Radii stay fixed and particles stay apart. This is a local search, so different starting points lead to different outcomes.",
   },
 };
 export function initial(experiment: Experiment = "particles"): State {

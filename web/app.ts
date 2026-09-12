@@ -6,6 +6,7 @@ import {
   type State,
   type Result,
   type Experiment,
+  type Particle,
 } from "./model.js";
 import { padField, patternGain } from "./field-view.js";
 function element<T extends HTMLElement>(id: string): T {
@@ -21,6 +22,12 @@ let transitionStarted = 0;
 let displayField: Float64Array = new Float64Array();
 let contrast = 1,
   revealPattern = true;
+let optimizing = false,
+  optimizationSteps = 0,
+  optimizationStart = 0;
+let optimizationTimer: ReturnType<typeof setTimeout>;
+let optimizationMessage = "Run to follow the gradient. Pause at any time.";
+let particleMotion: { from: Particle[]; started: number } | undefined;
 let state = initial();
 try {
   state = fromHash(location.hash);
@@ -54,12 +61,16 @@ for (const [key, preset] of Object.entries(presets)) {
   nav.append(button);
 }
 function select(experiment: Experiment) {
+  stopOptimization();
+  optimizationSteps = 0;
+  optimizationMessage = "Run to follow the gradient. Pause at any time.";
   state = initial(experiment);
   result = undefined;
   updateControls();
   schedule(true);
 }
 function updateControls() {
+  const focusedId = document.activeElement?.id;
   const preset = presets[state.experiment],
     cluster = state.experiment === "particles" || state.experiment === "design";
   canvas.style.touchAction = "none";
@@ -242,22 +253,34 @@ function updateControls() {
     actions.append(equation);
   }
   if (state.experiment === "design") {
-    const b = action(
-      "Improve the focus",
+    const buttons = document.createElement("div");
+    buttons.className = "optimization-actions";
+    const run = action(
+      "Run optimization",
       () => {
-        requestedImprove = true;
-        schedule();
+        if (optimizing) {
+          pauseOptimization();
+          return;
+        }
+        optimizing = true;
+        optimizationSteps = 0;
+        optimizationStart = result!.score;
+        optimizationMessage = "Finding the next improving step…";
+        requestStep();
       },
       false,
     );
-    b.className = "primary-button";
+    run.id = "run-optimization";
+    run.className = "primary-button";
+    const b = action("Step once", singleStep, false);
     b.id = "improve";
-    actions.append(b);
+    buttons.append(run, b);
+    actions.append(buttons);
     const note = document.createElement("p");
     note.id = "improvement";
     note.className = "action-note";
     note.setAttribute("role", "status");
-    note.textContent = "One adjoint step. Radii stay fixed.";
+    note.textContent = optimizationMessage;
     actions.append(note);
     const overlay = action(
       gradients ? "Gradient arrows: on" : "Gradient arrows: off",
@@ -300,8 +323,11 @@ function updateControls() {
   element("metric").textContent = "—";
   element("metric-unit").textContent = "";
   element("metric-detail").textContent = "";
+  updateOptimizationControls();
   dirty = true;
   updatePlay();
+  if (focusedId)
+    document.getElementById(focusedId)?.focus({ preventScroll: true });
 }
 function action(label: string, click: () => void, pressed: boolean) {
   const b = document.createElement("button");
@@ -405,11 +431,61 @@ function positionControls() {
   }
   return details;
 }
+function updateOptimizationControls() {
+  const run = document.getElementById(
+    "run-optimization",
+  ) as HTMLButtonElement | null;
+  const step = document.getElementById("improve") as HTMLButtonElement | null;
+  if (run) {
+    run.textContent = optimizing ? "Pause" : "Run optimization";
+    run.setAttribute("aria-pressed", String(optimizing));
+    run.disabled = !optimizing && (busy || pending || !result);
+  }
+  if (step) step.disabled = optimizing || busy || pending || !result;
+  const note = document.getElementById("improvement");
+  if (note) note.textContent = optimizationMessage;
+}
+function stopOptimization(message?: string) {
+  optimizing = false;
+  clearTimeout(optimizationTimer);
+  if (message) optimizationMessage = message;
+  updateOptimizationControls();
+}
+function pauseOptimization() {
+  stopOptimization(`Paused · ${optimizationSteps} accepted steps.`);
+  // Invalidate an in-flight proposed move and refine the last accepted geometry.
+  schedule();
+}
+function requestStep() {
+  requestedImprove = true;
+  schedule();
+}
+function singleStep() {
+  stopOptimization();
+  optimizationSteps = 0;
+  optimizationStart = result!.score;
+  requestStep();
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && optimizing) pauseOptimization();
+});
 function schedule(coarse = false) {
+  if (!requestedImprove) {
+    if (optimizing)
+      stopOptimization(`Paused · ${optimizationSteps} accepted steps.`);
+    particleMotion = undefined;
+  }
   clearTimeout(refineTimer);
   pending = true;
   revision++;
-  grid = coarse ? 24 : innerWidth < 620 ? 56 : 72;
+  grid =
+    requestedImprove && optimizing
+      ? 32
+      : coarse
+        ? 24
+        : innerWidth < 620
+          ? 56
+          : 72;
   status.textContent = result ? "Field catching up…" : "Finding the field…";
   element("live-parameter").textContent =
     state.experiment === "mixer"
@@ -429,8 +505,7 @@ function dispatch() {
   pending = false;
   const improve = requestedImprove;
   requestedImprove = false;
-  const b = document.getElementById("improve") as HTMLButtonElement | null;
-  if (b) b.disabled = true;
+  updateOptimizationControls();
   worker.postMessage({ id: revision, state, n: grid, improve });
 }
 worker.onmessage = (
@@ -443,6 +518,7 @@ worker.onmessage = (
     (!("error" in data) && JSON.stringify(data.state) === JSON.stringify(state))
   ) {
     if ("error" in data) {
+      stopOptimization("Stopped: the solver could not complete this setting.");
       status.textContent = "Could not solve this setting";
       toast(data.error);
     } else {
@@ -457,9 +533,28 @@ worker.onmessage = (
       }
       transitionStarted = sameExperiment ? performance.now() : 0;
       if (data.improvement) {
+        const wasOptimizing = optimizing;
+        if (data.improvement.accepted) {
+          optimizationSteps++;
+          if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
+            particleMotion = {
+              from: state.particles,
+              started: performance.now(),
+            };
+          optimizationMessage = `Step ${optimizationSteps} · ${optimizationStart.toFixed(2)}× → ${data.score.toFixed(2)}×`;
+        } else {
+          stopOptimization(
+            `${optimizationSteps} steps · ${data.improvement.message}`,
+          );
+        }
         state = data.state;
         updateControls();
-        element("improvement").textContent = data.improvement;
+        if (optimizing) {
+          // Let the accepted geometry and its field transition finish before the next solve.
+          optimizationTimer = setTimeout(requestStep, 240);
+        } else if (wasOptimizing) {
+          refineTimer = setTimeout(() => schedule(), 240);
+        }
       }
       status.textContent = pending ? "Refining…" : "";
       updateReadout();
@@ -474,13 +569,13 @@ worker.onmessage = (
         ),
       );
   }
-  const b = document.getElementById("improve") as HTMLButtonElement | null;
-  if (b) b.disabled = false;
+  updateOptimizationControls();
   dispatch();
 };
 worker.onerror = () => {
   busy = false;
   pending = false;
+  stopOptimization("Stopped: the solver could not start.");
   status.textContent = "The solver could not start. Reload to retry.";
   document.dispatchEvent(
     new CustomEvent("lab-result", { detail: status.textContent }),
@@ -665,6 +760,10 @@ window.onhashchange = () => {
 let phase = 0,
   previousTime = 0;
 function render(time: number) {
+  if (particleMotion && time - particleMotion.started >= 220) {
+    particleMotion = undefined;
+    dirty = true;
+  }
   if (playing && !document.hidden)
     phase += Math.min(40, time - previousTime) * 0.002;
   previousTime = time;
@@ -676,6 +775,7 @@ function render(time: number) {
     (dirty ||
       busy ||
       pending ||
+      particleMotion ||
       Math.abs(fieldFade - fadeTarget) > 0.005 ||
       time - transitionStarted < 220 ||
       (playing && display === "phase"))
@@ -754,10 +854,19 @@ function draw() {
     context.drawImage(raster, 0, 0, width, height);
     context.globalAlpha = 1;
   }
-  const particles =
+  let particles =
     s.experiment === "particles" || s.experiment === "design"
       ? s.particles
       : [{ x: 0, y: 0, radius: s.radius }];
+  if (particleMotion) {
+    const t = Math.min(1, (performance.now() - particleMotion.started) / 220);
+    const blend = t * t * (3 - 2 * t);
+    particles = particles.map((p, i) => ({
+      ...p,
+      x: particleMotion!.from[i]!.x * (1 - blend) + p.x * blend,
+      y: particleMotion!.from[i]!.y * (1 - blend) + p.y * blend,
+    }));
+  }
   const circle = (x: number, y: number, r: number) => {
     context.beginPath();
     context.arc(
@@ -809,7 +918,7 @@ function draw() {
     context.moveTo(x, y + 5);
     context.lineTo(x, y + 15);
     context.stroke();
-    if (gradients && result && !busy && !pending) {
+    if (gradients && result && !busy && !pending && !particleMotion) {
       const offset = 1 + s.particles.length,
         g = result.gradient;
       const largest = Math.max(
@@ -969,6 +1078,7 @@ function pointerPosition(event: PointerEvent) {
   };
 }
 canvas.onpointerdown = (event) => {
+  if (optimizing) pauseOptimization();
   if (state.experiment !== "particles" && state.experiment !== "design") {
     if (
       state.experiment === "shell" &&
@@ -1126,10 +1236,7 @@ if (modelContext?.registerTool) {
           throw new Error(
             "Open the target experiment and wait for its solve first",
           );
-        return completed(() => {
-          requestedImprove = true;
-          schedule();
-        });
+        return completed(singleStep);
       },
     },
   ];

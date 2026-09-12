@@ -119,6 +119,42 @@ const design = initial("design"),
 assert(geometryValid(step.state));
 assert(after.score > before.score, "accepted adjoint step improves objective");
 console.log(`Adjoint step: ${step.message}`);
+let runState = design,
+  runScore = before.score,
+  runSteps = 0,
+  stopped = false;
+for (let attempt = 0; attempt < 40; attempt++) {
+  const next = improve(runState);
+  if (!next.accepted) {
+    assert.deepEqual(
+      next.state,
+      runState,
+      "stopping preserves the last accepted geometry",
+    );
+    stopped = true;
+    break;
+  }
+  assert(
+    geometryValid(next.state),
+    "every accepted move respects separation and target clearance",
+  );
+  const nextScore = simulate(attempt, next.state, 6).score;
+  assert(
+    nextScore > runScore,
+    "every automatic step improves the actual target objective",
+  );
+  runState = next.state;
+  runScore = nextScore;
+  runSteps++;
+}
+assert(
+  stopped && runSteps > 3,
+  "default run advances and eventually stops on its own",
+);
+assert(runScore > 2 * before.score, "default run reaches the stronger focus");
+console.log(
+  `Automatic optimization: ${runSteps} accepted steps, ${before.score.toFixed(6)} → ${runScore.toFixed(6)}, then stopped.`,
+);
 assert.throws(() =>
   fromHash(
     "#" + encodeURIComponent(JSON.stringify({ ...base, wavelength: 0 })),

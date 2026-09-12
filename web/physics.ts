@@ -157,7 +157,11 @@ function targetScore(s: State) {
     system.free();
   }
 }
-export function improve(s: State): { state: State; message: string } {
+export function improve(s: State): {
+  state: State;
+  message: string;
+  accepted: boolean;
+} {
   if (s.experiment !== "design")
     throw new Error("Improve is available in the target experiment");
   const gradient = cluster_target_gradient(
@@ -181,6 +185,7 @@ export function improve(s: State): { state: State; message: string } {
   if (!Number.isFinite(norm) || norm < 1e-12)
     return {
       state: s,
+      accepted: false,
       message: "The position gradient is flat here. Try moving a particle.",
     };
   for (let attempt = 0; attempt < 9; attempt++) {
@@ -195,11 +200,13 @@ export function improve(s: State): { state: State; message: string } {
     if (after > before * (1 + 1e-7))
       return {
         state: next,
+        accepted: true,
         message: `${before.toFixed(2)}× → ${after.toFixed(2)}× · +${((after / before - 1) * 100).toFixed(1)}%`,
       };
   }
   return {
     state: s,
+    accepted: false,
     message:
       "No improving step fits here. Move a particle or target and try again.",
   };

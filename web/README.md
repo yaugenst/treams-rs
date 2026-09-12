@@ -5,7 +5,16 @@ interacting spheres, resonances and multipoles, coherent mode mixing, core-shell
 scattering suppression, material chirality, and target-intensity optimization.
 The gradient overlay shows the analytic position derivative of the target's
 **total** electric intensity. Arrow lengths share a relative scale; they are not
-forces. Improve uses a constrained backtracking step and accepts only increases.
+forces. Run repeats the native analytic adjoint/backtracking step and accepts only
+increases. Particle motion and the solved field transition together between steps;
+the intermediate animation is presentation, not another solved state. Step once
+remains available. Pause, manual edits, or hiding the tab interrupt the run and
+discard an in-flight proposal. Automatic runs use a 32² field preview and refine
+the last accepted geometry when stopped; the point objective does not depend on
+the display grid. A run stops when the existing search finds no improving step,
+including a flat gradient or a separation/target-clearance constraint. This is
+not a guarantee of an unconstrained optimum. The default scene takes 12 accepted
+steps from intensity 0.955903 to 2.191525, then stalls near target clearance.
 
 ## Run
 
