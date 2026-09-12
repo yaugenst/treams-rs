@@ -938,6 +938,23 @@ canvas {
 #more-controls {
   display: none;
 }
+.contrast-button {
+  position: absolute;
+  top: 43px;
+  left: 14px;
+  border: 1px solid #48565e;
+  border-radius: 6px;
+  padding: 6px 8px;
+  min-height: 36px;
+  background: #0c1424d9;
+  color: #eabc79;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.contrast-button[hidden] {
+  display: none;
+}
 .stage.calculating:after {
   content: "";
   position: absolute;

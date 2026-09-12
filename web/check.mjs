@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { init, simulate, improve } from "./dist/physics.js";
 import { initial, fromHash, geometryValid } from "./dist/model.js";
+import { padField, patternGain } from "./dist/field-view.js";
 await init({
   module_or_path: await readFile(
     new URL("./dist/wasm/treams_wasm_bg.wasm", import.meta.url),
@@ -28,6 +29,63 @@ for (const experiment of [
   );
 }
 const base = initial();
+// A constant exterior must remain constant right up to a subpixel circular mask.
+// Padding is display-only and must preserve every scientific sample, including NaNs.
+for (const n of [8, 24, 56]) {
+  const field = new Float64Array(n * n * 6);
+  for (let y = 0; y < n; y++)
+    for (let x = 0; x < n; x++) {
+      const masked = Math.hypot(x - n * 0.43, y - n * 0.51) < n * 0.2;
+      for (let j = 0; j < 6; j++)
+        field[(y * n + x) * 6 + j] = masked ? NaN : j - 2;
+    }
+  const original = field.slice(),
+    padded = padField(field, n);
+  assert.deepEqual(field, original);
+  for (let i = 0; i < field.length; i++) {
+    if (Number.isFinite(field[i])) assert.equal(padded[i], field[i]);
+    if (Number.isFinite(padded[i]))
+      assert(Math.abs(padded[i] - ((i % 6) - 2)) < 1e-12);
+  }
+  for (let y = 1; y < n - 1; y++)
+    for (let x = 1; x < n - 1; x++)
+      if (
+        [-1, 1, -n, n].some((d) => Number.isFinite(field[(y * n + x + d) * 6]))
+      )
+        assert(
+          Number.isFinite(padded[(y * n + x) * 6]),
+          "no dark missing-data seam at the boundary",
+        );
+}
+const weakQuad = simulate(
+  1,
+  { ...initial("resonance"), wavelength: 1.45, order: 2 },
+  24,
+);
+assert(
+  Math.abs(weakQuad.orders.reduce((a, b) => a + b, 0) - weakQuad.score) < 1e-12,
+);
+assert(
+  weakQuad.orders[1] / weakQuad.score < 0.001,
+  "screenshot is a dipole resonance",
+);
+assert(
+  Math.abs(weakQuad.spectrum[16 * 2 + 1] - weakQuad.orders[1]) < 1e-12,
+  "spectrum follows selected mode",
+);
+assert(
+  patternGain(weakQuad.field) > 10,
+  "weak-mode contrast boost is explicit",
+);
+const strongQuad = simulate(
+  1,
+  { ...initial("resonance"), radius: 0.3, wavelength: 1.31, order: 2 },
+  20,
+);
+assert(
+  strongQuad.orders[1] / strongQuad.score > 0.6,
+  "quadrupole can dominate at a different resonance",
+);
 const coupled = simulate(1, base, 20),
   independent = simulate(2, { ...base, compare: true }, 20);
 assert(

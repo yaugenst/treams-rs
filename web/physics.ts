@@ -121,7 +121,7 @@ function filterOrder(b: Float64Array, order: number) {
 let spectrumCache: { key: string; values: Float64Array } | undefined;
 function spectrumFor(s: State) {
   if (s.experiment !== "resonance") return new Float64Array();
-  const key = JSON.stringify([s.radius, s.epsilon, s.helicity]);
+  const key = JSON.stringify([s.radius, s.epsilon, s.helicity, s.order]);
   if (spectrumCache?.key === key) return spectrumCache.values;
   const values = new Float64Array(65 * 2);
   for (let i = 0; i < 65; i++) {
@@ -131,7 +131,9 @@ function spectrumFor(s: State) {
     try {
       const b = system.scatter(system.plane_wave(array([1, 0, 0]), s.helicity));
       values[i * 2] = wavelength;
-      values[i * 2 + 1] = power(b) / (k0 * k0 * Math.PI * s.radius * s.radius);
+      const selectedPower = s.order ? orderPowers(b)[s.order - 1]! : power(b);
+      values[i * 2 + 1] =
+        selectedPower / (k0 * k0 * Math.PI * s.radius * s.radius);
     } finally {
       system.free();
     }

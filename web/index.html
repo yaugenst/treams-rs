@@ -59,6 +59,15 @@
                   >TOTAL FIELD · Re(Ez)</span
                 ><span id="status" role="status">Starting the experiment…</span>
               </div>
+              <button
+                id="field-contrast"
+                class="contrast-button"
+                hidden
+                aria-pressed="true"
+                title="Toggle display amplification. Scattering values keep their physical scale."
+              >
+                Reveal pattern
+              </button>
               <div class="stage-bottom">
                 <div class="field-legend">
                   <span id="legend-start">−</span
@@ -158,9 +167,10 @@
               <div id="explanation"></div>
             </details>
             <p class="science-note">
-              Wave motion shows Re(Ez). Intensity shows |E|², with a fixed
-              colour scale. Particle interiors are masked. All lengths are in
-              μm; material dispersion is held constant.
+              Wave motion shows Re(Ez). Intensity shows |E|². Isolated modes
+              offer a labelled field boost; tap it for true strength. Particle
+              interiors are masked. All lengths are in μm; material dispersion
+              is held constant.
             </p>
           </aside>
         </div>

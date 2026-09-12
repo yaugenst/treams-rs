@@ -173,7 +173,9 @@ clusters, direct plane-wave illumination, exterior scattered electric fields,
 and the analytic radius/position gradient of total intensity at a fixed target.
 The [six browser experiments](../web/README.md) use these exports without Python,
 including coherent uncoupled comparison and a gradient overlay with accepted
-ascent steps. Generic pullback exports and the entire Python API are not exposed.
+ascent steps. Browser rendering uses smooth particle masks with display-only
+texture padding; isolated multipoles show their own score/spectrum and a labelled,
+optional contrast boost. Generic pullback exports and the entire Python API are not exposed.
 CUDA qualification uses the RTX 4080 SUPER with complex128. The fused field
 kernel has no native pullback yet; fixed sampling operators can use the qualified
 Hermitian matrix product for coefficient-only pullbacks without a second device

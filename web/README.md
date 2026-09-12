@@ -36,7 +36,10 @@ validated when loaded and is not sent to the static server.
 - Coordinates and wavelength use μm. Materials use `epsilon = n² + 0.02i`, `mu=1`;
   embedding vacuum, with constant material parameters across the spectrum.
 - Fields show the central plane through three-dimensional spheres. Outgoing
-  expansions are exterior-only; the page masks the particles and a 1.5% margin.
+  expansions are exterior-only; numerical samples mask particles and a 1.5% margin.
+  A display-only copy pads missing texels with neighbouring exterior values beneath
+  smooth vector circles, preventing the coarse mask from bleeding into the field.
+  This does not compute interior fields or change scientific samples or scores.
 - Single spheres use multipoles through order 5; clusters use order 6. Cluster
   surfaces stay at least 0.15 μm apart and targets at least 0.10 μm outside them.
   These are finite-truncation educational experiments, not uniformly converged
@@ -48,10 +51,14 @@ validated when loaded and is not sent to the static server.
   core, so changing the normalization area cannot manufacture suppression.
 - The mode mixer uses electric `l=1,m=0` and `l=2,m=1` regular incident multipoles,
   with fixed incident coefficient norm 4. Its score is a coefficient-norm ratio,
-  not a plane-wave cross-section. The resonance score includes all orders even
-  when the field view isolates one order.
+  not a plane-wave cross-section. Isolating a resonance order also selects its
+  scattering score and spectrum; its fraction of total scattering stays visible.
 - Intensity uses a fixed logarithmic colour scale, saturating at 7; wave motion
   uses a fixed `tanh` scale for `Re(Ez)`. Grid peak intensity depends on sampling.
+  Isolated dipole/quadrupole views default to an explicitly labelled field boost,
+  scaling their sampled RMS field amplitude to one when weaker. Tap the badge
+  for true strength. The intensity legend reflects the gain squared; numerical
+  values are unchanged. All-wave and other experiments retain the fixed scale.
 - Only the current solved T matrix and single spectrum are cached. Slider/drag
   updates are coarser than settled views; stale calculations never overwrite
   newer requested settings. Particle outlines and live controls track input

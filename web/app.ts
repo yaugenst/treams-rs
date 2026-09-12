@@ -7,6 +7,7 @@ import {
   type Result,
   type Experiment,
 } from "./model.js";
+import { padField, patternGain } from "./field-view.js";
 function element<T extends HTMLElement>(id: string): T {
   const e = document.getElementById(id);
   if (!e) throw new Error(`Missing ${id}`);
@@ -17,6 +18,9 @@ let refineTimer: ReturnType<typeof setTimeout>;
 let gradients = true;
 let fieldFade = 1;
 let transitionStarted = 0;
+let displayField: Float64Array = new Float64Array();
+let contrast = 1,
+  revealPattern = true;
 let state = initial();
 try {
   state = fromHash(location.hash);
@@ -290,6 +294,9 @@ function updateControls() {
     );
   });
   element("spectrum").hidden = state.experiment !== "resonance";
+  element("field-contrast").hidden = !(
+    state.experiment === "resonance" && state.order
+  );
   element("metric").textContent = "—";
   element("metric-unit").textContent = "";
   element("metric-detail").textContent = "";
@@ -441,6 +448,8 @@ worker.onmessage = (
     } else {
       const sameExperiment = result?.state.experiment === data.state.experiment;
       result = data;
+      displayField = padField(data.field, data.n);
+      contrast = patternGain(data.field);
       if (sameExperiment) {
         transition.width = raster.width;
         transition.height = raster.height;
@@ -495,10 +504,16 @@ function updateReadout() {
         : "Full interaction · repeated scattering included";
       break;
     case "resonance":
-      label = "SCATTERING EFFICIENCY";
-      metric = r.score.toFixed(2);
-      unit = "Qsca · cross section / geometric area";
-      detail = `Dipole ${(((r.orders[0] ?? 0) / r.score) * 100).toFixed(0)}% · quadrupole ${(((r.orders[1] ?? 0) / r.score) * 100).toFixed(0)}% · all orders in score`;
+      label = s.order
+        ? `${s.order === 1 ? "DIPOLE" : "QUADRUPOLE"} SCATTERING`
+        : "SCATTERING EFFICIENCY";
+      metric = s.order
+        ? (r.orders[s.order - 1] ?? 0).toPrecision(3)
+        : r.score.toFixed(2);
+      unit = s.order
+        ? `Qsca · ${((r.orders[s.order - 1]! / r.score) * 100).toPrecision(3)}% of total`
+        : "Qsca · cross section / geometric area";
+      detail = `Total Qsca ${r.score.toPrecision(3)} · dipole ${(((r.orders[0] ?? 0) / r.score) * 100).toPrecision(3)}% · quadrupole ${(((r.orders[1] ?? 0) / r.score) * 100).toPrecision(3)}%`;
       break;
     case "mixer":
       label = "SCATTERED MODE POWER";
@@ -535,8 +550,31 @@ function updateReadout() {
       : "TOTAL FIELD") + (display === "phase" ? " · Re(Ez)" : " · |E|²");
   element("timing").textContent =
     `${Math.round(r.milliseconds)} ms solve + field`;
+  const button = element("field-contrast");
+  button.hidden = !(s.experiment === "resonance" && s.order);
+  button.textContent = revealPattern
+    ? `Field ×${contrast.toFixed(1)} · boosted`
+    : "True strength · boost?";
+  button.setAttribute("aria-pressed", String(revealPattern));
+  element("legend-end").textContent =
+    display === "intensity"
+      ? `≥${(7 / displayGain() ** 2).toPrecision(2)}`
+      : "+";
   drawSpectrum();
 }
+function displayGain() {
+  return result?.state.experiment === "resonance" &&
+    result.state.order &&
+    revealPattern
+    ? contrast
+    : 1;
+}
+element("field-contrast").onclick = () => {
+  revealPattern = !revealPattern;
+  transitionStarted = 0;
+  updateReadout();
+  dirty = true;
+};
 function changeWavelength(value: number, coarse = false) {
   state.wavelength =
     Math.round(Math.max(1.1, Math.min(2.5, value)) * 100) / 100;
@@ -664,7 +702,9 @@ function draw() {
   const span = 3.2;
   const s = state;
   if (result) {
-    const { field, n } = result;
+    const { n } = result,
+      field = displayField,
+      gain = displayGain();
     if (raster.width !== n) {
       raster.width = n;
       raster.height = n;
@@ -679,7 +719,8 @@ function draw() {
         b = 31;
       if (Number.isFinite(field[offset])) {
         if (display === "phase") {
-          const value = field[offset + 4]! * c + field[offset + 5]! * sin,
+          const value =
+              (field[offset + 4]! * c + field[offset + 5]! * sin) * gain,
             t = Math.abs(Math.tanh(value * 1.5));
           const color = value > 0 ? [245, 176, 98] : [83, 182, 221];
           r += t * (color[0]! - r);
@@ -688,7 +729,10 @@ function draw() {
         } else {
           let intensity = 0;
           for (let j = 0; j < 6; j++) intensity += field[offset + j]! ** 2;
-          const t = Math.min(1, Math.log1p(intensity) / Math.log(8)),
+          const t = Math.min(
+              1,
+              Math.log1p(intensity * gain ** 2) / Math.log(8),
+            ),
             a = t < 0.55 ? t / 0.55 : (t - 0.55) / 0.45;
           const start = t < 0.55 ? [8, 15, 31] : [38, 136, 161],
             end = t < 0.55 ? [38, 136, 161] : [255, 224, 166];
@@ -701,6 +745,7 @@ function draw() {
     }
     rasterContext.putImageData(pixels, 0, 0);
     context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
     const blend = Math.min(1, (performance.now() - transitionStarted) / 220);
     context.globalAlpha = fieldFade;
     if (blend < 1 && transition.width)
@@ -857,6 +902,9 @@ function drawSpectrum() {
   plot.height = h * dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const values = result.spectrum;
+  panel.querySelector(".plot-heading span")!.textContent = result.state.order
+    ? `${result.state.order === 1 ? "DIPOLE" : "QUADRUPOLE"} SPECTRUM`
+    : "SCATTERING SPECTRUM";
   let max = 0;
   for (let i = 1; i < values.length; i += 2) max = Math.max(max, values[i]!);
   max *= 1.15;

@@ -152,6 +152,38 @@ try {
       await touch("touchEnd");
       await settled();
       await page.screenshot({ path: "output/mobile-resonance.png" });
+      // Reproduce the reported faint quadrupole at its actual physical strength.
+      await page.locator("#wavelength").fill("1.45");
+      await page.locator("#wavelength").dispatchEvent("change");
+      await settled();
+      await page
+        .getByRole("button", { name: "Quadrupole", exact: true })
+        .click();
+      await settled();
+      assert.equal(await page.locator("#metric").textContent(), "0.00714");
+      assert.match(await page.locator("#metric-unit").textContent(), /0.0901%/);
+      assert.equal(
+        await page.locator(".plot-heading span").first().textContent(),
+        "QUADRUPOLE SPECTRUM",
+      );
+      await page.waitForTimeout(250); // finish the documented field crossfade
+      const boosted = await field.evaluate((c) => c.toDataURL());
+      await page.screenshot({ path: "output/mobile-quadrupole.png" });
+      const boostButton = page.locator("#field-contrast");
+      assert.match(await boostButton.textContent(), /Field ×[\d.]+ · boosted/);
+      await boostButton.click();
+      await page.evaluate(
+        () =>
+          new Promise((r) =>
+            requestAnimationFrame(() => requestAnimationFrame(r)),
+          ),
+      );
+      assert.notEqual(await field.evaluate((c) => c.toDataURL()), boosted);
+      assert.equal(
+        await page.locator("#metric").textContent(),
+        "0.00714",
+        "contrast never changes the physical score",
+      );
     }
     if (name.startsWith("03")) {
       const before = await field.evaluate((c) => c.toDataURL());
@@ -254,6 +286,15 @@ try {
   await desktop.waitForFunction(
     () => document.getElementById("status").textContent === "",
   );
+  await desktop.locator("#control-particle-radius").fill("0.35");
+  await desktop.locator("#control-particle-radius").dispatchEvent("change");
+  await desktop.waitForFunction(
+    () => document.getElementById("status").textContent === "",
+  );
+  await desktop.waitForTimeout(250);
+  await desktop
+    .locator("#field")
+    .screenshot({ path: "output/sphere-edges.png" });
   await desktop.getByRole("button", { name: "03 Mix the waves" }).click();
   await desktop.waitForFunction(
     () => document.getElementById("status").textContent === "",
