@@ -71,6 +71,14 @@ jobs:
         run: cargo install wasm-bindgen-cli --version 0.2.128 --locked
       - name: Compile and qualify browser module
         run: just wasm-check
+      - name: Build and check interactive browser experiments
+        working-directory: web
+        run: |
+          npm ci
+          npm run format:check
+          npm test
+          npx playwright install --with-deps chromium
+          npm run test:ui
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: treams-wasm
