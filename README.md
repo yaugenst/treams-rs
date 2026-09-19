@@ -9,6 +9,10 @@ particles; finite clusters and periodic arrays; planar stacks; fields and power
 observables. Python constructors and numerical conventions follow treams 0.4.5,
 with an explicit-object API described in the [capability reference](docs/status.md).
 
+This branch preserves the experimental browser/WASM playground. `main` is the
+authoritative CPU core; CUDA work is isolated on
+`experimental/gpu`. Browser development remains deferred.
+
 ## Getting started
 
 From a source checkout, install the tools listed in the
