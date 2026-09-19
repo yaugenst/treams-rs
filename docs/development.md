@@ -29,7 +29,6 @@ Read the nearest scoped instructions before editing
 | Requested illuminations and iterative solves | `crates/treams-core/src/illumination.rs`, `iterative.rs`; matching bindings and `python/treams_rs/iterative.py` | `uv run --no-sync pytest tests/test_illumination.py tests/test_iterative_native.py` |
 | Optional HDF5 interchange | `python/treams_rs/io.py` | `uv run --no-sync pytest tests/test_io.py` |
 | Browser exports | `crates/treams-wasm/`; `scripts/check_wasm.mjs` | `just wasm-check` |
-| CUDA execution | `crates/treams-cuda/`, `crates/treams-cuda-tile/`; native/Python `cuda` modules | `just rust-cuda-check`; `just gpu-check` on supported hardware |
 
 Rebuild the extension after changing Rust or bindings. For a particular kernel,
 run the corresponding `tests/test_*.py` suite as well as its native test: Python
@@ -91,16 +90,6 @@ diffraction, and exact normal-incidence lossless crystal spectra/fields. Generic
 pullback and periodic-object APIs remain outside that export boundary. Inspect
 actual browser rendering when changing an
 interactive example; a Node numerical check is not visual verification.
-
-`just rust-cuda-check` compiles the dynamically loaded dense backend without a
-toolkit. Executing `just gpu-check` requires the NVIDIA driver and CUDA 13.3
-cuTile toolchain described in [GPU setup](gpu.md). It replaces the installed
-extension with a CUDA-enabled release build. Neither a CPU check nor a WASM
-check qualifies GPU execution. Framework adapters accept CPU arrays. The fused
-CUDA field kernel is forward-only; a fixed sampling operator supports
-coefficient pullbacks through its Hermitian matrix product. Geometry/wavevector
-GPU pullbacks and automatic framework GPU routing are unsupported. Keep CUDA
-dependencies out of default CPU/WASM builds.
 
 For performance changes, build with `just build-ext-release` and run the affected
 benchmark on an otherwise idle host. Correctness checks rebuild a development

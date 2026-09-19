@@ -8,12 +8,10 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
 import treams_rs as tr
-from treams_rs import cuda
 from treams_rs.support import _markdown
 
 
@@ -68,9 +66,6 @@ def test_catalog_resolves_and_documents_native_records():
         row for row in catalog["returned_python_types"] if row["path"] == "_Interaction"
     )
     assert "_Interaction.illuminate" in {row["path"] for row in interaction["members"]}
-    assert "imported" not in catalog["backends"]["cuda"]["runtime"]
-    assert catalog["backends"]["cuda"]["compiled"] == cuda.compiled()
-    assert "no pullback" in catalog["backends"]["cuda_tile"]["scope"]
     assert "not a Python backend" in catalog["backends"]["wasm"]["distribution"]
 
 
@@ -89,7 +84,6 @@ print(json.dumps(catalog['backends']))
     result = subprocess.run(
         [sys.executable, "-c", code], check=True, capture_output=True, text=True
     )
-    assert json.loads(result.stdout)["cuda"]["runtime"] == "unprobed"
     result = subprocess.run(
         [sys.executable, "-m", "treams_rs"], check=True, capture_output=True, text=True
     )
@@ -101,7 +95,7 @@ print(json.dumps(catalog['backends']))
         text=True,
     )
     assert "treams_rs.diff.solve" in result.stdout
-    assert "CPU unless explicitly" in result.stdout
+    assert "**python_execution**: CPU" in result.stdout
 
 
 @given(
@@ -126,10 +120,3 @@ def test_documented_sphere_and_recorded_solve(radius, k0):
 def test_generated_reference_is_source_current():
     root = Path(__file__).resolve().parents[1]
     assert (root / "docs/api.md").read_text() == _markdown(tr.support_catalog())
-
-
-def test_cpu_build_gives_actionable_gpu_guidance():
-    if cuda.compiled():
-        pytest.skip("this assertion qualifies the default wheel only")
-    with pytest.raises(RuntimeError, match="--features cuda"):
-        cuda.Device()

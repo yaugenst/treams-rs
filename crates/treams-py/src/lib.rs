@@ -5,8 +5,6 @@
 mod basis;
 mod channels;
 mod coordinates;
-#[cfg(feature = "cuda")]
-mod cuda;
 mod cylinder;
 mod ebcm;
 mod fields;
@@ -143,8 +141,6 @@ fn build_profile() -> &'static str {
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     illumination::register(m)?;
     iterative::register(m)?;
-    #[cfg(feature = "cuda")]
-    cuda::register(m)?;
     channels::register(m)?;
     smatrix::register(m)?;
     tmatrix::register(m)?;

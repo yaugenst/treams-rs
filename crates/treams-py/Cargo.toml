@@ -19,13 +19,9 @@ treams-core.workspace = true
 num-complex.workspace = true
 numpy.workspace = true
 pyo3.workspace = true
-treams-cuda = { path = "../treams-cuda", optional = true, features = ["cuda"] }
-treams-cuda-tile = { path = "../treams-cuda-tile", optional = true, features = ["cuda-tile"] }
 
 [features]
 extension-module = ["pyo3/extension-module"]
-cuda = ["dep:treams-cuda"]
-cuda-tile = ["cuda", "dep:treams-cuda-tile"]
 
 [lints]
 workspace = true

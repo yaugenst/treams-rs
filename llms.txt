@@ -5,7 +5,7 @@
 Read these Markdown files at the same Git revision. No public documentation service is required.
 With only an installed wheel, run `python -m treams_rs --format markdown` or
 `python -m treams_rs` (JSON) for signatures, docstrings and backend contracts from that installation.
-`treams_rs.support_catalog()` never imports optional frameworks or probes a GPU.
+`treams_rs.support_catalog()` never imports optional frameworks.
 
 ## Documentation
 
@@ -17,8 +17,6 @@ With only an installed wheel, run `python -m treams_rs --format markdown` or
 - [Requested illuminations and measured memory/performance tradeoffs](docs/large-problems.md)
 - [Matrix-free sphere solver and convergence](docs/iterative.md)
 - [Direct JavaScript/TypeScript WASM build and qualification](docs/wasm.md)
-- [Optional explicit CUDA execution and measured limitations](docs/gpu.md)
-- [Pure Rust cuTile plane-wave field kernel](docs/gpu-tile.md)
 - [Verified coverage and remaining limits](docs/status.md)
 - [Published-problem qualification and discrepancies](docs/paper-qualification.md)
 - [Documented reference defects and numerical conventions](docs/upstream-findings.md)

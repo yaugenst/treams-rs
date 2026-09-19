@@ -136,7 +136,6 @@ _OPTIONAL_MODULES = {
     "jax": "jax",
     "torch": "torch",
     "io": "h5py",
-    "cuda": None,
 }
 
 

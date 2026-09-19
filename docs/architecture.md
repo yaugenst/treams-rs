@@ -33,12 +33,7 @@ matrix and its gradient. Dense and iterative paths share Mie coefficients,
 translation plans and the native real-pairing convention.
 
 `treams-wasm` uses the same core with serial dense algebra and selected JavaScript
-exports. `treams-cuda` and `treams-cuda-tile` are optional crates: CPU/WASM builds
-contain neither GPU dependency. cuBLAS/cuSOLVER supply complex128 dense algebra;
-cuTile supplies the fused plane-wave field kernel. Fixed sampling operators reuse
-the resident Hermitian product for coefficient pullbacks. Operator assembly, wave
-polarization and equilibration remain shared core mathematics. GPU memory
-ownership and transfers are explicit, and no backend silently lowers precision.
+exports.
 
 Reference: tfp-photonics/treams commit
 `1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39` (2026-08-24).

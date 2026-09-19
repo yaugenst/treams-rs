@@ -1,6 +1,5 @@
 """Benchmark metadata stays portable without changing measured-build fingerprints."""
 
-import hashlib
 import json
 import os
 import runpy
@@ -64,16 +63,6 @@ def test_library_metadata(script, args, key, monkeypatch, capsys, tmp_path):
     runpy.run_path(str(path), run_name="__main__")
     result = json.loads(capsys.readouterr().out)
     assert result[key] == [{**pool, "filepath": "libblas.so"}]
-
-
-def test_gpu_raw_artifact_checksums():
-    evidence = json.loads(
-        (ROOT / "benchmarks/gpu-fields-qualification.json").read_text()
-    )
-    for filename, expected in evidence["raw_sha256"].items():
-        assert hashlib.sha256((ROOT / filename).read_bytes()).hexdigest() == expected, (
-            filename
-        )
 
 
 def test_illumination_upstream_workers_are_isolated(monkeypatch, capsys, tmp_path):

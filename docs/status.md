@@ -90,11 +90,8 @@ environment, checks native execution and complete Advect objectives without
 SciPy/treams, then checks optional HDF5 separately.
 
 Recorded CPU qualification passed 84 Rust tests and 2,072 Python tests on Linux
-and macOS, including JAX and PyTorch. The integrated CUDA build passed 2,080
-Python tests on Linux, including all ten hardware cases, with two CPU-only checks
-skipped. Clean-wheel execution, optional HDF5, strict types, lint, locks, and
-rustdoc also passed. CI checks Python 3.12/3.13 on Linux and compiles CUDA support
-without a toolkit; a separate job compiles and numerically executes the WASM
+and macOS, including JAX and PyTorch. Clean-wheel execution, optional HDF5, strict types, lint, locks, and
+rustdoc also passed. CI checks Python 3.12/3.13 on Linux; a separate job compiles and numerically executes the WASM
 module and browser experiments.
 
 The historical [Linux performance manifest](../benchmarks/complete-qualification.json)
@@ -102,7 +99,7 @@ records 527 passing runtime gates and 525 passing peak-RSS gates, tied to the
 tested native binary, Python-source and benchmark hashes (minimum speedup
 1.02x, maximum gated RSS ratio 0.912). The macOS dispatch grid passes all
 30 runtime/RSS cases on its recorded build (minimum speedup 1.30x, maximum RSS
-ratio 0.695). The requested-illumination, matrix-free, GPU and paper reports
+ratio 0.695). The requested-illumination, matrix-free and paper reports
 include their own executable/source hashes.
 
 The [broader Mac and Linux comparison](benchmark-comparison.md) repeats the full
@@ -119,7 +116,7 @@ adapter diagnostics. Sphere/cylinder constructors explicitly label native
 helicity data before conversion to the requested polarization basis;
 cross-default Hypothesis regressions cover `config.POLTYPE` independence.
 The associated Python change left native binaries unchanged. Earlier full grids
-and GPU/WASM/paper reports retain their measured Python hashes and were not
+and WASM/paper reports retain their measured Python hashes and were not
 rerun or relabelled for that change. The two affected public cluster paths were
 requalified on macOS: spherical 7.20× and cylindrical 1.56× faster than upstream,
 both with lower peak RSS. Each report describes its tested build; these records
@@ -180,9 +177,9 @@ cancellation. Both implementations reach a double-precision roundoff floor; the
 strict comparison gate is retained and no degree-6 speed claim is made. See the
 independent high-precision reproducer in the benchmark documentation.
 
-## Browser and GPU qualification
+## Browser qualification
 
-The [WASM guide](wasm.md), [CUDA guide](gpu.md), and
+The [WASM guide](wasm.md) and
 [published-application reproductions](paper-qualification.md) link separate
 qualification reports. WASM exports cover spheres, finite clusters, direct
 plane-wave illumination, exterior scattered electric fields, and the analytic
@@ -198,14 +195,6 @@ scores; their conventions and browser checks are documented with the experiments
 The paper-and-ink browser presentation retains the qualified WASM binary. Its
 wave palettes, particle motion, and both advanced showcases pass the browser
 interaction checks at phone and desktop sizes; native iOS Safari remains unqualified.
-
-CUDA qualification uses an RTX 4080 SUPER with complex128. Dense solves have
-native pullbacks. Fixed sampling operators reuse the resident Hermitian product
-for coefficient-only pullbacks without a second operator copy. The fused field
-kernel is forward-only; GPU geometry/wavevector pullbacks and automatic framework
-GPU routing are unsupported. Nine native GPU tests and ten Python GPU tests were
-qualified on hardware, with errors, timing scope, and binary/source hashes in the
-GPU reports.
 
 Python versions outside 3.12/3.13 and broader wheel-platform distribution remain
 unqualified. A passing finite test set does not establish correctness or

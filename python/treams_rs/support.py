@@ -1,8 +1,8 @@
 """Offline API discovery from the installed source, without importing optional backends.
 
 Signatures and pullback contracts come from Python source and native type stubs.
-Backend availability reports compiled symbols and installed distributions; it
-never initializes CUDA, imports an autodiff framework, or claims a working GPU.
+The catalog reports CPU execution and installed optional distributions without
+importing an autodiff framework.
 """
 
 from __future__ import annotations
@@ -256,9 +256,7 @@ def support_catalog() -> dict[str, Any]:
     Static parameters and derivative ordering are stated in each source docstring
     and signature. Use ``diff`` or a framework adapter to request derivatives.
 
-    ``backends`` distinguishes build support from runtime availability. CUDA
-    runtime availability is deliberately unprobed; construct ``cuda.Device`` to
-    test the driver, libraries and device. Optional dependency versions only
+    ``backends`` describes execution support. Optional dependency versions only
     establish installation, not compatible devices or a configured framework.
 
     No optional framework is imported, and this function also works from a wheel
@@ -338,27 +336,13 @@ def support_catalog() -> dict[str, Any]:
             "derivative_order": 1,
             "static_parameters": "mode counts, integer labels, topology; see each operation's docstring",
             "context_lifetime": "Treat native recorded contexts as single-use; record again for another pullback.",
-            "python_execution": "CPU unless explicitly constructing treams_rs.cuda objects",
+            "python_execution": "CPU",
         },
         "backends": {
             "cpu": {
                 "compiled": True,
                 "runtime": "loaded",
                 "precision": ["float64", "complex128"],
-            },
-            "cuda": {
-                "compiled": hasattr(_native, "CudaDevice"),
-                "runtime": "unprobed",
-                "precision": ["complex128"],
-                "scope": "explicit device matrices, products, reusable LU and solve pullbacks",
-                "enable": "maturin develop --release --features cuda; then cuda.Device()",
-            },
-            "cuda_tile": {
-                "compiled": hasattr(_native, "CudaPlaneWaves"),
-                "runtime": "unprobed",
-                "precision": ["complex128"],
-                "scope": "weighted plane-wave electric fields at real points; no pullback",
-                "enable": "Linux CUDA 13.3 toolkit; maturin develop --release --features cuda-tile",
             },
             "wasm": {
                 "distribution": "separate JavaScript/TypeScript build, not a Python backend",
@@ -446,8 +430,8 @@ def _markdown(catalog: dict[str, Any]) -> str:
     lines.extend(
         [
             "Installed dependency versions and compiled flags vary by wheel; inspect",
-            "`support_catalog()` or JSON CLI output for this installation. Runtime GPU",
-            "availability is unprobed. An installed framework does not establish device support.",
+            "`support_catalog()` or JSON CLI output for this installation.",
+            "An installed framework does not establish device support.",
             "",
         ]
     )

@@ -635,7 +635,7 @@ assert "support_catalog" in pydoc.render_doc(tr)
 catalog = tr.support_catalog()
 assert catalog["optional_dependencies"]["jax"] is None
 assert catalog["optional_dependencies"]["torch"] is None
-assert not catalog["backends"]["cuda"]["compiled"]
+assert catalog["backends"]["cpu"]["compiled"]
 assert any(row["path"] == "treams_rs.jax.wrap" for row in catalog["api"])
 check_pullback(tr.diff.solve, np.eye(2, dtype=complex), np.ones((2, 1), dtype=complex))
 try:

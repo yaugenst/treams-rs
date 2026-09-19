@@ -6,8 +6,6 @@ gradient measurements. Its report retains slower cases and resource limits.
 The qualification summaries below describe their original recorded builds and
 must not be read as a guarantee for another platform or revision.
 
-For optional GPU measurements and their precision/setup limits, see
-[GPU opportunities](gpu-opportunities.md) and [cached GPU sampling](gpu-sampling.md).
 [WASM qualification](wasm.md) covers the browser exports separately.
 
 ## Historical reference qualification

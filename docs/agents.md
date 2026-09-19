@@ -12,9 +12,8 @@ python -m treams_rs > support.json
 ```
 
 The JSON includes signatures, docstrings, returned pullback methods, installed
-optional dependency versions and compiled CUDA flags. It reads the installed
-Python source and native stubs; it does not import JAX, PyTorch or Advect, probe
-the GPU, or infer runtime usability from an installed dependency. The generated
+optional dependency versions. It reads the installed
+Python source and native stubs; it does not import JAX, PyTorch or Advect, or infer runtime usability from an installed dependency. The generated
 [API reference](api.md) contains the same signatures and contracts. `help()` and
 `inspect.signature()` work directly on Python wrappers. Native NumPy ufuncs expose
 their positional/broadcasting contract in `help()` rather than `inspect.signature()`.
@@ -44,7 +43,6 @@ Choose the path around the output you need:
 | Native derivatives | `diff` and returned `.pullback` methods | First order; static mode counts/labels/topology; real Hermitian pairing |
 | Composed objective derivatives | `advect`, `jax`, `torch` submodules | Optional CPU frameworks; read [adapter contracts](adapters.md) before wrapping |
 | Browser execution | `crates/treams-wasm` JavaScript/TypeScript | Direct WASM; no Python or server; serial exported subset |
-| Explicit NVIDIA execution | `cuda.Device`, `cuda.PlaneWaves` | Opt-in compilation and explicit transfers; dense solve and fixed-operator coefficient pullbacks; fused fields are forward-only |
 
 A complete sphere calculation requires only NumPy and the installed extension:
 
@@ -67,12 +65,6 @@ Gradient order is operation-specific: inspect the recording docstring and the
 returned context signature. [Testing helpers](testing.md) check a native boundary
 or composed scalar objective without requiring an autodiff framework.
 
-Ordinary Python calls run on the CPU. `compiled: true` for CUDA establishes build
-support, not the presence of a compatible driver, CUDA libraries or free device
-memory; construct `cuda.Device()` explicitly. Dense GPU results are mixed, and CPU
-factor reuse wins the measured triangular solves. Read the [measured
-GPU results](gpu.md), including warmup/transfers, before choosing a backend.
-
 The [WASM qualification](wasm.md) exercises Node and Chrome against the same Rust
 core. It exposes sphere and interacting/independent finite-cluster scattering,
 repeated illumination, direct incident plane waves and exterior scattered electric
@@ -84,7 +76,7 @@ constructor. Use `direct_plane_field` plus the scattered field for a cluster's
 total field. Separate forward-only helpers expose bounded square-array
 diffraction and lossless normal-incidence crystal spectra/internal Ex fields.
 General periodic-system objects, particle-interior fields, and generic pullbacks
-are not JS exports; CUDA support is separate from browser execution.
+are not JS exports.
 
 For numerical trust, consult [status](status.md), [paper qualification](paper-qualification.md)
 and [upstream findings](upstream-findings.md). Recorded performance proofs retain

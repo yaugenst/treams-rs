@@ -11,7 +11,7 @@ Read [development](../docs/development.md) for setup and test routing and
 - Preserve ordinary NumPy arrays, broadcasting and supported strides. Validate
   at the owning boundary; use the shared binding conversion rather than adding
   a Python copy workaround for a native conversion defect.
-- Optional Advect/JAX/PyTorch, HDF5 and CUDA imports must remain optional.
+- Optional Advect/JAX/PyTorch and HDF5 imports must remain optional.
   Reuse `_adapters.py` for framework composition; retain the documented CPU,
   first-order and one-use native context contracts.
 - Update capability metadata at its source and regenerate documentation for API

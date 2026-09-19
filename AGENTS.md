@@ -35,7 +35,7 @@ framework adapters. Autodiff frameworks compose the native forward/pullback.
 ## Verification
 
 - Use `uv`, `maturin`, and `just`. Run focused checks while iterating;
-  `just verify` is the authoritative CPU gate. Applicable WASM, CUDA, wheel and
+  `just verify` is the authoritative CPU gate. Applicable WASM, wheel and
   performance lanes are listed in [the development guide](docs/development.md).
 - Rust: rustfmt and Clippy with warnings denied. Python: Ruff and strict Pyrefly.
 - Build the optimized extension before reporting performance.
