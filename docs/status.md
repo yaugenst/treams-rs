@@ -11,6 +11,16 @@ numerical, configuration and I/O modules. Export presence is only a coverage
 check: the tests also compare complete workflows and independent physical laws.
 Known reference defects are documented in [upstream findings](upstream-findings.md).
 
+## Current branch scope
+
+`main` contains the CPU Rust core, Python API and first-order framework adapters.
+The browser/WASM playground is preserved on `experimental/browser`;
+CUDA support is preserved on `experimental/gpu`. Neither experiment
+is part of the core build, public API catalog, or CI. Historical benchmark records
+retain their original build identities; they do not qualify this branch revision.
+The corrected CPU benchmark campaign remains paused; see
+[the resume checklist](../benchmarks/RESUME.md).
+
 ## Numerical and workflow coverage
 
 | Area | Implemented behavior and derivative boundary |
@@ -83,6 +93,13 @@ smooth derivative.
 
 ## Verification and performance
 
+The September 19 core extraction passed `just verify` on Linux: 93 Rust tests
+and 2,197 Python tests, with 14 plotting tests skipped in the base environment.
+All 40 report tests passed separately with Matplotlib. The clean-wheel check
+(including optional HDF5) and warnings-as-errors rustdoc also passed. The
+benchmark campaign, macOS rerun, and experimental browser/GPU hardware lanes
+were not rerun for this extraction.
+
 `just ci` runs Rust proptest/unit tests, Python reference/Hypothesis/workflow and
 adjoint tests, rustfmt, warnings-as-errors Clippy/rustdoc, Ruff, strict Pyrefly,
 lockfile validation and file hygiene. `just check-wheel` creates an isolated
@@ -90,8 +107,8 @@ environment, checks native execution and complete Advect objectives without
 SciPy/treams, then checks optional HDF5 separately.
 
 Recorded CPU qualification passed 84 Rust tests and 2,072 Python tests on Linux
-and macOS, including JAX and PyTorch. Clean-wheel execution, optional HDF5, strict types, lint, locks, and
-rustdoc also passed. CI checks Python 3.12/3.13 on Linux.
+and macOS, including JAX and PyTorch. Clean-wheel execution, optional HDF5,
+strict types, lint, locks, and rustdoc also passed. CI checks Python 3.12/3.13 on Linux.
 
 The historical [Linux performance manifest](../benchmarks/complete-qualification.json)
 records 527 passing runtime gates and 525 passing peak-RSS gates, tied to the
@@ -151,13 +168,11 @@ reference's zero extension at |order| > degree; it does not evaluate the general
 Ferrers function in that extended domain. Fractional complex arguments and
 fractional pi/tau are not implemented.
 
-The new independent high-precision campaign exposes a large-metallic-sphere
-failure within the accepted input contract: at size parameter 80,
-`epsilon=-8+0.4j`, `mu=1` in vacuum, orders 1, 3, 80 and 99 return zero native Mie
-blocks instead of the nonzero reference. This regime is not qualified. The
-unscaled transfer-matrix inverse is a likely cause based on source inspection;
-its intermediate overflow and the affected gradients have not been instrumented.
-See the [comparison report](benchmark-comparison.md) for exact inputs and errors.
+The original independent high-precision campaign exposed zero Mie blocks for a
+large metallic sphere at size parameter 80, `epsilon=-8+0.4j`, `mu=1` in vacuum.
+The current source includes the scaled-inverse correction and its targeted
+regression checks. The full corrected accuracy/performance campaign has not run;
+its original failures remain archived in the [comparison report](benchmark-comparison.md).
 
 Dense outputs and LU storage remain quadratic in channel dimension, with cubic
 factorization work. Requested-illumination factors avoid the full interacting

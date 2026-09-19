@@ -9,6 +9,10 @@ particles; finite clusters and periodic arrays; planar stacks; fields and power
 observables. Python constructors and numerical conventions follow treams 0.4.5,
 with an explicit-object API described in the [capability reference](docs/status.md).
 
+`main` is the authoritative CPU core and Python implementation. Experimental
+browser work lives on `experimental/browser`; CUDA work lives on
+`experimental/gpu`. Each branch contains only its own experiment.
+
 ## Getting started
 
 From a source checkout, install the tools listed in the
