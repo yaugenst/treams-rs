@@ -140,7 +140,6 @@ fn scale_rows(mut matrix: MatMut<'_, Complex>, scales: &[f64]) {
 // Recursive LU and triangular solves schedule many narrow panels. On large
 // Rayon pools their task overhead dominates long before all workers are useful.
 // Keep the established <=4-worker profile; scale larger pools by panel width.
-#[cfg(not(target_arch = "wasm32"))]
 fn lu_threads(rows: usize, columns: usize, budget: usize) -> usize {
     if budget <= 4 {
         return budget;
@@ -155,22 +154,14 @@ fn lu_threads(rows: usize, columns: usize, budget: usize) -> usize {
 }
 
 fn lu_parallelism(rows: usize, columns: usize) -> faer::Par {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let configured = faer::get_global_parallelism();
-        if configured.degree() == 1 {
-            return faer::Par::Seq;
-        }
-        let budget = configured.degree().min(rayon::current_num_threads());
-        match lu_threads(rows, columns, budget) {
-            1 => faer::Par::Seq,
-            threads => faer::Par::rayon(threads),
-        }
+    let configured = faer::get_global_parallelism();
+    if configured.degree() == 1 {
+        return faer::Par::Seq;
     }
-    #[cfg(target_arch = "wasm32")]
-    {
-        let _ = (rows, columns);
-        faer::Par::Seq
+    let budget = configured.degree().min(rayon::current_num_threads());
+    match lu_threads(rows, columns, budget) {
+        1 => faer::Par::Seq,
+        threads => faer::Par::rayon(threads),
     }
 }
 
@@ -525,7 +516,6 @@ mod conditioning_tests {
     use super::*;
     use proptest::prelude::*;
 
-    #[cfg(not(target_arch = "wasm32"))]
     proptest! {
         #[test]
         fn lu_scheduling_respects_worker_and_rhs_budgets(

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/treams-core", "crates/treams-py", "crates/treams-wasm"]
+members = ["crates/treams-core", "crates/treams-py"]
 default-members = ["crates/treams-core"]
 resolver = "3"
 

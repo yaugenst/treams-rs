@@ -71,7 +71,6 @@ forward mode and higher derivatives are outside the contract. Use the
 | --- | --- |
 | Reuse a factorization for a few incident waves | [Requested illuminations and larger clusters](docs/large-problems.md) |
 | Avoid dense storage for a sphere cluster | [Matrix-free forward and adjoint solves](docs/iterative.md) |
-| Run without Python in a browser | [WebAssembly](docs/wasm.md) and the [Light Lab experiments](web/README.md) |
 | Exchange T matrices through HDF5 | `treams-rs[io]` and [I/O API](docs/api.md#treams_rsio) |
 | Discover the installed API programmatically | [Agent guide](docs/agents.md) and [llms.txt](llms.txt) |
 

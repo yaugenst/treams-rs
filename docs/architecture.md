@@ -32,8 +32,5 @@ It contracts geometry/material cotangents per pair, avoiding a global coupling
 matrix and its gradient. Dense and iterative paths share Mie coefficients,
 translation plans and the native real-pairing convention.
 
-`treams-wasm` uses the same core with serial dense algebra and selected JavaScript
-exports.
-
 Reference: tfp-photonics/treams commit
 `1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39` (2026-08-24).

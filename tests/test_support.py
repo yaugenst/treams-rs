@@ -66,7 +66,8 @@ def test_catalog_resolves_and_documents_native_records():
         row for row in catalog["returned_python_types"] if row["path"] == "_Interaction"
     )
     assert "_Interaction.illuminate" in {row["path"] for row in interaction["members"]}
-    assert "not a Python backend" in catalog["backends"]["wasm"]["distribution"]
+    assert set(catalog["backends"]) == {"cpu"}
+    assert not any(row["path"].startswith("treams_rs.cuda") for row in catalog["api"])
 
 
 def test_offline_discovery_does_not_load_optional_frameworks():

@@ -404,7 +404,7 @@
     ],
     "new_boundary_estimate_basis": "Thirty-two cases at approximately 2-6 seconds each, based on neighboring original internal-field case elapsed times; unmeasured until the rerun.",
     "mac": "Baseline requested-illumination cohort is still in progress. Completed groups plus the finished portion already exceed three hours; budget more than four hours for the complete rerun, and revise only after the full baseline completes.",
-    "excluded_from_estimate": "Builds, static checks, Rust tests, WASM checks and any investigation after new failures."
+    "excluded_from_estimate": "Builds, static checks, Rust tests, and any investigation after new failures."
   },
   "unaffected_coverage": {
     "omitted_cpu_families": [],
@@ -425,14 +425,6 @@
         "smatrix::illumination_tests::thin_large_solve_skips_lu_and_keeps_dense_fallback"
       ],
       "scope": "Weak-reflection iterative solve, strong cyclic-reflection direct fallback, difficult reverse solve fallback and singular-system rejection. These are functional checks, not added benchmark inputs."
-    },
-    {
-      "name": "WASM shared-core validation",
-      "command": [
-        "just",
-        "wasm-check"
-      ],
-      "scope": "WASM-target Clippy and browser-compatible numerical smoke checks through the existing Node script."
     }
   ],
   "cases": [
