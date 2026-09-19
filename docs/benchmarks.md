@@ -8,7 +8,6 @@ must not be read as a guarantee for another platform or revision.
 
 For optional GPU measurements and their precision/setup limits, see
 [GPU opportunities](gpu-opportunities.md) and [cached GPU sampling](gpu-sampling.md).
-[WASM qualification](wasm.md) covers the browser exports separately.
 
 ## Historical reference qualification
 
@@ -1002,7 +1001,7 @@ The measured build passed the Linux suite and isolated wheel checks
 `Lu` selects faer parallelism from the matrix size and number of requested
 right-hand sides. It uses the existing Rayon pool and never exceeds either that
 pool or faer's configured worker budget. Configurations of four or fewer workers
-retain their previous scheduling. WASM stays serial.
+retain their previous scheduling.
 
 Scheduling fine-grained work in faer's recursive LU and triangular solves across
 too many workers caused the measured slowdown. This path has no BLAS thread

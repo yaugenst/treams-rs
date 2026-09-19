@@ -21,7 +21,6 @@ def generated_files() -> dict[Path, str]:
         "docs/adapters.md": "Advect, JAX and PyTorch execution contracts",
         "docs/large-problems.md": "Requested illuminations and measured memory/performance tradeoffs",
         "docs/iterative.md": "Matrix-free sphere solver and convergence",
-        "docs/wasm.md": "Direct JavaScript/TypeScript WASM build and qualification",
         "docs/gpu.md": "Optional explicit CUDA execution and measured limitations",
         "docs/gpu-tile.md": "Pure Rust cuTile plane-wave field kernel",
         "docs/status.md": "Verified coverage and remaining limits",
@@ -34,7 +33,7 @@ def generated_files() -> dict[Path, str]:
     index = [
         "# treams-rs",
         "",
-        f"> Private T-matrix scattering package, version {catalog['version']}. Rust numerics and analytic first-order pullbacks; typed Python and direct WASM interfaces.",
+        f"> Private T-matrix scattering package, version {catalog['version']}. Rust numerics and analytic first-order pullbacks; typed Python interface.",
         "",
         "Read these Markdown files at the same Git revision. No public documentation service is required.",
         "With only an installed wheel, run `python -m treams_rs --format markdown` or",

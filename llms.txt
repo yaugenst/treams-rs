@@ -1,6 +1,6 @@
 # treams-rs
 
-> Private T-matrix scattering package, version 0.1.0. Rust numerics and analytic first-order pullbacks; typed Python and direct WASM interfaces.
+> Private T-matrix scattering package, version 0.1.0. Rust numerics and analytic first-order pullbacks; typed Python interface.
 
 Read these Markdown files at the same Git revision. No public documentation service is required.
 With only an installed wheel, run `python -m treams_rs --format markdown` or
@@ -16,7 +16,6 @@ With only an installed wheel, run `python -m treams_rs --format markdown` or
 - [Advect, JAX and PyTorch execution contracts](docs/adapters.md)
 - [Requested illuminations and measured memory/performance tradeoffs](docs/large-problems.md)
 - [Matrix-free sphere solver and convergence](docs/iterative.md)
-- [Direct JavaScript/TypeScript WASM build and qualification](docs/wasm.md)
 - [Optional explicit CUDA execution and measured limitations](docs/gpu.md)
 - [Pure Rust cuTile plane-wave field kernel](docs/gpu-tile.md)
 - [Verified coverage and remaining limits](docs/status.md)

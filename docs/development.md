@@ -28,7 +28,6 @@ Read the nearest scoped instructions before editing
 | Framework bridges | `python/treams_rs/advect.py`, `_adapters.py`, `jax.py`, `torch.py` | `uv run --no-sync pytest tests/test_advect.py tests/test_jax.py tests/test_torch.py` |
 | Requested illuminations and iterative solves | `crates/treams-core/src/illumination.rs`, `iterative.rs`; matching bindings and `python/treams_rs/iterative.py` | `uv run --no-sync pytest tests/test_illumination.py tests/test_iterative_native.py` |
 | Optional HDF5 interchange | `python/treams_rs/io.py` | `uv run --no-sync pytest tests/test_io.py` |
-| Browser exports | `crates/treams-wasm/`; `scripts/check_wasm.mjs` | `just wasm-check` |
 | CUDA execution | `crates/treams-cuda/`, `crates/treams-cuda-tile/`; native/Python `cuda` modules | `just rust-cuda-check`; `just gpu-check` on supported hardware |
 
 Rebuild the extension after changing Rust or bindings. For a particular kernel,
@@ -38,9 +37,8 @@ tests cover broadcasting, noncontiguous arrays and the public workflow. See
 [public testing helpers](testing.md) for checking a composed objective or custom
 recording function. Finite differences belong in qualification, never execution.
 
-The `just` recipes and `scripts/check_wasm.mjs` remap local checkout, home, and
-configured Cargo/Rustup paths in compiled binaries to neutral build paths. The
-WASM qualification also checks the resulting binary for those original prefixes.
+The `just` recipes remap local checkout, home, and configured Cargo/Rustup paths
+in compiled binaries to neutral build paths.
 Direct `cargo` or `maturin` invocations do not inherit this guarantee; use the
 documented build entry points when preparing distributable artifacts. Wheel
 qualification scans the complete archive for local paths. Maturin's generated
@@ -82,15 +80,6 @@ and assertions that check the claimed result. Run
 Run `just check-wheel` for packaging or public import changes. It installs an
 optimized wheel into a clean environment and checks core/Advect behavior plus
 optional HDF5 interchange.
-
-`just wasm-check` requires the WASM target, matching wasm-bindgen CLI and Node;
-the [WASM guide](wasm.md) gives setup and a real-browser check. The shared Rust
-core compiles for WASM. Its serial JavaScript API includes an analytic
-radius/position gradient of intensity at a fixed target, bounded square-array
-diffraction, and exact normal-incidence lossless crystal spectra/fields. Generic
-pullback and periodic-object APIs remain outside that export boundary. Inspect
-actual browser rendering when changing an
-interactive example; a Node numerical check is not visual verification.
 
 `just rust-cuda-check` compiles the dynamically loaded dense backend without a
 toolkit. Executing `just gpu-check` requires the NVIDIA driver and CUDA 13.3

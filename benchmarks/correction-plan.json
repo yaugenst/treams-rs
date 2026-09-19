@@ -452,7 +452,7 @@
     ],
     "new_boundary_estimate_basis": "Thirty-two cases at approximately 2-6 seconds each, based on neighboring original internal-field case elapsed times; unmeasured until the rerun.",
     "mac": "Baseline requested-illumination cohort is still in progress. Completed groups plus the finished portion already exceed three hours; budget more than four hours for the complete rerun, and revise only after the full baseline completes.",
-    "excluded_from_estimate": "Builds, static checks, Rust tests, CUDA device tests, WASM checks and any investigation after new failures."
+    "excluded_from_estimate": "Builds, static checks, Rust tests, CUDA device tests, and any investigation after new failures."
   },
   "unaffected_coverage": {
     "omitted_cpu_families": [],
@@ -507,14 +507,6 @@
         ]
       ],
       "scope": "The nine existing real-device Rust checks, using the configured CUDA environment. Do not rebuild or replace an extension during an active CPU cohort."
-    },
-    {
-      "name": "WASM shared-core validation",
-      "command": [
-        "just",
-        "wasm-check"
-      ],
-      "scope": "WASM-target Clippy and browser-compatible numerical smoke checks through the existing Node script."
     }
   ],
   "cases": [

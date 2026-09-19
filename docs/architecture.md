@@ -32,8 +32,7 @@ It contracts geometry/material cotangents per pair, avoiding a global coupling
 matrix and its gradient. Dense and iterative paths share Mie coefficients,
 translation plans and the native real-pairing convention.
 
-`treams-wasm` uses the same core with serial dense algebra and selected JavaScript
-exports. `treams-cuda` and `treams-cuda-tile` are optional crates: CPU/WASM builds
+`treams-cuda` and `treams-cuda-tile` are optional crates: CPU builds
 contain neither GPU dependency. cuBLAS/cuSOLVER supply complex128 dense algebra;
 cuTile supplies the fused plane-wave field kernel. Fixed sampling operators reuse
 the resident Hermitian product for coefficient pullbacks. Operator assembly, wave

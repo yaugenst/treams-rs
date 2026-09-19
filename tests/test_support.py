@@ -71,7 +71,7 @@ def test_catalog_resolves_and_documents_native_records():
     assert "imported" not in catalog["backends"]["cuda"]["runtime"]
     assert catalog["backends"]["cuda"]["compiled"] == cuda.compiled()
     assert "no pullback" in catalog["backends"]["cuda_tile"]["scope"]
-    assert "not a Python backend" in catalog["backends"]["wasm"]["distribution"]
+    assert "wasm" not in catalog["backends"]
 
 
 def test_offline_discovery_does_not_load_optional_frameworks():

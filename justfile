@@ -30,7 +30,7 @@ rust-cuda-check:
     PYO3_PYTHON="$PWD/.venv/bin/python" cargo clippy --locked -p treams-py --all-targets --features cuda -- -D warnings
 
 rust-test:
-    PYO3_PYTHON="$PWD/.venv/bin/python" cargo test -p treams-core -p treams-wasm
+    PYO3_PYTHON="$PWD/.venv/bin/python" cargo test -p treams-core
 
 py-format-check:
     uv run --no-sync ruff format --check .
@@ -65,11 +65,6 @@ verify: check test
 
 ci: verify
     RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
-
-# Requires wasm32-unknown-unknown, wasm-bindgen-cli 0.2.128 and Node >=22.
-wasm-check:
-    cargo clippy --locked -p treams-wasm --target wasm32-unknown-unknown -- -D warnings
-    node scripts/check_wasm.mjs
 
 # Opt-in hardware lane: requires an NVIDIA GPU and the CUDA 13.3 cuTile toolkit.
 gpu-check:
@@ -263,7 +258,3 @@ bench-power:
 
 # Run all performance suites sequentially on the same otherwise idle CPU set.
 bench-all: bench-performance bench-geometry bench-lattice bench-api bench-power
-
-# Build the static browser lab after qualifying the shared WASM bindings.
-web-check: wasm-check
-    cd web && npm ci && npm run format:check && npm test

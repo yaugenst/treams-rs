@@ -94,8 +94,7 @@ and macOS, including JAX and PyTorch. The integrated CUDA build passed 2,080
 Python tests on Linux, including all ten hardware cases, with two CPU-only checks
 skipped. Clean-wheel execution, optional HDF5, strict types, lint, locks, and
 rustdoc also passed. CI checks Python 3.12/3.13 on Linux and compiles CUDA support
-without a toolkit; a separate job compiles and numerically executes the WASM
-module and browser experiments.
+without a toolkit.
 
 The historical [Linux performance manifest](../benchmarks/complete-qualification.json)
 records 527 passing runtime gates and 525 passing peak-RSS gates, tied to the
@@ -119,7 +118,7 @@ adapter diagnostics. Sphere/cylinder constructors explicitly label native
 helicity data before conversion to the requested polarization basis;
 cross-default Hypothesis regressions cover `config.POLTYPE` independence.
 The associated Python change left native binaries unchanged. Earlier full grids
-and GPU/WASM/paper reports retain their measured Python hashes and were not
+and GPU/paper reports retain their measured Python hashes and were not
 rerun or relabelled for that change. The two affected public cluster paths were
 requalified on macOS: spherical 7.20× and cylindrical 1.56× faster than upstream,
 both with lower peak RSS. Each report describes its tested build; these records
@@ -180,24 +179,7 @@ cancellation. Both implementations reach a double-precision roundoff floor; the
 strict comparison gate is retained and no degree-6 speed claim is made. See the
 independent high-precision reproducer in the benchmark documentation.
 
-## Browser and GPU qualification
-
-The [WASM guide](wasm.md), [CUDA guide](gpu.md), and
-[published-application reproductions](paper-qualification.md) link separate
-qualification reports. WASM exports cover spheres, finite clusters, direct
-plane-wave illumination, exterior scattered electric fields, and the analytic
-radius/position gradient of total intensity at a fixed target. The
-[browser experiments](../web/README.md) use those exports for interactive fields,
-multipole spectra, coherent comparisons, and constrained adjoint ascent.
-Additional forward-only helpers expose infinite square arrays of passive achiral
-spheres (order at most 4; exact diffraction thresholds excluded), and lossless
-normal-incidence one-dimensional crystal spectra and internal Ex fields. These
-are bounded workflows, not general periodic-system or pullback APIs.
-Display interpolation and contrast controls do not alter scientific samples or
-scores; their conventions and browser checks are documented with the experiments.
-The paper-and-ink browser presentation retains the qualified WASM binary. Its
-wave palettes, particle motion, and both advanced showcases pass the browser
-interaction checks at phone and desktop sizes; native iOS Safari remains unqualified.
+## GPU qualification
 
 CUDA qualification uses an RTX 4080 SUPER with complex128. Dense solves have
 native pullbacks. Fixed sampling operators reuse the resident Hermitian product

@@ -360,13 +360,6 @@ def support_catalog() -> dict[str, Any]:
                 "scope": "weighted plane-wave electric fields at real points; no pullback",
                 "enable": "Linux CUDA 13.3 toolkit; maturin develop --release --features cuda-tile",
             },
-            "wasm": {
-                "distribution": "separate JavaScript/TypeScript build, not a Python backend",
-                "runtime": "not applicable to this Python installation",
-                "scope": "layered/chiral spheres, interacting or independent finite clusters, illumination, direct incident and exterior scattered electric fields, fixed-target total-intensity radius/position gradient; bounded square sphere arrays with diffraction powers; lossless normal-incidence 1D crystal spectra, Bloch bands and internal fields",
-                "limits": "serial; fixed-target geometry objective only, no generic pullbacks, arbitrary periodic systems or particle-interior fields; array diffraction thresholds excluded; no WebGPU; regular cluster expansion is not a total plane-wave field",
-                "enable": "just wasm-check; see docs/wasm.md",
-            },
         },
         "optional_dependencies": optional,
         "adapters": {

@@ -2273,15 +2273,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "treams-wasm"
-version = "0.1.0"
-dependencies = [
- "nalgebra",
- "treams-core",
- "wasm-bindgen",
-]
-
-[[package]]
 name = "typenum"
 version = "1.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

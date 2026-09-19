@@ -9,6 +9,11 @@ particles; finite clusters and periodic arrays; planar stacks; fields and power
 observables. Python constructors and numerical conventions follow treams 0.4.5,
 with an explicit-object API described in the [capability reference](docs/status.md).
 
+This branch preserves experimental CUDA support. `main` is the authoritative
+CPU core; the browser playground is isolated on
+`experimental/browser`. CUDA development and hardware qualification
+remain deferred.
+
 ## Getting started
 
 From a source checkout, install the tools listed in the
@@ -72,12 +77,11 @@ forward mode and higher derivatives are outside the contract. Use the
 | Reuse a factorization for a few incident waves | [Requested illuminations and larger clusters](docs/large-problems.md) |
 | Avoid dense storage for a sphere cluster | [Matrix-free forward and adjoint solves](docs/iterative.md) |
 | Run on an NVIDIA GPU | [Optional CUDA execution](docs/gpu.md), including [repeated sampling and coefficient pullbacks](docs/gpu-sampling.md) |
-| Run without Python in a browser | [WebAssembly](docs/wasm.md) and the [Light Lab experiments](web/README.md) |
 | Exchange T matrices through HDF5 | `treams-rs[io]` and [I/O API](docs/api.md#treams_rsio) |
 | Discover the installed API programmatically | [Agent guide](docs/agents.md) and [llms.txt](llms.txt) |
 
 CPU parallelism uses Rayon and faer. Set `RAYON_NUM_THREADS` before importing to
-choose the thread budget. CUDA is opt-in and absent from default CPU/WASM builds;
+choose the thread budget. CUDA is opt-in and absent from default CPU builds;
 backend selection and transfers are explicit.
 
 ## Numerical qualification
