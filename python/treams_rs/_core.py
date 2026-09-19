@@ -53,7 +53,7 @@ class Material:
         return iter(self())
 
     @classmethod
-    def from_n(
+    def from_refractive_index(
         cls, n: complex = 1, impedance: complex | None = None, kappa: complex = 0
     ) -> Material:
         """Construct epsilon=n/impedance and mu=n*impedance.
@@ -65,15 +65,15 @@ class Material:
         return cls(n / impedance, n * impedance, kappa)
 
     @classmethod
-    def from_nmp(
+    def from_helicity_indices(
         cls, ns: tuple[complex, complex] = (1, 1), impedance: complex | None = None
     ) -> Material:
         """Construct from negative/positive-helicity indices ``(n_minus, n_plus)``.
 
         Their mean gives n and half their difference gives kappa. Omitting
-        impedance uses the same nonmagnetic convention as ``from_n``.
+        impedance uses the same nonmagnetic convention as ``from_refractive_index``.
         """
-        return cls.from_n(sum(ns) / 2, impedance, (ns[1] - ns[0]) / 2)
+        return cls.from_refractive_index(sum(ns) / 2, impedance, (ns[1] - ns[0]) / 2)
 
     @property
     def n(self) -> complex:
@@ -898,7 +898,7 @@ class CylindricalWaveBasis(_WaveBasis[CylindricalMode]):
 
 
 def _poltype(value: str | None) -> bool:
-    value = config.POLTYPE if value is None else value
+    value = config._resolve_poltype(value)
     if value not in ("helicity", "parity"):
         raise ValueError("poltype must be helicity or parity")
     return value == "helicity"

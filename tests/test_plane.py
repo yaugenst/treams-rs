@@ -23,7 +23,7 @@ def test_plane_to_spherical_reference(kvec, pol, poltype):
         kvec, pol, k0=1.3, material=treams.Material(material), poltype=poltype
     )
     positions = [[0, 0, 0], [0.1, 0.2, 0.3]]
-    basis = tr.SphericalWaveBasis.default(4, 2, positions)
+    basis = tr.SphericalBasis.default(4, 2, positions)
     oracle_basis = treams.SphericalWaveBasis.default(4, 2, positions)
     reference = np.asarray(expected.expand(oracle_basis))
     if kvec[0] == kvec[1] == 0:
@@ -52,7 +52,7 @@ def test_plane_to_spherical_reference(kvec, pol, poltype):
 @example(theta=1e-320, phi=1.0, pol=1)
 def test_plane_field_reconstruction_and_maxwell(theta, phi, pol):
     wave = tr.plane_wave_angle(theta, phi, pol, k0=1.3)
-    basis = tr.SphericalWaveBasis.default(10)
+    basis = tr.SphericalBasis.default(10)
     points = np.array([[0, 0, 0], [0.2, -0.1, 0.3], [0, 0, 0.5]])
     actual, _ = tr.diff.field(wave.expand(basis), points, basis, [1.3, 1.3])
     vector = wave.kvecs[pol]
@@ -75,7 +75,7 @@ def test_plane_illumination_cross_sections(cylindrical):
         [1, 0, 0], [0, 1, 0], k0=1.2, material=1, poltype="helicity"
     )
     if cylindrical:
-        matrix = tr.TMatrixC.cylinder([0.0], 4, 1.2, 0.3, [3.0, 1.0])
+        matrix = tr.CylindricalTMatrix.cylinder([0.0], 4, 1.2, 0.3, [3.0, 1.0])
         reference = treams.TMatrixC.cylinder([0.0], 4, 1.2, 0.3, [3.0, 1.0])
         actual, expected = matrix.xw(wave), reference.xw(reference_wave)
     else:

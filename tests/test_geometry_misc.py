@@ -8,7 +8,8 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from numpy.testing import assert_allclose, assert_array_equal
 
-from treams_rs import Material, PlaneWaveBasisByComp, lattice, misc
+from treams_rs import Material, lattice, misc
+from treams_rs import PlaneWavePorts as PlaneWaveBasisByComp
 
 
 @pytest.mark.parametrize("dim", [2, 3])

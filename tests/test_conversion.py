@@ -27,9 +27,11 @@ pytestmark = pytest.mark.filterwarnings(
 )
 def test_conversion_reference(poltype, epsilon, kappa):
     material = tr.Material(epsilon, 1.2, kappa)
-    to = tr.SphericalWaveBasis.default(5)
-    source = tr.CylindricalWaveBasis.default([-0.4, 0, 0.3, 2.7], 4)
-    actual = tr.expand((to, source), k0=1.3, material=material, poltype=poltype)
+    to = tr.SphericalBasis.default(5)
+    source = tr.CylindricalBasis.default([-0.4, 0, 0.3, 2.7], 4)
+    actual = tr.operators.expand(
+        (to, source), k0=1.3, material=material, poltype=poltype
+    )
     expected = treams.expand(
         (
             treams.SphericalWaveBasis(to.modes),
@@ -51,8 +53,8 @@ def test_conversion_reference(poltype, epsilon, kappa):
 )
 @settings(max_examples=30, deadline=None)
 def test_displaced_conversion_reconstructs_field(m, kz, pol, offset, helicity):
-    to = tr.SphericalWaveBasis.default(10, positions=[offset])
-    source = tr.CylindricalWaveBasis([(kz, m, pol)], positions=[[-0.2, 0.1, 0.3]])
+    to = tr.SphericalBasis.default(10, positions=[offset])
+    source = tr.CylindricalBasis([(kz, m, pol)], positions=[[-0.2, 0.1, 0.3]])
     poltype = "helicity" if helicity else "parity"
     ks = np.array([1.3 + 0.1j, 1.5 + 0.2j]) if helicity else np.full(2, 1.3 + 0.1j)
     points = np.array(offset) + np.array(
@@ -67,8 +69,8 @@ def test_displaced_conversion_reconstructs_field(m, kz, pol, offset, helicity):
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 @pytest.mark.parametrize("coincident", [False, True])
 def test_conversion_pullback(poltype, coincident):
-    destination = tr.SphericalWaveBasis.default(3, 2)
-    source = tr.CylindricalWaveBasis.default([-0.3, 0.2], 2, 2)
+    destination = tr.SphericalBasis.default(3, 2)
+    source = tr.CylindricalBasis.default([-0.3, 0.2], 2, 2)
     rng = np.random.default_rng(52)
     origins = np.zeros((2, 3)) if coincident else rng.normal(size=(2, 3)) * 0.2
     source_origins = np.zeros((2, 3)) if coincident else rng.normal(size=(2, 3)) * 0.2
@@ -109,8 +111,8 @@ def test_conversion_pullback(poltype, coincident):
 
 
 def test_advect_conversion_field_composition():
-    source = tr.CylindricalWaveBasis.default([0.3], 2)
-    destination = tr.SphericalWaveBasis.default(4)
+    source = tr.CylindricalBasis.default([0.3], 2)
+    destination = tr.SphericalBasis.default(4)
     coefficients = np.arange(len(source)) * (0.1 + 0.03j)
     origins = np.array([[0.1, -0.2, 0.3]])
     points = np.array([[0.2, 0.1, 0.1], [-0.1, 0.3, 0.2]])
@@ -137,11 +139,11 @@ def test_advect_conversion_field_composition():
 )
 @pytest.mark.parametrize("cylindrical", [True, False])
 def test_public_expand_addition_theorem(modetype, cylindrical):
-    basis_type = tr.CylindricalWaveBasis if cylindrical else tr.SphericalWaveBasis
+    basis_type = tr.CylindricalBasis if cylindrical else tr.SphericalBasis
     basis = basis_type.default([0.2], 2) if cylindrical else basis_type.default(2)
     destination = type(basis)(basis.modes, [[0.3, 0.2, -0.1]])
     oracle = treams.CylindricalWaveBasis if cylindrical else treams.SphericalWaveBasis
-    actual = tr.expand((destination, basis), modetype, k0=1.3)
+    actual = tr.operators.expand((destination, basis), modetype, k0=1.3)
     expected = treams.expand(
         (
             oracle(destination.modes, destination.positions),

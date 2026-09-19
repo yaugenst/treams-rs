@@ -31,9 +31,9 @@ def _media():
 @pytest.mark.parametrize("deformation", [0, 0.23])
 @pytest.mark.filterwarnings("ignore:.*scipy.special.sph_harm.*:DeprecationWarning")
 def test_surface_integral_reference(singular, deformation):
-    basis = tr.SphericalWaveBasis.default(2)
-    out = tr.SphericalWaveBasis(basis.modes[::3])
-    source = tr.SphericalWaveBasis(basis.modes[1::2])
+    basis = tr.SphericalBasis.default(2)
+    out = tr.SphericalBasis(basis.modes[::3])
+    source = tr.SphericalBasis(basis.modes[1::2])
     ks, zs = _media()
 
     def r(theta):
@@ -61,7 +61,7 @@ def test_surface_integral_reference(singular, deformation):
 @settings(max_examples=30)
 @given(radius=st.floats(0.15, 0.45), epsilon=st.floats(2, 4))
 def test_ebcm_recovers_mie_and_lossless_power(radius, epsilon):
-    basis = tr.SphericalWaveBasis.default(2)
+    basis = tr.SphericalBasis.default(2)
     materials = [tr.Material((epsilon, 1.2, 0.08)), tr.Material(1)]
     ks = [m.ks(1.3) for m in materials]
     zs = [m.impedance for m in materials]
@@ -84,7 +84,7 @@ def test_ebcm_all_native_pullbacks(singular, legacy):
     radii = 0.3 * (1 + 0.2 * np.cos(theta) ** 2)
     slopes = -0.12 * np.cos(theta) * np.sin(theta)
     ks, zs = _media()
-    basis = tr.SphericalWaveBasis.default(2)
+    basis = tr.SphericalBasis.default(2)
     values = [radii, slopes, ks, zs]
 
     def forward(values):
@@ -132,7 +132,7 @@ def test_ebcm_all_native_pullbacks(singular, legacy):
 
 
 def test_complete_deformed_particle_advect():
-    basis = tr.SphericalWaveBasis.default(2)
+    basis = tr.SphericalBasis.default(2)
     theta, weights = _surface(48)
 
     def objective(radius, deformation, epsilon, kappa, k0):
@@ -181,7 +181,7 @@ def test_complete_deformed_particle_advect():
 @settings(max_examples=30)
 @given(radius=st.floats(0.2, 0.5), deformation=st.floats(-0.3, 0.3))
 def test_deformed_surface_zero_material_contrast(radius, deformation):
-    basis = tr.SphericalWaveBasis.default(2)
+    basis = tr.SphericalBasis.default(2)
     medium = tr.Material((1.3, 1.1, 0.04))
     args = dict(
         r=lambda t: radius * (1 + deformation * np.cos(t) ** 2),
@@ -206,7 +206,7 @@ def test_radial_area_factor_restores_lossless_convergence():
     )
     errors = []
     for degree in (2, 4, 6):
-        basis = tr.SphericalWaveBasis.default(degree)
+        basis = tr.SphericalBasis.default(degree)
         q = tr.ebcm.qmat(**args, out=basis)
         regular = tr.ebcm.qmat(**args, out=basis, singular=False)
         scattering = np.eye(len(basis)) - 2 * tr.diff.solve(q, regular)[0]

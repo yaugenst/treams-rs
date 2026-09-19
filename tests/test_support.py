@@ -46,7 +46,7 @@ def test_catalog_resolves_and_documents_native_records():
     assert "A_bar, B_bar" in solve["doc"]
     tmatrix = next(row for row in catalog["api"] if row["path"] == "treams_rs.TMatrix")
     assert {member["path"] for member in tmatrix["members"]} >= {
-        "treams_rs.TMatrix.cluster",
+        "treams_rs.TMatrix.scatter",
         "treams_rs.TMatrix.efield",
         "treams_rs.TMatrix.interaction",
         "treams_rs.TMatrix.sphere",
@@ -116,6 +116,23 @@ def test_documented_sphere_and_recorded_solve(radius, k0):
     matrix_bar, rhs_bar = context.pullback(weights)
     np.testing.assert_allclose(matrix.conj().T @ rhs_bar, weights, rtol=1e-14)
     np.testing.assert_allclose(matrix_bar, -rhs_bar @ solution.conj().T, rtol=1e-14)
+
+
+def test_framework_physics_contracts_are_discovered_without_importing_backends():
+    catalog = tr.support_catalog()
+    entries = {row["path"]: row for row in catalog["api"]}
+    for engine in ("advect", "jax", "torch"):
+        prefix = f"treams_rs.{engine}"
+        assert f"{prefix}.sphere_tmatrix" in entries
+        wave = entries[f"{prefix}.Wave"]
+        assert {
+            f"{prefix}.Wave.{name}"
+            for name in ("efield", "in_basis", "with_polarization")
+        } <= {member["path"] for member in wave["members"]}
+    assert "treams_rs.operators.efield" in entries
+    assert "treams_rs.efield" not in entries
+    assert "treams_rs.SMatrix" in entries
+    assert "treams_rs.SMatrices" not in entries
 
 
 def test_generated_reference_is_source_current():

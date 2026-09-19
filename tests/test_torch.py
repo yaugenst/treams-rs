@@ -8,7 +8,8 @@ from numpy.testing import assert_allclose
 
 torch = pytest.importorskip("torch")
 
-from treams_rs import SphericalWaveBasis, diff  # noqa: E402
+from treams_rs import SphericalBasis as SphericalWaveBasis  # noqa: E402
+from treams_rs import diff  # noqa: E402
 from treams_rs import torch as ad  # noqa: E402
 
 

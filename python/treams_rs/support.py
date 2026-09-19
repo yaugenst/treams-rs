@@ -69,8 +69,12 @@ def _entry(
         members: dict[str, dict[str, Any]] = {}
         for base in node.bases:
             base = base.value if isinstance(base, ast.Subscript) else base
-            if isinstance(base, ast.Name) and base.id in classes:
-                parent, parent_source = classes[base.id]
+            base_name = ast.unparse(base)
+            parent_class = classes.get(
+                f"{Path(source).stem}.{base_name}", classes.get(base_name)
+            )
+            if parent_class is not None:
+                parent, parent_source = parent_class
                 members.update(
                     {
                         member["path"]: member
@@ -172,10 +176,19 @@ def _module_entries(
     contexts: dict[str, ast.FunctionDef | ast.ClassDef],
     classes: dict[str, tuple[ast.ClassDef, str]],
 ) -> list[dict[str, Any]]:
+    exports = next(
+        (
+            ast.literal_eval(node.value)
+            for node in tree.body
+            if isinstance(node, ast.Assign)
+            and any(isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets)
+        ),
+        None,
+    )
     entries = [
         _entry(f"treams_rs.{stem}.{name}", node, f"{stem}.py", contexts, classes)
         for name, node in _definitions(tree).items()
-        if not name.startswith("_")
+        if not name.startswith("_") and (exports is None or name in exports)
     ]
     for node in tree.body:
         if not (
@@ -291,34 +304,74 @@ def support_catalog() -> dict[str, Any]:
         for name, node in _definitions(tree).items()
         if isinstance(node, ast.ClassDef)
     }
+    # Resolve inherited methods in the defining module, including framework
+    # facade subclasses such as jax.Wave(_physics.Wave).
+    for stem, tree in trees.items():
+        for name, node in _definitions(tree).items():
+            if isinstance(node, ast.ClassDef):
+                classes[f"{stem}.{name}"] = (node, f"{stem}.py")
+    for stem, tree in trees.items():
+        for node in tree.body:
+            if not isinstance(node, ast.ImportFrom):
+                continue
+            for alias in node.names:
+                local = alias.asname or alias.name
+                if node.module in trees:
+                    target = classes.get(f"{node.module}.{alias.name}")
+                    if target is not None:
+                        classes[f"{stem}.{local}"] = target
+                elif node.module is None and alias.name in trees:
+                    for name, definition in _definitions(trees[alias.name]).items():
+                        if isinstance(definition, ast.ClassDef):
+                            classes[f"{stem}.{local}.{name}"] = (
+                                definition,
+                                f"{alias.name}.py",
+                            )
     entries = [
         entry
         for stem, tree in sorted(trees.items())
         if not stem.startswith("_")
         for entry in _module_entries(stem, tree, contexts, classes)
     ]
-    root = trees["__init__"]
-    exports = next(
-        ast.literal_eval(node.value)
-        for node in root.body
-        if isinstance(node, ast.Assign)
-        and any(isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets)
-    )
-    for node in root.body:
-        if isinstance(node, ast.ImportFrom) and node.module in trees:
-            definitions = _definitions(trees[node.module])
-            for alias in node.names:
-                name = alias.asname or alias.name
-                if name in exports and alias.name in definitions:
-                    entries.append(
-                        _entry(
-                            f"treams_rs.{name}",
-                            definitions[alias.name],
-                            f"{node.module}.py",
-                            contexts,
-                            classes,
-                        )
-                    )
+
+    # Explicit re-exports have the same source contract, including optional
+    # framework classes. Resolve source only: discovery must not import them.
+    def resolve(
+        stem: str, name: str
+    ) -> tuple[ast.FunctionDef | ast.ClassDef, str] | None:
+        definition = _definitions(trees[stem]).get(name)
+        if definition is not None:
+            return definition, stem
+        for node in trees[stem].body:
+            if isinstance(node, ast.ImportFrom) and node.module in trees:
+                for alias in node.names:
+                    if (alias.asname or alias.name) == name:
+                        return resolve(node.module, alias.name)
+        return None
+
+    paths = {entry["path"] for entry in entries}
+    for stem, tree in trees.items():
+        if stem.startswith("_") and stem != "__init__":
+            continue
+        exports = next(
+            (
+                ast.literal_eval(node.value)
+                for node in tree.body
+                if isinstance(node, ast.Assign)
+                and any(
+                    isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets
+                )
+            ),
+            [],
+        )
+        prefix = "treams_rs" if stem == "__init__" else f"treams_rs.{stem}"
+        for name in exports:
+            path = f"{prefix}.{name}"
+            resolved = resolve(stem, name)
+            if path not in paths and resolved is not None:
+                node, source = resolved
+                entries.append(_entry(path, node, f"{source}.py", contexts, classes))
+                paths.add(path)
     from . import _OPTIONAL_MODULES
 
     optional = {
@@ -375,6 +428,7 @@ def support_catalog() -> dict[str, Any]:
             _entry(name, node, source, contexts, classes)
             for name, (node, source) in classes.items()
             if name.startswith("_")
+            and "." not in name
             and any(
                 isinstance(function, ast.FunctionDef)
                 and function.returns is not None

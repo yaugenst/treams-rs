@@ -1,11 +1,12 @@
-"""Defaults for newly evaluated operations; existing objects retain their convention."""
+"""Polarization validation shared by the numerical and physics APIs.
 
-POLTYPE: str = "helicity"
-"""Default polarization convention, either 'helicity' or 'parity'."""
+Defaults are deterministic: omitted polarization means helicity. Pass parity
+explicitly; there is no process-global setting that changes later calculations.
+"""
 
 
 def _resolve_poltype(value: str | None) -> str:
-    value = POLTYPE if value is None else value
+    value = "helicity" if value is None else value
     if value not in ("helicity", "parity"):
         raise ValueError("polarization type must be helicity or parity")
     return value

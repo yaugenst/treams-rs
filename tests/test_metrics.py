@@ -37,7 +37,7 @@ def test_global_metrics_reference(kind, sphere, kappa):
 @pytest.mark.parametrize("kind", ["cd", "db", "chi"])
 def test_metric_native_matrix_and_wavenumber_vjps(kind):
     a = _matrix()
-    pol = tr.SphericalWaveBasis.default(1).pol
+    pol = tr.SphericalBasis.default(1).pol
     ks = np.array([1.2, 1.4])
     value, context = tr.diff.tmatrix_metric(a, ks, polarizations=pol, kind=kind)
     gradients = context.pullback(0.7)
@@ -70,7 +70,7 @@ def test_metric_native_matrix_and_wavenumber_vjps(kind):
 @given(scale=st.floats(0.1, 4), phase=st.floats(-3, 3))
 def test_metric_scale_phase_and_helicity_swap_invariants(kind, scale, phase):
     a = _matrix()
-    pol = tr.SphericalWaveBasis.default(1).pol
+    pol = tr.SphericalBasis.default(1).pol
     value, context = tr.diff.tmatrix_metric(a, polarizations=pol, kind=kind)
     gradient, gks = context.pullback(1.0)
     assert 0 <= value <= 1
@@ -88,7 +88,7 @@ def test_metric_scale_phase_and_helicity_swap_invariants(kind, scale, phase):
 @given(scale=st.floats(0.2, 4))
 def test_absorption_cd_common_wave_scale_and_swap(scale):
     a = _matrix()
-    pol = tr.SphericalWaveBasis.default(1).pol
+    pol = tr.SphericalBasis.default(1).pol
     ks = np.array([1.2, 1.4])
     value, context = tr.diff.tmatrix_metric(a, ks, polarizations=pol, kind="cd")
     _, gradient = context.pullback(1.0)
@@ -102,7 +102,7 @@ def test_absorption_cd_common_wave_scale_and_swap(scale):
 
 @pytest.mark.parametrize("kind", ["cd", "db", "chi"])
 def test_complete_chiral_sphere_metric_advect(kind):
-    basis = tr.SphericalWaveBasis.default(2)
+    basis = tr.SphericalBasis.default(2)
 
     def objective(radius, epsilon, kappa):
         matrix = ad.sphere(
@@ -131,7 +131,7 @@ def test_complete_chiral_sphere_metric_advect(kind):
 
 
 def test_undefined_normalizations_and_chirality_derivative():
-    basis = tr.SphericalWaveBasis.default(1)
+    basis = tr.SphericalBasis.default(1)
     for kind in ("cd", "db", "chi"):
         with pytest.raises(ValueError, match="nonzero"):
             tr.diff.tmatrix_metric(np.zeros((6, 6)), polarizations=basis.pol, kind=kind)

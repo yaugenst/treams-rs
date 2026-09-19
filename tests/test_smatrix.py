@@ -7,11 +7,15 @@ from numpy.testing import assert_allclose
 
 from treams_rs import (
     Material,
-    PlaneWaveBasisByComp,
-    SMatrices,
     coeffs,
     diff,
     poynting_avg_z,
+)
+from treams_rs import (
+    PlaneWavePorts as PlaneWaveBasisByComp,
+)
+from treams_rs import (
+    SMatrix as SMatrices,
 )
 
 # treams calls ufunc(where=...) then explicitly zeroes excluded entries.
@@ -237,7 +241,9 @@ def test_advect_complete_slab(thickness, epsilon, q):
             z[1:],
         )
         wave = anp.array([q, 0j, kz[1]])
-        propagation = ad.propagation(anp.stack([wave, wave]), anp.array([0.0, 0.0, d]))
+        propagation = ad.propagation_matrix(
+            anp.stack([wave, wave]), anp.array([0.0, 0.0, d])
+        )
         result = ad.smatrix_add(ad.smatrix_add(left, propagation), right)
         return anp.sum(anp.real(result * anp.conj(result))) + 0.1 * anp.sum(
             anp.real(result)
@@ -289,7 +295,7 @@ def test_plane_wave_slab_illumination(direction, poltype):
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 @pytest.mark.parametrize("material", [1, (2 + 0.2j, 1.1)])
 def test_oriented_power_is_cartesian_poynting(alignment, poltype, material):
-    from treams_rs import efield, hfield
+    from treams_rs.operators import efield, hfield
 
     basis = PlaneWaveBasisByComp.default([[0.2, 0.3]], alignment)
     incident = np.array([0.3 + 0.2j, -0.4j])
@@ -368,7 +374,7 @@ def test_oriented_propagation_phase_and_power(alignment):
 @pytest.mark.parametrize("q", [[0, 0], [0.2, 0.3], [2.8, -0.1]])
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 def test_interface_cartesian_boundary_continuity(alignment, q, poltype):
-    from treams_rs import efield, hfield
+    from treams_rs.operators import efield, hfield
 
     basis = PlaneWaveBasisByComp.default([q], alignment)
     materials = [
@@ -467,11 +473,11 @@ def test_advect_oriented_slab_gradient(alignment):
         k = 1.3 * anp.sqrt(epsilon + 0.1j)
         ks = anp.stack([anp.array([1.3, 1.3]), anp.stack([k, k])])
         z = anp.stack([1 + 0j, 1.3 / k])
-        first = ad.interface(ks, z, q, alignment=alignment)
-        second = ad.interface(ks[::-1], z[::-1], q, alignment=alignment)
+        first = ad.interface_coefficients(ks, z, q, alignment=alignment)
+        second = ad.interface_coefficients(ks[::-1], z[::-1], q, alignment=alignment)
         normal = anp.sqrt(k**2 - anp.sum(q**2))
         vectors = anp.stack([anp.stack([q[0], q[1], normal])] * 2)
-        propagation = ad.propagation(vectors, anp.stack([0.0, 0.0, thickness]))
+        propagation = ad.propagation_matrix(vectors, anp.stack([0.0, 0.0, thickness]))
         slab = ad.smatrix_add(ad.smatrix_add(first, propagation), second)
         reflected = slab[1, 0, :, 0]
         return anp.sum(anp.real(reflected * anp.conj(reflected)))

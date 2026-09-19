@@ -5,16 +5,49 @@ analytic first-order pullbacks. They do not implement numerical derivatives in
 Python. Install the corresponding `treams-rs[advect]`, `treams-rs[jax]`, or
 `treams-rs[torch]` extra; importing the core package needs none of these frameworks.
 
-JAX and PyTorch expose `sphere`, `bessel`, `solve`, `interaction`, and `illuminate`
-conveniences. Their `wrap` function exposes any existing `diff` operation through
-the same boundary, including operations returning several arrays. Static basis metadata,
-mode labels and algorithm options belong in the recording function's closure.
+## Physical objects
+
+The explicit framework import chooses the backend. Physical objects retain
+framework-valued matrices, coefficients, frequency, material and geometry;
+ordinary NumPy physics objects do not trace framework arrays.
+
+```python exec
+import advect
+import treams_rs.advect as tr
+
+
+def loss(radius):
+    sphere = tr.sphere_tmatrix(k0=1.3, lmax=2, radius=radius, material=3)
+    incident = tr.plane_wave([0, 0, 1], "positive_helicity", k0=1.3)
+    return sphere.cross_sections(incident).scattering
+
+
+assert loss(0.2) > 0
+assert advect.grad(loss)(0.2) > 0
+```
+
+JAX uses the same physical objective with `import treams_rs.jax as tr` and
+`jax.value_and_grad`, with x64 enabled; Torch uses `treams_rs.torch`, a CPU
+float64 input tensor, and `loss.backward()`. No user-managed native residuals
+are needed. Sphere/cylinder layers, clusters, fields, periodic responses and
+planar layers compose through the same Rust pullbacks. The complete map and
+high-level static boundaries are in [the autodiff API review](api-autodiff-map.md).
+
+## Numerical recordings
+
+The existing numerical functions remain useful for custom objectives and
+specialized kernels. JAX and PyTorch expose `sphere`, `bessel`, `solve`,
+`interaction`, and `illuminate`; `wrap` adapts any native recording with a
+properly ordered pullback. Advect exposes the complete numerical families;
+`interface_coefficients` distinguishes its numerical Fresnel boundary from the
+physical `interface` constructor. Static labels/options belong in the recording
+function's closure.
 
 ## Advect
 
 Import `treams_rs.advect` alongside `advect.numpy` to compose native numerical
 operations with ordinary array objectives. The [README example](../README.md#differentiation)
-optimizes sphere radii in a cluster; the [API reference](api.md#treams_rsadvect)
+differentiates a sphere scattering objective; the [API reference](api.md#treams_rsadvect)
 lists the direct native operations and gradient argument ordering.
 
 Advect uses the native one-use residual contract. A new forward call is required

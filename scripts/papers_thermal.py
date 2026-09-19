@@ -95,8 +95,16 @@ def chain_matrix(module, frequency, epsilon, order):
         poltype="helicity",
     )
     positions = [[0.0, 0.0, z * 520e-9] for z in (-1.5, -0.5, 0.5, 1.5)]
-    cluster = module.TMatrix.cluster([sphere] * 4, positions).interaction.solve()
-    return np.asarray(cluster.expand(module.SphericalWaveBasis.default(order)))
+    cluster = (rs.TMatrix._assemble if module is rs else module.TMatrix.cluster)(
+        [sphere] * 4, positions
+    ).interaction.solve()
+    return np.asarray(
+        cluster.expand(
+            (rs.SphericalBasis if module is rs else module.SphericalWaveBasis).default(
+                order
+            )
+        )
+    )
 
 
 def absorption(matrix, frequency):
@@ -113,7 +121,7 @@ def absorption(matrix, frequency):
 
 def angular_cut(matrix, frequency, angles, order, *, phi=np.pi / 4, helicity=1):
     """Directional Kirchhoff law from -k, doubled for this achiral object."""
-    basis = rs.SphericalWaveBasis.default(order)
+    basis = rs.SphericalBasis.default(order)
     modes = list(basis)
     phi += np.pi
     coefficients = np.asarray(

@@ -65,12 +65,21 @@ def worker(
 
     if backend in ("rust", "check", "compare"):
         from treams_rs import (
-            CylindricalWaveBasis,
-            PhysicsArray,
-            PlaneWaveBasisByComp,
-            PlaneWaveBasisByUnitVector,
-            SMatrices,
-            SphericalWaveBasis,
+            CylindricalBasis as CylindricalWaveBasis,
+        )
+        from treams_rs import (
+            PlaneWaveBasis as PlaneWaveBasisByUnitVector,
+        )
+        from treams_rs import (
+            PlaneWavePorts as PlaneWaveBasisByComp,
+        )
+        from treams_rs import (
+            SMatrix as SMatrices,
+        )
+        from treams_rs import (
+            SphericalBasis as SphericalWaveBasis,
+        )
+        from treams_rs import (
             _native,
             cw,
             diff,
@@ -80,6 +89,7 @@ def worker(
             special,
             sw,
         )
+        from treams_rs.operators import PhysicsArray
 
         if _native.build_profile() != "release":
             raise RuntimeError("benchmark requires just build-ext-release")
@@ -436,7 +446,8 @@ def worker(
                 for degree in degrees
             )
             if backend in ("rust", "check", "compare"):
-                from treams_rs import TMatrix, TMatrixC
+                from treams_rs import CylindricalTMatrix as TMatrixC
+                from treams_rs import TMatrix
 
                 local_tmats = [
                     TMatrixC.cylinder([0.2, 0.4], degree, 1.3, radius, [eps, 1])
@@ -783,7 +794,7 @@ def worker(
             if "particle-cluster" in workload and workload.endswith("public"):
                 return (
                     type(local_tmats[0])
-                    .cluster(local_tmats, positions)
+                    ._assemble(local_tmats, positions)
                     .interaction.solve()
                     .array
                 )

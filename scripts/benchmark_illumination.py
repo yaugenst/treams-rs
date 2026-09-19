@@ -83,7 +83,9 @@ def case(args, upstream=False):
         else np.linspace(0.23, 0.29, n)
     )
     epsilon = np.full(n, 2.2 + 0.02j if args.strength == "weak" else 4.0 + 0.05j)
-    basis = tr.SphericalWaveBasis.default(args.lmax, n, positions=positions)
+    basis = (tr.SphericalWaveBasis if upstream else tr.SphericalBasis).default(
+        args.lmax, n, positions=positions
+    )
     columns = []
     for p in range(args.columns):
         direction = np.array([0.13 + p * 0.07, -0.11 + p * 0.03, 1.0])

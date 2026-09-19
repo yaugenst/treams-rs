@@ -22,8 +22,9 @@ dimensions, S-matrix composition, fields, EBCM, observables and basis metadata.
 The main difficulty is numerical convention and conditioning, not source volume.
 Complex square-root branches, helicity ordering, normalization, small-argument
 limits, multipole cancellation and lattice convergence all require independent
-qualification. The Rust implementation preserves supported Python constructors and numerical
-results through PyO3. Its API uses explicit arrays to avoid silently carrying physical metadata
+qualification. The Rust implementation preserves numerical conventions and supported results
+through PyO3. Its independently designed Python API uses explicit arrays to avoid
+silently carrying physical metadata
 through arbitrary NumPy operations. The legacy ndarray annotation engine is
 outside this explicit-object API; supported workflow differences are listed in
 [implementation status](status.md).

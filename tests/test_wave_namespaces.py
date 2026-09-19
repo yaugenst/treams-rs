@@ -76,7 +76,7 @@ def test_cylindrical_rotation_translation_reference(singular):
     "vector", [[0.3, 0.4, 1.2], [0.3 + 0.1j, 0.4, 1.2 + 0.1j], [0, 0, 1], [0, 0, -1]]
 )
 def test_plane_multipole_coefficients_and_permutation(poltype, vector):
-    basis = tr.SphericalWaveBasis.default(5)
+    basis = tr.SphericalBasis.default(5)
     labels = (basis.l[:, None], basis.m[:, None], basis.pol[:, None])
     args = (*labels, *vector, np.array([0, 1]))
     assert_allclose(
@@ -97,8 +97,8 @@ def test_plane_multipole_coefficients_and_permutation(poltype, vector):
 
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 def test_cylindrical_spherical_conversion(poltype):
-    sb = tr.SphericalWaveBasis.default(4)
-    cb = tr.CylindricalWaveBasis.default([0.2, -0.3], 3)
+    sb = tr.SphericalBasis.default(4)
+    cb = tr.CylindricalBasis.default([0.2, -0.3], 3)
     args = (
         sb.l[:, None],
         sb.m[:, None],
@@ -123,7 +123,7 @@ def test_plane_translation_and_cylindrical_expansion():
     out = np.empty_like(expected)[::-1]
     assert pw.translate(*args, out=out) is out
     assert_allclose(out, expected, rtol=3e-13)
-    cb = tr.CylindricalWaveBasis.default([0.2, -0.3], 4)
+    cb = tr.CylindricalBasis.default([0.2, -0.3], 4)
     args = (cb.kz, cb.m, cb.pol, 0.3, 0.4 + 0.1j, 0.2, 1)
     assert_allclose(pw.to_cw(*args), treams.pw.to_cw(*args), rtol=4e-12, atol=4e-12)
 
@@ -131,7 +131,7 @@ def test_plane_translation_and_cylindrical_expansion():
 @given(phi=st.floats(-3, 3), psi=st.floats(-3, 3))
 @settings(max_examples=25)
 def test_cylindrical_rotation_group(phi, psi):
-    basis = tr.CylindricalWaveBasis.default([0.2], 3)
+    basis = tr.CylindricalBasis.default([0.2], 3)
     for args in (
         (basis.kz, basis.m, basis.pol, basis.kz, basis.m, basis.pol),
         (0.2, -3, 1, 0.2, -3, 1),
@@ -156,10 +156,10 @@ def test_cylindrical_rotation_group(phi, psi):
 @pytest.mark.parametrize("dim", [1, 2])
 def test_direct_periodic_namespace_rectangular_modes_and_origins(family, dim):
     if family == "sw":
-        full = tr.SphericalWaveBasis.default(2)
+        full = tr.SphericalBasis.default(2)
         labels = (full.l, full.m, full.pol)
     else:
-        full = tr.CylindricalWaveBasis.default([0.2, -0.3], 2)
+        full = tr.CylindricalBasis.default([0.2, -0.3], 2)
         labels = (full.kz, full.m, full.pol)
     out = tuple(a[::3] for a in labels)
     incoming = tuple(a[1::2] for a in labels)
@@ -174,7 +174,7 @@ def test_direct_periodic_namespace_rectangular_modes_and_origins(family, dim):
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 @pytest.mark.parametrize("kz", [1.2, -1.2, 1.2 + 0.2j, -1.2 - 0.2j, 1.2 - 0.2j])
 def test_spherical_periodic_plane_radiation(poltype, kz):
-    basis = tr.SphericalWaveBasis.default(4)
+    basis = tr.SphericalBasis.default(4)
     args = (0.3, 0.4, kz, np.array([0, 1])[:, None], basis.l, basis.m, basis.pol, 2.3)
     assert_allclose(
         sw.periodic_to_pw(*args, poltype=poltype),
@@ -186,7 +186,7 @@ def test_spherical_periodic_plane_radiation(poltype, kz):
 
 @pytest.mark.parametrize("ky", [0.4, -0.4, 0.4 + 0.1j, -0.4 - 0.1j, 0.4 - 0.1j, 0.3j])
 def test_cylindrical_periodic_plane_radiation(ky):
-    basis = tr.CylindricalWaveBasis.default([0.2, -0.3], 3)
+    basis = tr.CylindricalBasis.default([0.2, -0.3], 3)
     args = (0.3, ky, 0.2, np.array([0, 1])[:, None], basis.kz, basis.m, basis.pol, 2.3)
     assert_allclose(
         cw.periodic_to_pw(*args),
@@ -198,8 +198,8 @@ def test_cylindrical_periodic_plane_radiation(ky):
 
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 def test_spherical_periodic_cylindrical_radiation(poltype):
-    sb = tr.SphericalWaveBasis.default(4)
-    cb = tr.CylindricalWaveBasis.default([0.2, -0.3], 3)
+    sb = tr.SphericalBasis.default(4)
+    cb = tr.CylindricalBasis.default([0.2, -0.3], 3)
     args = (
         cb.kz[:, None],
         cb.m[:, None],
@@ -220,7 +220,7 @@ def test_spherical_periodic_cylindrical_radiation(poltype):
 
 @pytest.mark.parametrize("kz", [-1.0, 1.0])
 def test_direct_conversion_at_cylindrical_cutoff(kz):
-    sb = tr.SphericalWaveBasis.default(4)
+    sb = tr.SphericalBasis.default(4)
     args = (sb.l, sb.m, sb.pol, kz, sb.m, sb.pol, 1)
     assert_allclose(cw.to_sw(*args), treams.cw.to_sw(*args), rtol=5e-12, atol=5e-12)
 

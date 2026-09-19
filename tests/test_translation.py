@@ -24,21 +24,37 @@ def test_translation_reference_all_families(family, poltype):
     pairs = []
     for package in (tr, treams):
         if family == "sw":
-            source = package.SphericalWaveBasis.default(2, 2, positions)
-            destination = package.SphericalWaveBasis(list(source)[::-2], positions)
+            source = (
+                tr.SphericalBasis if package is tr else treams.SphericalWaveBasis
+            ).default(2, 2, positions)
+            destination = (
+                tr.SphericalBasis if package is tr else treams.SphericalWaveBasis
+            )(list(source)[::-2], positions)
         elif family == "cw":
-            source = package.CylindricalWaveBasis.default([0.2, -0.3], 2, 2, positions)
-            destination = package.CylindricalWaveBasis(list(source)[::-2], positions)
+            source = (
+                tr.CylindricalBasis if package is tr else treams.CylindricalWaveBasis
+            ).default([0.2, -0.3], 2, 2, positions)
+            destination = (
+                tr.CylindricalBasis if package is tr else treams.CylindricalWaveBasis
+            )(list(source)[::-2], positions)
         elif family == "unit":
-            source = package.PlaneWaveBasisByUnitVector.default(
-                [[0.2, 0.3, 1], [0.1j, 0.2, 1]]
-            )
-            destination = package.PlaneWaveBasisByUnitVector(list(source)[::-2])
+            source = (
+                tr.PlaneWaveBasis
+                if package is tr
+                else treams.PlaneWaveBasisByUnitVector
+            ).default([[0.2, 0.3, 1], [0.1j, 0.2, 1]])
+            destination = (
+                tr.PlaneWaveBasis
+                if package is tr
+                else treams.PlaneWaveBasisByUnitVector
+            )(list(source)[::-2])
         else:
-            source = package.PlaneWaveBasisByComp.default(
-                [[0.2, 0.3], [2.1, 0.1]], family
-            )
-            destination = package.PlaneWaveBasisByComp(list(source)[::-2], family)
+            source = (
+                tr.PlaneWavePorts if package is tr else treams.PlaneWaveBasisByComp
+            ).default([[0.2, 0.3], [2.1, 0.1]], family)
+            destination = (
+                tr.PlaneWavePorts if package is tr else treams.PlaneWaveBasisByComp
+            )(list(source)[::-2], family)
         pairs.append((destination, source))
     r = np.array([[[0.1, 0.2, -0.3], [-0.2, 0.1, 0.3], [0, 0, 0]]])
     mask = np.random.default_rng(97).random((len(pairs[0][0]), len(pairs[0][1]))) > 0.2
@@ -49,7 +65,7 @@ def test_translation_reference_all_families(family, poltype):
         modetype="down",
         where=mask,
     )
-    actual = tr.translate(r, basis=pairs[0], **common)
+    actual = tr.operators.translate(r, basis=pairs[0], **common)
     expected = treams.translate(r, basis=pairs[1], **common)
     assert_allclose(actual, expected, rtol=2e-11, atol=2e-12)
 
@@ -61,22 +77,20 @@ def test_plane_basis_conversion_and_translation_preserve_fields(
     poltype, side, scale, phase
 ):
     k0, material = 1.3 / scale, (1.4, 1.2, 0.04 if poltype == "helicity" else 0)
-    source = tr.PlaneWaveBasisByComp.default(
-        np.array([[0.2, 0.3], [2.1, -0.1]]) / scale
-    )
+    source = tr.PlaneWavePorts.default(np.array([[0.2, 0.3], [2.1, -0.1]]) / scale)
     full = source.byunitvector(k0, material, side)
-    destination = tr.PlaneWaveBasisByUnitVector(full.modes[::-1])
+    destination = tr.PlaneWaveBasis(full.modes[::-1])
     assert_allclose(
-        tr.expand(source, side, k0=k0, material=material, poltype=poltype),
+        tr.operators.expand(source, side, k0=k0, material=material, poltype=poltype),
         np.eye(len(source)),
         atol=0,
     )
-    mapping = tr.expand(
+    mapping = tr.operators.expand(
         (destination, source), side, k0=k0, material=material, poltype=poltype
     )
     assert_allclose(mapping, np.eye(len(source))[::-1], atol=0)
     assert_allclose(
-        tr.expand(
+        tr.operators.expand(
             (source, destination), side, k0=k0, material=material, poltype=poltype
         )
         @ mapping,
@@ -87,15 +101,18 @@ def test_plane_basis_conversion_and_translation_preserve_fields(
     points = np.array([[0.2, 0.1, 0.3], [-0.1, 0.3, -0.2]]) * scale
     shift = np.array([0.1, -0.2, 0.3]) * scale
     options = dict(k0=k0, material=material, poltype=poltype, modetype=side)
-    moved = tr.translate(shift, basis=(destination, source), **options) @ amplitudes
-    expected = tr.efield(points + shift, basis=source, **options) @ amplitudes
+    moved = (
+        tr.operators.translate(shift, basis=(destination, source), **options)
+        @ amplitudes
+    )
+    expected = tr.operators.efield(points + shift, basis=source, **options) @ amplitudes
     assert_allclose(
-        tr.efield(points, basis=destination, **options) @ moved,
+        tr.operators.efield(points, basis=destination, **options) @ moved,
         expected,
         rtol=2e-12,
         atol=2e-12,
     )
-    zero = tr.expand(
+    zero = tr.operators.expand(
         (source, source), ("up", "down"), k0=k0, material=material, poltype=poltype
     )
     assert_allclose(zero, 0, atol=0)

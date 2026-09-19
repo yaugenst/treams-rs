@@ -1,9 +1,9 @@
-"""Spherical T-matrices with explicit arrays and familiar treams constructors."""
+"""Finite spherical/cylindrical responses with explicit physical operations."""
 
 from __future__ import annotations
 
 from itertools import pairwise
-from typing import TYPE_CHECKING, Any, Self, cast, override
+from typing import TYPE_CHECKING, Any, NamedTuple, Self, cast, override
 
 import numpy as np
 
@@ -21,6 +21,18 @@ if TYPE_CHECKING:
     from numpy.typing import ArrayLike, DTypeLike, NDArray
 
     from . import _native
+
+
+class CrossSections(NamedTuple):
+    """Scattering, extinction and absorption, in area units (sphere) or length (cylinder)."""
+
+    scattering: float
+    extinction: float
+
+    @property
+    def absorption(self) -> float:
+        """Extinguished power minus scattered power, with the same normalization."""
+        return self.extinction - self.scattering
 
 
 class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
@@ -58,7 +70,7 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
         matrix family and dimension; omission infers one complete origin basis
         (with kz=0 for cylinders). K0 is the positive vacuum angular wavenumber,
         in inverse units of basis positions. Material is the embedding medium.
-        Poltype is helicity or parity, defaulting to ``config.POLTYPE``; a chiral
+        Poltype is helicity or parity, defaulting to helicity; a chiral
         embedding medium requires helicity.
         """
         poltype = _resolve_poltype(poltype)
@@ -105,6 +117,52 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
 
     def __len__(self) -> int:
         return len(self.array)
+
+    @property
+    def medium(self) -> Material:
+        """Exterior propagation medium."""
+        return self.material
+
+    @property
+    def polarization(self) -> str:
+        """Polarization channel convention."""
+        return self.poltype
+
+    def scatter(self, incident: ArrayLike | PlaneWave | MultipoleWave) -> MultipoleWave:
+        """Apply this solved response and retain outgoing-wave metadata.
+
+        Incident is a physical source, a (modes,) coefficient vector or a
+        (modes, illuminations) coefficient batch. Raw coefficients are regular
+        incident channels in this matrix's basis.
+        """
+        if self._cluster_sizes is not None:
+            raise ValueError(
+                "uncoupled particles require Cluster.solve() or Cluster.scatter()"
+            )
+        return MultipoleWave(
+            self.array @ self._incident(incident),
+            basis=self.basis,
+            k0=self.k0,
+            material=self.material,
+            modetype="singular",
+            poltype=self.poltype,
+        )
+
+    def select(self, basis: B) -> Self:
+        """Select the same subset of incoming and outgoing modes."""
+        if not isinstance(basis, self._basis_type) or not np.array_equal(
+            basis.positions, self.basis.positions
+        ):
+            raise ValueError("selection must use the same wave family and origins")
+        return self[basis]
+
+    def in_basis(self, basis: B) -> Self:
+        """Represent the same response in another multipole basis."""
+        return self.expand(basis)
+
+    def with_polarization(self, polarization: str) -> Self:
+        """Represent the same response in helicity or parity channels."""
+        return self.changepoltype(polarization)
 
     def __getitem__(self, key: Any) -> Any:
         if isinstance(key, self._basis_type):
@@ -171,7 +229,7 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
         return np.asarray(value, dtype=np.complex128)
 
     @classmethod
-    def cluster(cls, tmats: Sequence[Self], positions: ArrayLike) -> Self:
+    def _assemble(cls, tmats: Sequence[Self], positions: ArrayLike) -> Self:
         """Assemble uncoupled particle matrices at Cartesian positions, shape (n, 3).
 
         Tmats must be a nonempty sequence of global matrices of this family,
@@ -303,7 +361,11 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
         return weights
 
     def _cross_sections(
-        self, illu: ArrayLike | PlaneWave, flux: float, power: int, factor: float
+        self,
+        illu: ArrayLike | PlaneWave | MultipoleWave,
+        flux: float,
+        power: int,
+        factor: float,
     ) -> tuple[float, float]:
         incident = self._incident(illu)
         if (
@@ -462,8 +524,8 @@ class TMatrix(_TMatrix[SphericalWaveBasis]):
 
     Construct from an owned square array and physical metadata, or use ``sphere``
     and ``cluster``. Rows/columns follow the supplied SphericalWaveBasis. The
-    ``matrix @ incident`` operation returns scattered coefficients as a NumPy
-    array. Use ``diff.sphere`` or a framework adapter to record native pullbacks.
+    ``scatter(incident)`` returns an outgoing physical wave; ``array`` and ``@``
+    expose numerical coefficients. Framework namespaces retain native pullbacks.
     """
 
     _basis_type = SphericalWaveBasis
@@ -517,7 +579,7 @@ class TMatrix(_TMatrix[SphericalWaveBasis]):
 
         Returns a matrix with dimension ``2*lmax*(lmax+2)`` and default spherical
         ordering (l, m, pol=(1, 0)). Poltype selects helicity/parity, defaulting to
-        ``config.POLTYPE``; parity requires an achiral exterior. This convenience
+        helicity; parity requires an achiral exterior. This convenience
         returns the physical object only; ``diff.sphere`` retains an adjoint context.
         """
         poltype = _resolve_poltype(poltype)
@@ -570,6 +632,32 @@ class TMatrix(_TMatrix[SphericalWaveBasis]):
         """
         return self._cross_sections(illu, flux, 2, 0.5)
 
+    def cross_sections(
+        self, incident: ArrayLike | PlaneWave | MultipoleWave, *, flux: float = 0.5
+    ) -> CrossSections:
+        """Named scattering/extinction/absorption cross sections in squared length units."""
+        return CrossSections(*self._cross_sections(incident, flux, 2, 0.5))
+
+    @property
+    def average_cross_sections(self) -> CrossSections:
+        """Rotationally and polarization-averaged cross sections in squared length units."""
+        return CrossSections(self.xs_sca_avg, self.xs_ext_avg)
+
+    @property
+    def circular_dichroism(self) -> float:
+        """Rotationally averaged absorption circular dichroism."""
+        return self.cd
+
+    @property
+    def duality_breaking(self) -> float:
+        """Fraction of scattering that changes helicity."""
+        return self.db
+
+    @property
+    def electromagnetic_chirality(self) -> float:
+        """Normalized electromagnetic chirality of the helicity blocks."""
+        return self.chi
+
 
 class TMatrixC(_TMatrix[CylindricalWaveBasis]):
     """Cylindrical matrix mapping regular incident coefficients to outgoing waves.
@@ -577,14 +665,14 @@ class TMatrixC(_TMatrix[CylindricalWaveBasis]):
     Rows/columns follow the supplied CylindricalWaveBasis, including its fixed
     real axial wavenumbers. Use ``cylinder`` for concentric infinite cylinders
     or ``cluster`` for parallel cylinders. Cross widths have length units.
-    ``matrix @ incident`` returns a NumPy coefficient array; ``diff.cylinder``
-    or framework adapters provide separately recorded native pullbacks.
+    ``scatter(incident)`` returns an outgoing physical wave; ``array`` and ``@``
+    expose numerical coefficients. Framework namespaces retain native pullbacks.
     """
 
     _basis_type = CylindricalWaveBasis
 
     @classmethod
-    def from_array(
+    def _from_array(
         cls,
         tm: TMatrix,
         basis: CylindricalWaveBasis,
@@ -645,7 +733,7 @@ class TMatrixC(_TMatrix[CylindricalWaveBasis]):
 
         For nkz supplied axial values, the dimension is ``2*nkz*(2*mmax+1)``,
         ordered by kz input order, then m and pol=(1, 0). Poltype selects
-        helicity/parity, defaulting to ``config.POLTYPE``; parity requires an
+        helicity/parity, defaulting to helicity; parity requires an
         achiral exterior. Use
         ``diff.cylinder`` when a native pullback context is required.
         """
@@ -709,3 +797,14 @@ class TMatrixC(_TMatrix[CylindricalWaveBasis]):
         supported by this cross-width normalization.
         """
         return self._cross_sections(illu, flux, 1, 2.0)
+
+    def cross_widths(
+        self, incident: ArrayLike | PlaneWave | MultipoleWave, *, flux: float = 0.5
+    ) -> CrossSections:
+        """Named scattering/extinction/absorption widths, in length units."""
+        return CrossSections(*self._cross_sections(incident, flux, 1, 2.0))
+
+    @property
+    def average_cross_widths(self) -> CrossSections:
+        """Mean cross widths over azimuth and propagating axial/polarization channels."""
+        return CrossSections(self.xw_sca_avg, self.xw_ext_avg)

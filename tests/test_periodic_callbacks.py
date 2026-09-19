@@ -21,10 +21,10 @@ pytestmark = pytest.mark.filterwarnings(
 def test_custom_spherical_lattice_callback_reference_and_single_broadcast(
     dim, poltype, split
 ):
-    destination = tr.SphericalWaveBasis.default(
+    destination = tr.SphericalBasis.default(
         1, 2, positions=[[0.1, 0.2, 0.3], [-0.3, 0.1, 0.2]]
     )
-    source = tr.SphericalWaveBasis.default(2, positions=[[0.03, -0.05, 0.02]])
+    source = tr.SphericalBasis.default(2, positions=[[0.03, -0.05, 0.02]])
     ks = [1.3 + 0.1j, 1.5 + 0.1j] if poltype == "helicity" else [1.3 + 0.1j] * 2
     a = 1.7 if dim == 1 else np.eye(dim) * 1.7
     q = 0.13 if dim == 1 else np.linspace(0.1, 0.2, dim)
@@ -70,10 +70,10 @@ def test_custom_spherical_lattice_callback_reference_and_single_broadcast(
     )
 )
 def test_table_linear_pullback_owned_inputs_and_broadcast_values(poltype, scale):
-    destination = tr.SphericalWaveBasis(
+    destination = tr.SphericalBasis(
         [(0, 1, -1, 0), (1, 2, 1, 1)], positions=[[0, 0, 0], [0.2, 0.3, 0.4]]
     )
-    source = tr.SphericalWaveBasis([(0, 2, -2, 0), (0, 1, 0, 1)])
+    source = tr.SphericalBasis([(0, 2, -2, 0), (0, 1, 0, 1)])
     channels = 2 if poltype == "helicity" else 1
     rng = np.random.default_rng(110)
     table = (
@@ -122,10 +122,10 @@ def test_table_linear_pullback_owned_inputs_and_broadcast_values(poltype, scale)
 
 
 def test_table_pullback_composes_with_lattice_geometry_adjoint():
-    destination = tr.SphericalWaveBasis(
+    destination = tr.SphericalBasis(
         [(0, 1, -1, 0), (1, 1, 0, 1)], positions=[[0, 0, 0], [0.2, 0.3, 0.4]]
     )
-    source = tr.SphericalWaveBasis.default(1)
+    source = tr.SphericalBasis.default(1)
     modes = np.array(
         [(degree, order) for degree in range(3) for order in range(-degree, degree + 1)]
     )

@@ -12,9 +12,13 @@ from typing import TYPE_CHECKING, NamedTuple
 import numpy as np
 
 from . import _native
+from ._core import Material, SphericalWaveBasis
+from ._source import MultipoleWave
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
+
+    from ._plane import PlaneWave
 
 
 class Convergence(NamedTuple):
@@ -29,6 +33,13 @@ class Solution(NamedTuple):
     """Requested scattered multipoles and one convergence report per column."""
 
     coefficients: NDArray[np.complex128]
+    convergence: tuple[Convergence, ...]
+
+
+class ScatteringSolution(NamedTuple):
+    """Physical outgoing wave and a true-residual report for each illumination."""
+
+    wave: MultipoleWave
     convergence: tuple[Convergence, ...]
 
 
@@ -106,6 +117,10 @@ class SphereCluster:
             np.asarray(epsilon, dtype=np.complex128),
             np.asarray(positions, dtype=np.float64),
         )
+        self.k0 = float(k0)
+        self.basis = SphericalWaveBasis.default(
+            lmax, nmax=len(np.asarray(radii)), positions=positions
+        )
 
     @property
     def dimension(self) -> int:
@@ -133,6 +148,43 @@ class SphereCluster:
         return Solution(
             coefficients[:, 0] if vector else coefficients,
             tuple(Convergence(*report) for report in reports),
+        )
+
+    def scatter(
+        self,
+        incident: PlaneWave | MultipoleWave,
+        *,
+        rtol: float = 1e-10,
+        atol: float = 0.0,
+        restart: int = 30,
+        max_iterations: int = 300,
+    ) -> ScatteringSolution:
+        """Scatter a physical incident wave in vacuum and retain its field metadata.
+
+        The returned wave supports all six field evaluations. Convergence reports
+        remain explicit; nonconvergence raises just as it does for ``solve``.
+        Use ``solve`` for numerical incident-column arrays.
+        """
+        if incident.k0 != self.k0 or incident.material != Material():
+            raise ValueError("incident wave must match the frequency and vacuum medium")
+        if incident.poltype != "helicity":
+            raise ValueError("iterative scattering requires helicity polarization")
+        result = self.solve(
+            incident.expand(self.basis),
+            rtol=rtol,
+            atol=atol,
+            restart=restart,
+            max_iterations=max_iterations,
+        )
+        return ScatteringSolution(
+            MultipoleWave(
+                result.coefficients,
+                basis=self.basis,
+                k0=self.k0,
+                modetype="singular",
+                poltype="helicity",
+            ),
+            result.convergence,
         )
 
     def solve_with_pullback(

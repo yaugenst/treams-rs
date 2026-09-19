@@ -41,12 +41,12 @@ def test_small_wavenumber_high_order_chain_absorption_is_stable():
         [rs.Material(12.87707323 + 0.19225647000000007j), rs.Material()],
     )
     positions = [[0, 0, z * 520e-9] for z in (-1.5, -0.5, 0.5, 1.5)]
-    cluster = rs.TMatrix.cluster([sphere] * 4, positions).interaction.solve()
-    matrix = np.asarray(cluster.expand(rs.SphericalWaveBasis.default(10)))
+    cluster = rs.TMatrix._assemble([sphere] * 4, positions).interaction.solve()
+    matrix = np.asarray(cluster.expand(rs.SphericalBasis.default(10)))
     absorption = (
         -2 * np.pi * (np.trace(matrix).real + np.vdot(matrix, matrix).real) / k0**2
     )
     assert_allclose(absorption * 1e12, 0.0001754433586134972, rtol=2e-11, atol=0)
     # Axial symmetry forbids coupling between distinct azimuthal orders.
-    orders = np.array([mode[2] for mode in rs.SphericalWaveBasis.default(10)])
+    orders = np.array([mode[2] for mode in rs.SphericalBasis.default(10)])
     assert_allclose(matrix[orders[:, None] != orders[None, :]], 0, atol=2e-20)

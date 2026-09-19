@@ -581,7 +581,7 @@ seven batched samples including result destruction.
 | 16 | 624 | Public cluster + solve | 737.35 | 23.76 | 31.03x | — | 107.9 / 86.3 |
 
 The native boundary accepts separate local arrays, preserving their block structure
-without a dense local matrix. The public `TMatrix.cluster(...).interaction.solve()`
+without a dense local matrix. The historical public `TMatrix.cluster(...).interaction.solve()`
 retains its explicit dense array semantics but routes the solve through this block
 boundary. Reverse returns only local diagonal-block gradients, plus every position
 and both embedding-wavenumber cotangents. It avoids a dense local gradient whose

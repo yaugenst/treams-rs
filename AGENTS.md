@@ -1,6 +1,7 @@
 # treams-rs
 
-Rust implementation of the tfp-photonics/treams numerical and Python API conventions.
+Rust implementation of tfp-photonics/treams numerical conventions with an
+independently designed physics-first Python API.
 Keep this repository private. Use its configured owner and credentials for Git
 and GitHub operations; do not publish it under a different account or organization.
 Rust owns numerical execution and derivatives; Python owns user semantics and
@@ -21,7 +22,8 @@ framework adapters. Autodiff frameworks compose the native forward/pullback.
 
 ## Numerical and API contract
 
-- Preserve treams conventions and supported Python workflows; track parity in
+- Preserve numerical conventions and supported physical workflows; upstream
+  Python API compatibility is not required. Track numerical parity in
   `docs/status.md`. Unsupported behavior must not silently invoke upstream.
 - Implement complete numerical paths with reference, physical-invariant, and
   gradient checks. Never use finite differences as production pullbacks.

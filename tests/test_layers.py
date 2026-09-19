@@ -19,15 +19,15 @@ def test_compact_slab_preserves_basis_order_and_partial_semantics(
     modes = [(0.2, 0.3, 0), (2.7, -0.1, 1), (0.2, 0.3, 1), (2.7, -0.1, 0)]
     if partial:
         modes = modes[:-1]
-    basis = tr.PlaneWaveBasisByComp(modes, alignment)
+    basis = tr.PlaneWavePorts(modes, alignment)
     materials = [1, (2.3 + 0.1j, 1.1, 0.1 if poltype == "helicity" else 0), 1.7, 1.2]
     thickness = [0.4, 0.2]
-    actual = tr.SMatrices.slab(thickness, basis, 1.3, materials, poltype)
-    expected = tr.SMatrices.interface(basis, 1.3, materials[:2], poltype)
+    actual = tr.SMatrix.slab(thickness, basis, 1.3, materials, poltype)
+    expected = tr.SMatrix.interface(basis, 1.3, materials[:2], poltype)
     for i, d in enumerate(thickness):
         expected = expected.add(
-            tr.SMatrices.propagation(d, basis, 1.3, materials[i + 1], poltype)
-        ).add(tr.SMatrices.interface(basis, 1.3, materials[i + 1 : i + 3], poltype))
+            tr.SMatrix.propagation(d, basis, 1.3, materials[i + 1], poltype)
+        ).add(tr.SMatrix.interface(basis, 1.3, materials[i + 1 : i + 3], poltype))
     assert_allclose(actual.array, expected.array, rtol=3e-12, atol=3e-12)
 
 

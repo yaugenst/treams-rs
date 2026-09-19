@@ -58,17 +58,17 @@ def test_single_mode_source_and_all_fields_reference(family, poltype, singular, 
 )
 def test_weighted_fields_linearity_and_operator_agreement(family, poltype, scale):
     basis = (
-        tr.SphericalWaveBasis.default(2)
+        tr.SphericalBasis.default(2)
         if family == "sw"
-        else tr.CylindricalWaveBasis.default([0.2], 2)
+        else tr.CylindricalBasis.default([0.2], 2)
     )
     amplitudes = np.arange(len(basis)) * (0.03 + 0.04j)
-    wave = tr.MultipoleWave(
+    wave = tr.Wave(
         amplitudes * scale, basis=basis, k0=1.3, material=(2.3, 1.2), poltype=poltype
     )
     points = np.array([[0.5, 0.3, 0.2], [-0.2, 0.5, 0.1]])
     for kind in ("efield", "hfield", "dfield", "bfield"):
-        operator = getattr(tr, kind)(
+        operator = getattr(tr.operators, kind)(
             points, basis=basis, k0=1.3, material=(2.3, 1.2), poltype=poltype
         )
         assert_allclose(
@@ -80,40 +80,40 @@ def test_weighted_fields_linearity_and_operator_agreement(family, poltype, scale
 def test_source_expansion_and_complete_tmatrix_illumination(family):
     points = np.array([[0.02, 0.01, 0.03], [-0.03, 0.01, 0.02]])
     if family == "sw":
-        source_basis = tr.SphericalWaveBasis.default(2, positions=[[1.1, 0.3, 0.2]])
+        source_basis = tr.SphericalBasis.default(2, positions=[[1.1, 0.3, 0.2]])
         wave = tr.spherical_wave(
             2, 1, 1, basis=source_basis, k0=1.3, modetype="singular"
         )
         tm = tr.TMatrix.sphere(8, 1.3, 0.1, [3, 1])
     else:
-        source_basis = tr.CylindricalWaveBasis.default(
+        source_basis = tr.CylindricalBasis.default(
             [0.2], 2, positions=[[1.1, 0.3, 0.2]]
         )
         wave = tr.cylindrical_wave(
             0.2, 1, 1, basis=source_basis, k0=1.3, modetype="singular"
         )
-        tm = tr.TMatrixC.cylinder([0.2], 8, 1.3, [0.1], [3, 1])
+        tm = tr.CylindricalTMatrix.cylinder([0.2], 8, 1.3, [0.1], [3, 1])
     expanded = wave.expand(tm.basis)
-    reconstructed = tr.MultipoleWave(expanded, basis=tm.basis, k0=1.3)
+    reconstructed = tr.Wave(expanded, basis=tm.basis, k0=1.3)
     assert_allclose(
         reconstructed.efield(points), wave.efield(points), atol=1e-9, rtol=1e-9
     )
     assert_allclose(tm @ wave, tm.array @ expanded, atol=1e-13)
-    wrong = tr.MultipoleWave(wave.array, basis=wave.basis, k0=1.4)
+    wrong = tr.Wave(wave.array, basis=wave.basis, k0=1.4)
     with pytest.raises(ValueError, match="matching"):
         tm @ wrong
 
 
 def test_source_owned_inputs_and_mode_selection():
-    basis = tr.SphericalWaveBasis([(3, 2, -1, 0)], positions=np.zeros((4, 3)))
+    basis = tr.SphericalBasis([(3, 2, -1, 0)], positions=np.zeros((4, 3)))
     wave = tr.spherical_wave(2, -1, 0, basis=basis)
     assert_allclose(wave.array, [1])
     coefficients = np.array([0.3 + 0.2j])
-    owned = tr.MultipoleWave(coefficients, basis=basis)
+    owned = tr.Wave(coefficients, basis=basis)
     coefficients[:] = 0
     assert_allclose(np.asarray(owned), [0.3 + 0.2j])
     assert not owned.array.flags.writeable
     with pytest.raises(ValueError):
         tr.spherical_wave(2, 0, 0, basis=basis)
     with pytest.raises(ValueError, match="global"):
-        tr.spherical_wave(1, 0, 0, basis=tr.SphericalWaveBasis.default(1, 2))
+        tr.spherical_wave(1, 0, 0, basis=tr.SphericalBasis.default(1, 2))

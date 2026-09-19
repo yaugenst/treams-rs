@@ -22,6 +22,8 @@ from .config import _resolve_poltype
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike, DTypeLike, NDArray
 
+    from ._source import MultipoleWave
+
 
 class PlaneWave(_WaveFields):
     """A plane wave with amplitudes ordered by polarization index (0, 1)."""
@@ -95,6 +97,61 @@ class PlaneWave(_WaveFields):
         self.amplitudes.flags.writeable = False
 
     modetype = "up"
+
+    @property
+    def coefficients(self) -> NDArray[np.complex128]:
+        """Read-only polarization amplitudes in negative/positive label order."""
+        return self.array
+
+    @property
+    def medium(self) -> Material:
+        """Homogeneous propagation medium."""
+        return self.material
+
+    @property
+    def polarization(self) -> str:
+        """Polarization basis convention: helicity or parity."""
+        return self.poltype
+
+    def with_polarization(self, polarization: str) -> PlaneWave:
+        """Represent the same plane wave with helicity or parity amplitudes."""
+        wave = self.in_basis(self.basis).with_polarization(polarization)
+        return type(self)(
+            self.direction,
+            wave.coefficients,
+            k0=self.k0,
+            material=self.medium,
+            poltype=polarization,
+        )
+
+    def in_basis(
+        self,
+        basis: SphericalWaveBasis
+        | CylindricalWaveBasis
+        | PlaneWaveBasisByComp
+        | PlaneWaveBasisByUnitVector,
+    ) -> MultipoleWave:
+        """Expand into a typed regular multipole wave or directional plane wave."""
+        from ._source import MultipoleWave
+
+        kind = "regular"
+        if isinstance(basis, PlaneWaveBasisByComp):
+            normal = self.kvecs[0, basis.normal_axis]
+            kind = (
+                "down"
+                if normal.imag < 0 or (normal.imag == 0 and normal.real < 0)
+                else "up"
+            )
+        elif isinstance(basis, PlaneWaveBasisByUnitVector):
+            kind = "up"
+        return MultipoleWave(
+            self.expand(basis),
+            basis=basis,
+            k0=self.k0,
+            material=self.material,
+            modetype=kind,
+            poltype=self.poltype,
+        )
 
     @property
     @override
@@ -197,14 +254,47 @@ class PlaneWave(_WaveFields):
 
 
 def plane_wave(
-    kvec: ArrayLike,
-    pol: ArrayLike,
+    kvec: ArrayLike | None = None,
+    pol: ArrayLike | None = None,
     *,
     k0: float = 1.0,
     material: MaterialLike = 1,
     poltype: str | None = None,
+    direction: ArrayLike | None = None,
+    polarization: ArrayLike | str | None = None,
+    medium: MaterialLike | None = None,
 ) -> PlaneWave:
-    """Define an incident plane wave from a real or complex propagation direction."""
+    """Define a plane wave from direction, polarization, k0 and medium.
+
+    Direction is normalized, independently of the vacuum angular wavenumber k0.
+    Polarization is ``positive_helicity``/``negative_helicity``, a pair of
+    channel amplitudes, or three Cartesian electric components. Explicit
+    helicity names select the helicity convention. The positional kvec/pol and
+    material/poltype parameters expose the coefficient-level convention.
+    """
+    if direction is not None:
+        if kvec is not None:
+            raise ValueError("specify direction only once")
+        kvec = direction
+    if polarization is not None:
+        if pol is not None:
+            raise ValueError("specify polarization only once")
+        pol = polarization
+    if isinstance(pol, str):
+        if pol not in ("positive_helicity", "negative_helicity"):
+            raise ValueError(
+                "named polarization must be positive_helicity or negative_helicity"
+            )
+        if poltype not in (None, "helicity"):
+            raise ValueError("helicity polarization requires helicity channels")
+        poltype = "helicity"
+        pol = int(pol == "positive_helicity")
+    if kvec is None or pol is None:
+        raise TypeError("plane_wave requires direction and polarization")
+    if medium is not None:
+        if Material(material) != Material():
+            raise ValueError("specify medium only once")
+        material = medium
     poltype = _resolve_poltype(poltype)
     return PlaneWave(kvec, pol, k0=k0, material=material, poltype=poltype)
 

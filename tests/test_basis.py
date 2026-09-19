@@ -11,18 +11,18 @@ import treams_rs as tr
 def _basis(family):
     positions = [[0.2, 0.3, 0.4], [1.0, 0.1, 0.2]]
     if family == "spherical":
-        return tr.SphericalWaveBasis.default(
+        return tr.SphericalBasis.default(
             2, 2, positions
         ), treams.SphericalWaveBasis.default(2, 2, positions)
     if family == "cylindrical":
-        return tr.CylindricalWaveBasis.default(
+        return tr.CylindricalBasis.default(
             [0.2, -0.3], 2, 2, positions
         ), treams.CylindricalWaveBasis.default([0.2, -0.3], 2, 2, positions)
     if family == "unit":
-        return tr.PlaneWaveBasisByUnitVector.default(
+        return tr.PlaneWaveBasis.default(
             [[1, 2, 3], [2, 0.3, 1]]
         ), treams.PlaneWaveBasisByUnitVector.default([[1, 2, 3], [2, 0.3, 1]])
-    return tr.PlaneWaveBasisByComp.default(
+    return tr.PlaneWavePorts.default(
         [[0.1, 0.2], [0.3, -0.2]], "yz"
     ), treams.PlaneWaveBasisByComp.default([[0.1, 0.2], [0.3, -0.2]], "yz")
 
@@ -93,10 +93,10 @@ def test_basis_selection_field_reconstruction(family, indices):
     if not len(selected):
         return
     points = [[0.4, 0.3, 0.2], [0.2, -0.1, 0.6]]
-    operator = tr.efield(points, basis=basis, k0=1.3)
+    operator = tr.operators.efield(points, basis=basis, k0=1.3)
     columns = [basis.index(mode) for mode in selected]
     assert_allclose(
-        tr.efield(points, basis=selected, k0=1.3),
+        tr.operators.efield(points, basis=selected, k0=1.3),
         operator[:, :, columns],
         rtol=2e-13,
         atol=1e-13,
@@ -107,24 +107,24 @@ def test_basis_selection_field_reconstruction(family, indices):
 @settings(max_examples=35)
 def test_basis_ebcm_ordering_and_dimension_inverse(degree, particles, mmax):
     mmax = min(mmax, degree)
-    basis = tr.SphericalWaveBasis.ebcm(degree, particles, mmax)
+    basis = tr.SphericalBasis.ebcm(degree, particles, mmax)
     expected = treams.SphericalWaveBasis.ebcm(
         degree, particles, mmax, np.zeros((particles, 3))
     )
     assert basis.modes == tuple(tuple(row) for row in expected)
-    dimension = tr.SphericalWaveBasis.defaultdim(degree, particles)
-    assert dimension == len(tr.SphericalWaveBasis.default(degree, particles))
-    assert tr.SphericalWaveBasis.defaultlmax(dimension, particles) == degree
+    dimension = tr.SphericalBasis.defaultdim(degree, particles)
+    assert dimension == len(tr.SphericalBasis.default(degree, particles))
+    assert tr.SphericalBasis.defaultlmax(dimension, particles) == degree
     keys = [(p, m, degree, -pol) for p, degree, m, pol in basis]
     assert keys == sorted(keys)
 
 
 def test_basis_equality_includes_geometry_and_deduplicates_labels():
-    spherical = tr.SphericalWaveBasis.default(1)
-    assert tr.SphericalWaveBasis([*spherical, *spherical]) == spherical
-    assert tr.SphericalWaveBasis(spherical, [[0.1, 0, 0]]) != spherical
-    component = tr.PlaneWaveBasisByComp.default([[0.1, 0.2]])
-    assert tr.PlaneWaveBasisByComp(component, "yz") != component
+    spherical = tr.SphericalBasis.default(1)
+    assert tr.SphericalBasis([*spherical, *spherical]) == spherical
+    assert tr.SphericalBasis(spherical, [[0.1, 0, 0]]) != spherical
+    component = tr.PlaneWavePorts.default([[0.1, 0.2]])
+    assert tr.PlaneWavePorts(component, "yz") != component
     assert len(component[[]]) == 0
     assert component[[]].components.shape == (0, 2)
     assert component.components is component.components
@@ -132,8 +132,8 @@ def test_basis_equality_includes_geometry_and_deduplicates_labels():
 
 
 def test_ebcm_permutation_preserves_surface_integral():
-    default = tr.SphericalWaveBasis.default(2)
-    blocks = tr.SphericalWaveBasis.ebcm(2)
+    default = tr.SphericalBasis.default(2)
+    blocks = tr.SphericalBasis.ebcm(2)
     indices = [default.index(mode) for mode in blocks]
     kwargs = {
         "r": lambda theta: 0.3 * (1 + 0.1 * np.cos(theta) ** 2),
@@ -153,11 +153,11 @@ def test_ebcm_permutation_preserves_surface_integral():
 def test_upstream_component_selection_alignment_regression():
     original = treams.PlaneWaveBasisByComp.default([[0.1, 0.2]], "yz")
     assert original[:].alignment == "xy"
-    fixed = tr.PlaneWaveBasisByComp.default([[0.1, 0.2]], "yz")
+    fixed = tr.PlaneWavePorts.default([[0.1, 0.2]], "yz")
     assert fixed[:].alignment == "yz"
-    assert tr.SphericalWaveBasis.default(
+    assert tr.SphericalBasis.default(
         1, positions=[0, 0, 0]
-    ) == tr.SphericalWaveBasis.default(1)
+    ) == tr.SphericalBasis.default(1)
 
 
 @pytest.mark.parametrize("family", ["spherical", "cylindrical", "unit", "component"])
@@ -190,17 +190,17 @@ def test_basis_ordered_set_algebra(family, left, right):
 
 
 def test_basis_set_geometry_contract_and_cylindrical_orders():
-    a = tr.SphericalWaveBasis.default(1)
+    a = tr.SphericalBasis.default(1)
     with pytest.raises(ValueError, match="origin"):
-        _ = a | tr.SphericalWaveBasis(a, [[0.1, 0, 0]])
-    b = tr.PlaneWaveBasisByComp.default([[0.1, 0.2]], "yz")
+        _ = a | tr.SphericalBasis(a, [[0.1, 0, 0]])
+    b = tr.PlaneWavePorts.default([[0.1, 0.2]], "yz")
     with pytest.raises(ValueError, match="alignment"):
-        _ = b & tr.PlaneWaveBasisByComp(b, "zx")
+        _ = b & tr.PlaneWavePorts(b, "zx")
     with pytest.raises(TypeError, match="family"):
         _ = a | b
     for period in (2 * np.pi, 1.7, -3.1):
         for cutoff in (0, 1, 7.0):
             expected = treams.CylindricalWaveBasis.diffr_orders(0.1, 2, period, cutoff)
-            actual = tr.CylindricalWaveBasis.diffr_orders(0.1, 2, period, cutoff)
+            actual = tr.CylindricalBasis.diffr_orders(0.1, 2, period, cutoff)
             assert_allclose(np.array(actual.modes), np.array(list(expected)))
             assert np.all(np.abs(actual.kz - 0.1) <= cutoff + 1e-14)

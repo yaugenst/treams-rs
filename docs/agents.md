@@ -2,7 +2,9 @@
 
 Start at [`llms.txt`](../llms.txt); every link refers to this repository revision.
 For development, `treams_rs` can coexist with the upstream reference package.
-Local documentation works offline.
+Local documentation works offline. The [physics-first guide](user-guide.md) is
+the primary user workflow. Cluster assembly is separate from solving; scattering
+returns typed waves; periodic responses convert without another solve.
 
 With an installed wheel and no checkout, inspect the exact installed API offline:
 
@@ -37,8 +39,8 @@ Choose the path around the output you need:
 
 | Need | Entry point | Contract |
 | --- | --- | --- |
-| Familiar scattering workflow | `TMatrix.sphere`, `TMatrix.cluster`, field and S-matrix objects | CPU; explicit physical metadata and read-only `.array` |
-| Only a few incident waves | `diff.cluster_factor` / `.interaction.factor()` | Reuse a dense LU and solve only requested columns |
+| Familiar scattering workflow | `sphere_tmatrix`, `Cluster`, typed waves and `SMatrix` | CPU; explicit physical metadata and read-only `.array` |
+| Only a few incident waves | `Cluster.factor()` / `diff.cluster_factor` | Reuse a dense LU and solve only requested columns |
 | Larger homogeneous sphere cluster | `iterative.SphereCluster` | Vacuum, nonmagnetic homogeneous spheres; matrix-free GMRES with explicit convergence checks |
 | Native derivatives | `diff` and returned `.pullback` methods | First order; static mode counts/labels/topology; real Hermitian pairing |
 | Composed objective derivatives | `advect`, `jax`, `torch` submodules | Optional CPU frameworks; read [adapter contracts](adapters.md) before wrapping |
@@ -49,10 +51,17 @@ A complete sphere calculation requires only NumPy and the installed extension:
 import numpy as np
 import treams_rs as tr
 
-sphere = tr.TMatrix.sphere(3, 2.0, 0.2, [3.0, 1.0])
+sphere = tr.sphere_tmatrix(lmax=3, k0=2.0, radius=0.2, material=3.0)
 assert sphere.array.shape == (30, 30)
-np.testing.assert_allclose(sphere.xs_ext_avg, sphere.xs_sca_avg, rtol=1e-11)
-print("Lossless sphere scattering cross section:", sphere.xs_sca_avg)
+np.testing.assert_allclose(
+    sphere.average_cross_sections.extinction,
+    sphere.average_cross_sections.scattering,
+    rtol=1e-11,
+)
+print(
+    "Lossless sphere scattering cross section:",
+    sphere.average_cross_sections.scattering,
+)
 ```
 
 Lengths and inverse vacuum wavenumber must use consistent units. Material layers

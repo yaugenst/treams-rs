@@ -6,8 +6,10 @@ autodiff frameworks; there is no runtime fallback to treams, SciPy, or Cython.
 
 The package covers spherical, cylindrical, and plane waves; layered and chiral
 particles; finite clusters and periodic arrays; planar stacks; fields and power
-observables. Python constructors and numerical conventions follow treams 0.4.5,
-with an explicit-object API described in the [capability reference](docs/status.md).
+observables. The Python API preserves physical meaning through scattering and field operations,
+with explicit solve boundaries and named results. Numerical conventions follow
+treams; upstream API compatibility is not a design requirement. Start with the
+[physics-first guide](docs/user-guide.md).
 
 `main` is the authoritative CPU core and Python implementation. Experimental
 browser work lives on `experimental/browser`; CUDA work lives on
@@ -29,11 +31,13 @@ package needs only NumPy at runtime. A two-sphere calculation is:
 ```python
 import treams_rs as tr
 
-particles = [tr.TMatrix.sphere(3, 1.3, radius, [4 + 0.1j, 1]) for radius in (0.2, 0.25)]
-cluster = tr.TMatrix.cluster(particles, [[0, 0, 0], [0, 0, 0.8]])
-solution = cluster.interaction.solve()
-global_matrix = solution.expand(tr.SphericalWaveBasis.default(8))
-print(global_matrix.xs_sca_avg)
+particles = [
+    tr.sphere_tmatrix(k0=1.3, lmax=3, radius=r, material=4 + 0.1j) for r in (0.2, 0.25)
+]
+cluster = tr.Cluster(particles, positions=[[0, 0, 0], [0, 0, 0.8]])
+incident = tr.plane_wave(direction=[0, 0, 1], polarization="positive_helicity", k0=1.3)
+scattered = cluster.scatter(incident)
+print(scattered.efield([[0.1, 0.2, 1.2]]))
 ```
 
 Objects carry explicit basis and material metadata; `.array` exposes read-only
@@ -50,18 +54,17 @@ Optional Advect, JAX, and PyTorch adapters compose these pullbacks with scalar
 objectives. For example, using `treams-rs[advect]`:
 
 ```python
-import advect.numpy as np
 from advect import grad
-from treams_rs import advect as ad
+from treams_rs import advect as tr
 
 
-def loss(radii):
-    positions = np.array([[0, 0, 0], [0, 0, 0.8]])
-    matrix = ad.cluster(2, 1.3, radii, np.array([4.0, 3.0]), positions)
-    return np.sum(np.real(matrix * np.conj(matrix)))
+def loss(radius):
+    sphere = tr.sphere_tmatrix(k0=1.3, lmax=2, radius=radius, material=3)
+    incident = tr.plane_wave([0, 0, 1], "positive_helicity", k0=1.3)
+    return sphere.cross_sections(incident).scattering
 
 
-print(grad(loss)(np.array([0.2, 0.25])))
+print(grad(loss)(0.2))
 ```
 
 The [adapter guide](docs/adapters.md) defines supported transforms, CPU execution,

@@ -15,12 +15,12 @@ from treams_rs import advect as ad
 @pytest.mark.parametrize("modetype", ["up", "down"])
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 def test_plane_operators_reference(kind, modetype, poltype):
-    basis = tr.PlaneWaveBasisByComp.default([[0, 0], [0.2, 0.3], [3.2, -0.1]])
+    basis = tr.PlaneWavePorts.default([[0, 0], [0.2, 0.3], [3.2, -0.1]])
     oracle = treams.PlaneWaveBasisByComp(basis.modes)
     medium = (2.1 + 0.2j, 1.2 + 0.1j, 0.1 if poltype == "helicity" else 0)
     points = np.array([[[0.1, 0.2, 0.3], [-0.1, 0.3, -0.2]]])
     args = dict(k0=1.3, material=medium, modetype=modetype, poltype=poltype)
-    actual = getattr(tr, kind)(points, basis=basis, **args)
+    actual = getattr(tr.operators, kind)(points, basis=basis, **args)
     expected = getattr(treams, kind)(points, basis=oracle, **args)
     assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
 

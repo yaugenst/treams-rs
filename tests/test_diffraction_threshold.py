@@ -73,10 +73,8 @@ def test_nonidentical_double_grazing_boundary_remains_explicitly_singular():
 
 def test_paper_endpoint_slab_is_finite_but_array_pole_is_explicit():
     k0 = 2 * np.pi / 350
-    basis = tr.PlaneWaveBasisByComp.diffr_orders(
-        [0, 0.3 * k0], tr.Lattice.square(500), 0.02
-    )
-    slab = tr.SMatrices.slab(10, basis, k0, [1, 3, 1])
+    basis = tr.PlaneWavePorts.diffr_orders([0, 0.3 * k0], tr.Lattice.square(500), 0.02)
+    slab = tr.SMatrix.slab(10, basis, k0, [1, 3, 1])
     oracle = treams.SMatrices.slab(
         10, treams.PlaneWaveBasisByComp(basis.modes), k0, [1, 3, 1]
     )
@@ -87,7 +85,7 @@ def test_paper_endpoint_slab_is_finite_but_array_pole_is_explicit():
     point = runpy.run_path(Path(__file__).parents[1] / "scripts/qualify_papers.py")[
         "cpc_array_point"
     ]
-    with pytest.raises(ValueError, match=r"plane-wave channel.*diffraction threshold"):
+    with pytest.raises(ValueError, match=r"diffraction threshold"):
         point(tr, k0)
     gaps = []
     for delta in (1e-4, 1e-6):

@@ -164,7 +164,8 @@ def test_threshold_and_invalid_lattice():
 def test_periodic_spherical_coupling_and_solve(dim, poltype):
     import treams
 
-    from treams_rs import SphericalWaveBasis, TMatrix, lattice
+    from treams_rs import SphericalBasis as SphericalWaveBasis
+    from treams_rs import TMatrix, lattice
 
     positions = np.array([[0, 0, 0], [0.31, 0.12, 0.21]])
     basis = SphericalWaveBasis.default(2, positions=positions)
@@ -181,7 +182,7 @@ def test_periodic_spherical_coupling_and_solve(dim, poltype):
     actual = lattice.expansion(basis, basis, ks, a, q, poltype=poltype)
     assert_allclose(actual, expected, rtol=2e-8, atol=2e-8)
 
-    local = TMatrix.cluster(
+    local = TMatrix._assemble(
         [
             TMatrix.sphere(1, 2, [0.1], [2, 1], poltype),
             TMatrix.sphere(2, 2, [0.12], [3, 1], poltype),
@@ -209,7 +210,9 @@ def test_periodic_spherical_coupling_and_solve(dim, poltype):
 def test_periodic_cylindrical_coupling_and_solve(dim, poltype):
     import treams
 
-    from treams_rs import CylindricalWaveBasis, TMatrixC, lattice
+    from treams_rs import CylindricalBasis as CylindricalWaveBasis
+    from treams_rs import CylindricalTMatrix as TMatrixC
+    from treams_rs import lattice
 
     positions = np.array([[0, 0, 0], [0.31, 0.12, 0.21]])
     basis = CylindricalWaveBasis.default([0, 0.4], 2, positions=positions)
@@ -326,7 +329,9 @@ def test_all_continuous_lattice_derivatives(spherical, dim, l, m, origin):
 )
 @pytest.mark.parametrize("equal_wavenumbers", [False, True])
 def test_periodic_matrix_pullback(spherical, dim, equal_wavenumbers):
-    from treams_rs import CylindricalWaveBasis, SphericalWaveBasis, lattice
+    from treams_rs import CylindricalBasis as CylindricalWaveBasis
+    from treams_rs import SphericalBasis as SphericalWaveBasis
+    from treams_rs import lattice
 
     basis = (
         SphericalWaveBasis.default(1)
@@ -385,7 +390,8 @@ def test_advect_periodic_complete_solve(spherical, pitch, radius, bloch):
     import advect
     import advect.numpy as anp
 
-    from treams_rs import CylindricalWaveBasis, SphericalWaveBasis
+    from treams_rs import CylindricalBasis as CylindricalWaveBasis
+    from treams_rs import SphericalBasis as SphericalWaveBasis
     from treams_rs import advect as ad
 
     basis = (

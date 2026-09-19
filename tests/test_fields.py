@@ -19,7 +19,8 @@ from treams_rs import _native
 def test_cylindrical_polarization_pair_permutation(
     order, x, singular, helicity, chiral
 ):
-    from treams_rs import CylindricalWaveBasis, diff
+    from treams_rs import CylindricalBasis as CylindricalWaveBasis
+    from treams_rs import diff
 
     basis = CylindricalWaveBasis.default([0.2], order)
     permutation = np.r_[np.arange(0, len(basis), 2), np.arange(1, len(basis), 2)]
@@ -45,7 +46,8 @@ def test_cylindrical_polarization_pair_permutation(
 
 @pytest.mark.parametrize("offset", [1e-9, 1e-100, 1e-200, 1e-300])
 def test_cylindrical_field_near_axis_gradient(offset):
-    from treams_rs import CylindricalWaveBasis, diff
+    from treams_rs import CylindricalBasis as CylindricalWaveBasis
+    from treams_rs import diff
 
     basis = CylindricalWaveBasis.default([0.2], 3)
 
@@ -68,7 +70,8 @@ def test_cylindrical_field_near_axis_gradient(offset):
 def test_cylindrical_field_reference_and_pullback(poltype, outgoing, axis):
     import treams
 
-    from treams_rs import CylindricalWaveBasis, Material, diff
+    from treams_rs import CylindricalBasis as CylindricalWaveBasis
+    from treams_rs import Material, diff
 
     rng = np.random.default_rng(913)
     positions = np.array([[0, 0, 0], [0, 0, -0.2]])
@@ -136,7 +139,7 @@ def test_cylinder_scattered_field_advect(radius, kz):
     import advect
     import advect.numpy as anp
 
-    from treams_rs import CylindricalWaveBasis
+    from treams_rs import CylindricalBasis as CylindricalWaveBasis
     from treams_rs import advect as ad
 
     basis = CylindricalWaveBasis.default([kz], 2)
@@ -277,7 +280,8 @@ def test_field_position_and_wavenumber_derivatives(position, mode):
 def test_batched_fields_reference(poltype, singular):
     import treams
 
-    from treams_rs import SphericalWaveBasis, diff
+    from treams_rs import SphericalBasis as SphericalWaveBasis
+    from treams_rs import diff
 
     basis = SphericalWaveBasis.default(
         3, nmax=2, positions=[[0, 0, 0], [0.1, 0.2, 0.3]]
@@ -312,7 +316,8 @@ def test_batched_fields_reference(poltype, singular):
 def test_batched_field_pullback_all_inputs_and_translation_invariance(
     scale, offset, singular
 ):
-    from treams_rs import SphericalWaveBasis, diff
+    from treams_rs import SphericalBasis as SphericalWaveBasis
+    from treams_rs import diff
 
     rng = np.random.default_rng(945)
     basis = SphericalWaveBasis.default(
@@ -372,7 +377,7 @@ def test_batched_field_pullback_all_inputs_and_translation_invariance(
 def test_advect_field_composes_through_native_interaction():
     import advect
 
-    from treams_rs import SphericalWaveBasis
+    from treams_rs import SphericalBasis as SphericalWaveBasis
     from treams_rs import advect as ad
 
     basis = SphericalWaveBasis.default(1)

@@ -7,8 +7,9 @@ solves, observables, and the corresponding analytic derivatives.
 The PyO3 crate validates array dimensions and physical inputs at entry, releases
 the GIL for numerical work, and transfers arrays and opaque residuals. Python
 provides typed physics objects and convenient operations. `treams_rs`
-coexists with the upstream `treams` reference package. Public naming, normalization,
-helicity ordering, and basis ordering follow treams. The explicit-object Python
+coexists with the upstream `treams` reference package. Numerical normalization,
+helicity ordering, and basis ordering follow treams. Public Python workflows are
+designed around explicit physics objects rather than upstream API compatibility. The explicit-object Python
 contract and supported differences are defined in the [capability reference](status.md).
 
 The differentiation contract is `forward(parameters) -> (outputs, residual)`

@@ -7,11 +7,17 @@ from numpy.testing import assert_allclose
 
 from treams_rs import (
     Material,
-    PlaneWaveBasisByComp,
-    SMatrices,
-    SphericalWaveBasis,
     TMatrix,
     diff,
+)
+from treams_rs import (
+    PlaneWavePorts as PlaneWaveBasisByComp,
+)
+from treams_rs import (
+    SMatrix as SMatrices,
+)
+from treams_rs import (
+    SphericalBasis as SphericalWaveBasis,
 )
 
 pytestmark = pytest.mark.filterwarnings(
@@ -235,7 +241,7 @@ def test_periodic_particle_reflection_transmission(q, poltype, epsilon):
     vectors = np.asarray(q) + orders @ (2 * np.pi * np.linalg.inv(a).T)
     basis = PlaneWaveBasisByComp.default(vectors)
     ob = treams.PlaneWaveBasisByComp.default(vectors)
-    tm = TMatrix.cluster(
+    tm = TMatrix._assemble(
         [TMatrix.sphere(2, 2.1, r, [epsilon, 1], poltype) for r in (0.18, 0.22)],
         [[0, 0, 0], [0.6, 0.2, 0.1]],
     )
@@ -247,7 +253,7 @@ def test_periodic_particle_reflection_transmission(q, poltype, epsilon):
     # zero reciprocal vectors. Its returned sum is finite and remains checked.
     with np.errstate(divide="ignore"):
         expected = treams.SMatrices.from_array(ot.latticeinteraction.solve(a, q), ob)
-    value = SMatrices.from_array(tm, basis, lattice=a, kpar=q)
+    value = SMatrices._from_array(tm, basis, lattice=a, kpar=q)
     assert_allclose(
         value.array,
         np.array([[np.asarray(expected[i, j]) for j in range(2)] for i in range(2)]),

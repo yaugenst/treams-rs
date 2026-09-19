@@ -200,10 +200,16 @@ def wigner_smalld(degree, m_out, m_in, beta):
 def rotation_block(backend, degree, angles, polarization):
     """Evaluate the exact matrix API path implicated by the performance gate."""
     library = treams_rs if backend == "treams-rs" else treams
-    basis = library.SphericalWaveBasis(
-        [(degree, m, polarization) for m in range(-degree, degree + 1)]
+    basis = (
+        treams_rs.SphericalBasis
+        if backend == "treams-rs"
+        else treams.SphericalWaveBasis
+    )([(degree, m, polarization) for m in range(-degree, degree + 1)])
+    return np.asarray(
+        (library.operators if backend == "treams-rs" else library).rotate(
+            *angles, basis=basis
+        )
     )
-    return np.asarray(library.rotate(*angles, basis=basis))
 
 
 def certify_rotation_disagreements(

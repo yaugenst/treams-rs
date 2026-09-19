@@ -17,7 +17,7 @@ import treams_rs as tr
 @pytest.mark.filterwarnings("ignore:.*scipy.special.sph_harm.*:DeprecationWarning")
 def test_tmatrix_field_and_basis_selection(cylindrical, field):
     ours = (
-        tr.TMatrixC.cylinder([0.2], 2, 1.3, 0.2, [3, 1])
+        tr.CylindricalTMatrix.cylinder([0.2], 2, 1.3, 0.2, [3, 1])
         if cylindrical
         else tr.TMatrix.sphere(2, 1.3, 0.2, [3, 1])
     )
@@ -54,17 +54,17 @@ def test_tmatrix_field_and_basis_selection(cylindrical, field):
 @settings(max_examples=25)
 @pytest.mark.parametrize("cylindrical", [False, True])
 def test_exclusion_masks_scale_and_translation(cylindrical, scale, offset):
-    family = tr.TMatrixC if cylindrical else tr.TMatrix
+    family = tr.CylindricalTMatrix if cylindrical else tr.TMatrix
     base = (
-        tr.TMatrixC.cylinder([0.2], 1, 1.3, 0.2, [3, 1])
+        tr.CylindricalTMatrix.cylinder([0.2], 1, 1.3, 0.2, [3, 1])
         if cylindrical
         else tr.TMatrix.sphere(1, 1.3, 0.2, [3, 1])
     )
     origins = np.array([[0, 0, 0], [0.8, 0.3, 0.2]])
     points = np.random.default_rng(32).normal(size=(4, 5, 3))
     radii = np.array([0.2, 0.3])
-    first = family.cluster([base, base], origins)
-    second = family.cluster([base, base], origins * scale + offset)
+    first = family._assemble([base, base], origins)
+    second = family._assemble([base, base], origins * scale + offset)
     assert_array_equal(
         first.valid_points(points, radii),
         second.valid_points(points * scale + offset, radii * scale),
@@ -84,7 +84,7 @@ def test_exclusion_masks_scale_and_translation(cylindrical, scale, offset):
 @settings(max_examples=12, deadline=None)
 def test_smatrix_sparse_coordinate_transforms(alignment, poltype, turns, shift):
     directions = [[0.2, 0.3], [0.3, 0.1]]
-    basis = tr.PlaneWaveBasisByComp.default(directions, alignment)[::-1]
+    basis = tr.PlaneWavePorts.default(directions, alignment)[::-1]
     # Upstream slicing loses non-xy alignment; reconstruct the intended basis.
     oracle_basis = treams.PlaneWaveBasisByComp(list(basis), alignment=alignment)
     rng = np.random.default_rng(3)
@@ -92,9 +92,7 @@ def test_smatrix_sparse_coordinate_transforms(alignment, poltype, turns, shift):
     materials = (
         ((1.7, 1.1, 0.03), (1.2, 1.3, 0.02)) if poltype == "helicity" else (1.7, 1.2)
     )
-    ours = tr.SMatrices(
-        values, k0=1.3, basis=basis, material=materials, poltype=poltype
-    )
+    ours = tr.SMatrix(values, k0=1.3, basis=basis, material=materials, poltype=poltype)
     oracle = treams.SMatrices(
         values,
         k0=1.3,

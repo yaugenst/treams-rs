@@ -14,6 +14,9 @@ ROOT = Path(__file__).resolve().parents[1]
 def generated_files() -> dict[Path, str]:
     catalog = support_catalog()
     pages = {
+        "docs/user-guide.md": "Physics objects, finite and periodic solves, fields and power",
+        "docs/api-physics-map.md": "Whole physics API review and migration decisions",
+        "docs/api-autodiff-map.md": "Whole native and framework API review and derivative boundaries",
         "docs/agents.md": "Agent quickstart and choosing an execution path",
         "docs/api.md": "Complete source-derived Python signatures, docstrings and pullback contracts",
         "docs/testing.md": "Runnable gradient and native pullback checks",

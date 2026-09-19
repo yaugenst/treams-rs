@@ -12,7 +12,7 @@ from treams_rs import advect as ad
 
 
 def _case(poltype, cylindrical=False):
-    family = tr.CylindricalWaveBasis if cylindrical else tr.SphericalWaveBasis
+    family = tr.CylindricalBasis if cylindrical else tr.SphericalBasis
     bases = [
         family.default([0.2, 0.4], i) if cylindrical else family.default(i)
         for i in (1, 2)
@@ -55,13 +55,13 @@ def test_heterogeneous_native_reference_and_all_pullbacks(poltype, cylindrical):
         for a, b in zip(local, bases, strict=True)
     ]
     expected = matrix_type.cluster(particles, positions).interaction.solve()
-    native_type = tr.TMatrixC if cylindrical else tr.TMatrix
+    native_type = tr.CylindricalTMatrix if cylindrical else tr.TMatrix
     native_particles = [
         native_type(a, basis=b, k0=1.3, material=material, poltype=poltype)
         for a, b in zip(local, bases, strict=True)
     ]
     assert_allclose(
-        native_type.cluster(native_particles, positions).interaction.solve().array,
+        native_type._assemble(native_particles, positions).interaction.solve().array,
         expected,
         rtol=2e-12,
         atol=1e-15,
@@ -160,7 +160,7 @@ def test_heterogeneous_rigid_translation_and_scale(cylindrical, scale, shift):
     expected = tr.diff.particle_cluster(local, positions, ks, bases=bases)[0]
     if cylindrical:
         bases = [
-            tr.CylindricalWaveBasis([(p, kz / scale, m, pol) for p, kz, m, pol in b])
+            tr.CylindricalBasis([(p, kz / scale, m, pol) for p, kz, m, pol in b])
             for b in bases
         ]
     actual = tr.diff.particle_cluster(
@@ -172,9 +172,9 @@ def test_heterogeneous_rigid_translation_and_scale(cylindrical, scale, shift):
 @pytest.mark.parametrize("cylindrical", [False, True])
 def test_complete_heterogeneous_material_and_geometry_advect(cylindrical):
     bases = [
-        tr.CylindricalWaveBasis.default([0.2, 0.4], i)
+        tr.CylindricalBasis.default([0.2, 0.4], i)
         if cylindrical
-        else tr.SphericalWaveBasis.default(i)
+        else tr.SphericalBasis.default(i)
         for i in (1, 2)
     ]
 
@@ -236,7 +236,7 @@ def test_complete_heterogeneous_material_and_geometry_advect(cylindrical):
 
 
 def test_heterogeneous_invalid_inputs_and_single_particle():
-    basis = tr.SphericalWaveBasis.default(1)
+    basis = tr.SphericalBasis.default(1)
     a = np.eye(len(basis), dtype=complex) * 0.03
     with pytest.raises(ValueError, match="one local"):
         tr.diff.particle_cluster([], [], [1, 1], bases=[])
@@ -257,7 +257,7 @@ def test_heterogeneous_invalid_inputs_and_single_particle():
 
 
 def test_cylindrical_cluster_excludes_coaxial_particles():
-    basis = tr.CylindricalWaveBasis.default([0.2], 1)
+    basis = tr.CylindricalBasis.default([0.2], 1)
     a = np.eye(len(basis), dtype=complex)
     with pytest.raises(ValueError, match="transverse"):
         tr.diff.particle_cluster(

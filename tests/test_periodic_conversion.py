@@ -17,9 +17,11 @@ def test_array_constructor_reference(poltype):
     period, bloch, k0 = 1.7, 0.2, 1.3
     material = (1.4 + 0.1j, 1.2, 0.07 if poltype == "helicity" else 0)
     kzs = bloch + 2 * np.pi / period * np.arange(-1, 2)
-    basis = tr.CylindricalWaveBasis.default(kzs, 3)
+    basis = tr.CylindricalBasis.default(kzs, 3)
     particle = tr.TMatrix.sphere(3, k0, 0.2, [3.1, material], poltype=poltype)
-    actual = tr.TMatrixC.from_array(particle, basis, lattice=period, kpar=bloch)
+    actual = tr.CylindricalTMatrix._from_array(
+        particle, basis, lattice=period, kpar=bloch
+    )
     oracle = treams.TMatrix.sphere(3, k0, 0.2, [3.1, material], poltype=poltype)
     response = oracle.latticeinteraction.solve(period, bloch)
     expected = treams.TMatrixC.from_array(
@@ -35,13 +37,15 @@ def test_array_constructor_reference(poltype):
 def test_array_lossless_power_and_scale(radius, scale):
     period, bloch, k0 = 1.7, 0.2, 1.3
     particle = tr.TMatrix.sphere(3, k0, radius, [3, 1])
-    basis = tr.CylindricalWaveBasis.default([bloch], 3)
-    value = tr.TMatrixC.from_array(particle, basis, lattice=period, kpar=bloch).array
+    basis = tr.CylindricalBasis.default([bloch], 3)
+    value = tr.CylindricalTMatrix._from_array(
+        particle, basis, lattice=period, kpar=bloch
+    ).array
     scattering = np.eye(len(basis)) + 2 * value
     assert_allclose(scattering.conj().T @ scattering, np.eye(len(basis)), atol=2e-10)
-    scaled = tr.TMatrixC.from_array(
+    scaled = tr.CylindricalTMatrix._from_array(
         tr.TMatrix.sphere(3, k0 / scale, radius * scale, [3, 1]),
-        tr.CylindricalWaveBasis.default([bloch / scale], 3),
+        tr.CylindricalBasis.default([bloch / scale], 3),
         lattice=period * scale,
         kpar=bloch / scale,
     )
@@ -59,10 +63,10 @@ def test_array_cross_width_with_evanescent_orders(poltype, kappa, radius, loss):
     particle = tr.TMatrix.sphere(
         3, k0, radius, [(3.1 + loss * 1j, 1, 0.04), medium], poltype=poltype
     )
-    basis = tr.CylindricalWaveBasis.default(
+    basis = tr.CylindricalBasis.default(
         bloch + 2 * np.pi / period * np.arange(-1, 2), 3
     )
-    tm = tr.TMatrixC.from_array(particle, basis, lattice=period, kpar=bloch)
+    tm = tr.CylindricalTMatrix._from_array(particle, basis, lattice=period, kpar=bloch)
     radiating = abs(basis.kz) < tm.ks[basis.pol].real
     assert radiating.any() and not radiating.all()
     widths = []
@@ -89,10 +93,10 @@ def test_array_cross_width_with_evanescent_orders(poltype, kappa, radius, loss):
         [tm.xw_sca_avg, tm.xw_ext_avg], widths.mean(axis=0), rtol=2e-12, atol=2e-13
     )
     # Adding closed incoming/outgoing channels cannot change a far-field average.
-    truncated = tr.TMatrixC(
+    truncated = tr.CylindricalTMatrix(
         tm.array[np.ix_(radiating, radiating)],
         k0=k0,
-        basis=tr.CylindricalWaveBasis(np.asarray(basis.modes)[radiating]),
+        basis=tr.CylindricalBasis(np.asarray(basis.modes)[radiating]),
         material=medium,
         poltype=poltype,
     )
@@ -105,8 +109,8 @@ def test_array_cross_width_with_evanescent_orders(poltype, kappa, radius, loss):
 
 @pytest.mark.parametrize("kz", [1.3, 2.0])
 def test_cross_width_rejects_evanescent_illumination_and_cutoff(kz):
-    basis = tr.CylindricalWaveBasis.default([kz], 0)
-    tm = tr.TMatrixC(np.eye(2), k0=1.3, basis=basis)
+    basis = tr.CylindricalBasis.default([kz], 0)
+    tm = tr.CylindricalTMatrix(np.eye(2), k0=1.3, basis=basis)
     for operation in (
         lambda: tm.xw([1, 0]),
         lambda: tm.xw_sca_avg,
@@ -121,24 +125,24 @@ def test_cross_width_rejects_evanescent_illumination_and_cutoff(kz):
 def test_expandlattice_same_family_and_plane_radiation(cylindrical, poltype):
     k0, material = 1.3, (1.4 + 0.1j, 1.2)
     if cylindrical:
-        source = tr.CylindricalWaveBasis.default([0.2], 2)
+        source = tr.CylindricalBasis.default([0.2], 2)
         oracle_source = treams.CylindricalWaveBasis.default([0.2], 2)
         lattice, bloch = 1.7, 0.1
         q = [[0.2, bloch + n * 2 * np.pi / lattice] for n in [-1, 0, 1]]
-        ports = tr.PlaneWaveBasisByComp.default(q, "zx")
+        ports = tr.PlaneWavePorts.default(q, "zx")
         oracle_ports = treams.PlaneWaveBasisByComp.default(q, "zx")
     else:
-        source = tr.SphericalWaveBasis.default(2)
+        source = tr.SphericalBasis.default(2)
         oracle_source = treams.SphericalWaveBasis.default(2)
         lattice, bloch = np.diag([1.7, 1.8]), [0.1, 0.2]
-        ports = tr.PlaneWaveBasisByComp.diffr_orders(bloch, lattice, 4)
+        ports = tr.PlaneWavePorts.diffr_orders(bloch, lattice, 4)
         oracle_ports = treams.PlaneWaveBasisByComp.default(ports.components[::2])
     common = dict(k0=k0, material=material, poltype=poltype)
-    actual = tr.expandlattice(lattice, bloch, basis=source, **common)
+    actual = tr.operators.expandlattice(lattice, bloch, basis=source, **common)
     expected = treams.expandlattice(lattice, bloch, basis=oracle_source, **common)
     assert_allclose(actual, expected, rtol=2e-10, atol=2e-10)
     for side in ("up", "down"):
-        actual = tr.expandlattice(
+        actual = tr.operators.expandlattice(
             lattice, bloch, basis=(ports, source), modetype=(side, "singular"), **common
         )
         expected = treams.expandlattice(
@@ -148,27 +152,27 @@ def test_expandlattice_same_family_and_plane_radiation(cylindrical, poltype):
 
 
 def test_expandlattice_cylindrical_orders_and_wave_types():
-    source = tr.SphericalWaveBasis.default(2)
-    destination = tr.CylindricalWaveBasis.default([0.2, 0.2 + 2 * np.pi / 1.7], 2)
+    source = tr.SphericalBasis.default(2)
+    destination = tr.CylindricalBasis.default([0.2, 0.2 + 2 * np.pi / 1.7], 2)
     for modetype in (None, "singular", ("singular", "singular")):
-        actual = tr.expandlattice(
+        actual = tr.operators.expandlattice(
             1.7, 0.2, basis=(destination, source), k0=1.3, modetype=modetype
         )
         assert_allclose(
             actual, tr.diff.periodic_conversion(destination, source, [1.3, 1.3], 1.7)[0]
         )
     with pytest.raises(ValueError, match="diffraction orders"):
-        tr.expandlattice(1.7, 0.3, basis=(destination, source), k0=1.3)
+        tr.operators.expandlattice(1.7, 0.3, basis=(destination, source), k0=1.3)
     with pytest.raises(ValueError, match="outgoing waves"):
-        tr.expandlattice(
+        tr.operators.expandlattice(
             1.7, 0.2, basis=(destination, source), k0=1.3, modetype="regular"
         )
 
 
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 def test_periodic_conversion_reference(poltype):
-    source = tr.SphericalWaveBasis.default(4)
-    destination = tr.CylindricalWaveBasis.default([-0.3, 0.2, 2.7], 4)
+    source = tr.SphericalBasis.default(4)
+    destination = tr.CylindricalBasis.default([-0.3, 0.2, 2.7], 4)
     ks = (
         np.array([1.3 + 0.1j, 1.5 + 0.2j])
         if poltype == "helicity"
@@ -194,8 +198,8 @@ def test_periodic_conversion_reference(poltype):
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 @pytest.mark.parametrize("coincident", [False, True])
 def test_periodic_conversion_all_pullbacks(poltype, coincident):
-    source = tr.SphericalWaveBasis.default(3, 2)
-    destination = tr.CylindricalWaveBasis.default([-0.3, 0.2], 2, 2)
+    source = tr.SphericalBasis.default(3, 2)
+    destination = tr.CylindricalBasis.default([-0.3, 0.2], 2, 2)
     rng = np.random.default_rng(89)
     to = np.zeros((2, 3)) if coincident else rng.normal(size=(2, 3)) * 0.1
     origin = np.zeros((2, 3)) if coincident else rng.normal(size=(2, 3)) * 0.1
@@ -247,9 +251,9 @@ def test_periodic_conversion_all_pullbacks(poltype, coincident):
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 def test_periodic_conversion_reconstructs_image_sum(poltype):
     period, bloch = 1.7, 0.2
-    source = tr.SphericalWaveBasis.default(2, positions=[[-0.1, 0.2, -0.2]])
+    source = tr.SphericalBasis.default(2, positions=[[-0.1, 0.2, -0.2]])
     orders = np.arange(-8, 9)
-    destination = tr.CylindricalWaveBasis.default(
+    destination = tr.CylindricalBasis.default(
         bloch + 2 * np.pi / period * orders, 20, positions=[[0.2, -0.1, 0.3]]
     )
     ks = (
@@ -270,7 +274,7 @@ def test_periodic_conversion_reconstructs_image_sum(poltype):
     positions = source.positions + np.column_stack(
         [np.zeros((len(images), 2)), images * period]
     )
-    repeated = tr.SphericalWaveBasis.default(2, len(images), positions)
+    repeated = tr.SphericalBasis.default(2, len(images), positions)
     amplitudes = (np.exp(1j * bloch * period * images)[:, None] * coefficients).ravel()
     expected = tr.diff.field(
         amplitudes, points, repeated, ks, poltype=poltype, singular=True
@@ -279,9 +283,9 @@ def test_periodic_conversion_reconstructs_image_sum(poltype):
 
 
 def test_advect_periodic_sphere_to_moving_cylindrical_orders():
-    source = tr.SphericalWaveBasis.default(2)
+    source = tr.SphericalBasis.default(2)
     orders = np.repeat(np.arange(-2, 3), 14)
-    destination = tr.CylindricalWaveBasis.default(
+    destination = tr.CylindricalBasis.default(
         0.2 + 2 * np.pi / 1.7 * np.arange(-2, 3), 3
     )
     propagating = orders == 0

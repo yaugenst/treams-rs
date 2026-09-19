@@ -13,10 +13,10 @@ from treams_rs import advect as ad
 
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 def test_cylindrical_channels_reference(poltype):
-    basis = tr.CylindricalWaveBasis.default(
+    basis = tr.CylindricalBasis.default(
         [0.2, -0.3], 3, 2, [[0.1, 0.2, 0.3], [-0.2, 0.1, -0.1]]
     )
-    ports = tr.PlaneWaveBasisByComp.default(
+    ports = tr.PlaneWavePorts.default(
         [[0.2, 0.1], [0.2, 2.5], [-0.3, -0.2], [-0.3, -2.4]], "zx"
     )
     material = tr.Material(1.4 + 0.1j, 1.2, 0.1 if poltype == "helicity" else 0)
@@ -61,7 +61,7 @@ def test_cylindrical_channels_reference(poltype):
 
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 def test_cylindrical_channel_all_continuous_pullbacks(poltype):
-    basis = tr.CylindricalWaveBasis.default([0.2, -0.3], 2, 2)
+    basis = tr.CylindricalBasis.default([0.2, -0.3], 2, 2)
     origins = np.array([[0.1, 0.2, 0.3], [-0.2, 0.1, -0.1]])
     ks = (
         np.array([1.3 + 0.1j, 1.4 + 0.15j])
@@ -107,9 +107,9 @@ def test_cylindrical_channel_all_continuous_pullbacks(poltype):
 def test_radiation_reconstructs_periodic_image_field(poltype, side):
     k = 1.3 + 0.2j
     period, bloch = 1.7, 0.2
-    basis = tr.CylindricalWaveBasis.default([0.2], 2, positions=[[0.1, 0.15, 0.2]])
+    basis = tr.CylindricalBasis.default([0.2], 2, positions=[[0.1, 0.15, 0.2]])
     orders = np.arange(-8, 9)
-    ports = tr.PlaneWaveBasisByComp.default(
+    ports = tr.PlaneWavePorts.default(
         np.column_stack(
             [np.full(len(orders), 0.2), bloch + 2 * np.pi / period * orders]
         ),
@@ -135,7 +135,7 @@ def test_radiation_reconstructs_periodic_image_field(poltype, side):
     positions = basis.positions + np.column_stack(
         [images * period, np.zeros((len(images), 2))]
     )
-    repeated = tr.CylindricalWaveBasis.default([0.2], 2, len(images), positions)
+    repeated = tr.CylindricalBasis.default([0.2], 2, len(images), positions)
     amplitudes = (np.exp(1j * bloch * period * images)[:, None] * coefficients).ravel()
     expected = tr.diff.field(
         amplitudes, points, repeated, [k, k], poltype=poltype, singular=True
@@ -145,9 +145,9 @@ def test_radiation_reconstructs_periodic_image_field(poltype, side):
 
 @given(radius=st.floats(0.1, 0.3))
 def test_cylindrical_array_lossless_power(radius):
-    basis = tr.CylindricalWaveBasis.default([0.2], 3)
+    basis = tr.CylindricalBasis.default([0.2], 3)
     period, bloch, k0 = 1.7, 0.1, 1.3
-    ports = tr.PlaneWaveBasisByComp.default(
+    ports = tr.PlaneWavePorts.default(
         [
             [0.2, bloch],
             [0.2, bloch + 2 * np.pi / period],
@@ -172,7 +172,7 @@ def test_cylindrical_array_lossless_power(radius):
 
 
 def test_advect_complete_cylindrical_array_reflectance_gradient():
-    basis = tr.CylindricalWaveBasis.default([0.2], 3)
+    basis = tr.CylindricalBasis.default([0.2], 3)
     kz_labels = np.full(6, 0.2)
     polarizations = np.tile([1, 0], 3)
 
@@ -223,7 +223,7 @@ def test_advect_complete_cylindrical_array_reflectance_gradient():
 
 @pytest.mark.parametrize("fixed_q", [False, True])
 def test_fixed_axial_labels_and_explicit_channel_threshold(fixed_q):
-    basis = tr.CylindricalWaveBasis.default([0.2], 2)
+    basis = tr.CylindricalBasis.default([0.2], 2)
     value, context = tr.diff.cylindrical_channels(
         basis, [1, 1], [[0.3, 0.1]], [1], 1.7, fixed_q=fixed_q
     )
@@ -238,8 +238,10 @@ def test_fixed_axial_labels_and_explicit_channel_threshold(fixed_q):
 @pytest.mark.parametrize("side", ["up", "down"])
 def test_cylindrical_array_python_workflow(poltype, side):
     period, bloch, k0, kz = 1.7, 0.1, 1.3, 0.2
-    cylinder = tr.TMatrixC.cylinder([kz], 3, k0, [0.2], [4, 1], poltype=poltype)
-    ports = tr.PlaneWaveBasisByComp.default(
+    cylinder = tr.CylindricalTMatrix.cylinder(
+        [kz], 3, k0, [0.2], [4, 1], poltype=poltype
+    )
+    ports = tr.PlaneWavePorts.default(
         [
             [kz, bloch],
             [kz, bloch + 2 * np.pi / period],
@@ -247,7 +249,7 @@ def test_cylindrical_array_python_workflow(poltype, side):
         ],
         "zx",
     )
-    array = tr.SMatrices.from_array(cylinder, ports, lattice=period, kpar=bloch)
+    array = tr.SMatrix._from_array(cylinder, ports, lattice=period, kpar=bloch)
     response = cylinder.latticeinteraction.solve([[period]], [bloch])
     channels = tr.diff.cylindrical_channels(
         cylinder.basis,
@@ -266,5 +268,5 @@ def test_cylindrical_array_python_workflow(poltype, side):
     wave = tr.plane_wave([bloch, ky, kz], incident[:2][::-1], k0=k0, poltype=poltype)
     assert_allclose(array.tr(wave), array.tr(incident, modetype=side), atol=1e-13)
     assert_allclose(sum(array.tr(wave)), 1, atol=2e-10)
-    spacer = tr.SMatrices.propagation(0.4, ports, k0, poltype=poltype)
+    spacer = tr.SMatrix.propagation(0.4, ports, k0, poltype=poltype)
     assert_allclose(array.add(spacer).tr(wave), array.tr(wave), atol=2e-10)

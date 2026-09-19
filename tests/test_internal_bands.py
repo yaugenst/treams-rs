@@ -64,15 +64,15 @@ def test_internal_illumination_reference_and_all_pullbacks(columns):
 @pytest.mark.parametrize("alignment", ["xy", "yz", "zx"])
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 def test_internal_fields_satisfy_both_interface_boundaries(alignment, poltype):
-    basis = tr.PlaneWaveBasisByComp.default([[0.2, 0.3]], alignment)
+    basis = tr.PlaneWavePorts.default([[0.2, 0.3]], alignment)
     k0, left, right = 1.3, 0.17, 0.23
     middle = tr.Material(2.3 + 0.1j, 1.2, 0.08 if poltype == "helicity" else 0)
     top_medium = tr.Material(1.4)
-    lower = tr.SMatrices.interface(basis, k0, [1, middle], poltype).add(
-        tr.SMatrices.propagation(left, basis, k0, middle, poltype)
+    lower = tr.SMatrix.interface(basis, k0, [1, middle], poltype).add(
+        tr.SMatrix.propagation(left, basis, k0, middle, poltype)
     )
-    upper = tr.SMatrices.propagation(right, basis, k0, middle, poltype).add(
-        tr.SMatrices.interface(basis, k0, [middle, top_medium], poltype)
+    upper = tr.SMatrix.propagation(right, basis, k0, middle, poltype).add(
+        tr.SMatrix.interface(basis, k0, [middle, top_medium], poltype)
     )
     incident_up = np.array([1, 0.2j])
     incident_down = np.array([0.1j, 0.3])
@@ -95,7 +95,7 @@ def test_internal_fields_satisfy_both_interface_boundaries(alignment, poltype):
             + operator(point, modetype="down", **common) @ down
         )[tangential]
 
-    for operator in (tr.efield, tr.hfield):
+    for operator in (tr.operators.efield, tr.operators.hfield):
         assert_allclose(
             fields(operator, 0, 1, incident_up, outgoing_down),
             fields(operator, -left, middle, internal_up, internal_down),
@@ -110,9 +110,9 @@ def test_internal_fields_satisfy_both_interface_boundaries(alignment, poltype):
 
 def test_internal_downward_plane_uses_top_outer_medium():
     wave = tr.plane_wave([0.1, 0.2, -1], 1, k0=1.3, material=4)
-    basis = tr.PlaneWaveBasisByComp.default([wave.kvecs[0, :2].real])
-    lower = tr.SMatrices.interface(basis, 1.3, [1, 2.3])
-    upper = tr.SMatrices.interface(basis, 1.3, [2.3, 4])
+    basis = tr.PlaneWavePorts.default([wave.kvecs[0, :2].real])
+    lower = tr.SMatrix.interface(basis, 1.3, [1, 2.3])
+    upper = tr.SMatrix.interface(basis, 1.3, [2.3, 4])
     actual = lower.illuminate(wave, smat=upper)
     expected = lower.add(upper).illuminate(wave)
     assert_allclose(actual[:2], expected, atol=1e-12)
@@ -143,8 +143,8 @@ def test_transfer_reference_and_pullback():
 @pytest.mark.parametrize("alignment", ["xy", "yz", "zx"])
 @given(period=st.floats(0.1, 0.7), k0=st.floats(1.0, 2.0))
 def test_uniform_bloch_bands(alignment, period, k0):
-    basis = tr.PlaneWaveBasisByComp.default([[0.2, 0.3], [2.5, 0.1]], alignment)
-    smats = tr.SMatrices.propagation(period, basis, k0)
+    basis = tr.PlaneWavePorts.default([[0.2, 0.3], [2.5, 0.1]], alignment)
+    smats = tr.SMatrix.propagation(period, basis, k0)
     wavenumbers, vectors = smats.bands_kz(period)
     expected = np.sqrt(k0**2 - np.sum(basis.components**2, axis=1) + 0j)
     expected = np.concatenate([expected, -expected])
@@ -161,7 +161,7 @@ def test_uniform_bloch_bands(alignment, period, k0):
 def test_slab_band_reference():
     q = [[0.2, 0.3], [0.4, 0.1]]
     materials = [1, (2.3 + 0.1j, 1.2, 0.13), 1]
-    ours = tr.SMatrices.slab(0.4, tr.PlaneWaveBasisByComp.default(q), 1.3, materials)
+    ours = tr.SMatrix.slab(0.4, tr.PlaneWavePorts.default(q), 1.3, materials)
     oracle = treams.SMatrices.slab(
         0.4, treams.PlaneWaveBasisByComp.default(q), 1.3, materials
     )
@@ -217,7 +217,7 @@ def test_complete_advect_uniform_bands_at_polarization_degeneracy():
     def objective(k0, period):
         normal = anp.sqrt(k0**2 - 0.2**2 - 0.3**2)
         vectors = anp.stack([anp.stack([0.2, 0.3, normal])] * 2)
-        smats = ad.propagation(vectors, anp.stack([0.0, 0.0, period]))
+        smats = ad.propagation_matrix(vectors, anp.stack([0.0, 0.0, period]))
         k, _ = ad.bands(smats, period)
         return anp.sum(anp.real(k * anp.conj(k)))
 
@@ -251,7 +251,7 @@ def test_complete_advect_layer_observables(observable):
             axis=-1,
         )
         upper = ad.smatrix_add(
-            ad.propagation(vectors, anp.stack([0.0, 0.0, thickness[1]])), upper
+            ad.propagation_matrix(vectors, anp.stack([0.0, 0.0, thickness[1]])), upper
         )
         fields = ad.smatrix_illuminate(
             lower, upper, np.array([[1.0], [0.2j]]), np.array([[0.1j], [0.3]])

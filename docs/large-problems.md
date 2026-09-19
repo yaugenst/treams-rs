@@ -1,7 +1,10 @@
 # Requested illuminations and larger clusters
 
-Use `diff.cluster_factor` when several illuminations share a geometry and its
-dense LU factorization fits in memory. Use [`iterative.SphereCluster`](iterative.md) when avoiding
+Use `Cluster(...).factor().scatter(incident)` when several physical illuminations
+share a geometry and its dense LU factorization fits in memory; see the
+[physical cluster workflow](user-guide.md#finite-multiple-scattering).
+The expert `diff.cluster_factor` interface below accepts coefficient columns
+and exposes native recording. Use [`iterative.SphereCluster`](iterative.md) when avoiding
 the dense coupling and factorization matters more than repeated-solve latency.
 Both compute only the incident columns requested by the caller.
 

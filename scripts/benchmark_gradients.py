@@ -114,9 +114,11 @@ class Problem:
                 (np.linspace(0.05, 0.7, args.samples), np.full(args.samples, 0.11))
             )
             # Explicit polarization ordering matches diff.layer_stack's final axes.
-            self.basis = self.solver.PlaneWaveBasisByComp(
-                [(x, y, pol) for x, y in self.q for pol in (0, 1)]
-            )
+            self.basis = (
+                self.solver.PlaneWavePorts
+                if self.backend == "rust"
+                else self.solver.PlaneWaveBasisByComp
+            )([(x, y, pol) for x, y in self.q for pol in (0, 1)])
         elif "field" in self.family:
             self.data["positions"] *= 0.4
             self.data["points"] = np.column_stack(
@@ -162,16 +164,20 @@ class Problem:
 
     def field_basis(self, values):
         if self.family == "cylindrical-field":
-            return self.solver.CylindricalWaveBasis.default(
-                [0.2], self.args.lmax, self.args.particles, values["positions"]
-            )
-        return self.solver.SphericalWaveBasis.default(
-            self.args.lmax, self.args.particles, values["positions"]
-        )
+            return (
+                self.solver.CylindricalBasis
+                if self.backend == "rust"
+                else self.solver.CylindricalWaveBasis
+            ).default([0.2], self.args.lmax, self.args.particles, values["positions"])
+        return (
+            self.solver.SphericalBasis
+            if self.backend == "rust"
+            else self.solver.SphericalWaveBasis
+        ).default(self.args.lmax, self.args.particles, values["positions"])
 
     def field_matrix(self, values):
         return np.asarray(
-            self.solver.efield(
+            (self.solver.operators if self.backend == "rust" else self.solver).efield(
                 values["points"],
                 basis=self.field_basis(values),
                 k0=float(values["k0"]),
@@ -199,7 +205,11 @@ class Problem:
                 for r, eps in zip(values["radii"], values["epsilon"], strict=True)
             ]
             return np.asarray(
-                tr.TMatrix.cluster(spheres, values["positions"]).interaction.solve()
+                (
+                    tr.TMatrix._assemble
+                    if self.backend == "rust"
+                    else tr.TMatrix.cluster
+                )(spheres, values["positions"]).interaction.solve()
             )
         if self.family == "sphere":
             materials = list(
@@ -215,7 +225,7 @@ class Problem:
                 )
             )
         if self.family == "layers":
-            stack = tr.SMatrices.slab(
+            stack = (tr.SMatrix if self.backend == "rust" else tr.SMatrices).slab(
                 values["thickness"],
                 self.basis,
                 k0,
@@ -231,7 +241,7 @@ class Problem:
                     for i in range(self.args.samples)
                 ]
             )
-        wave = tr.PhysicsArray(
+        wave = (tr.operators if self.backend == "rust" else tr).PhysicsArray(
             values["coefficients"],
             basis=self.field_basis(values),
             k0=k0,

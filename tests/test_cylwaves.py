@@ -101,7 +101,7 @@ def test_cylinder_cluster_and_global_expansion(poltype):
     radii = [0.2, 0.25]
     material = [(3.0, 1.1, 0.02), (1.0, 1.0, 0.0)]
     native = [
-        tr.TMatrixC.cylinder(kzs, 2, k0, radius, material, poltype=poltype)
+        tr.CylindricalTMatrix.cylinder(kzs, 2, k0, radius, material, poltype=poltype)
         for radius in radii
     ]
     reference = [
@@ -115,11 +115,11 @@ def test_cylinder_cluster_and_global_expansion(poltype):
         np.testing.assert_allclose(actual.xw_sca_avg, expected.xw_sca_avg, rtol=1e-10)
         np.testing.assert_allclose(actual.xw_ext_avg, actual.xw_sca_avg, rtol=1e-10)
         np.testing.assert_allclose(actual.krhos, expected.krhos, rtol=1e-12)
-    actual = tr.TMatrixC.cluster(native, positions).interaction.solve()
+    actual = tr.CylindricalTMatrix._assemble(native, positions).interaction.solve()
     expected = treams.TMatrixC.cluster(reference, positions).interaction.solve()
-    assert isinstance(actual, tr.TMatrixC)
+    assert isinstance(actual, tr.CylindricalTMatrix)
     np.testing.assert_allclose(actual.array, expected, rtol=3e-10, atol=2e-12)
-    actual = actual.expand(tr.CylindricalWaveBasis.default(kzs, 8))
+    actual = actual.expand(tr.CylindricalBasis.default(kzs, 8))
     expected = expected.expand(treams.CylindricalWaveBasis.default(kzs, 8))
     np.testing.assert_allclose(actual.array, expected, rtol=3e-10, atol=2e-12)
     np.testing.assert_allclose(actual.xw_ext_avg, expected.xw_ext_avg, rtol=3e-10)
@@ -147,7 +147,7 @@ def test_cylindrical_expansion_advect_vjp(x, imaginary):
     import treams_rs as tr
     from treams_rs import advect as ad
 
-    basis = tr.CylindricalWaveBasis.default([0.2, -0.3], 2)
+    basis = tr.CylindricalBasis.default([0.2, -0.3], 2)
     positions = np.array([[x, 0.2, 0.3]])
     ks = np.array([1.2 + imaginary * 1j, 1.3 + imaginary * 1j])
 
@@ -179,17 +179,17 @@ def test_cylindrical_expansion_advect_vjp(x, imaginary):
 def test_cylindrical_basis_and_matrix_family_contract():
     import treams_rs as tr
 
-    basis = tr.CylindricalWaveBasis.default([0.0], 1)
+    basis = tr.CylindricalBasis.default([0.0], 1)
     assert next(iter(basis)) == (0, 0.0, -1, 1)
-    assert tr.CylindricalWaveBasis.defaultmmax(len(basis)) == 1
+    assert tr.CylindricalBasis.defaultmmax(len(basis)) == 1
     with pytest.raises(ValueError, match="wave family"):
         tr.TMatrix(np.eye(6), k0=1.2, basis=basis)
     with pytest.raises(ValueError, match="wave family"):
-        tr.TMatrixC(np.eye(6), k0=1.2, basis=tr.SphericalWaveBasis.default(1))
+        tr.CylindricalTMatrix(np.eye(6), k0=1.2, basis=tr.SphericalBasis.default(1))
     sphere = tr.TMatrix.sphere(1, 1.2, 0.2, [3.0, 1.0])
-    cylinder = tr.TMatrixC.cylinder([0.0], 1, 1.2, 0.2, [3.0, 1.0])
+    cylinder = tr.CylindricalTMatrix.cylinder([0.0], 1, 1.2, 0.2, [3.0, 1.0])
     with pytest.raises(ValueError, match="cluster"):
-        tr.TMatrix.cluster([sphere, cylinder], [[0, 0, 0], [1, 0, 0]])
-    assert tr.CylindricalWaveBasis.default(
-        [0.2, 0.2], 1
-    ) == tr.CylindricalWaveBasis.default([0.2], 1)
+        tr.TMatrix._assemble([sphere, cylinder], [[0, 0, 0], [1, 0, 0]])
+    assert tr.CylindricalBasis.default([0.2, 0.2], 1) == tr.CylindricalBasis.default(
+        [0.2], 1
+    )

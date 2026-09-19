@@ -17,15 +17,35 @@ from treams_rs.testing import check_pullback
 for dependency in ("treams", "scipy", "autograd", "h5py", "jax", "torch"):
     assert importlib.util.find_spec(dependency) is None, dependency
 
+# Primary physical workflow works in the isolated wheel, without an oracle.
+particle = tr.sphere_tmatrix(k0=1.3, lmax=2, radius=0.2, material=3)
+source = tr.plane_wave(direction=[0, 0, 1], polarization="positive_helicity", k0=1.3)
+wave = particle.scatter(source)
+np.testing.assert_allclose(
+    particle.cross_sections(source).scattering,
+    particle.cross_sections(source).extinction,
+    rtol=1e-11,
+)
+assert wave.efield([[0.1, 0.2, 0.8]]).shape == (1, 3)
+
+
+def physical_loss(radius):
+    sphere = ad.sphere_tmatrix(k0=1.3, lmax=2, radius=radius, material=3)
+    incoming = ad.plane_wave([0, 0, 1], "positive_helicity", k0=1.3)
+    return sphere.cross_sections(incoming).scattering
+
+
+assert advect.grad(physical_loss)(0.2) > 0
+
 cell = np.diag([1.7, 1.8])
-basis = tr.PlaneWaveBasisByComp.diffr_orders([0, 0], cell, 4)
+basis = tr.PlaneWavePorts.diffr_orders([0, 0], cell, 4)
 sphere = tr.TMatrix.sphere(2, 2.1, 0.2, [3, 1])
-array = tr.SMatrices.from_array(sphere, basis, lattice=cell, kpar=[0, 0])
+array = tr.SMatrix._from_array(sphere, basis, lattice=cell, kpar=[0, 0])
 np.testing.assert_allclose(
     sum(array.tr(tr.plane_wave([0, 0, 1], 1, k0=2.1))), 1, atol=1e-10
 )
 
-modes = tr.SphericalWaveBasis.default(2)
+modes = tr.SphericalBasis.default(2)
 positions = np.zeros((1, 3))
 
 
@@ -55,10 +75,10 @@ np.testing.assert_allclose(
 )
 print("Clean wheel: periodic power conservation and complete Advect gradient passed")
 
-cb = tr.CylindricalWaveBasis.default([0.2], 1)
+cb = tr.CylindricalBasis.default([0.2], 1)
 points = np.array([[0.8, 0.3, 0.1]])
 coefficients = np.ones(len(cb), complex)
-electric = tr.efield(points, basis=cb, k0=1.3)
+electric = tr.operators.efield(points, basis=cb, k0=1.3)
 np.testing.assert_allclose(
     electric @ coefficients,
     tr.diff.field(coefficients, points, cb, [1.3, 1.3])[0],
@@ -82,9 +102,9 @@ np.testing.assert_allclose(
 print("Clean wheel: cylindrical field operator and magnetic impedance gradient passed")
 
 
-plane = tr.PlaneWaveBasisByComp.default([[0.2, 0.3], [1.5, -0.1]])
+plane = tr.PlaneWavePorts.default([[0.2, 0.3], [1.5, -0.1]])
 vectors = np.column_stack(plane.kvecs(1.3))
-operator = tr.efield(points, basis=plane, k0=1.3)
+operator = tr.operators.efield(points, basis=plane, k0=1.3)
 np.testing.assert_allclose(
     operator, tr.diff.plane_field(None, points, vectors, plane.pol)[0], rtol=1e-12
 )
@@ -103,9 +123,9 @@ print(
 )
 
 
-cylinder = tr.TMatrixC.cylinder([0.2], 3, 1.3, [0.2], [4, 1])
-cports = tr.PlaneWaveBasisByComp.default([[0.2, 0.1]], "zx")
-carray = tr.SMatrices.from_array(cylinder, cports, lattice=1.7, kpar=0.1)
+cylinder = tr.CylindricalTMatrix.cylinder([0.2], 3, 1.3, [0.2], [4, 1])
+cports = tr.PlaneWavePorts.default([[0.2, 0.1]], "zx")
+carray = tr.SMatrix._from_array(cylinder, cports, lattice=1.7, kpar=0.1)
 np.testing.assert_allclose(sum(carray.tr([1, 0])), 1, atol=2e-10)
 
 
@@ -133,7 +153,7 @@ print(
 )
 
 
-cincident = tr.expand((cylinder.basis, cports), k0=1.3)
+cincident = tr.operators.expand((cylinder.basis, cports), k0=1.3)
 cvectors = np.column_stack(cports.kvecs(1.3))
 np.testing.assert_allclose(
     cincident,
@@ -143,7 +163,7 @@ np.testing.assert_allclose(
 print("Clean wheel: cylindrical plane-illumination operator passed")
 
 
-oriented_slab = tr.SMatrices.slab(0.4, cports, 1.3, [1, 2.3, 1])
+oriented_slab = tr.SMatrix.slab(0.4, cports, 1.3, [1, 2.3, 1])
 np.testing.assert_allclose(sum(carray.add(oriented_slab).tr([1, 0])), 1, atol=2e-10)
 print("Clean wheel: cylindrical array plus oriented slab conserves power")
 
@@ -169,8 +189,8 @@ np.testing.assert_allclose(
 print("Clean wheel: compact multilayer thickness adjoint passed")
 
 
-array_basis = tr.CylindricalWaveBasis.default([0.2], 2)
-array_cylinder = tr.TMatrixC.from_array(
+array_basis = tr.CylindricalBasis.default([0.2], 2)
+array_cylinder = tr.CylindricalTMatrix._from_array(
     tr.TMatrix.sphere(2, 1.3, 0.2, [3, 1]), array_basis, lattice=1.7, kpar=0.2
 )
 array_scattering = np.eye(len(array_basis)) + 2 * array_cylinder.array
@@ -200,8 +220,8 @@ np.testing.assert_allclose(
 print("Clean wheel: spherical array to cylindrical power and period adjoint passed")
 
 
-lower_interface = tr.SMatrices.interface(cports, 1.3, [1, 2.3])
-upper_interface = tr.SMatrices.interface(cports, 1.3, [2.3, 1])
+lower_interface = tr.SMatrix.interface(cports, 1.3, [1, 2.3])
+upper_interface = tr.SMatrix.interface(cports, 1.3, [2.3, 1])
 internal = lower_interface.illuminate([1, 0], smat=upper_interface)
 np.testing.assert_allclose(internal[:2], [[1, 0], [0, 0]], atol=1e-12)
 
@@ -224,7 +244,7 @@ np.testing.assert_allclose(
 def uniform_band_norm(k0, period):
     normal = anp.sqrt(k0**2 - 0.2**2 - 0.3**2)
     vectors = anp.stack([anp.stack([0.2, 0.3, normal])] * 2)
-    smats = ad.propagation(vectors, anp.stack([0.0, 0.0, period]))
+    smats = ad.propagation_matrix(vectors, anp.stack([0.0, 0.0, period]))
     k, _ = ad.bands(smats, period)
     return anp.sum(anp.real(k * anp.conj(k)))
 
@@ -236,8 +256,9 @@ print("Clean wheel: internal fields and degenerate uniform-band adjoints passed"
 
 
 np.testing.assert_allclose(
-    tr.gfield(0, points, basis=cb, k0=1.3) + tr.gfield(1, points, basis=cb, k0=1.3),
-    tr.efield(points, basis=cb, k0=1.3),
+    tr.operators.gfield(0, points, basis=cb, k0=1.3)
+    + tr.operators.gfield(1, points, basis=cb, k0=1.3),
+    tr.operators.efield(points, basis=cb, k0=1.3),
     atol=1e-12,
 )
 
@@ -329,12 +350,12 @@ print("Clean wheel: interval chirality density and native scaling adjoint passed
 
 source = tr.spherical_wave(1, 0, 1, k0=1.3)
 particle = tr.TMatrix.sphere(3, 1.3, 0.2, [3, 1])
-scattered = tr.MultipoleWave(
+scattered = tr.Wave(
     particle @ source, basis=particle.basis, k0=1.3, modetype="singular"
 )
 np.testing.assert_allclose(
     scattered.hfield(points),
-    tr.hfield(points, basis=particle.basis, k0=1.3, modetype="singular")
+    tr.operators.hfield(points, basis=particle.basis, k0=1.3, modetype="singular")
     @ scattered.array,
     atol=1e-12,
 )
@@ -348,9 +369,9 @@ np.testing.assert_allclose(
 )
 print("Clean wheel: shared polarization conversion preserves source fields")
 
-np.testing.assert_array_equal(tr.expand(plane, k0=1.3), np.eye(len(plane)))
+np.testing.assert_array_equal(tr.operators.expand(plane, k0=1.3), np.eye(len(plane)))
 np.testing.assert_allclose(
-    tr.translate([0, 0, 0], basis=plane, k0=1.3), np.eye(len(plane)), atol=0
+    tr.operators.translate([0, 0, 0], basis=plane, k0=1.3), np.eye(len(plane)), atol=0
 )
 
 
@@ -367,8 +388,8 @@ print(
 )
 
 permuted = plane.permute(1)
-transform = tr.permute(1, basis=plane, k0=1.3)
-inverse = tr.permute(-1, basis=permuted, k0=1.3)
+transform = tr.operators.permute(1, basis=plane, k0=1.3)
+inverse = tr.operators.permute(-1, basis=permuted, k0=1.3)
 np.testing.assert_allclose(inverse @ transform, np.eye(len(plane)), atol=1e-12)
 print("Clean wheel: plane-wave coordinate transformation passed")
 
@@ -430,7 +451,7 @@ print("Clean wheel: Wigner symbols and Euler adjoints, gamma and Kambe ufuncs pa
 
 # A regular m=0 M wave on the axis vanishes; use an off-axis sample and the
 # complete geometric scale identity to check axial, medium and position VJPs.
-cb = tr.CylindricalWaveBasis.default([0.2], 1)
+cb = tr.CylindricalBasis.default([0.2], 1)
 cp = np.array([[0.4, -0.3, 0.2]])
 ck = np.array([1.3 + 0.05j, 1.5 + 0.07j])
 ca = np.full(len(cb), 0.2 + 0.3j)
@@ -451,7 +472,7 @@ np.testing.assert_allclose(
 print("Clean wheel: cylindrical axial field adjoints and Advect composition passed")
 
 
-cd = tr.CylindricalWaveBasis.default([0.2], 1, positions=[[0.3, 0.2, -0.1]])
+cd = tr.CylindricalBasis.default([0.2], 1, positions=[[0.3, 0.2, -0.1]])
 cv, cc = tr.diff.expansion(cd, cb, ck)
 cg = cc.pullback_axial(np.ones_like(cv))
 np.testing.assert_allclose(
@@ -551,7 +572,7 @@ cell = tr.Lattice([[1.7, 0.2], [0.0, 1.8]])
 np.testing.assert_allclose(
     np.asarray(cell) @ cell.reciprocal.T, 2 * np.pi * np.eye(2), atol=2e-15
 )
-ports = tr.PlaneWaveBasisByComp.diffr_orders([0.1, 0.2], cell, 4)
+ports = tr.PlaneWavePorts.diffr_orders([0.1, 0.2], cell, 4)
 assert ports.lattice == cell
 assert ports.kpar == tr.WaveVector([0.1, 0.2], alignment="xy")
 np.testing.assert_array_equal(tr.lattice.cubeedge(3, 0), [[0, 0, 0]])
@@ -602,7 +623,7 @@ def interface_power(impedance):
     ks = anp.array([[1.3, 1.3], [2.0, 2.0]])
     zs = anp.stack([1.0, impedance])
     directions = anp.array([[0.2, 0.3]])
-    blocks = ad.interface(ks, zs, directions[0])
+    blocks = ad.interface_coefficients(ks, zs, directions[0])
     power = ad.smatrix_tr(
         blocks,
         anp.array([[1.0], [0.2j]]),
@@ -624,7 +645,7 @@ np.testing.assert_allclose(
 )
 print("Clean wheel: native power adjoint and matrix coordinate workflows passed")
 
-foreign_basis = tr.SphericalWaveBasis(list(sphere.basis), positions=[[1, 2, 3]])
+foreign_basis = tr.SphericalBasis(list(sphere.basis), positions=[[1, 2, 3]])
 np.testing.assert_array_equal(
     sphere[foreign_basis].basis.positions, sphere.basis.positions
 )

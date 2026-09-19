@@ -8,14 +8,20 @@ from hypothesis import strategies as st
 from numpy.testing import assert_allclose, assert_array_equal
 
 from treams_rs import (
-    CylindricalWaveBasis,
+    CylindricalBasis as CylindricalWaveBasis,
+)
+from treams_rs import (
     Lattice,
-    PlaneWaveBasisByComp,
-    SphericalWaveBasis,
     WaveVector,
-    expandlattice,
     lattice,
 )
+from treams_rs import (
+    PlaneWavePorts as PlaneWaveBasisByComp,
+)
+from treams_rs import (
+    SphericalBasis as SphericalWaveBasis,
+)
+from treams_rs.operators import expandlattice
 
 
 @given(

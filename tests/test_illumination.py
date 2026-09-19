@@ -116,7 +116,7 @@ def test_physical_cluster_convenience_and_field_reconstruction():
         tr.TMatrix.sphere(2, 1.3, r, [eps, 1])
         for r, eps in [(0.2, 3 + 0.1j), (0.25, 4)]
     ]
-    cluster = tr.TMatrix.cluster(spheres, [[0, 0, 0], [0.7, 0.2, 0.1]])
+    cluster = tr.TMatrix._assemble(spheres, [[0, 0, 0], [0.7, 0.2, 0.1]])
     wave = tr.plane_wave([0.2, 0.1, 1], 1, k0=1.3)
     a = wave.expand(cluster.basis)
     expected = cluster.interaction.solve().array @ a

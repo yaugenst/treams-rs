@@ -1,7 +1,8 @@
 # Capabilities and numerical limits
 
-The Rust numerical implementation and Python workflow layer cover the pinned
-`treams` 0.4.5 API inventory within the contracts and numerical limits below.
+The Rust numerical implementation covers the pinned `treams` 0.4.5 numerical
+inventory within the contracts and limits below. The Python API is independently
+designed around physical objects; it does not promise upstream source compatibility.
 There is no runtime fallback to treams, SciPy, or Cython. The Python interface
 uses explicit objects rather than the legacy ndarray annotation engine.
 
@@ -40,27 +41,39 @@ The corrected CPU benchmark campaign remains paused; see
 | Other observables | T-matrix CD, duality breaking and electromagnetic chirality, thin SVD and native pullbacks. Plane chirality-density forms in all coordinate orientations, with interval and geometry pullbacks. |
 | Bloch bands | Native transfer matrices, right eigensystems and Bloch wavenumbers/vectors, with S-matrix, period and nondegenerate eigenvector pullbacks. |
 | Axisymmetric EBCM | Callable radial surfaces sampled by Gauss-Legendre quadrature, native regular/outgoing Q integrals and radius, slope, complex-wavenumber and impedance pullbacks. Correct surface area by default; explicit legacy mode for upstream comparisons. |
-| Python objects | Material, all four basis types, TMatrix/TMatrixC, SMatrix/SMatrices, PhysicsArray, wave sources and reusable bound operators. T-matrix field methods, basis selections and exclusion masks; S-matrix coordinate transforms and read-only port block views. |
+| Python objects | Material, all four basis types, TMatrix/CylindricalTMatrix, SMatrix/ScatteringBlock, typed waves, unsolved clusters and solved periodic responses. Physical scattering, fields, named observables and explicit numerical operators; basis selections, coordinate transforms and read-only port block views. |
 | I/O | Optional HDF5 scalar matrices and rectangular sweeps, streamed writes, chirality, local origins, mode indices, units, mesh and reproducibility metadata. Gmsh convenience uses actual boundary surface tags. |
 
 ## Python contract
 
+The [user guide](user-guide.md) defines the primary API: keyword particle
+constructors, typed scattered waves, distinct unsolved `Cluster` and solved
+`PeriodicResponse`, explicit conversion, and named planar/particle observables.
+`SMatrix` is the full network and `ScatteringBlock` is a single block.
+`operators` owns numerical matrix builders. Complete review decisions are in
+[physics](api-physics-map.md) and [autodiff](api-autodiff-map.md) maps.
+Old root basis names and operator re-exports have been removed. Unsolved
+`TMatrix.cluster` and implicitly solving `SMatrix.from_array` constructors have
+been removed from the public API; explicit numerical methods remain available
+for expert calculations.
+
+
 Import as `treams_rs`; the distinct name allows the development oracle to coexist.
-The common constructors and numerical conventions follow treams. This is an
+Numerical conventions follow treams. This is an
 explicit-object API rather than a replica of the ndarray annotation engine:
 
 - `.array` exposes read-only numerical storage. Ordinary indexing/arithmetic on
   PhysicsArray returns NumPy values without inferred physical metadata.
 - Selecting a T matrix with a wave basis returns a T matrix in those channels;
   ordinary numerical indexing returns values.
-- `SMatrices.block(outgoing, incoming)` shares storage and carries port metadata.
+- `SMatrix.block(outgoing, incoming)` shares storage and carries port metadata.
   Numeric S-matrix indexing remains a cheap ndarray view.
 - Bound operators expose explicit evaluation and left/right application. T-matrix
   rotation/expansion and S-matrix transformations return physical objects.
   The old `.ann`/`.relax` metadata machinery and every descriptor spelling are
   intentionally not reproduced; use explicit operators for one-sided transforms.
-- Changing `config.POLTYPE` affects subsequent defaulted calls. Existing objects
-  and recorded pullbacks retain the convention with which they were created.
+- Polarization defaults deterministically to helicity. Pass parity explicitly;
+  there is no mutable global polarization setting.
 - Plane-basis z rotations retain lattice and Bloch metadata. Rotations that would
   turn a partial Cartesian constraint into an oblique constraint raise instead
   of discarding it. Full xy planes, z axes and three-dimensional cells are closed
@@ -76,7 +89,7 @@ not alter a recorded derivative. Rust reuses factorizations or recomputes local
 analytic derivatives without storing dense parameter Jacobians.
 
 Advect, JAX and PyTorch compose these numerical boundaries with user objectives.
-Object constructors themselves do not trace framework arrays: use the
+Ordinary NumPy object constructors do not trace framework arrays: use the
 [framework adapters](adapters.md) for continuous parameters. Static basis labels,
 discretization sizes, quadrature nodes, material topology, and eigenvalue ordering
 are not differentiated.
@@ -93,12 +106,21 @@ smooth derivative.
 
 ## Verification and performance
 
-The September 19 core extraction passed `just verify` on Linux: 93 Rust tests
-and 2,197 Python tests, with 14 plotting tests skipped in the base environment.
-All 40 report tests passed separately with Matplotlib. The clean-wheel check
-(including optional HDF5) and warnings-as-errors rustdoc also passed. The
-benchmark campaign, macOS rerun, and experimental browser/GPU hardware lanes
-were not rerun for this extraction.
+The September 19 API redesign passed `just verify` on Linux with Python 3.13:
+93 Rust tests and 2,271 Python tests, including Advect, JAX and Torch, with
+14 plotting tests skipped in the base environment. All 40 report tests passed
+separately with Matplotlib. The release clean-wheel check (including typed
+scattering, an Advect physical objective and optional HDF5) and
+warnings-as-errors rustdoc also passed. New API checks cover dense/requested
+cluster agreement, periodic conversion without another solve, all six field
+families, optical-theorem and scale identities, moving diffraction ports and
+first-order gradients. Numerical kernels and dependencies were not changed.
+
+The benchmark campaign, macOS rerun, Python 3.12 rerun and experimental
+browser/GPU hardware lanes were not rerun for this redesign. Framework
+high-level objects retain the static-direction/static-axial-label limits in
+the [autodiff map](api-autodiff-map.md); specialized kernels retain explicit
+expert interfaces. No new runtime or memory-performance qualification is claimed.
 
 `just ci` runs Rust proptest/unit tests, Python reference/Hypothesis/workflow and
 adjoint tests, rustfmt, warnings-as-errors Clippy/rustdoc, Ruff, strict Pyrefly,

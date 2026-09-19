@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
 
@@ -16,6 +16,7 @@ from ._core import (
 )
 from ._operators import _periodic_channels, changepoltype
 from ._plane import PlaneWave
+from ._source import MultipoleWave
 from .config import _resolve_poltype
 
 if TYPE_CHECKING:
@@ -24,6 +25,39 @@ if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
 
     from ._tmatrix import TMatrix, TMatrixC
+
+
+class PowerBalance(NamedTuple):
+    """Outgoing power fractions normalized by incident flux."""
+
+    transmission: float
+    reflection: float
+
+    @property
+    def absorption(self) -> float:
+        """Fraction not carried by transmitted or reflected power."""
+        return 1 - self.transmission - self.reflection
+
+
+class BandModes(NamedTuple):
+    """Bloch wavenumbers along the basis normal and matching right eigenvectors."""
+
+    wavenumbers: NDArray[np.complex128]
+    eigenvectors: NDArray[np.complex128]
+
+
+class ScatteredPorts(NamedTuple):
+    """Outgoing waves on the positive and negative side of the stack normal."""
+
+    positive: MultipoleWave
+    negative: MultipoleWave
+
+
+class CircularDichroism(NamedTuple):
+    """Contrasts against opposite polarization, normalized by the respective summed powers."""
+
+    transmission: float
+    outgoing_power: float
 
 
 class SMatrix(PhysicsArray):
@@ -113,10 +147,13 @@ class SMatrices:
         """Read-only block view with port metadata, sharing this stack's storage.
 
         Numeric indexing remains an ndarray view for inexpensive numerical work.
-        Ports 0/1 alias up/down; materials follow the outgoing and incoming sides.
+        Name physical sides with positive/negative, for example
+        block(outgoing="positive", incoming="negative") is forward transmission.
+        Numeric 0/1 and up/down specify propagation directions instead.
         """
-        keys = {0: 0, 1: 1, "up": 0, "down": 1}
-        i, j = keys[outgoing], keys[incoming]
+        outgoing_keys = {0: 0, 1: 1, "up": 0, "down": 1, "positive": 0, "negative": 1}
+        incoming_keys = {0: 0, 1: 1, "up": 0, "down": 1, "negative": 0, "positive": 1}
+        i, j = outgoing_keys[outgoing], incoming_keys[incoming]
         result = SMatrix.__new__(SMatrix)
         result.array = self.array[i, j]
         result.basis, result.k0, result.poltype = self.basis, self.k0, self.poltype
@@ -127,6 +164,97 @@ class SMatrices:
 
     def __len__(self) -> int:
         return 2
+
+    @property
+    def positive_medium(self) -> Material:
+        """Exterior medium on the positive side of the basis normal."""
+        return self.material[0]
+
+    @property
+    def negative_medium(self) -> Material:
+        """Exterior medium on the negative side of the basis normal."""
+        return self.material[1]
+
+    @property
+    def polarization(self) -> str:
+        """Polarization channel convention."""
+        return self.poltype
+
+    def cascade(self, next_layer: SMatrices) -> SMatrices:
+        """Place the next layer on the positive side and compose all reflections."""
+        return self.add(next_layer)
+
+    def with_polarization(self, polarization: str) -> SMatrices:
+        """Express the same scattering response in another polarization convention."""
+        return self.changepoltype(polarization)
+
+    def transfer_matrix(self) -> NDArray[np.complex128]:
+        """Return the transfer matrix for repetition along the basis normal."""
+        return self.periodic()
+
+    def bands(self, *, period: float) -> BandModes:
+        """Compute Bloch wavenumbers and eigenvectors along the positive basis normal."""
+        return BandModes(*self.bands_kz(period))
+
+    def power(
+        self,
+        incident: ArrayLike | PlaneWave | MultipoleWave,
+        *,
+        side: str | None = None,
+    ) -> PowerBalance:
+        """Transmission, reflection and absorption fractions for one illumination.
+
+        Side is the incident exterior: negative or positive. Physical plane
+        waves infer it from propagation; raw arrays default to negative.
+        """
+        direction = _side_direction(side)
+        return PowerBalance(*self.tr(incident, modetype=direction))
+
+    def circular_dichroism(
+        self,
+        incident: ArrayLike | PlaneWave | MultipoleWave,
+        *,
+        side: str | None = None,
+    ) -> CircularDichroism:
+        """Named transmission and total-outgoing-power polarization contrasts."""
+        return CircularDichroism(*self.cd(incident, modetype=_side_direction(side)))
+
+    def scatter(
+        self,
+        *,
+        negative: ArrayLike | PlaneWave | MultipoleWave | None = None,
+        positive: ArrayLike | PlaneWave | MultipoleWave | None = None,
+    ) -> ScatteredPorts:
+        """Outgoing waves for incidence from either or both named exterior sides.
+
+        Each supplied source is one illumination; coherent two-sided illumination
+        is accepted. Evaluate fields on the corresponding exterior side.
+        """
+        if negative is None and positive is None:
+            raise ValueError("supply an incident wave on at least one side")
+        if negative is not None:
+            up, down = self.illuminate(negative, positive, modetype="up")
+        else:
+            assert positive is not None
+            up, down = self.illuminate(positive, modetype="down")
+        return ScatteredPorts(
+            MultipoleWave(
+                up,
+                basis=self.basis,
+                k0=self.k0,
+                material=self.positive_medium,
+                modetype="up",
+                poltype=self.poltype,
+            ),
+            MultipoleWave(
+                down,
+                basis=self.basis,
+                k0=self.k0,
+                material=self.negative_medium,
+                modetype="down",
+                poltype=self.poltype,
+            ),
+        )
 
     def __iter__(self) -> Iterator[NDArray[np.complex128]]:
         return iter(self.array)
@@ -169,7 +297,7 @@ class SMatrices:
         return cls(result, basis=basis, k0=k0, material=(above, below), poltype=poltype)
 
     @classmethod
-    def from_array(
+    def _from_array(
         cls,
         tm: TMatrix | TMatrixC,
         basis: PlaneWaveBasisByComp,
@@ -410,9 +538,9 @@ class SMatrices:
         return self._with_array(value, basis)
 
     def _incident(
-        self, illu: ArrayLike | PlaneWave, modetype: str
+        self, illu: ArrayLike | PlaneWave | MultipoleWave, modetype: str
     ) -> NDArray[np.complex128]:
-        if isinstance(illu, PlaneWave):
+        if isinstance(illu, (PlaneWave, MultipoleWave)):
             medium = self.material[1 if modetype == "up" else 0]
             if (
                 illu.material != medium
@@ -423,13 +551,17 @@ class SMatrices:
                 raise ValueError(
                     "illumination must match incident medium, k0, polarization and direction"
                 )
-            return illu.expand(self.basis)
+            return (
+                illu.expand(self.basis)
+                if isinstance(illu, PlaneWave)
+                else illu.expand(self.basis, modetype=modetype)
+            )
         return np.asarray(illu, dtype=np.complex128)
 
     def illuminate(
         self,
-        illu: ArrayLike | PlaneWave,
-        illu2: ArrayLike | PlaneWave | None = None,
+        illu: ArrayLike | PlaneWave | MultipoleWave,
+        illu2: ArrayLike | PlaneWave | MultipoleWave | None = None,
         *,
         modetype: str | None = None,
         smat: SMatrices | None = None,
@@ -512,7 +644,10 @@ class SMatrices:
         )[0]
 
     def tr(
-        self, illu: ArrayLike | PlaneWave, *, modetype: str | None = None
+        self,
+        illu: ArrayLike | PlaneWave | MultipoleWave,
+        *,
+        modetype: str | None = None,
     ) -> tuple[float, float]:
         direction = _direction(illu, modetype, self.basis.normal_axis)
         incident = self._incident(illu, direction)
@@ -520,7 +655,10 @@ class SMatrices:
         return float(power[0, 0]), float(power[1, 0])
 
     def cd(
-        self, illu: ArrayLike | PlaneWave, *, modetype: str | None = None
+        self,
+        illu: ArrayLike | PlaneWave | MultipoleWave,
+        *,
+        modetype: str | None = None,
     ) -> tuple[float, float]:
         """Transmission and total-outgoing-power contrast against opposite polarization.
 
@@ -557,13 +695,32 @@ class SMatrices:
         ) / (opposite_total + total)
 
 
-def _direction(illu: ArrayLike | PlaneWave, modetype: str | None, axis: int = 2) -> str:
+def _direction(
+    illu: ArrayLike | PlaneWave | MultipoleWave, modetype: str | None, axis: int = 2
+) -> str:
     if modetype is None:
+        if isinstance(illu, MultipoleWave):
+            if (
+                not isinstance(illu.basis, PlaneWaveBasisByComp)
+                or illu.basis.normal_axis != axis
+            ):
+                raise ValueError(
+                    "incident wave must use plane ports with the same normal"
+                )
+            return illu.modetype
         kz = illu.kvecs[0, axis] if isinstance(illu, PlaneWave) else 1 + 0j
         return "down" if kz.imag < 0 or (kz.imag == 0 and kz.real < 0) else "up"
     if modetype not in ("up", "down"):
         raise ValueError("modetype must be up or down")
     return modetype
+
+
+def _side_direction(side: str | None) -> str | None:
+    if side is None:
+        return None
+    if side not in ("negative", "positive"):
+        raise ValueError("incident side must be negative or positive")
+    return "up" if side == "negative" else "down"
 
 
 def chirality_density(

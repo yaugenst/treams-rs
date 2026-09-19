@@ -249,7 +249,7 @@ def fields(c, rng):
                     points=points.tolist(),
                 ),
             ):
-                basis = tr.SphericalWaveBasis.default(degree)
+                basis = tr.SphericalBasis.default(degree)
                 wave = tr.plane_wave(direction, polarization, k0=1.3)
                 actual = tr.diff.field(wave.expand(basis), points, basis, [1.3, 1.3])[0]
                 expected = np.exp(1.3j * (points @ direction))[:, None] * polarization
@@ -317,11 +317,11 @@ def rotation(c, _rng):
             "rotation",
             dict(degree=degree, angles=[0.2, 1.3, -0.4]),
         ):
-            basis = tr.SphericalWaveBasis(
+            basis = tr.SphericalBasis(
                 [(degree, order, 1) for order in range(-degree, degree + 1)]
             )
-            value = tr.rotate(0.2, 1.3, -0.4, basis=basis)
-            inverse = tr.rotate(0.4, -1.3, -0.2, basis=basis)
+            value = tr.operators.rotate(0.2, 1.3, -0.4, basis=basis)
+            inverse = tr.operators.rotate(0.4, -1.3, -0.2, basis=basis)
             c.add(
                 "unitarity_max_absolute",
                 unitarity(value),
@@ -380,7 +380,7 @@ def finite(c, _rng):
                 tr.TMatrix.sphere(degree, k0, radius, [eps, 1])
                 for radius, eps in zip(radii, epsilon, strict=True)
             ]
-            local = tr.TMatrix.cluster(particles, positions)
+            local = tr.TMatrix._assemble(particles, positions)
             response = local.interaction.solve()
             system = local.interaction()
             residual = np.linalg.norm(system @ response.array - local.array) / (
@@ -398,7 +398,7 @@ def finite(c, _rng):
                 reference_kind="analytic",
                 conditioning=conditioning,
             )
-            shifted = tr.TMatrix.cluster(
+            shifted = tr.TMatrix._assemble(
                 particles, positions + np.array([0.4, -0.3, 0.7])
             ).interaction.solve()
             c.add(
@@ -406,10 +406,10 @@ def finite(c, _rng):
                 relative(shifted.array, response.array),
                 2e-12,
             )
-            rotated = tr.TMatrix.cluster(
+            rotated = tr.TMatrix._assemble(
                 particles, positions @ rz.T
             ).interaction.solve()
-            basis_rotation = tr.rotate(angle, 0, 0, basis=local.basis)
+            basis_rotation = tr.operators.rotate(angle, 0, 0, basis=local.basis)
             c.add(
                 "rotation_covariance_relative_l2",
                 relative(
@@ -422,7 +422,7 @@ def finite(c, _rng):
                 tr.TMatrix.sphere(degree, k0 / scale, radius * scale, [eps, 1])
                 for radius, eps in zip(radii, epsilon, strict=True)
             ]
-            scaled = tr.TMatrix.cluster(
+            scaled = tr.TMatrix._assemble(
                 scaled_particles, positions * scale
             ).interaction.solve()
             c.add(
@@ -465,10 +465,10 @@ def planar(c, rng):
                 k0=1.8,
             ),
         ):
-            basis = tr.PlaneWaveBasisByComp.default([[q, 0.2], [-0.4, q]])
+            basis = tr.PlaneWavePorts.default([[q, 0.2], [-0.4, q]])
             material = (epsilon, mu, chirality)
-            layer = tr.SMatrices.slab(thickness, basis, 1.8, [1, material, 1])
-            split = tr.SMatrices.slab(
+            layer = tr.SMatrix.slab(thickness, basis, 1.8, [1, material, 1])
+            split = tr.SMatrix.slab(
                 [thickness * 0.3, thickness * 0.7],
                 basis,
                 1.8,
@@ -488,7 +488,7 @@ def planar(c, rng):
                     2e-12,
                     observables={"transmittance": trans, "reflectance": refl},
                 )
-            absorbing = tr.SMatrices.slab(
+            absorbing = tr.SMatrix.slab(
                 thickness, basis, 1.8, [1, (epsilon + 0.2j, mu, chirality), 1]
             )
             trans, refl = absorbing.tr(incident, modetype="up")
@@ -509,8 +509,8 @@ def planar(c, rng):
                 "normal incidence slab",
                 dict(epsilon=epsilon, mu=1, k0=1.3, thickness=thickness),
             ):
-                basis = tr.PlaneWaveBasisByComp.default([[0, 0]])
-                layer = tr.SMatrices.slab(thickness, basis, 1.3, [1, epsilon, 1])
+                basis = tr.PlaneWavePorts.default([[0, 0]])
+                layer = tr.SMatrix.slab(thickness, basis, 1.3, [1, epsilon, 1])
                 trans, refl = layer.tr([1, 0], modetype="up")
                 n = np.sqrt(epsilon)
                 r = (1 - n) / (1 + n)
@@ -549,9 +549,9 @@ def periodic(c, _rng):
                 propagating_axial_orders=[0],
             ),
         ):
-            basis = tr.CylindricalWaveBasis.default([bloch], 3)
+            basis = tr.CylindricalBasis.default([bloch], 3)
             particle = tr.TMatrix.sphere(3, k0, radius, [3, 1])
-            value = tr.TMatrixC.from_array(
+            value = tr.CylindricalTMatrix._from_array(
                 particle, basis, lattice=period, kpar=bloch
             ).array
             c.add(
@@ -560,9 +560,9 @@ def periodic(c, _rng):
                 2e-10,
             )
             scale = 1.4
-            scaled = tr.TMatrixC.from_array(
+            scaled = tr.CylindricalTMatrix._from_array(
                 tr.TMatrix.sphere(3, k0 / scale, radius * scale, [3, 1]),
-                tr.CylindricalWaveBasis.default([bloch / scale], 3),
+                tr.CylindricalBasis.default([bloch / scale], 3),
                 lattice=period * scale,
                 kpar=bloch / scale,
             )
@@ -581,8 +581,8 @@ def periodic(c, _rng):
                 closed_port_indices=[2, 3, 4, 5],
             ),
         ):
-            basis = tr.CylindricalWaveBasis.default([0.2], 3)
-            ports = tr.PlaneWaveBasisByComp.default(
+            basis = tr.CylindricalBasis.default([0.2], 3)
+            ports = tr.PlaneWavePorts.default(
                 [
                     [0.2, 0.1],
                     [0.2, 0.1 + 2 * np.pi / period],
@@ -647,7 +647,7 @@ def ebcm(c, _rng):
     import treams_rs as tr
 
     def solve(degree, order, *, legacy=False, deformation=0.23, epsilon=3.1):
-        basis = tr.SphericalWaveBasis.default(degree)
+        basis = tr.SphericalBasis.default(degree)
         ks = 1.3 * np.array(
             [[np.sqrt(epsilon) - 0.07, np.sqrt(epsilon) + 0.07], [1, 1]]
         )
@@ -733,7 +733,7 @@ def ebcm(c, _rng):
                 k0=1.3,
             ),
         ):
-            basis = tr.SphericalWaveBasis.default(2)
+            basis = tr.SphericalBasis.default(2)
             materials = [tr.Material((3.1, 1.2, 0.08)), tr.Material(1)]
             args = dict(
                 r=lambda _, radius=radius: radius,
@@ -763,7 +763,7 @@ def ebcm(c, _rng):
         "EBCM zero contrast",
         dict(lmax=2, quadrature_order=64, radius=0.3, deformation=0.23, k=1.3),
     ):
-        basis = tr.SphericalWaveBasis.default(2)
+        basis = tr.SphericalBasis.default(2)
         args = dict(
             r=lambda theta: 0.3 * (1 + 0.23 * np.cos(theta) ** 2),
             dr=lambda theta: -0.138 * np.cos(theta) * np.sin(theta),

@@ -15,18 +15,16 @@ def _basis(family):
     if family in ("sw", "cw"):
         positions = [[0.1, 0.2, 0.3], [-0.2, 0.1, 0.4]]
         full = (
-            tr.SphericalWaveBasis.default(2, 2, positions)
+            tr.SphericalBasis.default(2, 2, positions)
             if family == "sw"
-            else tr.CylindricalWaveBasis.default([0.2, -0.3], 2, 2, positions)
+            else tr.CylindricalBasis.default([0.2, -0.3], 2, 2, positions)
         )
         basis = type(full)(full.modes[::3], positions)
         return basis, getattr(treams, type(basis).__name__)(basis.modes, positions)
     if family == "unit":
-        basis = tr.PlaneWaveBasisByUnitVector.default(
-            [[0.2, 0.3, 1], [1.1, -0.2, -0.3]]
-        )
+        basis = tr.PlaneWaveBasis.default([[0.2, 0.3, 1], [1.1, -0.2, -0.3]])
         return basis, treams.PlaneWaveBasisByUnitVector(basis.modes)
-    basis = tr.PlaneWaveBasisByComp.default([[0.2, 0.3], [3.2, -0.1]], family)
+    basis = tr.PlaneWavePorts.default([[0.2, 0.3], [3.2, -0.1]], family)
     return basis, treams.PlaneWaveBasisByComp(basis.modes, alignment=family)
 
 
@@ -44,11 +42,13 @@ def test_riemann_field_upstream_conventions(family, poltype, pol, kind):
         poltype=poltype,
         modetype="singular" if family in ("sw", "cw") else "down",
     )
-    actual = getattr(tr, kind)(pol, points, basis=basis, **args)
+    actual = getattr(tr.operators, kind)(pol, points, basis=basis, **args)
     expected = getattr(treams, kind)(pol, points, basis=oracle, **args)
     assert_allclose(actual, expected, rtol=1e-11, atol=1e-11)
     if pol == -1:
-        assert_allclose(getattr(tr, kind)(0, points, basis=basis, **args), actual)
+        assert_allclose(
+            getattr(tr.operators, kind)(0, points, basis=basis, **args), actual
+        )
 
 
 @pytest.mark.parametrize("family", ["sw", "cw", "xy"])
@@ -58,15 +58,19 @@ def test_riemann_reconstructs_electric_and_magnetic(family, poltype, k0, x):
     basis, _ = _basis(family)
     args = dict(basis=basis, k0=k0, material=(2.3, 1.2), poltype=poltype)
     point = [x, 0.6, 0.2]
-    minus, plus = [tr.gfield(p, point, **args) for p in (0, 1)]
+    minus, plus = [tr.operators.gfield(p, point, **args) for p in (0, 1)]
     factor = (np.sqrt(2) if family == "sw" else 1) * (2 if poltype == "parity" else 1)
-    assert_allclose((plus + minus) / factor, tr.efield(point, **args), atol=1e-12)
+    assert_allclose(
+        (plus + minus) / factor, tr.operators.efield(point, **args), atol=1e-12
+    )
     assert_allclose(
         (plus - minus) / factor,
-        1j * tr.Material(args["material"]).impedance * tr.hfield(point, **args),
+        1j
+        * tr.Material(args["material"]).impedance
+        * tr.operators.hfield(point, **args),
         atol=1e-12,
     )
-    assert_allclose(tr.ffield(1, point, **args), plus, atol=1e-12)
+    assert_allclose(tr.operators.ffield(1, point, **args), plus, atol=1e-12)
 
 
 @pytest.mark.parametrize("family", ["sw", "cw"])
@@ -93,7 +97,7 @@ def test_weighted_riemann_all_advect_inputs(family, poltype):
                     poltype=poltype,
                     singular=True,
                 ),
-                getattr(tr, kind)(
+                getattr(tr.operators, kind)(
                     pol,
                     points,
                     basis=basis,
@@ -154,6 +158,6 @@ def test_weighted_riemann_all_advect_inputs(family, poltype):
 
 
 def test_riemann_invalid_polarization():
-    basis = tr.SphericalWaveBasis.default(1)
+    basis = tr.SphericalBasis.default(1)
     with pytest.raises(ValueError, match="polarization"):
-        tr.gfield(2, [0.2, 0.3, 0.4], basis=basis, k0=1)
+        tr.operators.gfield(2, [0.2, 0.3, 0.4], basis=basis, k0=1)

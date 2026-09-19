@@ -24,7 +24,7 @@ def _assert_same(actual, expected, scale=1):
 @settings(max_examples=30)
 @given(kappa=st.floats(-0.15, 0.15), offset=st.floats(-2, 2), k0=st.floats(0.8, 2))
 def test_hdf5_roundtrip_sweeps_origins_and_chirality(poltype, kappa, offset, k0):
-    basis = tr.SphericalWaveBasis.default(1, 2, [[offset, 0, 0], [0, 0, 0]])
+    basis = tr.SphericalBasis.default(1, 2, [[offset, 0, 0], [0, 0, 0]])
     matrices = [
         tr.TMatrix(
             np.diag(np.arange(len(basis))) * (0.1 + 0.2j),
@@ -62,7 +62,7 @@ def test_hdf5_single_matrix_and_path(tmp_path):
 
 
 def test_legacy_upstream_writer_and_reader_compatibility():
-    basis = tr.SphericalWaveBasis.default(1, 2, [[0, 0, 0], [0.7, 0.2, 0.1]])
+    basis = tr.SphericalBasis.default(1, 2, [[0, 0, 0], [0.7, 0.2, 0.1]])
     tm = tr.TMatrix(
         np.eye(len(basis)) * (0.1 + 0.2j),
         basis=basis,

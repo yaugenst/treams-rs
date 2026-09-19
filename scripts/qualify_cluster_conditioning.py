@@ -387,7 +387,7 @@ def evaluate_order(c, degree, particles, block_degree):
 
     radii, epsilon, positions = chain_geometry(particles)
     k0 = 1.3
-    native_local = tr.TMatrix.cluster(
+    native_local = tr.TMatrix._assemble(
         [
             tr.TMatrix.sphere(degree, k0, radius, [eps, 1])
             for radius, eps in zip(radii, epsilon, strict=True)
@@ -732,7 +732,7 @@ def qualify(particles=8, orders=(3, 4, 6, 8, 12)):
             "geometry": "Exactly benchmark_cluster.py's cluster defaults: k0=1.3, radii=linspace(0.15,0.25,N), epsilon=4+0.1j, positions=(0.8*i,0,0), vacuum exterior.",
             "entrywise_gate": "Original atol=1e-12 and rtol=2e-9. max_scaled_error <= 1; every violating entry counted, no gate relaxation.",
             "equation": "A X = Tlocal, A = I - Tlocal C; X is the full coupled T matrix and C is singular spherical translation excluding self-coupling. Each backend assembles the same algebraic equation, with its own floating-point coefficients. A assembly differences and upstream illuminated residuals in native A are recorded separately.",
-            "full_response_paths": "Native diff.cluster(...)[0] and upstream TMatrix.cluster(...).interaction.solve(), exactly as in benchmark_cluster.",
+            "full_response_paths": "Native diff.cluster(...)[0] and upstream TMatrix._assemble(...).interaction.solve(), exactly as in benchmark_cluster.",
             "normwise_backward_error": "||A X-B||_F / (||A||_F ||X||_F + ||B||_F). This may be small despite inaccurate entries when coordinates are badly scaled.",
             "componentwise_backward_error": "max |A X-B| / (|A||X|+|B|), evaluated for three physical illuminated columns; zero/zero=0, nonzero/zero=nonfinite error.",
             "condition": "LAPACK gecon estimates reciprocal condition in the induced matrix 1-norm from SciPy LU. This is the unbalanced multipole-coordinate equation, not a coordinate-independent physical condition number. No SVD.",

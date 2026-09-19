@@ -15,7 +15,7 @@ from treams_rs import diff
 @pytest.mark.parametrize("singular", [False, True])
 def test_cylindrical_field_axial_pullbacks_and_operator(poltype, singular):
     origins = np.array([[0.1, -0.2, 0.0], [0.3, 0.4, -0.1]])
-    basis = tr.CylindricalWaveBasis.default([-0.3, 0.25], 2, 2, origins)
+    basis = tr.CylindricalBasis.default([-0.3, 0.25], 2, 2, origins)
     ks = np.array(
         [1.3 + 0.05j, 1.5 + 0.07j] if poltype == "helicity" else [1.3 + 0.05j] * 2
     )
@@ -39,7 +39,7 @@ def test_cylindrical_field_axial_pullbacks_and_operator(poltype, singular):
     direction = rng.uniform(-0.1, 0.1, size=len(basis))
     h = 1e-6
     perturbed = [
-        tr.CylindricalWaveBasis(
+        tr.CylindricalBasis(
             [
                 (p, kz + sign * h * step, m, pol)
                 for (p, kz, m, pol), step in zip(basis.modes, direction, strict=True)
@@ -77,7 +77,7 @@ def test_cylindrical_field_axial_pullbacks_and_operator(poltype, singular):
 )
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 def test_advect_field_family_axial(name, poltype):
-    basis = tr.CylindricalWaveBasis.default([-0.2, 0.3], 1)
+    basis = tr.CylindricalBasis.default([-0.2, 0.3], 1)
     amplitudes = np.arange(len(basis)) * 0.1 + 0.2j
     points = np.array([[0.4, -0.3, 0.2], [0, 0, 0.3]])
     ks = np.array(
@@ -114,12 +114,12 @@ def test_advect_field_family_axial(name, poltype):
 @given(scale=st.floats(0.6, 1.8), kz=st.floats(-0.4, 0.4))
 @settings(max_examples=25)
 def test_cylindrical_axial_geometric_scale_invariance(scale, kz):
-    basis = tr.CylindricalWaveBasis.default([kz], 2)
+    basis = tr.CylindricalBasis.default([kz], 2)
     points = np.array([[0.4, -0.3, 0.2], [0, 0, 0.3]])
     ks = np.array([1.3 + 0.05j, 1.5 + 0.07j])
     amplitudes = np.full(len(basis), 0.2 + 0.3j)
     expected, _ = diff.field(amplitudes, points, basis, ks)
-    scaled = tr.CylindricalWaveBasis.default([kz / scale], 2)
+    scaled = tr.CylindricalBasis.default([kz / scale], 2)
     actual, context = diff.field(amplitudes, points * scale, scaled, ks / scale)
     assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
     gradient = context.pullback_axial(np.full_like(actual, 0.3 + 0.2j))
@@ -133,7 +133,7 @@ def test_cylindrical_axial_geometric_scale_invariance(scale, kz):
 
 def test_complete_cylinder_scattered_field_axial_gradient():
     kzs = np.array([-0.2, 0.3])
-    basis = tr.CylindricalWaveBasis.default(kzs, 1)
+    basis = tr.CylindricalBasis.default(kzs, 1)
     points = np.array([[0.6, 0.3, 0.2], [0.4, -0.5, 0.7]])
     illumination = np.linspace(0.1, 0.5, len(basis)) + 0.2j
 
@@ -175,7 +175,7 @@ def test_complete_cylinder_scattered_field_axial_gradient():
 
 
 def test_axial_field_empty_samples_and_parameter_contract():
-    basis = tr.CylindricalWaveBasis.default([0.1, 0.3], 1)
+    basis = tr.CylindricalBasis.default([0.1, 0.3], 1)
     coefficients = np.ones(len(basis), complex)
     points = np.empty((0, 3))
     _, context = diff.field(coefficients, points, basis, [1.3, 1.3])
@@ -191,7 +191,7 @@ def test_axial_field_empty_samples_and_parameter_contract():
     ]:
         with pytest.raises(ValueError, match=message):
             ad.field_operator(points, basis.positions, [1.3, 1.3], basis=basis, kzs=kzs)
-    spherical = tr.SphericalWaveBasis.default(1)
+    spherical = tr.SphericalBasis.default(1)
     with pytest.raises(ValueError, match="cylindrical"):
         ad.field_operator(
             points,
@@ -203,7 +203,7 @@ def test_axial_field_empty_samples_and_parameter_contract():
 
 
 def _move_groups(basis, labels, values, positions=None):
-    return tr.CylindricalWaveBasis(
+    return tr.CylindricalBasis(
         [
             (p, values[np.searchsorted(labels, kz)], m, pol)
             for p, kz, m, pol in basis.modes
@@ -215,10 +215,10 @@ def _move_groups(basis, labels, values, positions=None):
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 @pytest.mark.parametrize("singular", [False, True])
 def test_expansion_shared_axial_groups(poltype, singular):
-    destination = tr.CylindricalWaveBasis.default(
+    destination = tr.CylindricalBasis.default(
         [-0.2, 0.3, 1.7], 2, positions=[[0.4, 0.3, -0.2]]
     )[1:-1]
-    source = tr.CylindricalWaveBasis.default(
+    source = tr.CylindricalBasis.default(
         [-0.2, 0.3, 1.7, 0.1], 1, positions=[[0.1, -0.2, 0.1]]
     )
     labels = np.unique(np.concatenate((destination.kz, source.kz)))
@@ -279,12 +279,10 @@ def test_expansion_shared_axial_groups(poltype, singular):
 @given(scale=st.floats(0.6, 1.8), kz=st.floats(-0.4, 0.4))
 @settings(max_examples=25)
 def test_expansion_axial_scale_and_partition_invariance(scale, kz):
-    destination = tr.CylindricalWaveBasis.default(
+    destination = tr.CylindricalBasis.default(
         [kz, 0.7], 1, positions=[[0.3, 0.2, -0.1]]
     )
-    source = tr.CylindricalWaveBasis.default(
-        [kz, 0.7], 1, positions=[[-0.1, -0.2, 0.3]]
-    )
+    source = tr.CylindricalBasis.default([kz, 0.7], 1, positions=[[-0.1, -0.2, 0.3]])
     labels = np.array([kz, 0.7])
     ks = np.array([1.3 + 0.05j, 1.5 + 0.07j])
     value = diff.expansion(destination, source, ks)[0]
@@ -329,10 +327,10 @@ def test_expansion_axial_scale_and_partition_invariance(scale, kz):
 
 
 def test_expansion_axial_parallel_matches_column_contractions():
-    destination = tr.CylindricalWaveBasis.default(
+    destination = tr.CylindricalBasis.default(
         [-0.2, 0.3], 3, positions=[[0.4, 0.3, 0.2]]
     )
-    source = tr.CylindricalWaveBasis.default([-0.2, 0.3], 8)
+    source = tr.CylindricalBasis.default([-0.2, 0.3], 8)
     ks = [1.3 + 0.05j, 1.5 + 0.07j]
     value, context = diff.expansion(destination, source, ks)
     g = np.arange(value.size).reshape(value.shape) / value.size + 0.3j
@@ -349,7 +347,7 @@ def test_expansion_axial_parallel_matches_column_contractions():
 def test_complete_cylinder_interaction_field_axial_gradient():
     labels = np.array([-0.2, 0.3])
     positions = np.array([[0, 0, 0], [0.8, 0.1, 0.2]])
-    basis = tr.CylindricalWaveBasis.default(labels, 1, 2, positions)
+    basis = tr.CylindricalBasis.default(labels, 1, 2, positions)
     coefficients = np.linspace(0.1, 0.3, len(basis)) + 0.2j
 
     def objective(kzs):
@@ -393,7 +391,7 @@ def test_complete_cylinder_interaction_field_axial_gradient():
 
 
 def test_expansion_axial_requires_fixed_distinct_groups():
-    basis = tr.CylindricalWaveBasis.default([-0.2, 0.3], 1)
+    basis = tr.CylindricalBasis.default([-0.2, 0.3], 1)
     kwargs = {"destination": basis, "source": basis}
     for kzs, match in [
         ([0.1], "per axial group"),
@@ -404,11 +402,11 @@ def test_expansion_axial_requires_fixed_distinct_groups():
         with pytest.raises(ValueError, match=match):
             ad.expansion([[0.2, 0, 0]], [[0, 0, 0]], [1.3, 1.3], kzs=kzs, **kwargs)
     # Positive and negative zero denote one physical matching group.
-    destination = tr.CylindricalWaveBasis([(0, -0.0, 1, 0)], [[0.2, 0.1, 0.3]])
-    source = tr.CylindricalWaveBasis([(0, 0.0, -1, 0)])
+    destination = tr.CylindricalBasis([(0, -0.0, 1, 0)], [[0.2, 0.1, 0.3]])
+    source = tr.CylindricalBasis([(0, 0.0, -1, 0)])
     value, context = diff.expansion(destination, source, [1.3, 1.3])
     assert context.pullback_axial(np.ones_like(value))[3].shape == (1,)
-    sphere = tr.SphericalWaveBasis.default(1)
+    sphere = tr.SphericalBasis.default(1)
     value, context = diff.expansion(sphere, sphere, [1.3, 1.3])
     with pytest.raises(ValueError, match="two cylindrical"):
         context.pullback_axial(np.ones_like(value))
@@ -417,12 +415,10 @@ def test_expansion_axial_requires_fixed_distinct_groups():
 @pytest.mark.parametrize("dim", [1, 2])
 @pytest.mark.parametrize("chiral", [False, True])
 def test_periodic_expansion_axial_groups_and_geometric_scale(dim, chiral):
-    destination = tr.CylindricalWaveBasis.default(
+    destination = tr.CylindricalBasis.default(
         [-0.2, 0.3], 1, positions=[[0.3, 0.2, -0.1]]
     )
-    source = tr.CylindricalWaveBasis.default(
-        [-0.2, 0.3], 1, positions=[[-0.1, -0.2, 0.3]]
-    )
+    source = tr.CylindricalBasis.default([-0.2, 0.3], 1, positions=[[-0.1, -0.2, 0.3]])
     labels = np.array([-0.2, 0.3])
     ks = np.array([1.3 + 0.05j, 1.5 + 0.07j] if chiral else [1.3 + 0.05j] * 2)
     vectors = np.array([[1.7]]) if dim == 1 else np.array([[1.7, 0.2], [0.1, 1.9]])
@@ -509,8 +505,8 @@ def test_periodic_axial_self_images_scale_and_split(kz, scale):
 
     def evaluate(factor, eta):
         return tr.lattice.expansion_with_context(
-            tr.CylindricalWaveBasis.default([kz / factor], 1),
-            tr.CylindricalWaveBasis.default([kz / factor], 1),
+            tr.CylindricalBasis.default([kz / factor], 1),
+            tr.CylindricalBasis.default([kz / factor], 1),
             ks / factor,
             [[1.7 * factor]],
             [0.1 / factor],

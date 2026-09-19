@@ -19,9 +19,9 @@ pytestmark = pytest.mark.filterwarnings(
 def test_field_operators_reference(cylindrical, poltype, singular, kind):
     positions = [[0.1, 0.2, 0.3], [-0.2, 0.1, 0.4]]
     basis = (
-        tr.CylindricalWaveBasis.default([0.2, -0.3], 2, 2, positions)
+        tr.CylindricalBasis.default([0.2, -0.3], 2, 2, positions)
         if cylindrical
-        else tr.SphericalWaveBasis.default(2, 2, positions)
+        else tr.SphericalBasis.default(2, 2, positions)
     )
     oracle = (
         treams.CylindricalWaveBasis if cylindrical else treams.SphericalWaveBasis
@@ -36,11 +36,11 @@ def test_field_operators_reference(cylindrical, poltype, singular, kind):
         poltype=poltype,
         modetype="singular" if singular else "regular",
     )
-    actual = getattr(tr, kind)(points, basis=basis, **kwargs)
+    actual = getattr(tr.operators, kind)(points, basis=basis, **kwargs)
     expected = getattr(treams, kind)(points, basis=oracle, **kwargs)
     assert_allclose(actual, expected, rtol=1e-11, atol=1e-11)
     assert_allclose(
-        getattr(tr, kind)(points[0, 0], basis=basis, **kwargs),
+        getattr(tr.operators, kind)(points[0, 0], basis=basis, **kwargs),
         actual[0, 0],
         rtol=1e-13,
         atol=1e-13,
@@ -51,9 +51,9 @@ def test_field_operators_reference(cylindrical, poltype, singular, kind):
 @given(x=st.floats(0.7, 1.3), k=st.floats(0.8, 1.7))
 def test_field_operator_pullback_and_weighted_equivalence(cylindrical, x, k):
     basis = (
-        tr.CylindricalWaveBasis.default([0.2], 2)
+        tr.CylindricalBasis.default([0.2], 2)
         if cylindrical
-        else tr.SphericalWaveBasis.default(2)
+        else tr.SphericalBasis.default(2)
     )
     points = np.array([[x, 0.5, 0.3], [0.8, 0.2, 0.4]])
     ks = np.array([k + 0.1j, k + 0.2 + 0.1j])
@@ -102,9 +102,9 @@ def test_operator_and_magnetic_advect(cylindrical):
     from treams_rs import advect as ad
 
     basis = (
-        tr.CylindricalWaveBasis.default([0.2], 1)
+        tr.CylindricalBasis.default([0.2], 1)
         if cylindrical
-        else tr.SphericalWaveBasis.default(1)
+        else tr.SphericalBasis.default(1)
     )
     coefficients = np.arange(len(basis)) + 0.1j
     points = np.array([[0.8, 0.5, 0.3]])
@@ -149,7 +149,7 @@ def test_operator_and_magnetic_advect(cylindrical):
 
 
 def test_empty_operator_and_one_use_context():
-    basis = tr.SphericalWaveBasis.default(1)
+    basis = tr.SphericalBasis.default(1)
     value, context = tr.diff.field_operator(np.empty((0, 3)), basis, [1, 1])
     assert value.shape == (0, 3, len(basis))
     points, origins, ks = context.pullback(value)

@@ -18,12 +18,10 @@ pytestmark = pytest.mark.filterwarnings(
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 @pytest.mark.parametrize("modetype", ["up", "down"])
 def test_plane_expansion_reference(poltype, modetype):
-    destination = tr.SphericalWaveBasis.default(
-        4, 2, [[0.1, 0.2, 0.3], [-0.2, 0.1, -0.1]]
-    )
-    source = tr.PlaneWaveBasisByComp.default([[0.2, 0.3], [2.5, -0.1]])
+    destination = tr.SphericalBasis.default(4, 2, [[0.1, 0.2, 0.3], [-0.2, 0.1, -0.1]])
+    source = tr.PlaneWavePorts.default([[0.2, 0.3], [2.5, -0.1]])
     material = (1.4 + 0.1j, 1.2, 0.1 if poltype == "helicity" else 0)
-    actual = tr.expand(
+    actual = tr.operators.expand(
         (destination, source),
         ("regular", modetype),
         k0=1.3,
@@ -47,7 +45,7 @@ def test_plane_expansion_reference(poltype, modetype):
 @given(kx=st.floats(0.1, 0.7), kz=st.floats(-0.8, 1.3))
 @example(kx=0.119140625, kz=0.0)
 def test_plane_expansion_pullback_and_field(poltype, kx, kz):
-    basis = tr.SphericalWaveBasis.default(8)
+    basis = tr.SphericalBasis.default(8)
     vectors = np.array([[kx, 0.2, kz + 0.1j], [1.5, -0.1, 0.2j]])
     origins = np.array([[0.1, -0.2, 0.3]])
     rng = np.random.default_rng(34)
@@ -98,7 +96,7 @@ def test_plane_expansion_pullback_and_field(poltype, kx, kz):
 
 
 def test_advect_complete_illumination_scattering_and_field_gradient():
-    basis = tr.SphericalWaveBasis.default(3)
+    basis = tr.SphericalBasis.default(3)
     points = np.array([[0.7, 0.4, 0.3], [-0.4, 0.6, 0.2]])
 
     def objective(angles, k0, radius, origins):
@@ -152,7 +150,7 @@ def test_advect_complete_illumination_scattering_and_field_gradient():
 
 @pytest.mark.parametrize("z", [1.3, -1.3, 1.3 + 0.1j])
 def test_axial_expansion_fixed_vectors(z):
-    basis = tr.SphericalWaveBasis.default(3)
+    basis = tr.SphericalBasis.default(3)
     vectors = [[0, 0, z]]
     origins = np.array([[0.2, -0.1, 0.3]])
     value, context = tr.diff.plane_expansion(
@@ -180,7 +178,7 @@ def test_complex_transverse_branch_reconstruction_and_gradient(poltype, pol):
     # The principal sqrt(1-cos(theta)^2) has the opposite sign from k_transverse/k.
     # Angular coefficients must use the same branch as Cartesian polarization.
     vector = np.array([[0.2 + 1j, 0.1 + 0.3j, 1.3 - 0.8j]])
-    basis = tr.SphericalWaveBasis.default(10)
+    basis = tr.SphericalBasis.default(10)
     points = np.array([[0, 0, 0], [0.1, 0.2, 0.05]])
     k = np.sqrt(np.sum(vector**2))
     value, context = tr.diff.plane_expansion(basis, vector, [pol], poltype=poltype)
@@ -211,15 +209,13 @@ def test_complex_transverse_branch_reconstruction_and_gradient(poltype, pol):
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 @pytest.mark.parametrize("side", ["up", "down"])
 def test_cylindrical_plane_expansion_reference(poltype, side):
-    basis = tr.CylindricalWaveBasis.default(
+    basis = tr.CylindricalBasis.default(
         [0.2, -0.3], 4, 2, [[0.1, 0.2, 0.3], [-0.2, 0.1, -0.1]]
     )
-    ports = tr.PlaneWaveBasisByComp.default(
-        [[0.2, 0.1], [0.2, 2.5], [-0.3, -0.4]], "zx"
-    )
+    ports = tr.PlaneWavePorts.default([[0.2, 0.1], [0.2, 2.5], [-0.3, -0.4]], "zx")
     material = tr.Material(1.4 + 0.1j, 1.2, 0.1 if poltype == "helicity" else 0)
     vectors = np.column_stack(ports.kvecs(1.3, material, side))
-    value = tr.expand(
+    value = tr.operators.expand(
         (basis, ports), ("regular", side), k0=1.3, material=material, poltype=poltype
     )
     coefficients = treams.pw.to_cw(
@@ -239,7 +235,7 @@ def test_cylindrical_plane_expansion_reference(poltype, side):
 @given(kx=st.floats(0.1, 0.7), kz=st.floats(-0.8, 0.8))
 def test_cylindrical_plane_expansion_pullback_and_field(poltype, kx, kz):
     origins = np.array([[0.1, -0.2, 0.3]])
-    basis = tr.CylindricalWaveBasis.default([kz, -1.1], 10, positions=origins)
+    basis = tr.CylindricalBasis.default([kz, -1.1], 10, positions=origins)
     vectors = np.array([[kx + 0.1j, 0.3 + 0.2j, kz], [1.5, -0.1j, -1.1]])
     value, context = tr.diff.plane_expansion(basis, vectors, [0, 1], poltype=poltype)
     rng = np.random.default_rng(75)
@@ -278,7 +274,7 @@ def test_cylindrical_plane_expansion_pullback_and_field(poltype, kx, kz):
 
 
 def test_advect_complete_cylindrical_illumination_and_scattering():
-    basis = tr.CylindricalWaveBasis.default([0.2], 3)
+    basis = tr.CylindricalBasis.default([0.2], 3)
     points = np.array([[0.7, 0.4, 0.3], [-0.4, 0.6, 0.2]])
 
     def objective(angle, k0, radius, origins):

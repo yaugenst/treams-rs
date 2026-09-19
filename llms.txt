@@ -9,6 +9,9 @@ With only an installed wheel, run `python -m treams_rs --format markdown` or
 
 ## Documentation
 
+- [Physics objects, finite and periodic solves, fields and power](docs/user-guide.md)
+- [Whole physics API review and migration decisions](docs/api-physics-map.md)
+- [Whole native and framework API review and derivative boundaries](docs/api-autodiff-map.md)
 - [Agent quickstart and choosing an execution path](docs/agents.md)
 - [Complete source-derived Python signatures, docstrings and pullback contracts](docs/api.md)
 - [Runnable gradient and native pullback checks](docs/testing.md)

@@ -221,7 +221,7 @@ def test_unsupported_transforms_fail_before_native_execution(
 @pytest.mark.ad_contract
 @given(z=st.floats(0.8, 2.0), imaginary=st.floats(0.01, 0.2))
 def test_expansion_joint_position_and_complex_wavenumber_gradient(z, imaginary):
-    from treams_rs import SphericalWaveBasis
+    from treams_rs import SphericalBasis as SphericalWaveBasis
 
     basis = SphericalWaveBasis.default(2)
     positions = np.array([[0.1, 0.2, z]])

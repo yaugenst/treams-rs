@@ -100,7 +100,9 @@ def test_interface_power_differentiated_energy_conservation(alignment, axis, fix
     modes = [(0, 0), (0, 1)]
 
     def objective(ks, zs, incident):
-        matrix = ad.interface(ks, zs, q[0], alignment=alignment, fixed_q=fixed_q)
+        matrix = ad.interface_coefficients(
+            ks, zs, q[0], alignment=alignment, fixed_q=fixed_q
+        )
         # Interface input media are below/above; S-matrix ports are above/below.
         powers = ad.smatrix_tr(
             matrix,
@@ -124,8 +126,8 @@ def test_interface_power_differentiated_energy_conservation(alignment, axis, fix
 def test_cd_native_batch_reference_complete_gradient_and_undefined_limit(
     poltype, direction
 ):
-    basis = tr.PlaneWaveBasisByComp.default([[0.2, 0.1]])
-    stack = tr.SMatrices.slab(
+    basis = tr.PlaneWavePorts.default([[0.2, 0.1]])
+    stack = tr.SMatrix.slab(
         0.4,
         basis,
         1.3,

@@ -46,10 +46,10 @@ def test_public_wigner_group_and_unitarity(degree, theta, phi):
 
 @pytest.mark.parametrize("degree", [30, 60, 128])
 def test_large_public_wigner_agrees_with_matrix_algorithm(degree):
-    modes = tr.SphericalWaveBasis([(degree, m, 1) for m in range(-degree, degree + 1)])
+    modes = tr.SphericalBasis([(degree, m, 1) for m in range(-degree, degree + 1)])
     labels = np.arange(-degree, degree + 1)
     actual = special.wignersmalld(degree, labels[:, None], labels, 1.3)
-    expected = tr.rotate(0, 1.3, 0, basis=modes)
+    expected = tr.operators.rotate(0, 1.3, 0, basis=modes)
     assert_allclose(actual, expected, rtol=1e-10, atol=2e-12)
     assert_allclose(actual.conj().T @ actual, np.eye(len(modes)), atol=2e-12)
 

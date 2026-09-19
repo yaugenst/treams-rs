@@ -76,9 +76,15 @@ def test_heterogeneous_cluster_global_expansion_and_cross_sections(poltype, embe
             )
             for lmax, radius in [(1, 0.2), (2, 0.3)]
         ]
-        cluster = package.TMatrix.cluster(spheres, positions)
+        cluster = (
+            rust.TMatrix._assemble if package is rust else treams.TMatrix.cluster
+        )(spheres, positions)
         solved = cluster.interaction.solve()
-        global_matrix = solved.expand(package.SphericalWaveBasis.default(4))
+        global_matrix = solved.expand(
+            (
+                rust.SphericalBasis if package is rust else treams.SphericalWaveBasis
+            ).default(4)
+        )
         incident = np.random.default_rng(1).normal(size=len(solved)) + 0.3j
         if package is treams:
             incident = treams.PhysicsArray(
@@ -140,8 +146,8 @@ def test_expansion_pullback(parameter, singular):
 
     def forward(destination, source, ks):
         return diff.expansion(
-            rust.SphericalWaveBasis.default(1, 2, destination),
-            rust.SphericalWaveBasis.default(2, positions=source),
+            rust.SphericalBasis.default(1, 2, destination),
+            rust.SphericalBasis.default(2, positions=source),
             ks,
             singular=singular,
         )
@@ -172,7 +178,7 @@ def test_expansion_pullback(parameter, singular):
 
 @pytest.mark.python_contract
 def test_invalid_gradient_does_not_consume_residual():
-    basis = rust.SphericalWaveBasis.default(1)
+    basis = rust.SphericalBasis.default(1)
     value, residual = diff.expansion(basis, basis, [1, 1])
     with pytest.raises(ValueError, match="shape"):
         residual.pullback(np.zeros((2, 2), dtype=complex))

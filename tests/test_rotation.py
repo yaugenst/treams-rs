@@ -23,9 +23,9 @@ pytestmark = pytest.mark.filterwarnings(
     ],
 )
 def test_spherical_rotation_reference(angles):
-    basis = tr.SphericalWaveBasis.default(5, 2)
+    basis = tr.SphericalBasis.default(5, 2)
     oracle = treams.SphericalWaveBasis(basis.modes, basis.positions)
-    actual = tr.rotate(*angles, basis=basis)
+    actual = tr.operators.rotate(*angles, basis=basis)
     expected = treams.rotate(*angles, basis=oracle)
     assert_allclose(actual, expected, rtol=1e-10, atol=2e-12)
     assert_allclose(actual.conj().T @ actual, np.eye(len(basis)), atol=2e-13)
@@ -34,8 +34,8 @@ def test_spherical_rotation_reference(angles):
 @pytest.mark.parametrize("theta", [1e-10, -1e-10, 1e-100])
 def test_small_angle_generator(theta):
     # Upstream rounds cos(theta) to one here and loses these first-order entries.
-    basis = tr.SphericalWaveBasis([(1, m, 1) for m in (-1, 0, 1)])
-    actual = tr.rotate(0, theta, 0, basis=basis)
+    basis = tr.SphericalBasis([(1, m, 1) for m in (-1, 0, 1)])
+    actual = tr.operators.rotate(0, theta, 0, basis=basis)
     assert_allclose(actual[0, 1], theta / np.sqrt(2), rtol=1e-12, atol=0)
     assert_allclose(actual[1, 0], -theta / np.sqrt(2), rtol=1e-12, atol=0)
 
@@ -43,10 +43,10 @@ def test_small_angle_generator(theta):
 @pytest.mark.parametrize("spherical", [True, False])
 def test_partial_basis_rotation_pullback(spherical):
     if spherical:
-        basis = tr.SphericalWaveBasis.default(3, 2)
+        basis = tr.SphericalBasis.default(3, 2)
         oracle = treams.SphericalWaveBasis
     else:
-        basis = tr.CylindricalWaveBasis.default([0.1, 0.2], 3, 2)
+        basis = tr.CylindricalBasis.default([0.1, 0.2], 3, 2)
         oracle = treams.CylindricalWaveBasis
     to = type(basis)(basis.modes[::3], basis.positions)
     source = type(basis)(basis.modes[1::2], basis.positions)
@@ -76,8 +76,8 @@ def test_partial_basis_rotation_pullback(spherical):
 
 @pytest.mark.parametrize("degree", [10, 30, 60])
 def test_large_rotation_unitarity(degree):
-    basis = tr.SphericalWaveBasis([(degree, m, 1) for m in range(-degree, degree + 1)])
-    rotation = tr.rotate(0.2, 1.3, -0.4, basis=basis)
+    basis = tr.SphericalBasis([(degree, m, 1) for m in range(-degree, degree + 1)])
+    rotation = tr.operators.rotate(0.2, 1.3, -0.4, basis=basis)
     assert_allclose(rotation.conj().T @ rotation, np.eye(len(basis)), atol=1e-12)
 
 
@@ -88,7 +88,7 @@ def test_advect_rotation_composition(phi, theta, psi):
 
     from treams_rs import advect as ad
 
-    basis = tr.SphericalWaveBasis.default(1)
+    basis = tr.SphericalBasis.default(1)
     rng = np.random.default_rng(14)
     matrix = rng.normal(size=(6, 6)) + 1j * rng.normal(size=(6, 6))
 
@@ -114,7 +114,7 @@ def test_advect_rotation_composition(phi, theta, psi):
 def test_sphere_rotation_invariance_and_cylinder_axis_constraint():
     sphere = tr.TMatrix.sphere(4, 1.3, 0.2, [3, 1])
     assert_allclose(sphere.rotate(0.2, 0.7, -0.3).array, sphere.array, atol=1e-14)
-    cylinder = tr.TMatrixC.cylinder([0.2], 3, 1.3, [0.2], [3, 1])
+    cylinder = tr.CylindricalTMatrix.cylinder([0.2], 3, 1.3, [0.2], [3, 1])
     assert_allclose(cylinder.rotate(0.3).array, cylinder.array, atol=1e-14)
     with pytest.raises(ValueError, match="theta"):
         cylinder.rotate(0.1, 0.2)

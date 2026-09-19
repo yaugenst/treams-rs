@@ -60,8 +60,12 @@ def electron_spectrum_point(
     beta = 0.7
     kz = k0 / beta
     impact = [60 * np.cos(phi), 60 * np.sin(phi), 0]
-    source = lib.CylindricalWaveBasis.default([kz], 0, positions=[impact])
-    destination = lib.CylindricalWaveBasis.default([kz], order)
+    source = (tr.CylindricalBasis if lib is tr else lib.CylindricalWaveBasis).default(
+        [kz], 0, positions=[impact]
+    )
+    destination = (
+        tr.CylindricalBasis if lib is tr else lib.CylindricalWaveBasis
+    ).default([kz], order)
     coefficients = np.zeros(len(source), complex)
     coefficients[np.asarray(source.pol) == 1] = (
         1j
@@ -70,17 +74,16 @@ def electron_spectrum_point(
         * np.sqrt(1 - beta**2)
         / (4 * constants.c * constants.epsilon_0)
     )
-    incident = (
-        lib.expand(
-            (destination, source), ("regular", "singular"), k0=k0, poltype="parity"
-        )
-        @ coefficients
-    )
+    incident = (tr.operators if lib is tr else lib).expand(
+        (destination, source), ("regular", "singular"), k0=k0, poltype="parity"
+    ) @ coefficients
     if cylindrical:
         material_energy = energy * dispersion_hbar / (constants.hbar / constants.e)
         epsilon = 3.3 - 81 / (material_energy**2 + 0.022j * material_energy)
-        tm = lib.TMatrixC.cylinder([kz], order, k0, 50, [epsilon, 1]).changepoltype(
-            "parity"
+        tm = (
+            (tr.CylindricalTMatrix if lib is tr else lib.TMatrixC)
+            .cylinder([kz], order, k0, 50, [epsilon, 1])
+            .changepoltype("parity")
         )
         incident = np.asarray(incident)
         scattered = np.asarray(tm) @ incident
@@ -95,7 +98,10 @@ def electron_spectrum_point(
         return np.array([0.0, (incident @ scattered).real * factor])
     tm = lib.TMatrix.sphere(order, k0, 50, [16 + 0.5j, 1], poltype="parity")
     incident = np.asarray(
-        lib.expand((tm.basis, destination), k0=k0, poltype="parity") @ incident
+        (tr.operators if lib is tr else lib).expand(
+            (tm.basis, destination), k0=k0, poltype="parity"
+        )
+        @ incident
     )
     scattered = np.asarray(tm) @ incident
     factor = 1 / (
@@ -115,15 +121,17 @@ def electron_spectrum_point(
 
 def cpc_sphere_point(lib, k0, order=4):
     tm = lib.TMatrix.sphere(order, k0, 75, [16 + 0.5j, 1])
-    dipole = tm[lib.SphericalWaveBasis.default(1)]
+    dipole = tm[(tr.SphericalBasis if lib is tr else lib.SphericalWaveBasis).default(1)]
     return np.array(
         [tm.xs_sca_avg, tm.xs_ext_avg, dipole.xs_sca_avg, dipole.xs_ext_avg]
     ) / (np.pi * 75**2)
 
 
 def cpc_slab_point(lib, k0):
-    basis = lib.PlaneWaveBasisByComp.default([0, 0.5 * k0])
-    layer = lib.SMatrices.slab(
+    basis = (tr.PlaneWavePorts if lib is tr else lib.PlaneWaveBasisByComp).default(
+        [0, 0.5 * k0]
+    )
+    layer = (tr.SMatrix if lib is tr else lib.SMatrices).slab(
         50, basis, k0, [1, (12.4 + 1j, 1 + 0.1j, 0.5 + 0.05j), (2, 2)]
     )
     return np.asarray([layer.tr([1, 0]), layer.tr([0, 1])]).reshape(-1)
@@ -133,22 +141,32 @@ def cpc_array_point(lib, k0, order=3):
     lattice = lib.Lattice.square(500)
     kpar = [0, 0.3 * k0]
     unit_cell = lib.TMatrix.sphere(order, k0, 100, [(4, 1, 0.05), 1])
-    basis = lib.PlaneWaveBasisByComp.diffr_orders(kpar, lattice, 0.02)
+    basis = (tr.PlaneWavePorts if lib is tr else lib.PlaneWaveBasisByComp).diffr_orders(
+        kpar, lattice, 0.02
+    )
     if lib is tr:
         incident = lib.plane_wave(
             [0, 0.3 * k0, k0 * np.sqrt(1 - 0.3**2)], [1, 0, 0], k0=k0
         ).expand(basis)
     else:
         incident = lib.plane_wave(kpar, [1, 0, 0], k0=k0, basis=basis, material=1)
-    slab = lib.SMatrices.slab(10, basis, k0, [1, 3, 1])
-    gap = lib.SMatrices.propagation([0, 0, 100], basis, k0, 1)
+    slab = (tr.SMatrix if lib is tr else lib.SMatrices).slab(10, basis, k0, [1, 3, 1])
+    gap = (tr.SMatrix if lib is tr else lib.SMatrices).propagation(
+        [0, 0, 100], basis, k0, 1
+    )
     if lib is tr:
         # rs makes coupling explicit at the constructor; upstream expects it done.
-        array = lib.SMatrices.from_array(unit_cell, basis, lattice=lattice, kpar=kpar)
+        array = tr.solve_periodic(unit_cell, lattice=lattice, kpar=kpar).to_smatrix(
+            basis
+        )
     else:
         response = unit_cell.latticeinteraction.solve(lattice, kpar)
-        array = lib.SMatrices.from_array(response, basis)
-    return np.asarray(lib.SMatrices.stack([slab, gap, array]).tr(incident))
+        array = (tr.SMatrix if lib is tr else lib.SMatrices).from_array(response, basis)
+    return np.asarray(
+        (tr.SMatrix if lib is tr else lib.SMatrices)
+        .stack([slab, gap, array])
+        .tr(incident)
+    )
 
 
 def compare_curve(function, grid, *, oracle_rtol=2e-9, oracle_atol=2e-11, **kwargs):

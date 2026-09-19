@@ -23,9 +23,9 @@ def test_density_boundary_contract():
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 @pytest.mark.parametrize("alignment", ["xy", "yz", "zx"])
 def test_density_reordered_partial_basis(poltype, alignment):
-    basis = tr.PlaneWaveBasisByComp.default([[0.2, 0.3], [1.7, 0.4]], alignment)
+    basis = tr.PlaneWavePorts.default([[0.2, 0.3], [1.7, 0.4]], alignment)
     indices = [3, 0, 1]
-    partial = tr.PlaneWaveBasisByComp([basis.modes[i] for i in indices], alignment)
+    partial = tr.PlaneWavePorts([basis.modes[i] for i in indices], alignment)
     complete = tr.chirality_density(basis, 1.3, poltype=poltype, z=(-0.2, 0.7))
     assert_allclose(
         tr.chirality_density(partial, 1.3, poltype=poltype, z=(-0.2, 0.7)),
@@ -44,7 +44,7 @@ def _contract(forms, up, down):
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 @pytest.mark.parametrize("epsilon", [2.3, 2.3 + 0.2j])
 def test_chirality_at_origin_reference(poltype, epsilon):
-    basis = tr.PlaneWaveBasisByComp.default([[0.2, 0.3], [3.0, 0.4]])
+    basis = tr.PlaneWavePorts.default([[0.2, 0.3], [3.0, 0.4]])
     material = (epsilon, 1.2, 0.06 if poltype == "helicity" else 0)
     expected = treams.chirality_density(
         treams.PlaneWaveBasisByComp(basis.modes), 1.3, material, poltype
@@ -56,7 +56,7 @@ def test_chirality_at_origin_reference(poltype, epsilon):
 @pytest.mark.parametrize("q", [[0.2, 0.3], [3.0, 0.4], [0.0, 0.0]])
 @pytest.mark.parametrize("alignment", ["xy", "yz", "zx"])
 def test_density_agrees_with_coherent_cartesian_field_integral(poltype, q, alignment):
-    basis = tr.PlaneWaveBasisByComp.default([q], alignment)
+    basis = tr.PlaneWavePorts.default([q], alignment)
     material = tr.Material(
         (2.3 + 0.2j, 1.2 + 0.1j, 0.07 if poltype == "helicity" else 0)
     )
@@ -78,7 +78,7 @@ def test_density_agrees_with_coherent_cartesian_field_integral(poltype, q, align
                 @ amplitudes
                 for direction, amplitudes in [("up", up), ("down", down)]
             )
-            for kind in (tr.efield, tr.hfield)
+            for kind in (tr.operators.efield, tr.operators.hfield)
         ]
         expected = weights @ np.real(
             np.sum(fields[0].conj() * (1j * material.impedance * fields[1]), axis=-1)
@@ -92,7 +92,7 @@ def test_density_agrees_with_coherent_cartesian_field_integral(poltype, q, align
 
 @given(k0=st.floats(0.8, 2.0), start=st.floats(-2, 2), stop=st.floats(-2, 2))
 def test_single_propagating_wave_density_is_interval_independent(k0, start, stop):
-    basis = tr.PlaneWaveBasisByComp.default([[0.2, 0.3]])
+    basis = tr.PlaneWavePorts.default([[0.2, 0.3]])
     up, down, _ = tr.chirality_density(basis, k0, z=(start, stop))
     assert_allclose(up, np.diag(2 * (2 * basis.pol - 1)), atol=1e-14)
     assert_allclose(down, up, atol=1e-14)
@@ -167,7 +167,7 @@ def test_complete_material_and_interval_advect(k0, thickness):
 
 
 def test_upstream_interval_regression():
-    basis = tr.PlaneWaveBasisByComp.default([[0.2, 0.3]])
+    basis = tr.PlaneWavePorts.default([[0.2, 0.3]])
     oracle = treams.PlaneWaveBasisByComp(basis.modes)
     expected = np.diag([2.0, -2.0])
     assert_allclose(tr.chirality_density(basis, 1.3, z=(0, 1))[0], expected)
