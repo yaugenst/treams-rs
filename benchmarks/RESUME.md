@@ -1,46 +1,61 @@
-# Paused core benchmark campaign
+# Linux core qualification
 
-The campaign remains paused. `main` is the authoritative CPU core and Python
-implementation. Browser/WASM work is preserved on
-`experimental/browser`; CUDA work is preserved on
-`experimental/gpu`. Each experimental branch excludes the other.
+The Linux correctness run is complete for commit `2843a70` on this machine
+(Ryzen 9 9950X, Python 3.13.1). The [qualification record](linux-core-qualification.json)
+links the accepted 615 cases, full thermal reproduction, native build hash,
+raw evidence and passing audits. No numerical implementation change was needed.
+macOS is outside the current task. Browser and GPU work remain deferred on their
+separate experimental branches.
 
-## Preserved checkpoint
+## Accepted evidence
 
-The original Mac and Linux results remain under `results/comparison/`; targeted
-correction evidence remains under `results/fixes/` and `results/corrections/`.
-The September 12 pause records under `results/corrected/` describe the earlier
-combined checkout. Keep those records immutable. Their source, plan and binary
-hashes no longer describe the extracted branches. Existing raw evidence and
-historical resume tools are local artifacts, not a portable release bundle.
+- `results/linux-core-correctness-frozen-20260919/`: independent references,
+  physical invariants, published workflows, high-order cluster references,
+  527 upstream comparisons and the full thermal reproduction.
+- `results/linux-core-correctness-20260919/`: 51 gradient and 33 boundary cases.
+  Its first three accuracy groups are retained but superseded: the installed
+  extension changed during the initial upstream group. The rerun used a copied
+  package matching the binary used by the gradient and boundary groups.
+- Both accepted audits have zero integrity errors and zero unresolved native
+  numerical gates. The 18 overflowing reference inputs and five upstream cluster
+  disagreements remain explicit; independent cluster-reference checks pass.
 
-The numerical corrections are saved in commit `082eeda`, before experiment
-extraction. The complete corrected performance campaigns have not run. Do not
-interpret passing functional tests as final performance or accuracy qualification.
+The raw evidence, including the superseded run, is preserved in
+[`linux-core-qualification-20260919.tar.gz`](results/linux-core-qualification-20260919.tar.gz).
+Its checksum is in the qualification record. Extract from the repository root:
 
-## Resume the core campaign
+```sh
+tar -xzf benchmarks/results/linux-core-qualification-20260919.tar.gz
+```
 
-1. Synchronize the core-only `main` revision to both hosts. Build fresh optimized
-   extensions with `just build-ext-release` and record new source, plan, harness
-   and native-library hashes. Keep timing hosts otherwise idle.
-2. Run the Mac regression preflight before its full campaign: broad indices
-   3, 15, 19, 25, 29, 39, 43, 52, 57, 66 and 105, plus
-   `gradient-cylindrical-field-coefficients-n2-l2-s256-t1`. Preserve original
-   commands, repeats and tolerances. Retain every outcome.
-3. Use `scripts/run_benchmark_suite.py` with `benchmarks/correction-plan.json`.
-   The core plan contains 1,300 cases: 736 original CPU performance, 531 accuracy,
-   and 33 boundary cases. Mac excludes six unsupported 16-thread cases. Retain
-   the 8 GiB Mac and 16 GiB Linux process-group guards. Use new output directories;
-   never overwrite or relabel historical measurements.
-4. The old `results/corrected/resume-tools/` queue and renderer assumed a combined
-   CPU/GPU campaign. Update the execution and reporting selection for the nine
-   CPU groups before reuse; do not invoke the old Linux GPU phase on `main`.
-5. Audit provenance, completeness, numerical gates and raw timing/array evidence.
-   Measure the proposed dense-memory improvement. Keep unresolved high-order
-   reference disagreements, recording overhead and convergence tradeoffs visible.
-6. Generate and visually inspect the CPU report, then update benchmark and status
-   documentation with the actual results and remaining limits.
+To repeat the integrity audits while the qualified package and source are installed:
 
-The GPU branch retains the original 20 CUDA cases and its separate hardware
-qualification commands. Browser and GPU experiments are deferred; resuming the
-core campaign does not require either lane or any deployment work.
+```sh
+uv run --script scripts/audit_qualification.py "$PWD" linux \
+  accuracy-references accuracy-physics accuracy-upstream --cohort corrected \
+  --results-root benchmarks/results/linux-core-correctness-frozen-20260919
+uv run --script scripts/audit_qualification.py "$PWD" linux \
+  gradient correction-boundary --cohort corrected \
+  --results-root benchmarks/results/linux-core-correctness-20260919
+```
+
+The auditor checks source/build identities, case coverage, original tolerances,
+numerical gate fields, timing consistency and archived array hashes/ZIP integrity.
+It does not rerun the solver or recompute the numerical arrays.
+
+## Remaining work
+
+The other 685 cases in `correction-plan.json` cover the broad performance grid,
+size/thread scaling and requested illuminations. They have not been rerun, so the
+proposed dense-memory improvement and fresh overall speed/memory claims remain
+unqualified. Keep this separate from the completed correctness acceptance.
+
+If resuming those measurements, use one frozen release package on an otherwise
+idle Linux host, preserve the declared repeats/tolerances and 16 GiB process-group
+guard, record new fingerprints, and retain every outcome in fresh directories.
+Audit and visually inspect the final performance report before updating claims.
+
+Historical Mac/Linux results and September 12 pause records remain unchanged in
+`results/comparison/`, `results/corrected/`, `results/corrections/` and
+`results/fixes/`. Their old queue/renderer assumed a combined CPU/GPU campaign;
+do not run them unchanged on core-only `main`.

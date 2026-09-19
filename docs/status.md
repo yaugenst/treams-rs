@@ -18,8 +18,9 @@ The browser/WASM playground is preserved on `experimental/browser`;
 CUDA support is preserved on `experimental/gpu`. Neither experiment
 is part of the core build, public API catalog, or CI. Historical benchmark records
 retain their original build identities; they do not qualify this branch revision.
-The corrected CPU benchmark campaign remains paused; see
-[the resume checklist](../benchmarks/RESUME.md).
+The Linux correctness campaign is qualified on this machine; the remaining
+performance campaign is deferred. See [the qualification record](../benchmarks/linux-core-qualification.json)
+and [the remaining-work checklist](../benchmarks/RESUME.md).
 
 ## Numerical and workflow coverage
 
@@ -92,6 +93,30 @@ half-cell groupings and individual degenerate eigenmodes do not have a general
 smooth derivative.
 
 ## Verification and performance
+
+The September 19 Linux correctness campaign qualifies commit `2843a70` on the
+Ryzen 9 9950X with Python 3.13.1 and one accepted optimized extension hash. All
+615 selected cases pass their native numerical gates: 527 upstream workflow
+comparisons, 51 complete-gradient cases, 33 boundary cases, and four collectors
+for independent references, physical invariants, published workflows and cluster
+conditioning. The high-precision collector passes all 2,032 finite-output reference cases;
+18 inputs exceed float64 range and remain explicit exclusions.
+
+Five high-order cluster observations still disagree with raw upstream results.
+Independent balanced-system references with forward-error bounds pass at orders
+6, 8 and 12 using unchanged tolerances; the worst bound-inclusive scaled error
+is 0.0436 against an acceptance limit of 1. This certifies the encoded equations,
+not arbitrary multipole convergence. The full thermal reproduction also passes:
+300 absorption samples, 600 angular values and 22 cutoff checks, with the archived
+52-point upstream comparison identified separately.
+
+The first accuracy run was superseded because the installed extension changed
+partway through it. Accuracy was rerun against a copied package matching the
+binary already used for gradient/boundary checks. Both accepted evidence audits
+report zero integrity errors and zero unresolved native gates. No numerical code
+or tolerances changed. The [machine-readable record](../benchmarks/linux-core-qualification.json)
+links the raw manifests, audits, exclusions and provenance exception. No refreshed
+whole-campaign speed or memory claim follows from this correctness qualification.
 
 The September 19 core extraction passed `just verify` on Linux: 93 Rust tests
 and 2,197 Python tests, with 14 plotting tests skipped in the base environment.
@@ -171,8 +196,10 @@ fractional pi/tau are not implemented.
 The original independent high-precision campaign exposed zero Mie blocks for a
 large metallic sphere at size parameter 80, `epsilon=-8+0.4j`, `mu=1` in vacuum.
 The current source includes the scaled-inverse correction and its targeted
-regression checks. The full corrected accuracy/performance campaign has not run;
-its original failures remain archived in the [comparison report](benchmark-comparison.md).
+regression checks. The full independent reference grid now passes its finite-output gates in the
+Linux correctness campaign. Original failures remain archived in the
+[comparison report](benchmark-comparison.md); the broader performance campaign
+has not been rerun.
 
 Dense outputs and LU storage remain quadratic in channel dimension, with cubic
 factorization work. Requested-illumination factors avoid the full interacting
