@@ -1,12 +1,18 @@
 # CPU scattering and field benchmarks
 
+The [Mac and Linux comparison](benchmark-comparison.md) describes the broader
+performance and accuracy campaign, with per-platform figures, scaling and full
+gradient measurements. Its report retains slower cases and resource limits.
+The qualification summaries below describe their original recorded builds and
+must not be read as a guarantee for another platform or revision.
+
 For optional GPU measurements and their precision/setup limits, see
 [GPU opportunities](gpu-opportunities.md) and [cached GPU sampling](gpu-sampling.md).
 [WASM qualification](wasm.md) covers the browser exports separately.
 
-## Reference qualification
+## Historical reference qualification
 
-The reference grid passed all 527 runtime comparisons and 525 peak-RSS comparisons
+The recorded Linux reference grid passed all 527 runtime comparisons and 525 peak-RSS comparisons
 against treams 0.4.5. It covers scalar and batched functions, geometry, local
 waves, finite and periodic scattering, fields, planar stacks, power observables
 and recorded native pullbacks. The [qualification manifest](../benchmarks/complete-qualification.json)

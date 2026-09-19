@@ -3,7 +3,7 @@ import advect.numpy as anp
 import numpy as np
 import pytest
 import treams
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 from numpy.testing import assert_allclose
 from scipy.optimize import linear_sum_assignment
@@ -318,3 +318,38 @@ def test_internal_nonfinite_input_is_rejected(record):
     lower[0, 1, 1, 2] = np.nan
     with pytest.raises(ValueError, match="finite"):
         function(lower, _blocks(6), np.ones((4, 1), complex), np.zeros((4, 1), complex))
+
+
+@settings(max_examples=6, deadline=None)
+@given(columns=st.integers(1, 3), seed=st.integers(0, 100))
+def test_large_thin_illumination_matches_dense_batch_and_all_pullbacks(columns, seed):
+    n = 512
+    rng = np.random.default_rng(seed)
+    lower, upper = [_blocks(seed + i, n) / np.sqrt(n) for i in range(2)]
+    up, down = [
+        (rng.normal(size=(n, columns)) + 1j * rng.normal(size=(n, columns)))
+        / np.sqrt(n)
+        for _ in range(2)
+    ]
+    # Nine RHS use the direct path; padding with unilluminated columns leaves
+    # both the original fields and their parameter derivatives unchanged.
+    padded = [np.pad(a, ((0, 0), (0, 9 - columns))) for a in (up, down)]
+    expected, dense = tr.diff.smatrix_illuminate(lower, upper, *padded)
+    value, iterative = tr.diff.smatrix_illuminate(lower, upper, up, down)
+    assert_allclose(value, expected[:, :, :columns], rtol=3e-12, atol=2e-14)
+    assert_allclose(
+        _native.smatrix_illuminate_forward(lower, upper, up, down),
+        expected[:, :, :columns],
+        rtol=3e-12,
+        atol=2e-14,
+    )
+    g = rng.normal(size=value.shape) + 1j * rng.normal(size=value.shape)
+    expected_gradients = dense.pullback(np.pad(g, ((0, 0), (0, 0), (0, 9 - columns))))
+    lower[:] = upper[:] = np.nan
+    up[:] = down[:] = np.nan
+    for i, (actual, wanted) in enumerate(
+        zip(iterative.pullback(g), expected_gradients, strict=True)
+    ):
+        if i >= 2:
+            wanted = wanted[:, :columns]
+        assert_allclose(actual, wanted, rtol=3e-11, atol=2e-13)

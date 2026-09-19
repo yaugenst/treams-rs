@@ -422,7 +422,7 @@ fn norm(vector: &[Complex]) -> f64 {
     vector.iter().fold(0.0_f64, |sum, z| sum.hypot(z.norm()))
 }
 
-fn gmres(
+pub(crate) fn gmres(
     rhs: &[Complex],
     options: GmresOptions,
     apply: impl Fn(&[Complex]) -> Result<Vec<Complex>>,

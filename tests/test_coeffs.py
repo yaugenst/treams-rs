@@ -3,6 +3,8 @@
 import numpy as np
 import pytest
 import treams.coeffs as reference
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from scipy.special import spherical_jn, spherical_yn
 
 from treams_rs import _native, coeffs
@@ -87,3 +89,66 @@ def test_invalid_shapes_and_radii():
         coeffs.mie(1, [2, 1], [1, 2, 3], [1, 1, 1], [0, 0, 0])
     with pytest.raises(ValueError, match="equal lengths"):
         coeffs.mie(1, [1], [1, 2], [1], [0, 0])
+
+
+@pytest.mark.oracle_numerical
+@settings(max_examples=32, deadline=None)
+@given(
+    size=st.floats(60, 100),
+    degree=st.integers(1, 100),
+    epsilon=st.floats(-9, -7),
+    loss=st.floats(0.1, 1),
+    scale=st.floats(0.5, 2),
+)
+def test_absorbing_mie_reference_and_scale_invariance(
+    size, degree, epsilon, loss, scale
+):
+    epsilon = np.array([epsilon + 1j * loss, 1])
+    matrix, context = coeffs.mie_with_context(degree, [size], epsilon, [1, 1], [0, 0])
+    np.testing.assert_allclose(
+        matrix,
+        reference.mie(degree, [size], epsilon, [1, 1], [0, 0]),
+        atol=2e-13,
+        rtol=2e-11,
+    )
+    # Rescaling size and all refractive indices inversely leaves both radial
+    # arguments and interface impedance ratios unchanged.
+    np.testing.assert_allclose(
+        matrix,
+        coeffs.mie(degree, [size * scale], epsilon / scale**2, [1, 1], [0, 0]),
+        atol=2e-13,
+        rtol=2e-11,
+    )
+    cotangent = np.array([[0.3 + 0.7j, -0.2j], [0.1 - 0.4j, -0.5 + 0.2j]])
+    gx, ge, _, _ = context.pullback(cotangent)
+    np.testing.assert_allclose(
+        gx[0] * size - 2 * np.vdot(ge, epsilon).real, 0, atol=2e-10
+    )
+
+
+@pytest.mark.ad_contract
+@pytest.mark.parametrize("degree", [1, 3, 80, 99])
+@pytest.mark.parametrize("parameter", range(4))
+def test_absorbing_mie_pullback(degree, parameter):
+    args = [
+        np.array([80.0]),
+        np.array([-8 + 0.4j, 1]),
+        np.ones(2, dtype=complex),
+        np.zeros(2, dtype=complex),
+    ]
+    cotangent = np.array([[0.3 + 0.7j, -0.2j], [0.1 - 0.4j, -0.5 + 0.2j]])
+    _, context = coeffs.mie_with_context(degree, *args)
+    gradient = context.pullback(cotangent)[parameter]
+    direction = (
+        np.array([0.3]) if parameter == 0 else np.array([0.3 + 0.1j, -0.2 + 0.4j])
+    )
+    step = 1e-6
+    plus, minus = list(args), list(args)
+    plus[parameter] = args[parameter] + step * direction
+    minus[parameter] = args[parameter] - step * direction
+    finite_difference = np.vdot(
+        cotangent, coeffs.mie(degree, *plus) - coeffs.mie(degree, *minus)
+    ).real / (2 * step)
+    np.testing.assert_allclose(
+        np.vdot(gradient, direction).real, finite_difference, atol=2e-8, rtol=2e-7
+    )

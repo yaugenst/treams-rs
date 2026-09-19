@@ -561,6 +561,7 @@ impl LoopOutput for [f64; 2] {
 
 // Fixed arity scalar kernels share NumPy's masking, buffering and strided loop
 // contract. Every input is copied before writing, including in-place operations.
+// Bound task subdivision to amortize scheduling and temporary-buffer overhead.
 macro_rules! scalar_loop {
     ($name:ident $(<$t:ident>)?, $output:ty, $count:literal, $( $index:literal => $argument:ident : $ty:ty ),+ => $body:expr) => {
         scalar_loop!(@1024, $name $(<$t>)?, $output, $count, $($index => $argument : $ty),+ => $body);
@@ -574,13 +575,15 @@ macro_rules! scalar_loop {
                 let n = usize::try_from(*dimensions).unwrap_or_default();
                 let component_stride=if <$output as LoopOutput>::VECTOR {*steps.add($count+1)}else{0};
                 let mut pointers: [*mut c_char; $count + 1] = std::array::from_fn(|i| *args.add(i));
-                if n >= $parallel {
+                if n >= $parallel && rayon::current_num_threads() > 1 {
                     let inputs: [Input; $count] = std::array::from_fn(|i|Input{pointer:*args.add(i),stride:*steps.add(i)});
                     let evaluate=|i| {
                         $(let $argument=inputs.get_unchecked($index).read::<$ty>(i);)+
                         $body
                     };
-                    let values: Vec<$output>=(0..n).into_par_iter().map(evaluate).collect::<treams_core::Result<_>>()?;
+                    let values: Vec<$output>=(0..n).into_par_iter()
+                        .with_min_len((n / (4 * rayon::current_num_threads())).max(1))
+                        .map(evaluate).collect::<treams_core::Result<_>>()?;
                     let mut output=*args.add($count);
                     for value in values {
                         value.store(output,component_stride);
@@ -1114,7 +1117,7 @@ fn cylindrical_translation(
 scalar_loop!(@64, tl_vcw_loop, Complex, 7, 0=>kz:f64, 1=>mu:c_long, 2=>qz:f64, 3=>m:c_long, 4=>kr:Complex, 5=>phi:f64, 6=>z:f64 => {
     cylindrical_translation(kz,mu,qz,m,[kr,phi.into(),z.into()],special::Radial::Outgoing)
 });
-scalar_loop!(@64, tl_vcw_r_loop<T>, Complex, 7, 0=>kz:f64, 1=>mu:c_long, 2=>qz:f64, 3=>m:c_long, 4=>kr:T, 5=>phi:f64, 6=>z:f64 => {
+scalar_loop!(@512, tl_vcw_r_loop<T>, Complex, 7, 0=>kz:f64, 1=>mu:c_long, 2=>qz:f64, 3=>m:c_long, 4=>kr:T, 5=>phi:f64, 6=>z:f64 => {
     cylindrical_translation(kz,mu,qz,m,[kr.into(),phi.into(),z.into()],special::Radial::Regular)
 });
 

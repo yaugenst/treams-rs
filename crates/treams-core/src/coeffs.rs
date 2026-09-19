@@ -6,7 +6,7 @@
 use nalgebra::SMatrix;
 
 use crate::special::{Radial, spherical};
-use crate::{Complex, Error, Result, finite};
+use crate::{Complex, Error, Result, finite, ratio};
 
 type Matrix4 = SMatrix<Complex, 4, 4>;
 type Matrix42 = SMatrix<Complex, 4, 2>;
@@ -139,6 +139,26 @@ fn interface(
     Ok((f, df))
 }
 
+// Absorbing media can make every entry enormous while the coefficient ratio is
+// well conditioned. Normalize before forming the determinant, then use the
+// shared scaled complex division instead of squaring its magnitude.
+fn inverse2(matrix: Matrix2) -> Result<Matrix2> {
+    let scale = matrix
+        .iter()
+        .map(|z| z.re.abs().max(z.im.abs()))
+        .fold(0.0, f64::max);
+    if scale == 0.0 || !scale.is_finite() {
+        return Err(Error::Singular);
+    }
+    let a = matrix.map(|z| z / scale);
+    let determinant = a.determinant();
+    if determinant == Complex::default() {
+        return Err(Error::Singular);
+    }
+    Ok(Matrix2::new(a[(1, 1)], -a[(0, 1)], -a[(1, 0)], a[(0, 0)])
+        .map(|z| ratio(z, determinant) / scale))
+}
+
 /// Solve a concentric multilayer sphere, retaining the native reverse context.
 pub fn mie_forward(l: u32, sizes: &[f64], materials: &[Material]) -> Result<MieResidual> {
     if !(1..=128).contains(&l) || sizes.is_empty() || materials.len() != sizes.len() + 1 {
@@ -171,7 +191,7 @@ pub fn mie_forward(l: u32, sizes: &[f64], materials: &[Material]) -> Result<MieR
         q = matrix * q;
     }
     let upper = q.fixed_rows::<2>(0).into_owned();
-    let inverse = upper.try_inverse().ok_or(Error::Singular)?;
+    let inverse = inverse2(upper)?;
     let value = q.fixed_rows::<2>(2) * inverse;
     if value.iter().any(|z| !finite(*z)) {
         return Err(Error::Singular);
@@ -284,4 +304,68 @@ pub(crate) fn validate_layers(sizes: &[f64], materials: &[Material]) -> Result<(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn inverse_preserves_complex_scale(
+            re in -1.0_f64..1.0,
+            im in -1.0_f64..1.0,
+            exponent in -300_i32..301,
+        ) {
+            let z = Complex::new(re, im);
+            let matrix = Matrix2::new(3.0 + z, z, -z, 4.0 - z)
+                * Complex::new(10.0_f64.powi(exponent), 0.0);
+            let inverse = inverse2(matrix).unwrap();
+            prop_assert!((matrix * inverse - Matrix2::identity()).norm() < 4e-15);
+        }
+    }
+
+    #[test]
+    fn metallic_sphere_matches_independent_mie_ratios() {
+        // 120-digit direct Riccati-Bessel ratios from qualify_references.py,
+        // independently stable at 80 digits; x=80, epsilon=-8+0.4i, vacuum.
+        let references = [
+            (
+                1,
+                (-0.499_957_965_242_302_9, -0.000_033_295_596_701_331_95),
+                (-0.315_374_612_638_891_9, -0.377_908_027_840_409_7),
+            ),
+            (
+                3,
+                (-0.499_774_523_335_837_05, -0.000_229_816_544_066_314_44),
+                (-0.360_037_027_186_839_1, -0.335_632_030_366_205_5),
+            ),
+            (
+                80,
+                (-0.421_594_673_791_517_6, -0.391_815_903_887_81),
+                (-0.280_927_898_598_179_07, -0.045_759_796_275_944_01),
+            ),
+            (
+                99,
+                (-6.117_266_839_130_22e-10, 1.109_939_769_728_892_8e-8),
+                (-5.594_374_358_681_406e-10, 1.597_214_940_003_522_4e-8),
+            ),
+        ];
+        let material = Material {
+            epsilon: Complex::new(-8.0, 0.4),
+            ..Material::default()
+        };
+        for (l, diagonal, off_diagonal) in references {
+            let diagonal = Complex::new(diagonal.0, diagonal.1);
+            let off_diagonal = Complex::new(off_diagonal.0, off_diagonal.1);
+            let reference = Matrix2::new(diagonal, off_diagonal, off_diagonal, diagonal);
+            let result = mie_forward(l, &[80.0], &[material, Material::default()]).unwrap();
+            for (actual, expected) in result.value.iter().zip(reference.iter()) {
+                assert!((*actual - expected).norm() <= 2e-13 + 2e-11 * expected.norm());
+            }
+        }
+    }
 }

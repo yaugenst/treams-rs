@@ -9,6 +9,40 @@ from hypothesis import strategies as st
 from treams_rs import _native
 
 
+@given(
+    order=st.integers(1, 4),
+    x=st.floats(0.1, 0.8),
+    singular=st.booleans(),
+    helicity=st.booleans(),
+    chiral=st.booleans(),
+)
+def test_cylindrical_polarization_pair_permutation(
+    order, x, singular, helicity, chiral
+):
+    from treams_rs import CylindricalWaveBasis, diff
+
+    basis = CylindricalWaveBasis.default([0.2], order)
+    permutation = np.r_[np.arange(0, len(basis), 2), np.arange(1, len(basis), 2)]
+    separated = CylindricalWaveBasis(np.asarray(basis.modes)[permutation])
+    coefficients = np.arange(1, len(basis) + 1) * (0.07 + 0.02j)
+    points = [[x, 0.15, 0.3], [-0.4, 0.2, 0.1]]
+    ks = [1.3 + 0.03j, 1.3 + 0.03j + (0.2 if chiral and helicity else 0)]
+    kwargs = {"poltype": "helicity" if helicity else "parity", "singular": singular}
+    value, context = diff.field(coefficients, points, basis, ks, **kwargs)
+    other, other_context = diff.field(
+        coefficients[permutation], points, separated, ks, **kwargs
+    )
+    np.testing.assert_allclose(value, other, rtol=2e-13, atol=2e-13)
+    cotangent = np.array([[0.3 + 0.2j, -0.1j, 0.8], [0.1, -0.2, 0.2j]])
+    gradient = context.pullback(cotangent)
+    other_gradient = other_context.pullback(cotangent)
+    np.testing.assert_allclose(
+        gradient[0][permutation], other_gradient[0], rtol=2e-13, atol=2e-13
+    )
+    for expected, actual in zip(gradient[1:], other_gradient[1:], strict=True):
+        np.testing.assert_allclose(expected, actual, rtol=2e-13, atol=2e-13)
+
+
 @pytest.mark.parametrize("offset", [1e-9, 1e-100, 1e-200, 1e-300])
 def test_cylindrical_field_near_axis_gradient(offset):
     from treams_rs import CylindricalWaveBasis, diff

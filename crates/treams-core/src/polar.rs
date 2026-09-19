@@ -197,12 +197,16 @@ pub fn spherical(
 /// Cylindrical translation in `(k_rho*rho, phi, z, kz)` with a fixed order difference.
 /// The two axial labels must move together; unequal labels are uncoupled.
 pub fn cylindrical_value(order: i32, args: [Complex; 4], radial: Radial) -> Result<Complex> {
-    Ok(cylindrical_jet::<0>(order, args, radial)?.value)
+    Ok(cylindrical_jet::<0>(order, args, radial, None)?.value)
+}
+fn cylindrical_phase<const N: usize>(order: i32, phi: Jet<N>, z: Jet<N>, kz: Jet<N>) -> Jet<N> {
+    (Complex::i() * (f64::from(order) * phi + kz * z)).exp()
 }
 fn cylindrical_jet<const N: usize>(
     order: i32,
     args: [Complex; 4],
     radial: Radial,
+    fixed_phase: Option<Complex>,
 ) -> Result<Jet<N>> {
     if order.unsigned_abs() > 256 || args.iter().any(|&v| !finite(v)) {
         return Err(Error::InvalidInput(
@@ -226,7 +230,14 @@ fn cylindrical_jet<const N: usize>(
         let r = special::cylindrical(order, kr.value, radial)?;
         kr.map(r.value, r.first)
     };
-    let value = radial * (Complex::i() * (f64::from(order) * phi + kz * z)).exp();
+    let phase = if N == 0
+        && let Some(phase) = fixed_phase
+    {
+        Jet::constant(phase)
+    } else {
+        cylindrical_phase(order, phi, z, kz)
+    };
+    let value = radial * phase;
     if !value.finite() {
         return Err(Error::SpecialFunction(
             "nonfinite cylindrical translation or derivative".into(),
@@ -248,7 +259,7 @@ pub fn cylindrical_pullback(
         cylindrical_value(order, args, radial)?;
         return Ok([Complex::default(); 4]);
     }
-    Ok(cylindrical_jet::<4>(order, args, radial)?
+    Ok(cylindrical_jet::<4>(order, args, radial, None)?
         .derivative
         .map(|d| d.conj() * g))
 }
@@ -282,8 +293,9 @@ impl CylindricalResidual {
             let (order, args) = self.element(i);
             cylindrical_pullback(order, args, self.radial, g)
         };
-        let gradients: Vec<[Complex; 4]> = if self.size >= 64 {
+        let gradients: Vec<[Complex; 4]> = if self.size >= 64 && rayon::current_num_threads() > 1 {
             g.par_iter()
+                .with_min_len((self.size / (4 * rayon::current_num_threads())).max(1))
                 .enumerate()
                 .map(evaluate)
                 .collect::<Result<_>>()?
@@ -330,13 +342,27 @@ pub fn cylindrical(
         radial,
         size,
     };
+    // A radial sweep shares its angular/axial phase. Keep all original inputs
+    // in the residual so the pullback still differentiates all four arguments.
+    let fixed_phase = if size > 1
+        && residual.orders.len() == 1
+        && residual.arguments[1..].iter().all(|a| a.len() == 1)
+    {
+        let (order, args) = residual.element(0);
+        let [_, phi, z, kz] = args.map(Jet::<0>::constant);
+        Some(cylindrical_phase(order, phi, z, kz).value)
+    } else {
+        None
+    };
     let evaluate = |i| {
         let (order, args) = residual.element(i);
-        cylindrical_value(order, args, radial)
+        Ok(cylindrical_jet::<0>(order, args, radial, fixed_phase)?.value)
     };
-    let value = if size >= 64 {
+    let parallel_threshold = if radial == Radial::Regular { 512 } else { 64 };
+    let value = if size >= parallel_threshold && rayon::current_num_threads() > 1 {
         (0..size)
             .into_par_iter()
+            .with_min_len((size / (4 * rayon::current_num_threads())).max(1))
             .map(evaluate)
             .collect::<Result<_>>()?
     } else {
@@ -352,6 +378,34 @@ mod tests {
     use proptest::prelude::*;
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(40))]
+        #[test]
+        fn cylindrical_radial_sweep_preserves_values_and_all_pullbacks(
+            order in -6_i32..=6, phi in -3.0_f64..3.0, axial in -0.5_f64..0.5,
+            kz in -0.7_f64..0.7, regular in any::<bool>(), count in 2_u16..160,
+        ) {
+            let radial = if regular { Radial::Regular } else { Radial::Outgoing };
+            let arguments = [
+                (0..count).map(|i| Complex::new(0.5 + f64::from(i) / 100.0, 0.2)).collect(),
+                vec![Complex::new(phi, 0.1)], vec![axial.into()], vec![kz.into()],
+            ];
+            let count = usize::from(count);
+            let (values, residual) = cylindrical(vec![order], arguments.clone(), radial).unwrap();
+            let cotangent = vec![Complex::new(0.2, -0.3); count];
+            let mut expected = [vec![], vec![Complex::default()], vec![Complex::default()], vec![Complex::default()]];
+            for i in 0..count {
+                let args = [arguments[0][i], arguments[1][0], arguments[2][0], arguments[3][0]];
+                let scalar = cylindrical_value(order, args, radial).unwrap();
+                prop_assert!((values[i] - scalar).norm() <= 2e-14 * scalar.norm().max(1.0));
+                let gradient = cylindrical_pullback(order, args, radial, cotangent[i]).unwrap();
+                expected[0].push(gradient[0]);
+                for axis in 1..4 { expected[axis][0] += gradient[axis]; }
+            }
+            let gradients = residual.pullback(&cotangent).unwrap();
+            for (actual, expected) in gradients.iter().flatten().zip(expected.iter().flatten()) {
+                prop_assert!((*actual - *expected).norm() <= 2e-13 * expected.norm().max(1.0));
+            }
+        }
+
         #[test]
         fn cylindrical_cartesian_and_polar_adjoints(mu in -5_i32..6,m in -5_i32..6,phi in -3.0_f64..3.0,regular in any::<bool>()) {
             let args=[Complex::new(1.3,0.1),phi.into(),0.3.into(),0.2.into()];

@@ -32,7 +32,20 @@ def digest(path: Path) -> str:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def fingerprints() -> dict[str, str]:
+def fingerprints(upstream: bool = False) -> dict[str, str]:
+    if upstream:
+        import treams
+
+        folder = Path(treams.__file__).parent
+        source = hashlib.sha256()
+        for path in sorted(folder.rglob("*")):
+            if path.suffix in (".py", ".so", ".pyd"):
+                source.update(path.relative_to(folder).as_posix().encode())
+                source.update(bytes.fromhex(digest(path)))
+        return {
+            "treams_package_sha256": source.hexdigest(),
+            "benchmark_sha256": digest(Path(__file__)),
+        }
     from treams_rs import _native
 
     folder = Path(_native.__file__).parent
@@ -52,10 +65,13 @@ def peak_mib() -> float:
     return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / divisor
 
 
-def case(args):
+def case(args, upstream=False):
     import numpy as np
 
-    import treams_rs as tr
+    if upstream:
+        import treams as tr
+    else:
+        import treams_rs as tr
 
     n = args.particles
     side = int(np.ceil(n ** (1 / 3)))
@@ -83,16 +99,24 @@ def worker(args) -> None:
     import numpy as np
     from threadpoolctl import threadpool_info, threadpool_limits
 
-    import treams_rs as tr
-    from treams_rs.iterative import SphereCluster
+    upstream = args.backend.startswith("treams-")
+    if upstream:
+        import treams as tr
+        from scipy.linalg import lu_factor, lu_solve
 
-    if tr._native.build_profile() != "release":
+        if args.phase != "forward":
+            raise ValueError("upstream treams has no native adjoint benchmark")
+    else:
+        import treams_rs as tr
+        from treams_rs.iterative import SphereCluster
+
+    if not upstream and tr._native.build_profile() != "release":
         raise RuntimeError("benchmark requires a release extension")
-    before = fingerprints()
+    before = fingerprints(upstream)
     threads = args.threads
     with threadpool_limits(limits=threads):
         start = time.perf_counter()
-        radii, epsilon, positions, basis, incident = case(args)
+        radii, epsilon, positions, basis, incident = case(args, upstream)
         common_setup = time.perf_counter() - start
         baseline = peak_mib()
         options = dict(
@@ -100,6 +124,20 @@ def worker(args) -> None:
         )
 
         def prepare(record=False):
+            if upstream:
+                spheres = [
+                    tr.TMatrix.sphere(args.lmax, 1.3, r, [eps, 1])
+                    for r, eps in zip(radii, epsilon, strict=True)
+                ]
+                cluster = tr.TMatrix.cluster(spheres, positions)
+                if args.backend == "treams-full":
+                    return np.asarray(cluster.interaction.solve())
+                return (
+                    lu_factor(
+                        np.asarray(cluster.interaction(), order="F"), overwrite_a=True
+                    ),
+                    np.asarray(cluster),
+                )
             if args.backend == "matrix-free":
                 return SphereCluster(args.lmax, 1.3, radii, epsilon, positions)
             if args.backend == "full":
@@ -125,11 +163,14 @@ def worker(args) -> None:
 
         def solve(prepared):
             nonlocal latest_reports
+            if args.backend == "treams-selected":
+                factor, local = prepared
+                return lu_solve(factor, local @ incident, overwrite_b=True)
             if args.backend == "matrix-free":
                 solution = prepared.solve(incident, **options)
                 latest_reports = [list(report) for report in solution.convergence]
                 return solution.coefficients
-            if args.backend == "full":
+            if args.backend in ("full", "treams-full"):
                 return prepared @ incident
             return prepared.solve(incident)
 
@@ -268,7 +309,7 @@ def worker(args) -> None:
                     radius_direction_relative_error=error,
                 )
         # High-water RSS above excludes validation-only finite-difference solves.
-        assert before == fingerprints(), (
+        assert before == fingerprints(upstream), (
             "sources or native binary changed during measurement"
         )
         print(
@@ -277,7 +318,14 @@ def worker(args) -> None:
                     **before,
                     "backend": args.backend,
                     "phase": args.phase,
-                    "native_profile": tr._native.build_profile(),
+                    "native_profile": None if upstream else tr._native.build_profile(),
+                    "workflow": {
+                        "treams-full": "Upstream public full interacting T-matrix, then requested incident columns.",
+                        "treams-selected": "Custom upstream dense workflow: public interaction matrix, SciPy LU factorization, and selected right-hand sides.",
+                        "full": "Native full interacting T-matrix, then requested incident columns; full-T construction records a pullback.",
+                        "selected": "Native selected dense LU; recorded physical adjoints use compositional assembly.",
+                        "matrix-free": "Native matrix-free requested illumination and implicit adjoint.",
+                    }[args.backend],
                     "platform": platform.platform(),
                     "python": platform.python_version(),
                     "numpy": np.__version__,
@@ -336,11 +384,14 @@ def main() -> None:
         "--oracle-limit",
         type=int,
         default=768,
-        help="Maximum dimension checked against upstream treams",
+        help="Maximum dimension timed and checked against upstream full-T and selected-LU workflows",
     )
     parser.add_argument("--output", type=Path)
     parser.add_argument("--worker", action="store_true")
-    parser.add_argument("--backend", choices=["full", "selected", "matrix-free"])
+    parser.add_argument(
+        "--backend",
+        choices=["full", "selected", "matrix-free", "treams-full", "treams-selected"],
+    )
     parser.add_argument("--phase", choices=["forward", "adjoint"])
     parser.add_argument("--array-output", type=Path)
     args = parser.parse_args()
@@ -366,11 +417,16 @@ def main() -> None:
         if dimension <= args.dense_limit
         else ["matrix-free"]
     )
+    if dimension <= args.oracle_limit:
+        backends += ["treams-full", "treams-selected"]
     measurements = []
     arrays = {}
     with tempfile.TemporaryDirectory(prefix="treams-illumination-") as folder:
         for backend in backends:
-            for phase in ["forward", "adjoint"]:
+            phases = (
+                ["forward"] if backend.startswith("treams-") else ["forward", "adjoint"]
+            )
+            for phase in phases:
                 array_file = Path(folder) / f"{backend}-{phase}.npz"
                 cmd = [
                     sys.executable,
@@ -419,6 +475,7 @@ def main() -> None:
                 for key in ["native_sha256", "python_source_sha256", "benchmark_sha256"]
             )
             for item in measurements
+            if not item["backend"].startswith("treams-")
         }
         assert len(fingerprints_set) == 1, "all measurements must use the same code"
         reference = arrays[(backends[0], "adjoint")]
@@ -439,24 +496,11 @@ def main() -> None:
                 errors[f"{backend}/{phase}/{name}"] = relative
         oracle_error = None
         if dimension <= args.oracle_limit:
-            import treams
-            from threadpoolctl import threadpool_limits
-
-            with threadpool_limits(limits=args.threads):
-                radii, epsilon, positions, _, incident = case(args)
-                spheres = [
-                    treams.TMatrix.sphere(args.lmax, 1.3, r, [eps, 1])
-                    for r, eps in zip(radii, epsilon, strict=True)
-                ]
-                expected = np.asarray(
-                    treams.TMatrix.cluster(spheres, positions).interaction.solve()
-                    @ incident
-                )
-                oracle_error = float(
-                    np.linalg.norm(reference["value"] - expected)
-                    / np.linalg.norm(expected)
-                )
-                assert oracle_error < 3e-9, oracle_error
+            expected = arrays[("treams-full", "forward")]["value"]
+            oracle_error = float(
+                np.linalg.norm(reference["value"] - expected) / np.linalg.norm(expected)
+            )
+            assert oracle_error < 3e-9, oracle_error
         result = {
             "recorded_at": datetime.now(UTC).isoformat(),
             "case": {
@@ -479,11 +523,14 @@ def main() -> None:
             "dimension": dimension,
             "dense_skipped_reason": None
             if "full" in backends
-            else f"dimension {dimension} exceeds explicit dense limit {args.dense_limit}; no same-size dense comparison claimed",
+            else f"dimension {dimension} exceeds explicit native dense limit {args.dense_limit}; native dense methods not timed",
             "oracle_relative_error": oracle_error,
-            "comparison_reference": "strongest available native full-T cluster API"
+            "upstream_skipped_reason": None
+            if dimension <= args.oracle_limit
+            else f"dimension {dimension} exceeds explicit upstream limit {args.oracle_limit}; no same-size treams runtime or RSS comparison claimed",
+            "comparison_reference": "native recorded full-T cluster API"
             if "full" in backends
-            else "recorded matrix-free forward; independent large-case gradient finite differences and invariants only",
+            else "recorded matrix-free forward; independent gradient finite differences and invariants; upstream forward comparison when within oracle limit",
             "comparison_relative_errors": errors,
             "measurements": measurements,
             "selected_assembly": "Forward/reuse use native diff.cluster_factor. Complete physical adjoints compose sphere/expansion contexts with block LU and include their generic assembly and retained memory.",

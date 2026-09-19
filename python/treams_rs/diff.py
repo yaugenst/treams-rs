@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from math import prod
 from typing import TYPE_CHECKING, cast
 
 import numpy as np
@@ -114,13 +115,16 @@ def lattice_sum(
         np.asarray(value, dtype=np.float64) for value in (degree, order, shell)
     )
     if any(
-        np.any(~np.isfinite(v) | (v != np.floor(v))) for v in (degrees, orders, shells)
+        not v.item().is_integer()
+        if v.ndim == 0
+        else (~np.isfinite(v) | (v != np.floor(v))).any()
+        for v in (degrees, orders, shells)
     ):
         raise ValueError("degree, order and shell must be finite integers")
     if (
-        np.any(np.abs(degrees) > 128)
-        or np.any(np.abs(orders) > 128)
-        or np.any((shells < 0) | (shells > np.iinfo(np.int32).max))
+        (np.abs(degrees) > 128).any()
+        or (np.abs(orders) > 128).any()
+        or ((shells < 0) | (shells > np.iinfo(np.int32).max)).any()
     ):
         raise ValueError("lattice labels or shell exceed supported bounds")
     shape = np.broadcast_shapes(
@@ -140,7 +144,7 @@ def lattice_sum(
         outer = value.shape[: value.ndim - len(core)]
         return (
             value
-            if np.prod(outer, dtype=int) == 1
+            if outer == shape or prod(outer) == 1
             else np.broadcast_to(value, shape + core)
         ).reshape((-1, *core))
 

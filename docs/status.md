@@ -97,13 +97,21 @@ rustdoc also passed. CI checks Python 3.12/3.13 on Linux and compiles CUDA suppo
 without a toolkit; a separate job compiles and numerically executes the WASM
 module and browser experiments.
 
-The [Linux performance manifest](../benchmarks/complete-qualification.json)
+The historical [Linux performance manifest](../benchmarks/complete-qualification.json)
 records 527 passing runtime gates and 525 passing peak-RSS gates, tied to the
 tested native binary, Python-source and benchmark hashes (minimum speedup
 1.02x, maximum gated RSS ratio 0.912). The macOS dispatch grid passes all
 30 runtime/RSS cases on its recorded build (minimum speedup 1.30x, maximum RSS
 ratio 0.695). The requested-illumination, matrix-free, GPU and paper reports
 include their own executable/source hashes.
+
+The [broader Mac and Linux comparison](benchmark-comparison.md) repeats the full
+527-case grid on the same numerical source and retains every outcome. All 527
+reference checks pass on each platform. Median sampled speedups are 5.17x on the
+Apple M3 and 5.04x on the Ryzen 9 9950X. Eleven Mac cases are slower than upstream;
+the Linux grid has no observed median slowdowns. Both have two higher-RSS
+recorded-adjoint cases. These results supersede any interpretation of the
+historical subsets as a platform-wide performance guarantee.
 
 The [API and adapter qualification](../benchmarks/agent-usability/qualification.json)
 checks offline discovery, executable examples, numerical checking helpers, and
@@ -128,11 +136,12 @@ objective derivatives. Finite differences are test oracles, never pullbacks.
 
 Performance qualification uses an optimized extension, matched thread budgets,
 isolated correctness/timing/RSS workers and alternating calibrated timings for
-small calls. Every measured forward path must be at least as fast and have no
-higher peak RSS than upstream. Recorded internal illumination has two explicitly
-listed high-dimension RSS exceptions because its owned reverse data is compared
-with an upstream forward-only computation; its runtime and all corresponding
-forward RSS gates remain strict. Raw results, exact scope, and historical
+small calls. The historical performance gates require no slowdown or higher RSS,
+apart from two recorded internal-illumination memory exceptions. The broader
+comparison also records cases that miss those targets; it does not discard or
+retry slower measurements to select a passing result. Recorded internal
+illumination retains owned reverse data while upstream computes only the forward
+result. Raw results, exact scope, and historical
 measurements are in [benchmarks](benchmarks.md). Finite measurements do not establish a universal
 speed or memory guarantee for every input.
 
@@ -145,6 +154,14 @@ for 0 < degree <= 128 and |order| <= degree. The public lpmv function preserves 
 reference's zero extension at |order| > degree; it does not evaluate the general
 Ferrers function in that extended domain. Fractional complex arguments and
 fractional pi/tau are not implemented.
+
+The new independent high-precision campaign exposes a large-metallic-sphere
+failure within the accepted input contract: at size parameter 80,
+`epsilon=-8+0.4j`, `mu=1` in vacuum, orders 1, 3, 80 and 99 return zero native Mie
+blocks instead of the nonzero reference. This regime is not qualified. The
+unscaled transfer-matrix inverse is a likely cause based on source inspection;
+its intermediate overflow and the affected gradients have not been instrumented.
+See the [comparison report](benchmark-comparison.md) for exact inputs and errors.
 
 Dense outputs and LU storage remain quadratic in channel dimension, with cubic
 factorization work. Requested-illumination factors avoid the full interacting

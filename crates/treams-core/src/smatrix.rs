@@ -11,6 +11,7 @@ use crate::{
         product, product_adjoint_left, product_adjoint_left_view, product_adjoint_right,
         product_adjoint_right_into, product_views, view, view_mut,
     },
+    iterative::{GmresOptions, gmres},
     linalg::{self, Lu, SolveResidual},
     ratio,
 };
@@ -408,13 +409,138 @@ fn internal_operator(lower: MatRef<'_, Complex>, upper: MatRef<'_, Complex>) -> 
     value
 }
 
-/// Internal-field solve for specified incident amplitudes, retaining one LU.
+// A certified contraction is invertible, including for zero or dependent RHS.
+// Otherwise retain pivoted LU and its singular-system behavior.
+#[derive(Debug)]
+enum InternalFactor {
+    Iterative(DMatrix<Complex>),
+    Direct(Lu),
+}
+
+#[derive(Debug)]
+struct InternalSolve {
+    value: DMatrix<Complex>,
+    factor: InternalFactor,
+}
+
+fn is_contraction(operator: &DMatrix<Complex>) -> bool {
+    let n = operator.nrows();
+    let mut rows = vec![0.0_f64; n];
+    for (j, column) in operator.as_slice().chunks_exact(n).enumerate() {
+        for (i, (&z, row)) in column.iter().zip(&mut rows).enumerate() {
+            let delta = if i == j {
+                Complex::new(1.0, 0.0) - z
+            } else {
+                z
+            };
+            // |re|+|im| bounds the complex modulus. Upward-rounded positive
+            // additions keep this an upper bound rather than a norm estimate.
+            *row = (*row + (delta.re.abs() + delta.im.abs()).next_up()).next_up();
+        }
+    }
+    rows.iter().all(|&sum| sum < 1.0)
+}
+
+fn internal_iteration(
+    operator: &DMatrix<Complex>,
+    rhs: &DMatrix<Complex>,
+    adjoint: bool,
+) -> Result<DMatrix<Complex>> {
+    // One Krylov iteration applies the operator to the entire thin batch.
+    // Its total residual is bounded by the smallest nonzero column's tolerance,
+    // which also certifies every individual illumination at 8 epsilon.
+    let column_norm = |j| {
+        rhs.column(j)
+            .iter()
+            .fold(0.0_f64, |sum, z| sum.hypot(z.norm()))
+    };
+    let minimum = (0..rhs.ncols())
+        .map(column_norm)
+        .filter(|&v| v > 0.0)
+        .fold(f64::INFINITY, f64::min);
+    if rhs.iter().all(|&z| z == Complex::default()) {
+        return Ok(DMatrix::zeros(rhs.nrows(), rhs.ncols()));
+    }
+    if !minimum.is_finite() {
+        return Err(Error::Singular);
+    }
+    let options = GmresOptions {
+        rtol: 0.0,
+        atol: 8.0 * f64::EPSILON * minimum,
+        restart: 16,
+        max_iterations: 16,
+    };
+    let (answer, _) = gmres(rhs.as_slice(), options, |x| {
+        let x_view = MatRef::from_column_major_slice(x, rhs.nrows(), rhs.ncols());
+        let result = if adjoint {
+            product_adjoint_left_view(view(operator), x_view)
+        } else {
+            product_views(view(operator), x_view)
+        };
+        Ok(Vec::from(result.data))
+    })?;
+    Ok(DMatrix::from_vec(rhs.nrows(), rhs.ncols(), answer))
+}
+
+impl InternalSolve {
+    fn new(
+        lower: MatRef<'_, Complex>,
+        upper: MatRef<'_, Complex>,
+        mut rhs: DMatrix<Complex>,
+    ) -> Result<Self> {
+        if rhs.iter().any(|&z| !finite(z)) {
+            return Err(Error::Singular);
+        }
+        let operator = internal_operator(lower, upper);
+        if rhs.nrows() >= 512
+            && rhs.ncols() <= 8
+            && is_contraction(&operator)
+            && let Ok(value) = internal_iteration(&operator, &rhs, false)
+        {
+            return Ok(Self {
+                value,
+                factor: InternalFactor::Iterative(operator),
+            });
+        }
+        let lu = Lu::new(operator)?;
+        lu.solve_in_place(view_mut(&mut rhs));
+        if rhs.iter().any(|&z| !finite(z)) {
+            return Err(Error::Singular);
+        }
+        Ok(Self {
+            value: rhs,
+            factor: InternalFactor::Direct(lu),
+        })
+    }
+
+    fn adjoint_rhs(
+        self,
+        mut rhs: DMatrix<Complex>,
+    ) -> Result<(DMatrix<Complex>, DMatrix<Complex>)> {
+        let lu = match self.factor {
+            InternalFactor::Direct(lu) => lu,
+            InternalFactor::Iterative(operator) => {
+                if let Ok(value) = internal_iteration(&operator, &rhs, true) {
+                    return Ok((value, self.value));
+                }
+                Lu::new(operator)?
+            }
+        };
+        lu.solve_adjoint_in_place(view_mut(&mut rhs));
+        if rhs.iter().any(|&z| !finite(z)) {
+            return Err(Error::Singular);
+        }
+        Ok((rhs, self.value))
+    }
+}
+
+/// Internal-field solve retaining inputs and a dense LU only when required.
 #[derive(Debug)]
 pub struct IlluminationResidual {
     lower: [StoredBlock; 4],
     upper: [StoredBlock; 4],
     incoming: [DMatrix<Complex>; 2],
-    solve: SolveResidual,
+    solve: InternalSolve,
     down: DMatrix<Complex>,
 }
 
@@ -501,7 +627,7 @@ type InternalFields = (
     DMatrix<Complex>,
     DMatrix<Complex>,
     DMatrix<Complex>,
-    SolveResidual,
+    InternalSolve,
 );
 
 fn illumination_fields(
@@ -550,8 +676,7 @@ fn illumination_fields(
     }
     let direct = product_views(upper[3], incoming[1]);
     let rhs = product_views(lower[0], incoming[0]) + product_views(lower[1], view(&direct));
-    let operator = internal_operator(lower[1], upper[2]);
-    let solve = linalg::solve_owned(operator, rhs)?;
+    let solve = InternalSolve::new(lower[1], upper[2], rhs)?;
     let down = product_views(upper[2], view(&solve.value)) + direct;
     let top = product_views(upper[0], view(&solve.value)) + product_views(upper[1], incoming[1]);
     let bottom = product_views(lower[2], incoming[0]) + product_views(lower[3], view(&down));
@@ -589,7 +714,7 @@ impl IlluminationResidual {
         let up = &g[2]
             + product_adjoint_left_view(self.upper[0].view(), view(&g[0]))
             + product_adjoint_left_view(self.upper[2].view(), view(&down));
-        let rhs = self.solve.adjoint_rhs(up)?;
+        let (rhs, internal_up) = self.solve.adjoint_rhs(up)?;
         let direct = down + product_adjoint_left_view(self.lower[1].view(), view(&rhs));
         let incoming = [
             product_adjoint_left_view(self.lower[2].view(), view(&g[1]))
@@ -610,14 +735,92 @@ impl IlluminationResidual {
             product_adjoint_right_into(output, left, right);
         }
         for ((output, left), right) in upper.iter_mut().zip([&g[0], &g[0], &direct, &direct]).zip([
-            &self.solve.value,
+            &internal_up,
             &self.incoming[1],
-            &self.solve.value,
+            &internal_up,
             &self.incoming[1],
         ]) {
             product_adjoint_right_into(output, left, right);
         }
         Ok((lower, upper, incoming))
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::cast_precision_loss)]
+mod illumination_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    fn patterned(n: usize, p: usize, seed: f64) -> DMatrix<Complex> {
+        DMatrix::from_fn(n, p, |i, j| {
+            let phase = (i + n * j) as f64 * 0.71 + seed;
+            Complex::new(phase.sin(), (phase * 1.3).cos())
+        })
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(16))]
+        #[test]
+        fn reflection_actions_match_dense_solve_and_adjoint(
+            n in 3_usize..12, p in 1_usize..4, seed in -2.0_f64..2.0,
+        ) {
+            let lower = patterned(n, n, seed) * Complex::new(0.1 / (n as f64).sqrt(), 0.0);
+            let upper = patterned(n, n, seed + 0.4) * Complex::new(0.1 / (n as f64).sqrt(), 0.0);
+            let rhs = patterned(n, p, seed + 0.2);
+            let g = patterned(n, p, seed + 0.7);
+            let dense = linalg::solve_owned(internal_operator(view(&lower), view(&upper)), rhs.clone()).unwrap();
+            let operator = internal_operator(view(&lower), view(&upper));
+            prop_assert!(is_contraction(&operator));
+            let value = internal_iteration(&operator, &rhs, false).unwrap();
+            let adjoint = internal_iteration(&operator, &g, true).unwrap();
+            prop_assert!((&value - &dense.value).norm() <= 2e-14 * dense.value.norm());
+            prop_assert!((&adjoint - dense.adjoint_rhs(g.clone()).unwrap()).norm() <= 2e-14 * g.norm());
+            let left: Complex = g.iter().zip(&value).map(|(g, x)| g.conj() * x).sum();
+            let right: Complex = adjoint.iter().zip(&rhs).map(|(g, x)| g.conj() * x).sum();
+            prop_assert!((left - right).norm() < 2e-13 * rhs.norm() * g.norm());
+        }
+    }
+
+    #[test]
+    fn thin_large_solve_skips_lu_and_keeps_dense_fallback() {
+        let n = 512;
+        let identity = DMatrix::identity(n, n);
+        let weak = &identity * Complex::new(0.1, 0.03);
+        let rhs = patterned(n, 2, 0.4);
+        let iterative = InternalSolve::new(view(&weak), view(&weak), rhs.clone()).unwrap();
+        assert!(matches!(iterative.factor, InternalFactor::Iterative(_)));
+        let coefficient = Complex::new(1.0, 0.0) - Complex::new(0.1, 0.03).powi(2);
+        assert!((&iterative.value * coefficient - &rhs).norm() < 2e-13 * rhs.norm());
+
+        // A cyclic reflection needs more than the bounded Krylov trial. Keep
+        // the established direct solve for this valid strongly reflecting case.
+        let mut cyclic = DMatrix::zeros(n, n);
+        for i in 0..n {
+            cyclic[(i, (i + 1) % n)] = Complex::new(0.95, 0.0);
+        }
+        let dense = InternalSolve::new(view(&cyclic), view(&identity), rhs.clone()).unwrap();
+        assert!(matches!(dense.factor, InternalFactor::Direct(_)));
+        let operator = internal_operator(view(&cyclic), view(&identity));
+        assert!((&operator * &dense.value - &rhs).norm() < 2e-13 * rhs.norm());
+        let eigenvector = DMatrix::from_element(n, 2, Complex::new(1.0, 0.0));
+        let easy_forward = InternalSolve::new(view(&cyclic), view(&identity), eigenvector).unwrap();
+        assert!(matches!(easy_forward.factor, InternalFactor::Iterative(_)));
+        // A forward eigenvector can converge immediately while an unrelated
+        // adjoint RHS needs the direct fallback. Certify that path separately.
+        let reverse = easy_forward.adjoint_rhs(rhs.clone()).unwrap().0;
+        assert!((operator.adjoint() * reverse - &rhs).norm() < 2e-13 * rhs.norm());
+        assert!(InternalSolve::new(view(&identity), view(&identity), rhs.clone()).is_err());
+        let mut partial = DMatrix::zeros(n, n);
+        partial[(0, 0)] = Complex::new(1.0, 0.0);
+        let mut in_range = DMatrix::zeros(n, 1);
+        in_range[(1, 0)] = Complex::new(1.0, 0.0);
+        assert!(InternalSolve::new(view(&partial), view(&identity), in_range).is_err());
+        assert!(
+            InternalSolve::new(view(&identity), view(&identity), DMatrix::zeros(n, 1)).is_err()
+        );
+        let gradient = iterative.adjoint_rhs(rhs.clone()).unwrap().0;
+        assert!((gradient * coefficient.conj() - &rhs).norm() < 2e-13 * rhs.norm());
     }
 }
 

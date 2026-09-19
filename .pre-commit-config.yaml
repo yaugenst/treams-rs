@@ -12,6 +12,11 @@ repos:
       - id: destroyed-symlinks
       - id: check-added-large-files
         args: [--maxkb=1000, --enforce-all]
+        exclude: ^benchmarks/(results/|comparison-report/|correction-plan\.json$)
+      - id: check-added-large-files
+        name: check benchmark artifact size
+        files: ^benchmarks/(results/|comparison-report/|correction-plan\.json$)
+        args: [--maxkb=50000, --enforce-all]
       - id: detect-private-key
   - repo: local
     hooks:

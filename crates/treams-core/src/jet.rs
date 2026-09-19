@@ -124,6 +124,23 @@ impl<const N: usize> Sum for Jet<N> {
     }
 }
 macro_rules! scalar_ops {
+    // A constant has no derivative: scale directly instead of multiplying by
+    // a full constant jet and evaluating its zero derivative terms.
+    (Mul, mul, *, $scalar:ty) => {
+        impl<const N: usize> Mul<$scalar> for Jet<N> {
+            type Output = Self;
+            fn mul(self, rhs: $scalar) -> Self {
+                Self {
+                    value: self.value * rhs,
+                    derivative: self.derivative.map(|g| g * rhs),
+                }
+            }
+        }
+        impl<const N: usize> Mul<Jet<N>> for $scalar {
+            type Output = Jet<N>;
+            fn mul(self, rhs: Jet<N>) -> Jet<N> { rhs * self }
+        }
+    };
     ($trait:ident, $method:ident, $op:tt, $scalar:ty) => {
         impl<const N: usize> $trait<$scalar> for Jet<N> {
             type Output = Self;
@@ -174,3 +191,32 @@ scalar_ops!(Div, div, /, Complex);
 assignments!(AddAssign, add_assign, Add, add);
 assignments!(SubAssign, sub_assign, Sub, sub);
 assignments!(MulAssign, mul_assign, Mul, mul);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn scalar_multiplication_obeys_constant_product_rule(
+            re in -100.0_f64..100.0, im in -100.0_f64..100.0,
+            scale in -100.0_f64..100.0, imaginary in -100.0_f64..100.0,
+        ) {
+            let jet = Jet::<2> {
+                value: Complex::new(re, im),
+                derivative: [Complex::new(0.7,-0.3), Complex::new(-1.2,0.5)],
+            };
+            let scalar = Complex::new(scale,imaginary);
+            for (actual,expected) in [
+                (jet*scale,jet*Jet::constant(scale)),
+                (scale*jet,Jet::constant(scale)*jet),
+                (jet*scalar,jet*Jet::constant(scalar)),
+                (scalar*jet,Jet::constant(scalar)*jet),
+            ] {
+                prop_assert_eq!(actual.value,expected.value);
+                prop_assert_eq!(actual.derivative,expected.derivative);
+            }
+        }
+    }
+}

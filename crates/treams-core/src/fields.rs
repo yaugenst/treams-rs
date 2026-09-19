@@ -105,9 +105,10 @@ fn cylindrical_wave_impl<const N: usize>(
     helicity: bool,
     radial: Radial,
 ) -> Result<VectorWave> {
-    Ok(pack_cylindrical(cylindrical_components::<N>(
-        mode, k, position, helicity, radial,
-    )?))
+    let components = cylindrical_components::<N>(mode, k, position, radial)?;
+    Ok(pack_cylindrical(polarize_cylindrical(
+        components, mode.pol, helicity,
+    )))
 }
 
 fn pack_cylindrical<const N: usize>(fields: [crate::jet::Jet<N>; 3]) -> VectorWave {
@@ -123,9 +124,8 @@ fn cylindrical_components<const N: usize>(
     mode: crate::cylwaves::Mode,
     k: Complex,
     position: [f64; 3],
-    helicity: bool,
     radial: Radial,
-) -> Result<[crate::jet::Jet<N>; 3]> {
+) -> Result<[[crate::jet::Jet<N>; 3]; 2]> {
     use crate::{cylwaves, jet::Jet};
     mode.validate()?;
     if !finite(k) || k == Complex::default() || position.iter().any(|x| !x.is_finite()) {
@@ -180,16 +180,34 @@ fn cylindrical_components<const N: usize>(
         -0.5 * kz / k * (lower + upper),
         transverse / k * center,
     ];
-    let fields: [Jet<N>; 3] = std::array::from_fn(|i| {
+    Ok([m, n])
+}
+
+fn polarize_cylindrical<const N: usize>(
+    [m, n]: [[crate::jet::Jet<N>; 3]; 2],
+    pol: u8,
+    helicity: bool,
+) -> [crate::jet::Jet<N>; 3] {
+    std::array::from_fn(|i| {
         if helicity {
-            (n[i] + (2.0 * f64::from(mode.pol) - 1.0) * m[i]) * std::f64::consts::FRAC_1_SQRT_2
-        } else if mode.pol == 0 {
+            (n[i] + (2.0 * f64::from(pol) - 1.0) * m[i]) * std::f64::consts::FRAC_1_SQRT_2
+        } else if pol == 0 {
             m[i]
         } else {
             n[i]
         }
-    });
-    Ok(fields)
+    })
+}
+
+fn cylindrical_pair<const N: usize>(
+    modes: [crate::cylwaves::Mode; 2],
+    k: Complex,
+    position: [f64; 3],
+    helicity: bool,
+    radial: Radial,
+) -> Result<[VectorWave; 2]> {
+    let components = cylindrical_components::<N>(modes[0], k, position, radial)?;
+    Ok(modes.map(|mode| pack_cylindrical(polarize_cylindrical(components, mode.pol, helicity))))
 }
 
 fn cross(a: [Complex; 3], b: [Complex; 3]) -> [Complex; 3] {
@@ -363,6 +381,41 @@ impl FieldGeometry {
             radial,
         })
     }
+    // Consecutive polarizations share their scalar harmonics in an achiral
+    // medium. Keep only the next wave on the stack; storage stays independent
+    // of the number of samples and modes.
+    #[allow(clippy::float_cmp)] // Reuse requires identical axial mode labels.
+    fn wave_cached<const DERIVATIVES: bool>(
+        &self,
+        i: usize,
+        point: [f64; 3],
+        next: &mut Option<VectorWave>,
+    ) -> Result<VectorWave> {
+        if let Some(wave) = next.take() {
+            return Ok(wave);
+        }
+        if let FieldBasis::Cylindrical(basis) = &self.basis {
+            let (origin, mode) = basis.modes[i];
+            if let Some(&(other_origin, other)) = basis.modes.get(i + 1)
+                && origin == other_origin
+                && mode.m == other.m
+                && mode.kz == other.kz
+                && self.ks[usize::from(mode.pol)] == self.ks[usize::from(other.pol)]
+            {
+                let position = std::array::from_fn(|a| point[a] - basis.positions[origin][a]);
+                let k = self.ks[usize::from(mode.pol)];
+                let [wave, following] = if DERIVATIVES {
+                    cylindrical_pair::<4>([mode, other], k, position, self.helicity, self.radial)?
+                } else {
+                    cylindrical_pair::<0>([mode, other], k, position, self.helicity, self.radial)?
+                };
+                *next = Some(following);
+                return Ok(wave);
+            }
+        }
+        self.wave::<DERIVATIVES>(i, point)
+    }
+
     fn wave<const DERIVATIVES: bool>(&self, i: usize, point: [f64; 3]) -> Result<VectorWave> {
         let (particle, pol) = self.basis.origin_pol(i);
         let position = std::array::from_fn(|a| point[a] - self.basis.origins()[particle][a]);
@@ -406,8 +459,9 @@ pub fn field(
         .par_iter()
         .map(|point| {
             let mut value = [Complex::default(); 3];
+            let mut next = None;
             for (i, &amplitude) in coefficients.iter().enumerate() {
-                let wave = geometry.wave::<false>(i, *point)?;
+                let wave = geometry.wave_cached::<false>(i, *point, &mut next)?;
                 for (v, f) in value.iter_mut().zip(wave.value) {
                     *v += amplitude * f;
                 }
@@ -494,21 +548,28 @@ impl FieldGeometry {
             .try_fold(
                 zero,
                 |(mut sum, mut axial), (sample, (point_gradient, point))| {
+                    let mut next = None;
                     for i in 0..self.basis.len() {
                         let (particle, pol) = self.basis.origin_pol(i);
                         let (wave, axial_derivative) = if let Some(basis) = axial_basis {
                             let position =
                                 std::array::from_fn(|a| point[a] - basis.positions[particle][a]);
-                            let fields = cylindrical_components::<5>(
-                                basis.modes[i].1,
-                                self.ks[pol],
-                                position,
+                            let fields = polarize_cylindrical(
+                                cylindrical_components::<5>(
+                                    basis.modes[i].1,
+                                    self.ks[pol],
+                                    position,
+                                    self.radial,
+                                )?,
+                                basis.modes[i].1.pol,
                                 self.helicity,
-                                self.radial,
-                            )?;
+                            );
                             (pack_cylindrical(fields), fields.map(|v| v.derivative[4]))
                         } else {
-                            (self.wave::<true>(i, *point)?, [Complex::default(); 3])
+                            (
+                                self.wave_cached::<true>(i, *point, &mut next)?,
+                                [Complex::default(); 3],
+                            )
                         };
                         let amplitude = coefficients.map_or(Complex::new(1.0, 0.0), |c| c[i]);
                         let g = cotangent(sample, i);

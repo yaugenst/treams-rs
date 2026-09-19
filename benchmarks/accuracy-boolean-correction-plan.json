@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "description": "Untimed collector correction only: replay exactly the three Linux pickmodes checks whose boolean residual arithmetic raised TypeError before the unchanged original assertion. Retain original failed attempts and keep this supplementary suite separate from timing evidence.",
+  "provenance": {
+    "original_collector": "benchmarks/results/comparison/linux/accuracy-upstream/collector-before-boolean-fix.py.txt",
+    "original_collector_sha256": "24a5a57b8d28aa60f0f3c484d61e2e0fe64267fbc2ed8add21520e4128a5e108",
+    "corrected_collector_sha256": "9206357e44c909c8c9f185c561f2f4be92ba2068389d67a1b91cb4ab48d4ddb6",
+    "original_plan": "benchmarks/accuracy-plan.json"
+  },
+  "cases": [
+    {
+      "id": "accuracy-upstream-boolean-fix-031-geometry-pickmodes-n1",
+      "group": "accuracy-upstream-boolean-fix",
+      "kind": "accuracy",
+      "family": "geometry-pickmodes-forward",
+      "tier": "small",
+      "parameters": {
+        "workload": "geometry-pickmodes-forward",
+        "samples": 1,
+        "threads": 4,
+        "repeats": 7
+      },
+      "command": [
+        "scripts/qualify_upstream.py",
+        "--workload",
+        "geometry-pickmodes-forward",
+        "--particles",
+        "8",
+        "--lmax",
+        "3",
+        "--samples",
+        "1",
+        "--threads",
+        "4"
+      ],
+      "timeout_seconds": 900,
+      "platforms": [
+        "linux"
+      ],
+      "correction_of": {
+        "case_id": "accuracy-upstream-031-geometry-pickmodes-n1",
+        "manifest": "../accuracy-upstream/manifest.json",
+        "reason": "Collector boolean subtraction TypeError before original numerical assertion; original failed attempt retained"
+      }
+    },
+    {
+      "id": "accuracy-upstream-boolean-fix-079-geometry-pickmodes-n4",
+      "group": "accuracy-upstream-boolean-fix",
+      "kind": "accuracy",
+      "family": "geometry-pickmodes-forward",
+      "tier": "small",
+      "parameters": {
+        "workload": "geometry-pickmodes-forward",
+        "samples": 4,
+        "threads": 4,
+        "repeats": 7
+      },
+      "command": [
+        "scripts/qualify_upstream.py",
+        "--workload",
+        "geometry-pickmodes-forward",
+        "--particles",
+        "8",
+        "--lmax",
+        "3",
+        "--samples",
+        "4",
+        "--threads",
+        "4"
+      ],
+      "timeout_seconds": 900,
+      "platforms": [
+        "linux"
+      ],
+      "correction_of": {
+        "case_id": "accuracy-upstream-079-geometry-pickmodes-n4",
+        "manifest": "../accuracy-upstream/manifest.json",
+        "reason": "Collector boolean subtraction TypeError before original numerical assertion; original failed attempt retained"
+      }
+    },
+    {
+      "id": "accuracy-upstream-boolean-fix-222-geometry-pickmodes-n16",
+      "group": "accuracy-upstream-boolean-fix",
+      "kind": "accuracy",
+      "family": "geometry-pickmodes-forward",
+      "tier": "small",
+      "parameters": {
+        "workload": "geometry-pickmodes-forward",
+        "samples": 16,
+        "threads": 4,
+        "repeats": 7
+      },
+      "command": [
+        "scripts/qualify_upstream.py",
+        "--workload",
+        "geometry-pickmodes-forward",
+        "--particles",
+        "8",
+        "--lmax",
+        "3",
+        "--samples",
+        "16",
+        "--threads",
+        "4"
+      ],
+      "timeout_seconds": 900,
+      "platforms": [
+        "linux"
+      ],
+      "correction_of": {
+        "case_id": "accuracy-upstream-222-geometry-pickmodes-n16",
+        "manifest": "../accuracy-upstream/manifest.json",
+        "reason": "Collector boolean subtraction TypeError before original numerical assertion; original failed attempt retained"
+      }
+    }
+  ]
+}

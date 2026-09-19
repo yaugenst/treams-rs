@@ -136,16 +136,30 @@ pub(crate) fn regular_harmonic<const N: usize>(
     let azimuth = r[0] + Complex::i() * if order < 0 { -r[1] } else { r[1] };
     let sign = if order < 0 && m % 2 == 1 { -1.0 } else { 1.0 };
     let step = -0.25 * transverse * transverse * (r[0] * r[0] + r[1] * r[1]);
-    let mut term = Jet::constant((-libm::lgamma(f64::from(m + 1))).exp());
+    // The radial series depends on one scalar: differentiate it once, then
+    // apply the Cartesian chain rule after summation instead of at every term.
+    let step_norm = step.derivative.iter().map(|g| g.norm()).fold(0.0, f64::max);
+    let mut term = Complex::new((-libm::lgamma(f64::from(m + 1))).exp(), 0.0);
+    let mut slope_term = Complex::default();
     let mut sum = term;
+    let mut slope = Complex::default();
     for q in 1..32 {
-        term = term * step / f64::from(q * (m + q));
+        let denominator = f64::from(q * (m + q));
+        if N > 0 {
+            slope_term = (slope_term * step.value + term) / denominator;
+            slope += slope_term;
+        }
+        term = term * step.value / denominator;
         sum += term;
-        if term.norm() <= f64::EPSILON * sum.norm() {
+        let term_norm = term.norm().max(slope_term.norm() * step_norm);
+        let sum_norm = sum.norm().max(slope.norm() * step_norm);
+        if term_norm <= f64::EPSILON * sum_norm {
             break;
         }
     }
-    sign * (0.5 * transverse * azimuth).powi(m) * sum * (Complex::i() * kz * r[2]).exp()
+    sign * (0.5 * transverse * azimuth).powi(m)
+        * step.map(sum, slope)
+        * (Complex::i() * kz * r[2]).exp()
 }
 
 /// Cylindrical modes at Cartesian origins.
@@ -561,5 +575,42 @@ impl PeriodicResidual {
             }
         }
         Ok((result, axial))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)] // Proptest retains minimized failing inputs.
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(96))]
+        #[test]
+        fn regular_harmonic_value_and_cartesian_derivatives(
+            order in -12_i32..13, x in -0.25_f64..0.25, y in -0.25_f64..0.25,
+            z in -1.0_f64..1.0, kz in -0.5_f64..0.5, loss in -0.2_f64..0.2,
+        ) {
+            let transverse = Complex::new(1.1, loss);
+            for position in [[x,y,z], [1e-100,-1e-100,z], [0.0,0.0,z]] {
+                let wave = regular_harmonic(order, Jet::<5>::variable(transverse,3),
+                    std::array::from_fn(|i| Jet::variable(position[i],i)), Jet::variable(kz,4));
+                let rho = position[0].hypot(position[1]);
+                let phase = |m| (Complex::i() * (f64::from(m)*position[1].atan2(position[0])+kz*z)).exp();
+                let reference = |m: i32| {
+                    let sign = if m < 0 && m.abs()%2 == 1 { -1.0 } else { 1.0 };
+                    sign * complex_bessel::besselj(f64::from(m.abs()), transverse*rho).unwrap() * phase(m)
+                };
+                let [lower,value,upper] = [order-1,order,order+1].map(reference);
+                let dx = 0.5*transverse*(lower-upper);
+                let dy = 0.5*Complex::i()*transverse*(lower+upper);
+                let expected = [dx,dy,Complex::i()*kz*value,
+                    (position[0]*dx+position[1]*dy)/transverse, Complex::i()*z*value];
+                prop_assert!((wave.value-value).norm() < 2e-13*(1.0+value.norm()));
+                for (actual, expected) in wave.derivative.into_iter().zip(expected) {
+                    prop_assert!((actual-expected).norm() < 2e-13*(1.0+expected.norm()));
+                }
+            }
+        }
     }
 }

@@ -157,3 +157,22 @@ def test_direct_half_cell_adjoint_reports_nondifferentiable_grouping():
     )
     with pytest.raises(ValueError, match="half-cell"):
         context.pullback(np.asarray(1, complex))
+
+
+@pytest.mark.parametrize("label", ["degree", "order", "shell"])
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), 0.5])
+def test_scalar_lattice_labels_require_finite_integers(label, value):
+    labels = {"degree": 1, "order": 0, "shell": 2}
+    labels[label] = value
+    with pytest.raises(ValueError, match="finite integers"):
+        diff.lattice_sum(
+            1,
+            labels["degree"],
+            labels["order"],
+            1.2 + 0.1j,
+            0.1,
+            1.7,
+            [0.1, 0.2, 0.3],
+            part="direct",
+            shell=labels["shell"],
+        )

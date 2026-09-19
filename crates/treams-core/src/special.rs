@@ -425,7 +425,7 @@ pub fn cylindrical(order: i32, z: Complex, radial: Radial) -> Result<RadialJet> 
     }
     let m = order.unsigned_abs();
     let sign = if order < 0 && m % 2 == 1 { -1.0 } else { 1.0 };
-    if z.norm_sqr() == 0.0 {
+    if z == Complex::default() {
         if radial == Radial::Outgoing {
             return Err(Error::SpecialFunction(
                 "outgoing cylindrical wave is singular at zero".into(),
@@ -447,23 +447,35 @@ pub fn cylindrical(order: i32, z: Complex, radial: Radial) -> Result<RadialJet> 
         });
     }
     if radial == Radial::Regular && z.norm() < 0.5 {
-        let mut result = RadialJet {
-            value: Complex::default(),
-            first: Complex::default(),
-            second: Complex::default(),
-        };
-        let mut coefficient =
+        let coefficient =
             sign * (-libm::lgamma(f64::from(m) + 1.0)).exp() / 2.0_f64.powf(f64::from(m));
-        for q in 0_u32..32 {
-            let power = m + 2 * q;
-            result.value += coefficient * z.powu(power);
-            if power > 0 {
-                result.first += coefficient * f64::from(power) * z.powu(power - 1);
-            }
-            if power > 1 {
-                result.second += coefficient * f64::from(power * (power - 1)) * z.powu(power - 2);
-            }
-            coefficient /= -4.0 * f64::from(q + 1) * f64::from(m + q + 1);
+        let mut term = RadialJet {
+            value: coefficient * z.powu(m),
+            first: if m > 0 {
+                coefficient * f64::from(m) * z.powu(m - 1)
+            } else {
+                Complex::default()
+            },
+            second: if m > 1 {
+                coefficient * f64::from(m * (m - 1)) * z.powu(m - 2)
+            } else {
+                Complex::default()
+            },
+        };
+        let mut result = term;
+        let square = z * z;
+        // Differentiate the same 32-term power series recurrence. Each term
+        // reuses the previous powers instead of three complex exponentiations.
+        for q in 1_u32..32 {
+            let factor = -1.0 / (4.0 * f64::from(q) * f64::from(m + q));
+            term = RadialJet {
+                value: factor * square * term.value,
+                first: factor * (square * term.first + 2.0 * z * term.value),
+                second: factor * (square * term.second + 4.0 * z * term.first + 2.0 * term.value),
+            };
+            result.value += term.value;
+            result.first += term.first;
+            result.second += term.second;
         }
         return Ok(result);
     }
@@ -494,6 +506,40 @@ pub fn cylindrical(order: i32, z: Complex, radial: Radial) -> Result<RadialJet> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    proptest::proptest! {
+        #[test]
+        fn cylindrical_small_argument_derivatives(
+            order in -16_i32..=16,
+            radius in 1e-5_f64..0.499,
+            angle in -3.0_f64..3.0,
+        ) {
+            let z = Complex::from_polar(radius, angle);
+            let actual = cylindrical(order, z, Radial::Regular)?;
+            let value = |n| complex_bessel::besselj(f64::from(n), z)
+                .map_err(|error| proptest::test_runner::TestCaseError::fail(error.to_string()));
+            let expected = value(order)?;
+            let first = 0.5 * (value(order - 1)? - value(order + 1)?);
+            let second = 0.25 * (value(order - 2)? - 2.0 * expected + value(order + 2)?);
+            for (a, b) in [(actual.value, expected), (actual.first, first), (actual.second, second)] {
+                proptest::prop_assert!((a - b).norm() <= 2e-13 * b.norm().max(1e-200));
+            }
+        }
+    }
+
+    #[test]
+    fn cylindrical_tiny_nonzero_arguments_keep_representable_terms() -> Result<()> {
+        for z in [Complex::new(1e-200, 0.0), Complex::new(1e-200, -2e-200)] {
+            let j0 = cylindrical(0, z, Radial::Regular)?;
+            let j1 = cylindrical(1, z, Radial::Regular)?;
+            let j2 = cylindrical(2, z, Radial::Regular)?;
+            assert!((crate::ratio(j1.value, 0.5 * z) - 1.0).norm() < 1e-14);
+            assert!((crate::ratio(j0.first, -0.5 * z) - 1.0).norm() < 1e-14);
+            assert!((crate::ratio(j2.first, 0.25 * z) - 1.0).norm() < 1e-14);
+            assert!((crate::ratio(j1.second, -0.375 * z) - 1.0).norm() < 1e-14);
+        }
+        Ok(())
+    }
 
     #[test]
     fn regular_origin_and_wronskian() -> Result<()> {

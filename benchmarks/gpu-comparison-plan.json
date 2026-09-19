@@ -1,0 +1,851 @@
+{
+  "schema_version": 1,
+  "description": "Optional predeclared complex128 native treams-rs CPU/CUDA comparison on an RTX 4080 SUPER. Twenty sequential cases. No upstream treams baseline is implied. Execute only after the main Mac/Linux CPU suites stop.",
+  "build_commands": [
+    [
+      "just",
+      "--command",
+      "cargo",
+      "build",
+      "--locked",
+      "--release",
+      "-p",
+      "treams-cuda",
+      "--features",
+      "cuda",
+      "--examples"
+    ],
+    [
+      "just",
+      "--command",
+      "cargo",
+      "build",
+      "--locked",
+      "--release",
+      "-p",
+      "treams-cuda-tile",
+      "--features",
+      "cuda-tile",
+      "--examples"
+    ]
+  ],
+  "environment": "Source the existing CUDA 13.3 environment before building/running: toolkit bin on PATH, toolkit lib on LD_LIBRARY_PATH, matching libclang and CUDA/cuRAND headers. The wrapper never builds or replaces the Python extension. The suite still requires its existing release Python environment.",
+  "protocol": {
+    "precision": "complex128",
+    "threads": [
+      4,
+      16
+    ],
+    "repetitions": 7,
+    "cpu_affinity": "Each wrapper takes the first requested CPUs from its inherited allowed CPU set; supply 16 distinct physical cores to the controller. Recheck topology before reusing CPU IDs.",
+    "correctness": "Existing examples run numerical reference and, for sampling, Hermitian-adjoint checks before reporting results. Any nonzero exit fails the case.",
+    "timing": "Cached sampling preserves seven raw samples per phase. Fused examples emit medians of seven samples only; do not fabricate per-sample uncertainty. Keep context, JIT/first-call, upload, resident, download and full round-trip fields distinct.",
+    "baseline": "CPU alternatives are shown explicitly. The fastest measured t4/t16 alternative is the best among these two budgets, not an exhaustive hardware optimum.",
+    "memory": "Use logical resident operator/output buffer counts only. The cached example process VmHWM includes CPU layouts and staging and is not GPU VRAM. Do not report measured peak VRAM.",
+    "diagnostic": "Two field-phases cases use a separate example kernel mirroring production FMA; production API timings come only from fields cases.",
+    "gradient": "Cached sampling coefficient adjoints only. No geometry/wavevector GPU derivatives or framework routing claims.",
+    "failure_policy": "Keep every case, including losses, errors, limits and regressions."
+  },
+  "cases": [
+    {
+      "id": "gpu-sampling-lossless-p128-m8-t4",
+      "group": "gpu",
+      "family": "sampling",
+      "tier": "small",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "sampling",
+        "points": 128,
+        "modes": 8,
+        "threads": 4,
+        "wave_type": "lossless",
+        "repeats": 7
+      },
+      "series": "gpu-sampling-lossless-t4",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 1024,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "sampling",
+        "--points",
+        "128",
+        "--modes",
+        "8",
+        "--threads",
+        "4",
+        "--wave-type",
+        "lossless",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-sampling-lossless-p4096-m256-t4",
+      "group": "gpu",
+      "family": "sampling",
+      "tier": "medium",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "sampling",
+        "points": 4096,
+        "modes": 256,
+        "threads": 4,
+        "wave_type": "lossless",
+        "repeats": 7
+      },
+      "series": "gpu-sampling-lossless-t4",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 1048576,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "sampling",
+        "--points",
+        "4096",
+        "--modes",
+        "256",
+        "--threads",
+        "4",
+        "--wave-type",
+        "lossless",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-sampling-lossless-p32768-m1024-t4",
+      "group": "gpu",
+      "family": "sampling",
+      "tier": "large",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "sampling",
+        "points": 32768,
+        "modes": 1024,
+        "threads": 4,
+        "wave_type": "lossless",
+        "repeats": 7
+      },
+      "series": "gpu-sampling-lossless-t4",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 33554432,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "sampling",
+        "--points",
+        "32768",
+        "--modes",
+        "1024",
+        "--threads",
+        "4",
+        "--wave-type",
+        "lossless",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-fields-lossless-p256-m8-t4",
+      "group": "gpu",
+      "family": "fields",
+      "tier": "small",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "fields",
+        "points": 256,
+        "modes": 8,
+        "threads": 4,
+        "wave_type": "lossless",
+        "repeats": 7
+      },
+      "series": "gpu-fields-lossless-t4",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 2048,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "fields",
+        "--points",
+        "256",
+        "--modes",
+        "8",
+        "--threads",
+        "4",
+        "--wave-type",
+        "lossless",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-fields-lossless-p65536-m256-t4",
+      "group": "gpu",
+      "family": "fields",
+      "tier": "medium",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "fields",
+        "points": 65536,
+        "modes": 256,
+        "threads": 4,
+        "wave_type": "lossless",
+        "repeats": 7
+      },
+      "series": "gpu-fields-lossless-t4",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 16777216,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "fields",
+        "--points",
+        "65536",
+        "--modes",
+        "256",
+        "--threads",
+        "4",
+        "--wave-type",
+        "lossless",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-fields-lossless-p262144-m1024-t4",
+      "group": "gpu",
+      "family": "fields",
+      "tier": "large",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "fields",
+        "points": 262144,
+        "modes": 1024,
+        "threads": 4,
+        "wave_type": "lossless",
+        "repeats": 7
+      },
+      "series": "gpu-fields-lossless-t4",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 268435456,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "fields",
+        "--points",
+        "262144",
+        "--modes",
+        "1024",
+        "--threads",
+        "4",
+        "--wave-type",
+        "lossless",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-fields-lossy-p256-m8-t4",
+      "group": "gpu",
+      "family": "fields",
+      "tier": "small",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "fields",
+        "points": 256,
+        "modes": 8,
+        "threads": 4,
+        "wave_type": "lossy",
+        "repeats": 7
+      },
+      "series": "gpu-fields-lossy-t4",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 2048,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "fields",
+        "--points",
+        "256",
+        "--modes",
+        "8",
+        "--threads",
+        "4",
+        "--wave-type",
+        "lossy",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-fields-lossy-p65536-m256-t4",
+      "group": "gpu",
+      "family": "fields",
+      "tier": "medium",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "fields",
+        "points": 65536,
+        "modes": 256,
+        "threads": 4,
+        "wave_type": "lossy",
+        "repeats": 7
+      },
+      "series": "gpu-fields-lossy-t4",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 16777216,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "fields",
+        "--points",
+        "65536",
+        "--modes",
+        "256",
+        "--threads",
+        "4",
+        "--wave-type",
+        "lossy",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-fields-lossy-p262144-m1024-t4",
+      "group": "gpu",
+      "family": "fields",
+      "tier": "large",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "fields",
+        "points": 262144,
+        "modes": 1024,
+        "threads": 4,
+        "wave_type": "lossy",
+        "repeats": 7
+      },
+      "series": "gpu-fields-lossy-t4",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 268435456,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "fields",
+        "--points",
+        "262144",
+        "--modes",
+        "1024",
+        "--threads",
+        "4",
+        "--wave-type",
+        "lossy",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-sampling-lossless-p128-m8-t16",
+      "group": "gpu",
+      "family": "sampling",
+      "tier": "small",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "sampling",
+        "points": 128,
+        "modes": 8,
+        "threads": 16,
+        "wave_type": "lossless",
+        "repeats": 7
+      },
+      "series": "gpu-sampling-lossless-t16",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 1024,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "sampling",
+        "--points",
+        "128",
+        "--modes",
+        "8",
+        "--threads",
+        "16",
+        "--wave-type",
+        "lossless",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-sampling-lossless-p4096-m256-t16",
+      "group": "gpu",
+      "family": "sampling",
+      "tier": "medium",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "sampling",
+        "points": 4096,
+        "modes": 256,
+        "threads": 16,
+        "wave_type": "lossless",
+        "repeats": 7
+      },
+      "series": "gpu-sampling-lossless-t16",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 1048576,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "sampling",
+        "--points",
+        "4096",
+        "--modes",
+        "256",
+        "--threads",
+        "16",
+        "--wave-type",
+        "lossless",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-sampling-lossless-p32768-m1024-t16",
+      "group": "gpu",
+      "family": "sampling",
+      "tier": "large",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "sampling",
+        "points": 32768,
+        "modes": 1024,
+        "threads": 16,
+        "wave_type": "lossless",
+        "repeats": 7
+      },
+      "series": "gpu-sampling-lossless-t16",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 33554432,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "sampling",
+        "--points",
+        "32768",
+        "--modes",
+        "1024",
+        "--threads",
+        "16",
+        "--wave-type",
+        "lossless",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-fields-lossless-p256-m8-t16",
+      "group": "gpu",
+      "family": "fields",
+      "tier": "small",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "fields",
+        "points": 256,
+        "modes": 8,
+        "threads": 16,
+        "wave_type": "lossless",
+        "repeats": 7
+      },
+      "series": "gpu-fields-lossless-t16",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 2048,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "fields",
+        "--points",
+        "256",
+        "--modes",
+        "8",
+        "--threads",
+        "16",
+        "--wave-type",
+        "lossless",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-fields-lossless-p65536-m256-t16",
+      "group": "gpu",
+      "family": "fields",
+      "tier": "medium",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "fields",
+        "points": 65536,
+        "modes": 256,
+        "threads": 16,
+        "wave_type": "lossless",
+        "repeats": 7
+      },
+      "series": "gpu-fields-lossless-t16",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 16777216,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "fields",
+        "--points",
+        "65536",
+        "--modes",
+        "256",
+        "--threads",
+        "16",
+        "--wave-type",
+        "lossless",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-fields-lossless-p262144-m1024-t16",
+      "group": "gpu",
+      "family": "fields",
+      "tier": "large",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "fields",
+        "points": 262144,
+        "modes": 1024,
+        "threads": 16,
+        "wave_type": "lossless",
+        "repeats": 7
+      },
+      "series": "gpu-fields-lossless-t16",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 268435456,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "fields",
+        "--points",
+        "262144",
+        "--modes",
+        "1024",
+        "--threads",
+        "16",
+        "--wave-type",
+        "lossless",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-fields-lossy-p256-m8-t16",
+      "group": "gpu",
+      "family": "fields",
+      "tier": "small",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "fields",
+        "points": 256,
+        "modes": 8,
+        "threads": 16,
+        "wave_type": "lossy",
+        "repeats": 7
+      },
+      "series": "gpu-fields-lossy-t16",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 2048,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "fields",
+        "--points",
+        "256",
+        "--modes",
+        "8",
+        "--threads",
+        "16",
+        "--wave-type",
+        "lossy",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-fields-lossy-p65536-m256-t16",
+      "group": "gpu",
+      "family": "fields",
+      "tier": "medium",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "fields",
+        "points": 65536,
+        "modes": 256,
+        "threads": 16,
+        "wave_type": "lossy",
+        "repeats": 7
+      },
+      "series": "gpu-fields-lossy-t16",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 16777216,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "fields",
+        "--points",
+        "65536",
+        "--modes",
+        "256",
+        "--threads",
+        "16",
+        "--wave-type",
+        "lossy",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-fields-lossy-p262144-m1024-t16",
+      "group": "gpu",
+      "family": "fields",
+      "tier": "large",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "fields",
+        "points": 262144,
+        "modes": 1024,
+        "threads": 16,
+        "wave_type": "lossy",
+        "repeats": 7
+      },
+      "series": "gpu-fields-lossy-t16",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 268435456,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "fields",
+        "--points",
+        "262144",
+        "--modes",
+        "1024",
+        "--threads",
+        "16",
+        "--wave-type",
+        "lossy",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-field-phases-lossless-p262144-m1024-t16",
+      "group": "gpu",
+      "family": "field-phases",
+      "tier": "large",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "field-phases",
+        "points": 262144,
+        "modes": 1024,
+        "threads": 16,
+        "wave_type": "lossless",
+        "repeats": 7
+      },
+      "series": "gpu-field-phases-lossless-t16",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 268435456,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "field-phases",
+        "--points",
+        "262144",
+        "--modes",
+        "1024",
+        "--threads",
+        "16",
+        "--wave-type",
+        "lossless",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "gpu-field-phases-lossy-p262144-m1024-t16",
+      "group": "gpu",
+      "family": "field-phases",
+      "tier": "large",
+      "kind": "gpu",
+      "parameters": {
+        "workload": "field-phases",
+        "points": 262144,
+        "modes": 1024,
+        "threads": 16,
+        "wave_type": "lossy",
+        "repeats": 7
+      },
+      "series": "gpu-field-phases-lossy-t16",
+      "x": {
+        "name": "Point-mode pairs",
+        "value": 268435456,
+        "unit": "pairs"
+      },
+      "command": [
+        "scripts/benchmark_gpu.py",
+        "--workload",
+        "field-phases",
+        "--points",
+        "262144",
+        "--modes",
+        "1024",
+        "--threads",
+        "16",
+        "--wave-type",
+        "lossy",
+        "--repeats",
+        "7"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "timeout_seconds": 300
+    }
+  ]
+}

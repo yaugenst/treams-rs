@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["numpy", "treams==0.4.5", "threadpoolctl"]
+# dependencies = ["numpy", "treams==0.4.5", "threadpoolctl", "mpmath>=1.3"]
 # ///
 """Isolated-process, matched-thread benchmarks of scattering and fields.
 
@@ -35,6 +35,26 @@ def _package_digest(directory: Path) -> str:
         digest.update(path.name.encode())
         digest.update(bytes.fromhex(_digest(path)))
     return digest.hexdigest()
+
+
+def _assert_allclose(actual, expected) -> None:
+    """Check every element without array-sized comparison temporaries."""
+    import numpy as np
+
+    actual, expected = np.asarray(actual), np.asarray(expected)
+    if actual.shape != expected.shape:
+        raise AssertionError(f"shape mismatch: {actual.shape} != {expected.shape}")
+    # flat slices copy at most 1 MiB per complex128 input, including strided
+    # arrays. Full explicit operators can exceed 1 GiB before validation.
+    for start in range(0, actual.size, 65536):
+        stop = start + 65536
+        np.testing.assert_allclose(
+            actual.flat[start:stop],
+            expected.flat[start:stop],
+            rtol=2e-9,
+            atol=1e-12,
+            err_msg=f"flat indices {start}:{min(stop, actual.size)}",
+        )
 
 
 def worker(
@@ -1113,9 +1133,46 @@ def worker(
             actual = rust()
             if not forward_only:
                 actual = actual[0]
-            np.testing.assert_allclose(actual, expected, rtol=2e-9, atol=1e-12)
+            validation = {
+                "accuracy_check": "passed",
+                "reference_kind": "upstream",
+                "rtol": 2e-9,
+                "atol": 1e-12,
+            }
+            try:
+                _assert_allclose(actual, expected)
+            except AssertionError:
+                if workload == "rotation":
+                    from qualify_references import certify_rotation_disagreements
+
+                    proof = certify_rotation_disagreements(
+                        actual,
+                        expected,
+                        np.column_stack((basis.pidx, basis.l, basis.m, basis.pol)),
+                        [0.2, 0.7, -0.3],
+                    )
+                elif workload == "cluster":
+                    from qualify_cluster_conditioning import certify_cluster_reference
+
+                    proof = certify_cluster_reference(
+                        actual,
+                        expected,
+                        lmax=order,
+                        k0=1.3,
+                        radii=radii,
+                        epsilon=epsilon,
+                        positions=positions,
+                    )
+                else:
+                    raise
+                if not proof["passed"]:
+                    raise AssertionError(json.dumps(proof)) from None
+                validation["reference_kind"] = (
+                    "upstream_with_independent_disagreement_checks"
+                )
+                validation["independent_reference"] = proof
             if backend == "check":
-                print(json.dumps({"accuracy_check": "passed"}))
+                print(json.dumps(validation))
                 return
             # Tiny kernels need both implementations in the same process, with
             # alternating order, to separate kernel cost from process/core drift.
@@ -1581,7 +1638,9 @@ def main() -> None:
             )
         except subprocess.CalledProcessError as error:
             raise SystemExit(error.stderr or str(error)) from error
-        if backend != "check":
+        if backend == "check":
+            validation = json.loads(result.stdout)
+        else:
             results.append(json.loads(result.stdout))
     comparison = {
         "method": "isolated_process",
@@ -1599,6 +1658,7 @@ def main() -> None:
         json.dumps(
             {
                 "results": results,
+                "validation": validation,
                 "timing_comparison": comparison,
                 "speedup": comparison["speedup"],
             },

@@ -1,0 +1,8163 @@
+{
+  "schema_version": 1,
+  "description": "Prespecified additional scaling cases, beyond every case in complete-qualification.json. Timings use equal input/precision; recorded forwards and forward-only public APIs are reported separately. Every selected point retained regardless of performance. Very-large cases may reach explicit runtime/RSS limits.",
+  "cases": [
+    {
+      "id": "scaling-cluster-n1-l3-s2048-t4",
+      "group": "scaling",
+      "family": "cluster",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 1,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cluster-particles",
+      "x": {
+        "name": "Particles",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "1",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cluster-n2-l3-s2048-t4",
+      "group": "scaling",
+      "family": "cluster",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 2,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cluster-particles",
+      "x": {
+        "name": "Particles",
+        "value": 2,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "2",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cluster-n4-l3-s2048-t4",
+      "group": "scaling",
+      "family": "cluster",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cluster-particles",
+      "x": {
+        "name": "Particles",
+        "value": 4,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cluster-n8-l3-s2048-t4",
+      "group": "scaling",
+      "family": "cluster",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 8,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cluster-particles",
+      "x": {
+        "name": "Particles",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "8",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cluster-n16-l3-s2048-t4",
+      "group": "scaling",
+      "family": "cluster",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 16,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cluster-particles",
+      "x": {
+        "name": "Particles",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "16",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cluster-n32-l3-s2048-t4",
+      "group": "scaling",
+      "family": "cluster",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 32,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cluster-particles",
+      "x": {
+        "name": "Particles",
+        "value": 32,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "32",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cluster-n64-l3-s2048-t4",
+      "group": "scaling",
+      "family": "cluster",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 64,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cluster-particles",
+      "x": {
+        "name": "Particles",
+        "value": 64,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "64",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-cluster-n128-l3-s2048-t4",
+      "group": "scaling",
+      "family": "cluster",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 128,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cluster-particles",
+      "x": {
+        "name": "Particles",
+        "value": 128,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "128",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-cluster-n256-l3-s2048-t4",
+      "group": "scaling",
+      "family": "cluster",
+      "tier": "very-large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 256,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cluster-particles",
+      "x": {
+        "name": "Particles",
+        "value": 256,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "256",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1800
+    },
+    {
+      "id": "scaling-cluster-n8-l1-s2048-t4",
+      "group": "scaling",
+      "family": "cluster",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 8,
+        "lmax": 1,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cluster-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "8",
+        "--lmax",
+        "1",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cluster-n8-l2-s2048-t4",
+      "group": "scaling",
+      "family": "cluster",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 8,
+        "lmax": 2,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cluster-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 2,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "8",
+        "--lmax",
+        "2",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cluster-n8-l5-s2048-t4",
+      "group": "scaling",
+      "family": "cluster",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 8,
+        "lmax": 5,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cluster-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 5,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "8",
+        "--lmax",
+        "5",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cluster-n8-l8-s2048-t4",
+      "group": "scaling",
+      "family": "cluster",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 8,
+        "lmax": 8,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cluster-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "8",
+        "--lmax",
+        "8",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-cluster-n8-l12-s2048-t4",
+      "group": "scaling",
+      "family": "cluster",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 8,
+        "lmax": 12,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cluster-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 12,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "8",
+        "--lmax",
+        "12",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-particle-cluster-public-n1-l3-s2048-t4",
+      "group": "scaling",
+      "family": "particle-cluster-public",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "particle-cluster-public",
+        "particles": 1,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "particle-cluster-public-particles",
+      "x": {
+        "name": "Particles",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "particle-cluster-public",
+        "--particles",
+        "1",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-particle-cluster-public-n4-l3-s2048-t4",
+      "group": "scaling",
+      "family": "particle-cluster-public",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "particle-cluster-public",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "particle-cluster-public-particles",
+      "x": {
+        "name": "Particles",
+        "value": 4,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "particle-cluster-public",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-particle-cluster-public-n16-l3-s2048-t4",
+      "group": "scaling",
+      "family": "particle-cluster-public",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "particle-cluster-public",
+        "particles": 16,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "particle-cluster-public-particles",
+      "x": {
+        "name": "Particles",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "particle-cluster-public",
+        "--particles",
+        "16",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-particle-cluster-public-n32-l3-s2048-t4",
+      "group": "scaling",
+      "family": "particle-cluster-public",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "particle-cluster-public",
+        "particles": 32,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "particle-cluster-public-particles",
+      "x": {
+        "name": "Particles",
+        "value": 32,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "particle-cluster-public",
+        "--particles",
+        "32",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-particle-cluster-public-n64-l3-s2048-t4",
+      "group": "scaling",
+      "family": "particle-cluster-public",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "particle-cluster-public",
+        "particles": 64,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "particle-cluster-public-particles",
+      "x": {
+        "name": "Particles",
+        "value": 64,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "particle-cluster-public",
+        "--particles",
+        "64",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-cylindrical-particle-cluster-public-n1-l3-s2048-t4",
+      "group": "scaling",
+      "family": "cylindrical-particle-cluster-public",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-particle-cluster-public",
+        "particles": 1,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cylindrical-particle-cluster-public-particles",
+      "x": {
+        "name": "Particles",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-particle-cluster-public",
+        "--particles",
+        "1",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cylindrical-particle-cluster-public-n4-l3-s2048-t4",
+      "group": "scaling",
+      "family": "cylindrical-particle-cluster-public",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-particle-cluster-public",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cylindrical-particle-cluster-public-particles",
+      "x": {
+        "name": "Particles",
+        "value": 4,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-particle-cluster-public",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cylindrical-particle-cluster-public-n16-l3-s2048-t4",
+      "group": "scaling",
+      "family": "cylindrical-particle-cluster-public",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-particle-cluster-public",
+        "particles": 16,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cylindrical-particle-cluster-public-particles",
+      "x": {
+        "name": "Particles",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-particle-cluster-public",
+        "--particles",
+        "16",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cylindrical-particle-cluster-public-n32-l3-s2048-t4",
+      "group": "scaling",
+      "family": "cylindrical-particle-cluster-public",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-particle-cluster-public",
+        "particles": 32,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cylindrical-particle-cluster-public-particles",
+      "x": {
+        "name": "Particles",
+        "value": 32,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-particle-cluster-public",
+        "--particles",
+        "32",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-cylindrical-particle-cluster-public-n64-l3-s2048-t4",
+      "group": "scaling",
+      "family": "cylindrical-particle-cluster-public",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-particle-cluster-public",
+        "particles": 64,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cylindrical-particle-cluster-public-particles",
+      "x": {
+        "name": "Particles",
+        "value": 64,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-particle-cluster-public",
+        "--particles",
+        "64",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-field-n4-l3-s16-t4",
+      "group": "scaling",
+      "family": "field",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 16,
+        "threads": 4
+      },
+      "series": "field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "16",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-field-n4-l3-s128-t4",
+      "group": "scaling",
+      "family": "field",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 128,
+        "threads": 4
+      },
+      "series": "field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 128,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "128",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-field-n4-l3-s512-t4",
+      "group": "scaling",
+      "family": "field",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 512,
+        "threads": 4
+      },
+      "series": "field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 512,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "512",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-field-n4-l3-s2048-t4",
+      "group": "scaling",
+      "family": "field",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 2048,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-field-n4-l3-s8192-t4",
+      "group": "scaling",
+      "family": "field",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 8192,
+        "threads": 4
+      },
+      "series": "field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 8192,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "8192",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-field-n4-l3-s32768-t4",
+      "group": "scaling",
+      "family": "field",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 32768,
+        "threads": 4
+      },
+      "series": "field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 32768,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "32768",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-field-n4-l3-s131072-t4",
+      "group": "scaling",
+      "family": "field",
+      "tier": "very-large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 131072,
+        "threads": 4
+      },
+      "series": "field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 131072,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "131072",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1800
+    },
+    {
+      "id": "scaling-field-operator-n4-l3-s16-t4",
+      "group": "scaling",
+      "family": "field-operator",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field-operator",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 16,
+        "threads": 4
+      },
+      "series": "field-operator-samples",
+      "x": {
+        "name": "Field points",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field-operator",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "16",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-field-operator-n4-l3-s128-t4",
+      "group": "scaling",
+      "family": "field-operator",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field-operator",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 128,
+        "threads": 4
+      },
+      "series": "field-operator-samples",
+      "x": {
+        "name": "Field points",
+        "value": 128,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field-operator",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "128",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-field-operator-n4-l3-s512-t4",
+      "group": "scaling",
+      "family": "field-operator",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field-operator",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 512,
+        "threads": 4
+      },
+      "series": "field-operator-samples",
+      "x": {
+        "name": "Field points",
+        "value": 512,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field-operator",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "512",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-field-operator-n4-l3-s2048-t4",
+      "group": "scaling",
+      "family": "field-operator",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field-operator",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "field-operator-samples",
+      "x": {
+        "name": "Field points",
+        "value": 2048,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field-operator",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-field-operator-n4-l3-s8192-t4",
+      "group": "scaling",
+      "family": "field-operator",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field-operator",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 8192,
+        "threads": 4
+      },
+      "series": "field-operator-samples",
+      "x": {
+        "name": "Field points",
+        "value": 8192,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field-operator",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "8192",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-field-operator-n4-l3-s32768-t4",
+      "group": "scaling",
+      "family": "field-operator",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field-operator",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 32768,
+        "threads": 4
+      },
+      "series": "field-operator-samples",
+      "x": {
+        "name": "Field points",
+        "value": 32768,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field-operator",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "32768",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-field-operator-n4-l3-s131072-t4",
+      "group": "scaling",
+      "family": "field-operator",
+      "tier": "very-large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field-operator",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 131072,
+        "threads": 4
+      },
+      "series": "field-operator-samples",
+      "x": {
+        "name": "Field points",
+        "value": 131072,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field-operator",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "131072",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1800
+    },
+    {
+      "id": "scaling-cylindrical-field-n4-l3-s16-t4",
+      "group": "scaling",
+      "family": "cylindrical-field",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 16,
+        "threads": 4
+      },
+      "series": "cylindrical-field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "16",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cylindrical-field-n4-l3-s128-t4",
+      "group": "scaling",
+      "family": "cylindrical-field",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 128,
+        "threads": 4
+      },
+      "series": "cylindrical-field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 128,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "128",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cylindrical-field-n4-l3-s512-t4",
+      "group": "scaling",
+      "family": "cylindrical-field",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 512,
+        "threads": 4
+      },
+      "series": "cylindrical-field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 512,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "512",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cylindrical-field-n4-l3-s2048-t4",
+      "group": "scaling",
+      "family": "cylindrical-field",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cylindrical-field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 2048,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cylindrical-field-n4-l3-s8192-t4",
+      "group": "scaling",
+      "family": "cylindrical-field",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 8192,
+        "threads": 4
+      },
+      "series": "cylindrical-field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 8192,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "8192",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-cylindrical-field-n4-l3-s32768-t4",
+      "group": "scaling",
+      "family": "cylindrical-field",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 32768,
+        "threads": 4
+      },
+      "series": "cylindrical-field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 32768,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "32768",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-cylindrical-field-n4-l3-s131072-t4",
+      "group": "scaling",
+      "family": "cylindrical-field",
+      "tier": "very-large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 131072,
+        "threads": 4
+      },
+      "series": "cylindrical-field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 131072,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "131072",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1800
+    },
+    {
+      "id": "scaling-plane-field-n4-l16-s128-t4",
+      "group": "scaling",
+      "family": "plane-field",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-field",
+        "particles": 4,
+        "lmax": 16,
+        "samples": 128,
+        "threads": 4
+      },
+      "series": "plane-field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 128,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-field",
+        "--particles",
+        "4",
+        "--lmax",
+        "16",
+        "--samples",
+        "128",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-plane-field-n4-l16-s2048-t4",
+      "group": "scaling",
+      "family": "plane-field",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-field",
+        "particles": 4,
+        "lmax": 16,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "plane-field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 2048,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-field",
+        "--particles",
+        "4",
+        "--lmax",
+        "16",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-plane-field-n4-l16-s16384-t4",
+      "group": "scaling",
+      "family": "plane-field",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-field",
+        "particles": 4,
+        "lmax": 16,
+        "samples": 16384,
+        "threads": 4
+      },
+      "series": "plane-field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 16384,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-field",
+        "--particles",
+        "4",
+        "--lmax",
+        "16",
+        "--samples",
+        "16384",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-plane-field-n4-l16-s65536-t4",
+      "group": "scaling",
+      "family": "plane-field",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-field",
+        "particles": 4,
+        "lmax": 16,
+        "samples": 65536,
+        "threads": 4
+      },
+      "series": "plane-field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 65536,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-field",
+        "--particles",
+        "4",
+        "--lmax",
+        "16",
+        "--samples",
+        "65536",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-plane-field-n4-l16-s262144-t4",
+      "group": "scaling",
+      "family": "plane-field",
+      "tier": "very-large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-field",
+        "particles": 4,
+        "lmax": 16,
+        "samples": 262144,
+        "threads": 4
+      },
+      "series": "plane-field-samples",
+      "x": {
+        "name": "Field points",
+        "value": 262144,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-field",
+        "--particles",
+        "4",
+        "--lmax",
+        "16",
+        "--samples",
+        "262144",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1800
+    },
+    {
+      "id": "scaling-plane-operator-n4-l16-s128-t4",
+      "group": "scaling",
+      "family": "plane-operator",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-operator",
+        "particles": 4,
+        "lmax": 16,
+        "samples": 128,
+        "threads": 4
+      },
+      "series": "plane-operator-samples",
+      "x": {
+        "name": "Field points",
+        "value": 128,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-operator",
+        "--particles",
+        "4",
+        "--lmax",
+        "16",
+        "--samples",
+        "128",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-plane-operator-n4-l16-s2048-t4",
+      "group": "scaling",
+      "family": "plane-operator",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-operator",
+        "particles": 4,
+        "lmax": 16,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "plane-operator-samples",
+      "x": {
+        "name": "Field points",
+        "value": 2048,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-operator",
+        "--particles",
+        "4",
+        "--lmax",
+        "16",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-plane-operator-n4-l16-s16384-t4",
+      "group": "scaling",
+      "family": "plane-operator",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-operator",
+        "particles": 4,
+        "lmax": 16,
+        "samples": 16384,
+        "threads": 4
+      },
+      "series": "plane-operator-samples",
+      "x": {
+        "name": "Field points",
+        "value": 16384,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-operator",
+        "--particles",
+        "4",
+        "--lmax",
+        "16",
+        "--samples",
+        "16384",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-plane-operator-n4-l16-s65536-t4",
+      "group": "scaling",
+      "family": "plane-operator",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-operator",
+        "particles": 4,
+        "lmax": 16,
+        "samples": 65536,
+        "threads": 4
+      },
+      "series": "plane-operator-samples",
+      "x": {
+        "name": "Field points",
+        "value": 65536,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-operator",
+        "--particles",
+        "4",
+        "--lmax",
+        "16",
+        "--samples",
+        "65536",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-plane-operator-n4-l16-s262144-t4",
+      "group": "scaling",
+      "family": "plane-operator",
+      "tier": "very-large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-operator",
+        "particles": 4,
+        "lmax": 16,
+        "samples": 262144,
+        "threads": 4
+      },
+      "series": "plane-operator-samples",
+      "x": {
+        "name": "Field points",
+        "value": 262144,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-operator",
+        "--particles",
+        "4",
+        "--lmax",
+        "16",
+        "--samples",
+        "262144",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1800
+    },
+    {
+      "id": "scaling-periodic-n1-l3-s2048-t4",
+      "group": "scaling",
+      "family": "periodic",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "periodic",
+        "particles": 1,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "periodic-particles",
+      "x": {
+        "name": "Particles",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "periodic",
+        "--particles",
+        "1",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-periodic-n4-l3-s2048-t4",
+      "group": "scaling",
+      "family": "periodic",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "periodic",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "periodic-particles",
+      "x": {
+        "name": "Particles",
+        "value": 4,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "periodic",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-periodic-n9-l3-s2048-t4",
+      "group": "scaling",
+      "family": "periodic",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "periodic",
+        "particles": 9,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "periodic-particles",
+      "x": {
+        "name": "Particles",
+        "value": 9,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "periodic",
+        "--particles",
+        "9",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-periodic-n16-l3-s2048-t4",
+      "group": "scaling",
+      "family": "periodic",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "periodic",
+        "particles": 16,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "periodic-particles",
+      "x": {
+        "name": "Particles",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "periodic",
+        "--particles",
+        "16",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-periodic-n25-l3-s2048-t4",
+      "group": "scaling",
+      "family": "periodic",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "periodic",
+        "particles": 25,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "periodic-particles",
+      "x": {
+        "name": "Particles",
+        "value": 25,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "periodic",
+        "--particles",
+        "25",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-array-n1-l3-s2048-t4",
+      "group": "scaling",
+      "family": "array",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "array",
+        "particles": 1,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "array-particles",
+      "x": {
+        "name": "Particles",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "array",
+        "--particles",
+        "1",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-array-n4-l3-s2048-t4",
+      "group": "scaling",
+      "family": "array",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "array",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "array-particles",
+      "x": {
+        "name": "Particles",
+        "value": 4,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "array",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-array-n9-l3-s2048-t4",
+      "group": "scaling",
+      "family": "array",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "array",
+        "particles": 9,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "array-particles",
+      "x": {
+        "name": "Particles",
+        "value": 9,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "array",
+        "--particles",
+        "9",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-array-n16-l3-s2048-t4",
+      "group": "scaling",
+      "family": "array",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "array",
+        "particles": 16,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "array-particles",
+      "x": {
+        "name": "Particles",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "array",
+        "--particles",
+        "16",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-array-n25-l3-s2048-t4",
+      "group": "scaling",
+      "family": "array",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "array",
+        "particles": 25,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "array-particles",
+      "x": {
+        "name": "Particles",
+        "value": 25,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "array",
+        "--particles",
+        "25",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-cylindrical-array-n1-l3-s2048-t4",
+      "group": "scaling",
+      "family": "cylindrical-array",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-array",
+        "particles": 1,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cylindrical-array-particles",
+      "x": {
+        "name": "Particles",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-array",
+        "--particles",
+        "1",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cylindrical-array-n4-l3-s2048-t4",
+      "group": "scaling",
+      "family": "cylindrical-array",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-array",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cylindrical-array-particles",
+      "x": {
+        "name": "Particles",
+        "value": 4,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-array",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cylindrical-array-n16-l3-s2048-t4",
+      "group": "scaling",
+      "family": "cylindrical-array",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-array",
+        "particles": 16,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cylindrical-array-particles",
+      "x": {
+        "name": "Particles",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-array",
+        "--particles",
+        "16",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-slab-n2-l3-s1-t4",
+      "group": "scaling",
+      "family": "slab",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 2,
+        "lmax": 3,
+        "samples": 1,
+        "threads": 4
+      },
+      "series": "slab-layers-channels1",
+      "x": {
+        "name": "Layers",
+        "value": 2,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "2",
+        "--lmax",
+        "3",
+        "--samples",
+        "1",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-slab-n2-l3-s8-t4",
+      "group": "scaling",
+      "family": "slab",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 2,
+        "lmax": 3,
+        "samples": 8,
+        "threads": 4
+      },
+      "series": "slab-layers-channels8",
+      "x": {
+        "name": "Layers",
+        "value": 2,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "2",
+        "--lmax",
+        "3",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-slab-n2-l3-s64-t4",
+      "group": "scaling",
+      "family": "slab",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 2,
+        "lmax": 3,
+        "samples": 64,
+        "threads": 4
+      },
+      "series": "slab-layers-channels64",
+      "x": {
+        "name": "Layers",
+        "value": 2,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "2",
+        "--lmax",
+        "3",
+        "--samples",
+        "64",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-slab-n8-l3-s1-t4",
+      "group": "scaling",
+      "family": "slab",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 8,
+        "lmax": 3,
+        "samples": 1,
+        "threads": 4
+      },
+      "series": "slab-layers-channels1",
+      "x": {
+        "name": "Layers",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "8",
+        "--lmax",
+        "3",
+        "--samples",
+        "1",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-slab-n8-l3-s8-t4",
+      "group": "scaling",
+      "family": "slab",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 8,
+        "lmax": 3,
+        "samples": 8,
+        "threads": 4
+      },
+      "series": "slab-layers-channels8",
+      "x": {
+        "name": "Layers",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "8",
+        "--lmax",
+        "3",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-slab-n8-l3-s64-t4",
+      "group": "scaling",
+      "family": "slab",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 8,
+        "lmax": 3,
+        "samples": 64,
+        "threads": 4
+      },
+      "series": "slab-layers-channels64",
+      "x": {
+        "name": "Layers",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "8",
+        "--lmax",
+        "3",
+        "--samples",
+        "64",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-slab-n32-l3-s1-t4",
+      "group": "scaling",
+      "family": "slab",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 32,
+        "lmax": 3,
+        "samples": 1,
+        "threads": 4
+      },
+      "series": "slab-layers-channels1",
+      "x": {
+        "name": "Layers",
+        "value": 32,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "32",
+        "--lmax",
+        "3",
+        "--samples",
+        "1",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-slab-n32-l3-s8-t4",
+      "group": "scaling",
+      "family": "slab",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 32,
+        "lmax": 3,
+        "samples": 8,
+        "threads": 4
+      },
+      "series": "slab-layers-channels8",
+      "x": {
+        "name": "Layers",
+        "value": 32,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "32",
+        "--lmax",
+        "3",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-slab-n32-l3-s64-t4",
+      "group": "scaling",
+      "family": "slab",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 32,
+        "lmax": 3,
+        "samples": 64,
+        "threads": 4
+      },
+      "series": "slab-layers-channels64",
+      "x": {
+        "name": "Layers",
+        "value": 32,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "32",
+        "--lmax",
+        "3",
+        "--samples",
+        "64",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-slab-n128-l3-s1-t4",
+      "group": "scaling",
+      "family": "slab",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 128,
+        "lmax": 3,
+        "samples": 1,
+        "threads": 4
+      },
+      "series": "slab-layers-channels1",
+      "x": {
+        "name": "Layers",
+        "value": 128,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "128",
+        "--lmax",
+        "3",
+        "--samples",
+        "1",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-slab-n128-l3-s8-t4",
+      "group": "scaling",
+      "family": "slab",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 128,
+        "lmax": 3,
+        "samples": 8,
+        "threads": 4
+      },
+      "series": "slab-layers-channels8",
+      "x": {
+        "name": "Layers",
+        "value": 128,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "128",
+        "--lmax",
+        "3",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-slab-n128-l3-s64-t4",
+      "group": "scaling",
+      "family": "slab",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 128,
+        "lmax": 3,
+        "samples": 64,
+        "threads": 4
+      },
+      "series": "slab-layers-channels64",
+      "x": {
+        "name": "Layers",
+        "value": 128,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "128",
+        "--lmax",
+        "3",
+        "--samples",
+        "64",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-slab-n8-l3-s32-t4",
+      "group": "scaling",
+      "family": "slab",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 8,
+        "lmax": 3,
+        "samples": 32,
+        "threads": 4
+      },
+      "series": "slab-channel-scaling",
+      "x": {
+        "name": "Plane-wave channels",
+        "value": 64,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "8",
+        "--lmax",
+        "3",
+        "--samples",
+        "32",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-slab-n8-l3-s128-t4",
+      "group": "scaling",
+      "family": "slab",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 8,
+        "lmax": 3,
+        "samples": 128,
+        "threads": 4
+      },
+      "series": "slab-channel-scaling",
+      "x": {
+        "name": "Plane-wave channels",
+        "value": 256,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "8",
+        "--lmax",
+        "3",
+        "--samples",
+        "128",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-slab-n8-l3-s256-t4",
+      "group": "scaling",
+      "family": "slab",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 8,
+        "lmax": 3,
+        "samples": 256,
+        "threads": 4
+      },
+      "series": "slab-channel-scaling",
+      "x": {
+        "name": "Plane-wave channels",
+        "value": 512,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "8",
+        "--lmax",
+        "3",
+        "--samples",
+        "256",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-rotation-n1-l3-s2048-t4",
+      "group": "scaling",
+      "family": "rotation",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "rotation",
+        "particles": 1,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "rotation-n1-order",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 3,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "rotation",
+        "--particles",
+        "1",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-rotation-n1-l8-s2048-t4",
+      "group": "scaling",
+      "family": "rotation",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "rotation",
+        "particles": 1,
+        "lmax": 8,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "rotation-n1-order",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "rotation",
+        "--particles",
+        "1",
+        "--lmax",
+        "8",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-rotation-n1-l16-s2048-t4",
+      "group": "scaling",
+      "family": "rotation",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "rotation",
+        "particles": 1,
+        "lmax": 16,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "rotation-n1-order",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "rotation",
+        "--particles",
+        "1",
+        "--lmax",
+        "16",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-rotation-n1-l24-s2048-t4",
+      "group": "scaling",
+      "family": "rotation",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "rotation",
+        "particles": 1,
+        "lmax": 24,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "rotation-n1-order",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 24,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "rotation",
+        "--particles",
+        "1",
+        "--lmax",
+        "24",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-rotation-n2-l3-s2048-t4",
+      "group": "scaling",
+      "family": "rotation",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "rotation",
+        "particles": 2,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "rotation-n2-order",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 3,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "rotation",
+        "--particles",
+        "2",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-rotation-n2-l8-s2048-t4",
+      "group": "scaling",
+      "family": "rotation",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "rotation",
+        "particles": 2,
+        "lmax": 8,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "rotation-n2-order",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "rotation",
+        "--particles",
+        "2",
+        "--lmax",
+        "8",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-rotation-n2-l16-s2048-t4",
+      "group": "scaling",
+      "family": "rotation",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "rotation",
+        "particles": 2,
+        "lmax": 16,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "rotation-n2-order",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "rotation",
+        "--particles",
+        "2",
+        "--lmax",
+        "16",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-rotation-n2-l24-s2048-t4",
+      "group": "scaling",
+      "family": "rotation",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "rotation",
+        "particles": 2,
+        "lmax": 24,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "rotation-n2-order",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 24,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "rotation",
+        "--particles",
+        "2",
+        "--lmax",
+        "24",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "scaling-ebcm-n1-l1-s96-t4",
+      "group": "scaling",
+      "family": "ebcm",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "ebcm",
+        "particles": 1,
+        "lmax": 1,
+        "samples": 96,
+        "threads": 4
+      },
+      "series": "ebcm-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "ebcm",
+        "--particles",
+        "1",
+        "--lmax",
+        "1",
+        "--samples",
+        "96",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-ebcm-n1-l2-s96-t4",
+      "group": "scaling",
+      "family": "ebcm",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "ebcm",
+        "particles": 1,
+        "lmax": 2,
+        "samples": 96,
+        "threads": 4
+      },
+      "series": "ebcm-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 2,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "ebcm",
+        "--particles",
+        "1",
+        "--lmax",
+        "2",
+        "--samples",
+        "96",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-ebcm-n1-l3-s96-t4",
+      "group": "scaling",
+      "family": "ebcm",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "ebcm",
+        "particles": 1,
+        "lmax": 3,
+        "samples": 96,
+        "threads": 4
+      },
+      "series": "ebcm-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 3,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "ebcm",
+        "--particles",
+        "1",
+        "--lmax",
+        "3",
+        "--samples",
+        "96",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-ebcm-n1-l4-s96-t4",
+      "group": "scaling",
+      "family": "ebcm",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "ebcm",
+        "particles": 1,
+        "lmax": 4,
+        "samples": 96,
+        "threads": 4
+      },
+      "series": "ebcm-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 4,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "ebcm",
+        "--particles",
+        "1",
+        "--lmax",
+        "4",
+        "--samples",
+        "96",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-conversion-n1-l1-s32-t4",
+      "group": "scaling",
+      "family": "conversion",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "conversion",
+        "particles": 1,
+        "lmax": 1,
+        "samples": 32,
+        "threads": 4
+      },
+      "series": "conversion-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "conversion",
+        "--particles",
+        "1",
+        "--lmax",
+        "1",
+        "--samples",
+        "32",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-conversion-n1-l3-s32-t4",
+      "group": "scaling",
+      "family": "conversion",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "conversion",
+        "particles": 1,
+        "lmax": 3,
+        "samples": 32,
+        "threads": 4
+      },
+      "series": "conversion-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 3,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "conversion",
+        "--particles",
+        "1",
+        "--lmax",
+        "3",
+        "--samples",
+        "32",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-conversion-n1-l6-s32-t4",
+      "group": "scaling",
+      "family": "conversion",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "conversion",
+        "particles": 1,
+        "lmax": 6,
+        "samples": 32,
+        "threads": 4
+      },
+      "series": "conversion-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 6,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "conversion",
+        "--particles",
+        "1",
+        "--lmax",
+        "6",
+        "--samples",
+        "32",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-conversion-n1-l12-s32-t4",
+      "group": "scaling",
+      "family": "conversion",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "conversion",
+        "particles": 1,
+        "lmax": 12,
+        "samples": 32,
+        "threads": 4
+      },
+      "series": "conversion-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 12,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "conversion",
+        "--particles",
+        "1",
+        "--lmax",
+        "12",
+        "--samples",
+        "32",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-plane-expansion-n1-l1-s32-t4",
+      "group": "scaling",
+      "family": "plane-expansion",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-expansion",
+        "particles": 1,
+        "lmax": 1,
+        "samples": 32,
+        "threads": 4
+      },
+      "series": "plane-expansion-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-expansion",
+        "--particles",
+        "1",
+        "--lmax",
+        "1",
+        "--samples",
+        "32",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-plane-expansion-n1-l3-s32-t4",
+      "group": "scaling",
+      "family": "plane-expansion",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-expansion",
+        "particles": 1,
+        "lmax": 3,
+        "samples": 32,
+        "threads": 4
+      },
+      "series": "plane-expansion-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 3,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-expansion",
+        "--particles",
+        "1",
+        "--lmax",
+        "3",
+        "--samples",
+        "32",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-plane-expansion-n1-l6-s32-t4",
+      "group": "scaling",
+      "family": "plane-expansion",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-expansion",
+        "particles": 1,
+        "lmax": 6,
+        "samples": 32,
+        "threads": 4
+      },
+      "series": "plane-expansion-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 6,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-expansion",
+        "--particles",
+        "1",
+        "--lmax",
+        "6",
+        "--samples",
+        "32",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-plane-expansion-n1-l12-s32-t4",
+      "group": "scaling",
+      "family": "plane-expansion",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-expansion",
+        "particles": 1,
+        "lmax": 12,
+        "samples": 32,
+        "threads": 4
+      },
+      "series": "plane-expansion-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 12,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-expansion",
+        "--particles",
+        "1",
+        "--lmax",
+        "12",
+        "--samples",
+        "32",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cylindrical-plane-expansion-n1-l1-s32-t4",
+      "group": "scaling",
+      "family": "cylindrical-plane-expansion",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-plane-expansion",
+        "particles": 1,
+        "lmax": 1,
+        "samples": 32,
+        "threads": 4
+      },
+      "series": "cylindrical-plane-expansion-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-plane-expansion",
+        "--particles",
+        "1",
+        "--lmax",
+        "1",
+        "--samples",
+        "32",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cylindrical-plane-expansion-n1-l3-s32-t4",
+      "group": "scaling",
+      "family": "cylindrical-plane-expansion",
+      "tier": "small",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-plane-expansion",
+        "particles": 1,
+        "lmax": 3,
+        "samples": 32,
+        "threads": 4
+      },
+      "series": "cylindrical-plane-expansion-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 3,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-plane-expansion",
+        "--particles",
+        "1",
+        "--lmax",
+        "3",
+        "--samples",
+        "32",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cylindrical-plane-expansion-n1-l6-s32-t4",
+      "group": "scaling",
+      "family": "cylindrical-plane-expansion",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-plane-expansion",
+        "particles": 1,
+        "lmax": 6,
+        "samples": 32,
+        "threads": 4
+      },
+      "series": "cylindrical-plane-expansion-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 6,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-plane-expansion",
+        "--particles",
+        "1",
+        "--lmax",
+        "6",
+        "--samples",
+        "32",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "scaling-cylindrical-plane-expansion-n1-l12-s32-t4",
+      "group": "scaling",
+      "family": "cylindrical-plane-expansion",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cylindrical-plane-expansion",
+        "particles": 1,
+        "lmax": 12,
+        "samples": 32,
+        "threads": 4
+      },
+      "series": "cylindrical-plane-expansion-lmax",
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 12,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cylindrical-plane-expansion",
+        "--particles",
+        "1",
+        "--lmax",
+        "12",
+        "--samples",
+        "32",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "thread-scaling-cluster-n32-l3-s2048-t1",
+      "group": "thread-scaling",
+      "family": "cluster",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 32,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 1
+      },
+      "series": "cluster-n32-l3-s2048-threads",
+      "x": {
+        "name": "Threads",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "32",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "1",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "thread-scaling-cluster-n128-l3-s2048-t1",
+      "group": "thread-scaling",
+      "family": "cluster",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 128,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 1
+      },
+      "series": "cluster-n128-l3-s2048-threads",
+      "x": {
+        "name": "Threads",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "128",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "1",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "thread-scaling-field-n4-l3-s8192-t1",
+      "group": "thread-scaling",
+      "family": "field",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 8192,
+        "threads": 1
+      },
+      "series": "field-n4-l3-s8192-threads",
+      "x": {
+        "name": "Threads",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "8192",
+        "--threads",
+        "1",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "thread-scaling-periodic-n9-l3-s2048-t1",
+      "group": "thread-scaling",
+      "family": "periodic",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "periodic",
+        "particles": 9,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 1
+      },
+      "series": "periodic-n9-l3-s2048-threads",
+      "x": {
+        "name": "Threads",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "periodic",
+        "--particles",
+        "9",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "1",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "thread-scaling-plane-field-n4-l16-s65536-t1",
+      "group": "thread-scaling",
+      "family": "plane-field",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-field",
+        "particles": 4,
+        "lmax": 16,
+        "samples": 65536,
+        "threads": 1
+      },
+      "series": "plane-field-n4-l16-s65536-threads",
+      "x": {
+        "name": "Threads",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-field",
+        "--particles",
+        "4",
+        "--lmax",
+        "16",
+        "--samples",
+        "65536",
+        "--threads",
+        "1",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "thread-scaling-slab-n32-l3-s64-t1",
+      "group": "thread-scaling",
+      "family": "slab",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 32,
+        "lmax": 3,
+        "samples": 64,
+        "threads": 1
+      },
+      "series": "slab-n32-l3-s64-threads",
+      "x": {
+        "name": "Threads",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "32",
+        "--lmax",
+        "3",
+        "--samples",
+        "64",
+        "--threads",
+        "1",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "thread-scaling-cluster-n32-l3-s2048-t2",
+      "group": "thread-scaling",
+      "family": "cluster",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 32,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 2
+      },
+      "series": "cluster-n32-l3-s2048-threads",
+      "x": {
+        "name": "Threads",
+        "value": 2,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "32",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "2",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "thread-scaling-cluster-n128-l3-s2048-t2",
+      "group": "thread-scaling",
+      "family": "cluster",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 128,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 2
+      },
+      "series": "cluster-n128-l3-s2048-threads",
+      "x": {
+        "name": "Threads",
+        "value": 2,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "128",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "2",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "thread-scaling-field-n4-l3-s8192-t2",
+      "group": "thread-scaling",
+      "family": "field",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 8192,
+        "threads": 2
+      },
+      "series": "field-n4-l3-s8192-threads",
+      "x": {
+        "name": "Threads",
+        "value": 2,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "8192",
+        "--threads",
+        "2",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "thread-scaling-periodic-n9-l3-s2048-t2",
+      "group": "thread-scaling",
+      "family": "periodic",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "periodic",
+        "particles": 9,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 2
+      },
+      "series": "periodic-n9-l3-s2048-threads",
+      "x": {
+        "name": "Threads",
+        "value": 2,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "periodic",
+        "--particles",
+        "9",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "2",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "thread-scaling-plane-field-n4-l16-s65536-t2",
+      "group": "thread-scaling",
+      "family": "plane-field",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-field",
+        "particles": 4,
+        "lmax": 16,
+        "samples": 65536,
+        "threads": 2
+      },
+      "series": "plane-field-n4-l16-s65536-threads",
+      "x": {
+        "name": "Threads",
+        "value": 2,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-field",
+        "--particles",
+        "4",
+        "--lmax",
+        "16",
+        "--samples",
+        "65536",
+        "--threads",
+        "2",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "thread-scaling-slab-n32-l3-s64-t2",
+      "group": "thread-scaling",
+      "family": "slab",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 32,
+        "lmax": 3,
+        "samples": 64,
+        "threads": 2
+      },
+      "series": "slab-n32-l3-s64-threads",
+      "x": {
+        "name": "Threads",
+        "value": 2,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "32",
+        "--lmax",
+        "3",
+        "--samples",
+        "64",
+        "--threads",
+        "2",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "thread-scaling-cluster-n32-l3-s2048-t4",
+      "group": "thread-scaling",
+      "family": "cluster",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 32,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cluster-n32-l3-s2048-threads",
+      "x": {
+        "name": "Threads",
+        "value": 4,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "32",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "thread-scaling-cluster-n128-l3-s2048-t4",
+      "group": "thread-scaling",
+      "family": "cluster",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 128,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "cluster-n128-l3-s2048-threads",
+      "x": {
+        "name": "Threads",
+        "value": 4,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "128",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "thread-scaling-field-n4-l3-s8192-t4",
+      "group": "thread-scaling",
+      "family": "field",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 8192,
+        "threads": 4
+      },
+      "series": "field-n4-l3-s8192-threads",
+      "x": {
+        "name": "Threads",
+        "value": 4,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "8192",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "thread-scaling-periodic-n9-l3-s2048-t4",
+      "group": "thread-scaling",
+      "family": "periodic",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "periodic",
+        "particles": 9,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 4
+      },
+      "series": "periodic-n9-l3-s2048-threads",
+      "x": {
+        "name": "Threads",
+        "value": 4,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "periodic",
+        "--particles",
+        "9",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "4",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "thread-scaling-plane-field-n4-l16-s65536-t4",
+      "group": "thread-scaling",
+      "family": "plane-field",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-field",
+        "particles": 4,
+        "lmax": 16,
+        "samples": 65536,
+        "threads": 4
+      },
+      "series": "plane-field-n4-l16-s65536-threads",
+      "x": {
+        "name": "Threads",
+        "value": 4,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-field",
+        "--particles",
+        "4",
+        "--lmax",
+        "16",
+        "--samples",
+        "65536",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "thread-scaling-slab-n32-l3-s64-t4",
+      "group": "thread-scaling",
+      "family": "slab",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 32,
+        "lmax": 3,
+        "samples": 64,
+        "threads": 4
+      },
+      "series": "slab-n32-l3-s64-threads",
+      "x": {
+        "name": "Threads",
+        "value": 4,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "32",
+        "--lmax",
+        "3",
+        "--samples",
+        "64",
+        "--threads",
+        "4",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "thread-scaling-cluster-n32-l3-s2048-t8",
+      "group": "thread-scaling",
+      "family": "cluster",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 32,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 8
+      },
+      "series": "cluster-n32-l3-s2048-threads",
+      "x": {
+        "name": "Threads",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "32",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "8",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "thread-scaling-cluster-n128-l3-s2048-t8",
+      "group": "thread-scaling",
+      "family": "cluster",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 128,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 8
+      },
+      "series": "cluster-n128-l3-s2048-threads",
+      "x": {
+        "name": "Threads",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "128",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "8",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "thread-scaling-field-n4-l3-s8192-t8",
+      "group": "thread-scaling",
+      "family": "field",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 8192,
+        "threads": 8
+      },
+      "series": "field-n4-l3-s8192-threads",
+      "x": {
+        "name": "Threads",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "8192",
+        "--threads",
+        "8",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "thread-scaling-periodic-n9-l3-s2048-t8",
+      "group": "thread-scaling",
+      "family": "periodic",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "periodic",
+        "particles": 9,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 8
+      },
+      "series": "periodic-n9-l3-s2048-threads",
+      "x": {
+        "name": "Threads",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "periodic",
+        "--particles",
+        "9",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "8",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600
+    },
+    {
+      "id": "thread-scaling-plane-field-n4-l16-s65536-t8",
+      "group": "thread-scaling",
+      "family": "plane-field",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-field",
+        "particles": 4,
+        "lmax": 16,
+        "samples": 65536,
+        "threads": 8
+      },
+      "series": "plane-field-n4-l16-s65536-threads",
+      "x": {
+        "name": "Threads",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-field",
+        "--particles",
+        "4",
+        "--lmax",
+        "16",
+        "--samples",
+        "65536",
+        "--threads",
+        "8",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "thread-scaling-slab-n32-l3-s64-t8",
+      "group": "thread-scaling",
+      "family": "slab",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 32,
+        "lmax": 3,
+        "samples": 64,
+        "threads": 8
+      },
+      "series": "slab-n32-l3-s64-threads",
+      "x": {
+        "name": "Threads",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "32",
+        "--lmax",
+        "3",
+        "--samples",
+        "64",
+        "--threads",
+        "8",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "thread-scaling-cluster-n32-l3-s2048-t16",
+      "group": "thread-scaling",
+      "family": "cluster",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 32,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 16
+      },
+      "series": "cluster-n32-l3-s2048-threads",
+      "x": {
+        "name": "Threads",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "32",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "16",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600,
+      "platforms": [
+        "linux"
+      ]
+    },
+    {
+      "id": "thread-scaling-cluster-n128-l3-s2048-t16",
+      "group": "thread-scaling",
+      "family": "cluster",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "cluster",
+        "particles": 128,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 16
+      },
+      "series": "cluster-n128-l3-s2048-threads",
+      "x": {
+        "name": "Threads",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "cluster",
+        "--particles",
+        "128",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "16",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200,
+      "platforms": [
+        "linux"
+      ]
+    },
+    {
+      "id": "thread-scaling-field-n4-l3-s8192-t16",
+      "group": "thread-scaling",
+      "family": "field",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "field",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 8192,
+        "threads": 16
+      },
+      "series": "field-n4-l3-s8192-threads",
+      "x": {
+        "name": "Threads",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "field",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "8192",
+        "--threads",
+        "16",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200,
+      "platforms": [
+        "linux"
+      ]
+    },
+    {
+      "id": "thread-scaling-periodic-n9-l3-s2048-t16",
+      "group": "thread-scaling",
+      "family": "periodic",
+      "tier": "medium",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "periodic",
+        "particles": 9,
+        "lmax": 3,
+        "samples": 2048,
+        "threads": 16
+      },
+      "series": "periodic-n9-l3-s2048-threads",
+      "x": {
+        "name": "Threads",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "periodic",
+        "--particles",
+        "9",
+        "--lmax",
+        "3",
+        "--samples",
+        "2048",
+        "--threads",
+        "16",
+        "--repeats",
+        "7"
+      ],
+      "timeout_seconds": 600,
+      "platforms": [
+        "linux"
+      ]
+    },
+    {
+      "id": "thread-scaling-plane-field-n4-l16-s65536-t16",
+      "group": "thread-scaling",
+      "family": "plane-field",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "plane-field",
+        "particles": 4,
+        "lmax": 16,
+        "samples": 65536,
+        "threads": 16
+      },
+      "series": "plane-field-n4-l16-s65536-threads",
+      "x": {
+        "name": "Threads",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "plane-field",
+        "--particles",
+        "4",
+        "--lmax",
+        "16",
+        "--samples",
+        "65536",
+        "--threads",
+        "16",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200,
+      "platforms": [
+        "linux"
+      ]
+    },
+    {
+      "id": "thread-scaling-slab-n32-l3-s64-t16",
+      "group": "thread-scaling",
+      "family": "slab",
+      "tier": "large",
+      "kind": "cluster",
+      "parameters": {
+        "workload": "slab",
+        "particles": 32,
+        "lmax": 3,
+        "samples": 64,
+        "threads": 16
+      },
+      "series": "slab-n32-l3-s64-threads",
+      "x": {
+        "name": "Threads",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_cluster.py",
+        "--workload",
+        "slab",
+        "--particles",
+        "32",
+        "--lmax",
+        "3",
+        "--samples",
+        "64",
+        "--threads",
+        "16",
+        "--repeats",
+        "3"
+      ],
+      "timeout_seconds": 1200,
+      "platforms": [
+        "linux"
+      ]
+    },
+    {
+      "id": "illumination-weak-n2-l1-p1-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "small",
+      "series": "illumination-weak-count",
+      "parameters": {
+        "particles": 2,
+        "lmax": 1,
+        "columns": 1,
+        "strength": "weak",
+        "threads": 4,
+        "dimension": 12
+      },
+      "x": {
+        "name": "Particles",
+        "value": 2,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "2",
+        "--lmax",
+        "1",
+        "--columns",
+        "1",
+        "--strength",
+        "weak",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "illumination-weak-n8-l1-p1-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "small",
+      "series": "illumination-weak-count",
+      "parameters": {
+        "particles": 8,
+        "lmax": 1,
+        "columns": 1,
+        "strength": "weak",
+        "threads": 4,
+        "dimension": 48
+      },
+      "x": {
+        "name": "Particles",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "8",
+        "--lmax",
+        "1",
+        "--columns",
+        "1",
+        "--strength",
+        "weak",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "illumination-weak-n32-l1-p1-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "small",
+      "series": "illumination-weak-count",
+      "parameters": {
+        "particles": 32,
+        "lmax": 1,
+        "columns": 1,
+        "strength": "weak",
+        "threads": 4,
+        "dimension": 192
+      },
+      "x": {
+        "name": "Particles",
+        "value": 32,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "32",
+        "--lmax",
+        "1",
+        "--columns",
+        "1",
+        "--strength",
+        "weak",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "illumination-weak-n128-l1-p1-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "medium",
+      "series": "illumination-weak-count",
+      "parameters": {
+        "particles": 128,
+        "lmax": 1,
+        "columns": 1,
+        "strength": "weak",
+        "threads": 4,
+        "dimension": 768
+      },
+      "x": {
+        "name": "Particles",
+        "value": 128,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "128",
+        "--lmax",
+        "1",
+        "--columns",
+        "1",
+        "--strength",
+        "weak",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "illumination-weak-n512-l1-p1-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "large",
+      "series": "illumination-weak-count",
+      "parameters": {
+        "particles": 512,
+        "lmax": 1,
+        "columns": 1,
+        "strength": "weak",
+        "threads": 4,
+        "dimension": 3072
+      },
+      "x": {
+        "name": "Particles",
+        "value": 512,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "512",
+        "--lmax",
+        "1",
+        "--columns",
+        "1",
+        "--strength",
+        "weak",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "illumination-weak-n1024-l1-p1-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "very-large",
+      "series": "illumination-weak-count",
+      "parameters": {
+        "particles": 1024,
+        "lmax": 1,
+        "columns": 1,
+        "strength": "weak",
+        "threads": 4,
+        "dimension": 6144
+      },
+      "x": {
+        "name": "Particles",
+        "value": 1024,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "1024",
+        "--lmax",
+        "1",
+        "--columns",
+        "1",
+        "--strength",
+        "weak",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1800
+    },
+    {
+      "id": "illumination-weak-n2048-l1-p1-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "very-large",
+      "series": "illumination-weak-count",
+      "parameters": {
+        "particles": 2048,
+        "lmax": 1,
+        "columns": 1,
+        "strength": "weak",
+        "threads": 4,
+        "dimension": 12288
+      },
+      "x": {
+        "name": "Particles",
+        "value": 2048,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "2048",
+        "--lmax",
+        "1",
+        "--columns",
+        "1",
+        "--strength",
+        "weak",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1800
+    },
+    {
+      "id": "illumination-weak-n4096-l1-p1-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "very-large",
+      "series": "illumination-weak-count",
+      "parameters": {
+        "particles": 4096,
+        "lmax": 1,
+        "columns": 1,
+        "strength": "weak",
+        "threads": 4,
+        "dimension": 24576
+      },
+      "x": {
+        "name": "Particles",
+        "value": 4096,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "4096",
+        "--lmax",
+        "1",
+        "--columns",
+        "1",
+        "--strength",
+        "weak",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 2400
+    },
+    {
+      "id": "illumination-moderate-n8-l1-p1-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "small",
+      "series": "illumination-moderate-count",
+      "parameters": {
+        "particles": 8,
+        "lmax": 1,
+        "columns": 1,
+        "strength": "moderate",
+        "threads": 4,
+        "dimension": 48
+      },
+      "x": {
+        "name": "Particles",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "8",
+        "--lmax",
+        "1",
+        "--columns",
+        "1",
+        "--strength",
+        "moderate",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "illumination-moderate-n32-l1-p1-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "small",
+      "series": "illumination-moderate-count",
+      "parameters": {
+        "particles": 32,
+        "lmax": 1,
+        "columns": 1,
+        "strength": "moderate",
+        "threads": 4,
+        "dimension": 192
+      },
+      "x": {
+        "name": "Particles",
+        "value": 32,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "32",
+        "--lmax",
+        "1",
+        "--columns",
+        "1",
+        "--strength",
+        "moderate",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "illumination-moderate-n128-l1-p1-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "medium",
+      "series": "illumination-moderate-count",
+      "parameters": {
+        "particles": 128,
+        "lmax": 1,
+        "columns": 1,
+        "strength": "moderate",
+        "threads": 4,
+        "dimension": 768
+      },
+      "x": {
+        "name": "Particles",
+        "value": 128,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "128",
+        "--lmax",
+        "1",
+        "--columns",
+        "1",
+        "--strength",
+        "moderate",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "illumination-moderate-n512-l1-p1-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "large",
+      "series": "illumination-moderate-count",
+      "parameters": {
+        "particles": 512,
+        "lmax": 1,
+        "columns": 1,
+        "strength": "moderate",
+        "threads": 4,
+        "dimension": 3072
+      },
+      "x": {
+        "name": "Particles",
+        "value": 512,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "512",
+        "--lmax",
+        "1",
+        "--columns",
+        "1",
+        "--strength",
+        "moderate",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "illumination-weak-n128-l1-p2-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "medium",
+      "series": "illumination-rhs",
+      "parameters": {
+        "particles": 128,
+        "lmax": 1,
+        "columns": 2,
+        "strength": "weak",
+        "threads": 4,
+        "dimension": 768
+      },
+      "x": {
+        "name": "Illuminations",
+        "value": 2,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "128",
+        "--lmax",
+        "1",
+        "--columns",
+        "2",
+        "--strength",
+        "weak",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "illumination-weak-n128-l1-p4-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "medium",
+      "series": "illumination-rhs",
+      "parameters": {
+        "particles": 128,
+        "lmax": 1,
+        "columns": 4,
+        "strength": "weak",
+        "threads": 4,
+        "dimension": 768
+      },
+      "x": {
+        "name": "Illuminations",
+        "value": 4,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "128",
+        "--lmax",
+        "1",
+        "--columns",
+        "4",
+        "--strength",
+        "weak",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "illumination-weak-n128-l1-p8-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "medium",
+      "series": "illumination-rhs",
+      "parameters": {
+        "particles": 128,
+        "lmax": 1,
+        "columns": 8,
+        "strength": "weak",
+        "threads": 4,
+        "dimension": 768
+      },
+      "x": {
+        "name": "Illuminations",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "128",
+        "--lmax",
+        "1",
+        "--columns",
+        "8",
+        "--strength",
+        "weak",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "illumination-weak-n128-l1-p16-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "medium",
+      "series": "illumination-rhs",
+      "parameters": {
+        "particles": 128,
+        "lmax": 1,
+        "columns": 16,
+        "strength": "weak",
+        "threads": 4,
+        "dimension": 768
+      },
+      "x": {
+        "name": "Illuminations",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "128",
+        "--lmax",
+        "1",
+        "--columns",
+        "16",
+        "--strength",
+        "weak",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "illumination-weak-n128-l1-p32-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "medium",
+      "series": "illumination-rhs",
+      "parameters": {
+        "particles": 128,
+        "lmax": 1,
+        "columns": 32,
+        "strength": "weak",
+        "threads": 4,
+        "dimension": 768
+      },
+      "x": {
+        "name": "Illuminations",
+        "value": 32,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "128",
+        "--lmax",
+        "1",
+        "--columns",
+        "32",
+        "--strength",
+        "weak",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "illumination-moderate-n16-l1-p2-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "small",
+      "series": "illumination-order",
+      "parameters": {
+        "particles": 16,
+        "lmax": 1,
+        "columns": 2,
+        "strength": "moderate",
+        "threads": 4,
+        "dimension": 96
+      },
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "16",
+        "--lmax",
+        "1",
+        "--columns",
+        "2",
+        "--strength",
+        "moderate",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "illumination-moderate-n16-l2-p2-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "medium",
+      "series": "illumination-order",
+      "parameters": {
+        "particles": 16,
+        "lmax": 2,
+        "columns": 2,
+        "strength": "moderate",
+        "threads": 4,
+        "dimension": 256
+      },
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 2,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "16",
+        "--lmax",
+        "2",
+        "--columns",
+        "2",
+        "--strength",
+        "moderate",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "illumination-moderate-n16-l3-p2-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "medium",
+      "series": "illumination-order",
+      "parameters": {
+        "particles": 16,
+        "lmax": 3,
+        "columns": 2,
+        "strength": "moderate",
+        "threads": 4,
+        "dimension": 480
+      },
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 3,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "16",
+        "--lmax",
+        "3",
+        "--columns",
+        "2",
+        "--strength",
+        "moderate",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "illumination-moderate-n16-l5-p2-t4",
+      "group": "illumination",
+      "family": "requested-illumination",
+      "kind": "illumination",
+      "tier": "large",
+      "series": "illumination-order",
+      "parameters": {
+        "particles": 16,
+        "lmax": 5,
+        "columns": 2,
+        "strength": "moderate",
+        "threads": 4,
+        "dimension": 1120
+      },
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 5,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_illumination.py",
+        "--particles",
+        "16",
+        "--lmax",
+        "5",
+        "--columns",
+        "2",
+        "--strength",
+        "moderate",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--dense-limit",
+        "6144",
+        "--oracle-limit",
+        "6144"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cluster-physical-n1-l2-s8-t4",
+      "group": "gradient",
+      "family": "cluster/physical",
+      "kind": "gradient",
+      "tier": "small",
+      "series": "gradient-cluster-physical-parameters-l2-t4",
+      "parameters": {
+        "family": "cluster",
+        "parameters": "physical",
+        "particles": 1,
+        "lmax": 2,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 7,
+        "dimension": 16
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 7,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cluster",
+        "--parameters",
+        "physical",
+        "--particles",
+        "1",
+        "--lmax",
+        "2",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cluster-physical-n2-l2-s8-t4",
+      "group": "gradient",
+      "family": "cluster/physical",
+      "kind": "gradient",
+      "tier": "small",
+      "series": "gradient-cluster-physical-parameters-l2-t4",
+      "parameters": {
+        "family": "cluster",
+        "parameters": "physical",
+        "particles": 2,
+        "lmax": 2,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 13,
+        "dimension": 32
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 13,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cluster",
+        "--parameters",
+        "physical",
+        "--particles",
+        "2",
+        "--lmax",
+        "2",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cluster-physical-n4-l2-s8-t4",
+      "group": "gradient",
+      "family": "cluster/physical",
+      "kind": "gradient",
+      "tier": "medium",
+      "series": "gradient-cluster-physical-parameters-l2-t4",
+      "parameters": {
+        "family": "cluster",
+        "parameters": "physical",
+        "particles": 4,
+        "lmax": 2,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 25,
+        "dimension": 64
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 25,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cluster",
+        "--parameters",
+        "physical",
+        "--particles",
+        "4",
+        "--lmax",
+        "2",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cluster-physical-n8-l2-s8-t4",
+      "group": "gradient",
+      "family": "cluster/physical",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-cluster-physical-parameters-l2-t4",
+      "parameters": {
+        "family": "cluster",
+        "parameters": "physical",
+        "particles": 8,
+        "lmax": 2,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 49,
+        "dimension": 128
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 49,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cluster",
+        "--parameters",
+        "physical",
+        "--particles",
+        "8",
+        "--lmax",
+        "2",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cluster-radii-n4-l2-s8-t4",
+      "group": "gradient",
+      "family": "cluster/radii",
+      "kind": "gradient",
+      "tier": "small",
+      "series": "gradient-cluster-radii-parameters-l2-t4",
+      "parameters": {
+        "family": "cluster",
+        "parameters": "radii",
+        "particles": 4,
+        "lmax": 2,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 4,
+        "dimension": 64
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 4,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cluster",
+        "--parameters",
+        "radii",
+        "--particles",
+        "4",
+        "--lmax",
+        "2",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cluster-radii-n8-l2-s8-t4",
+      "group": "gradient",
+      "family": "cluster/radii",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-cluster-radii-parameters-l2-t4",
+      "parameters": {
+        "family": "cluster",
+        "parameters": "radii",
+        "particles": 8,
+        "lmax": 2,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 8,
+        "dimension": 128
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cluster",
+        "--parameters",
+        "radii",
+        "--particles",
+        "8",
+        "--lmax",
+        "2",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cluster-radii-n16-l2-s8-t4",
+      "group": "gradient",
+      "family": "cluster/radii",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-cluster-radii-parameters-l2-t4",
+      "parameters": {
+        "family": "cluster",
+        "parameters": "radii",
+        "particles": 16,
+        "lmax": 2,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 16,
+        "dimension": 256
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cluster",
+        "--parameters",
+        "radii",
+        "--particles",
+        "16",
+        "--lmax",
+        "2",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cluster-geometry-n4-l2-s8-t4",
+      "group": "gradient",
+      "family": "cluster/geometry",
+      "kind": "gradient",
+      "tier": "small",
+      "series": "gradient-cluster-geometry-parameters-l2-t4",
+      "parameters": {
+        "family": "cluster",
+        "parameters": "geometry",
+        "particles": 4,
+        "lmax": 2,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 16,
+        "dimension": 64
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cluster",
+        "--parameters",
+        "geometry",
+        "--particles",
+        "4",
+        "--lmax",
+        "2",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cluster-geometry-n8-l2-s8-t4",
+      "group": "gradient",
+      "family": "cluster/geometry",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-cluster-geometry-parameters-l2-t4",
+      "parameters": {
+        "family": "cluster",
+        "parameters": "geometry",
+        "particles": 8,
+        "lmax": 2,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 32,
+        "dimension": 128
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 32,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cluster",
+        "--parameters",
+        "geometry",
+        "--particles",
+        "8",
+        "--lmax",
+        "2",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-sphere-physical-n1-l3-s8-t4",
+      "group": "gradient",
+      "family": "sphere/physical",
+      "kind": "gradient",
+      "tier": "small",
+      "series": "gradient-sphere-physical-parameters-l3-t4",
+      "parameters": {
+        "family": "sphere",
+        "parameters": "physical",
+        "particles": 1,
+        "lmax": 3,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 8,
+        "dimension": 30
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "sphere",
+        "--parameters",
+        "physical",
+        "--particles",
+        "1",
+        "--lmax",
+        "3",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-sphere-physical-n2-l3-s8-t4",
+      "group": "gradient",
+      "family": "sphere/physical",
+      "kind": "gradient",
+      "tier": "small",
+      "series": "gradient-sphere-physical-parameters-l3-t4",
+      "parameters": {
+        "family": "sphere",
+        "parameters": "physical",
+        "particles": 2,
+        "lmax": 3,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 15,
+        "dimension": 30
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 15,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "sphere",
+        "--parameters",
+        "physical",
+        "--particles",
+        "2",
+        "--lmax",
+        "3",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-sphere-physical-n4-l3-s8-t4",
+      "group": "gradient",
+      "family": "sphere/physical",
+      "kind": "gradient",
+      "tier": "medium",
+      "series": "gradient-sphere-physical-parameters-l3-t4",
+      "parameters": {
+        "family": "sphere",
+        "parameters": "physical",
+        "particles": 4,
+        "lmax": 3,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 29,
+        "dimension": 30
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 29,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "sphere",
+        "--parameters",
+        "physical",
+        "--particles",
+        "4",
+        "--lmax",
+        "3",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-sphere-physical-n8-l3-s8-t4",
+      "group": "gradient",
+      "family": "sphere/physical",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-sphere-physical-parameters-l3-t4",
+      "parameters": {
+        "family": "sphere",
+        "parameters": "physical",
+        "particles": 8,
+        "lmax": 3,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 57,
+        "dimension": 30
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 57,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "sphere",
+        "--parameters",
+        "physical",
+        "--particles",
+        "8",
+        "--lmax",
+        "3",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-sphere-physical-n16-l3-s8-t4",
+      "group": "gradient",
+      "family": "sphere/physical",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-sphere-physical-parameters-l3-t4",
+      "parameters": {
+        "family": "sphere",
+        "parameters": "physical",
+        "particles": 16,
+        "lmax": 3,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 113,
+        "dimension": 30
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 113,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "sphere",
+        "--parameters",
+        "physical",
+        "--particles",
+        "16",
+        "--lmax",
+        "3",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-sphere-radii-n8-l1-s8-t4",
+      "group": "gradient",
+      "family": "sphere/radii",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-sphere-radii-order-n8-t4",
+      "parameters": {
+        "family": "sphere",
+        "parameters": "radii",
+        "particles": 8,
+        "lmax": 1,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 8,
+        "dimension": 6
+      },
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "sphere",
+        "--parameters",
+        "radii",
+        "--particles",
+        "8",
+        "--lmax",
+        "1",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-sphere-radii-n8-l3-s8-t4",
+      "group": "gradient",
+      "family": "sphere/radii",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-sphere-radii-order-n8-t4",
+      "parameters": {
+        "family": "sphere",
+        "parameters": "radii",
+        "particles": 8,
+        "lmax": 3,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 8,
+        "dimension": 30
+      },
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 3,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "sphere",
+        "--parameters",
+        "radii",
+        "--particles",
+        "8",
+        "--lmax",
+        "3",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-sphere-radii-n8-l6-s8-t4",
+      "group": "gradient",
+      "family": "sphere/radii",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-sphere-radii-order-n8-t4",
+      "parameters": {
+        "family": "sphere",
+        "parameters": "radii",
+        "particles": 8,
+        "lmax": 6,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 8,
+        "dimension": 96
+      },
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 6,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "sphere",
+        "--parameters",
+        "radii",
+        "--particles",
+        "8",
+        "--lmax",
+        "6",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-sphere-radii-n8-l10-s8-t4",
+      "group": "gradient",
+      "family": "sphere/radii",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-sphere-radii-order-n8-t4",
+      "parameters": {
+        "family": "sphere",
+        "parameters": "radii",
+        "particles": 8,
+        "lmax": 10,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 8,
+        "dimension": 240
+      },
+      "x": {
+        "name": "Multipole cutoff",
+        "value": 10,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "sphere",
+        "--parameters",
+        "radii",
+        "--particles",
+        "8",
+        "--lmax",
+        "10",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-layers-physical-n1-l2-s4-t4",
+      "group": "gradient",
+      "family": "layers/physical",
+      "kind": "gradient",
+      "tier": "small",
+      "series": "gradient-layers-physical-parameters-l2-t4",
+      "parameters": {
+        "family": "layers",
+        "parameters": "physical",
+        "particles": 1,
+        "lmax": 2,
+        "samples": 4,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 4,
+        "dimension": 8
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 4,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "layers",
+        "--parameters",
+        "physical",
+        "--particles",
+        "1",
+        "--lmax",
+        "2",
+        "--samples",
+        "4",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-layers-physical-n4-l2-s4-t4",
+      "group": "gradient",
+      "family": "layers/physical",
+      "kind": "gradient",
+      "tier": "small",
+      "series": "gradient-layers-physical-parameters-l2-t4",
+      "parameters": {
+        "family": "layers",
+        "parameters": "physical",
+        "particles": 4,
+        "lmax": 2,
+        "samples": 4,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 13,
+        "dimension": 8
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 13,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "layers",
+        "--parameters",
+        "physical",
+        "--particles",
+        "4",
+        "--lmax",
+        "2",
+        "--samples",
+        "4",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-layers-physical-n16-l2-s4-t4",
+      "group": "gradient",
+      "family": "layers/physical",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-layers-physical-parameters-l2-t4",
+      "parameters": {
+        "family": "layers",
+        "parameters": "physical",
+        "particles": 16,
+        "lmax": 2,
+        "samples": 4,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 49,
+        "dimension": 8
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 49,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "layers",
+        "--parameters",
+        "physical",
+        "--particles",
+        "16",
+        "--lmax",
+        "2",
+        "--samples",
+        "4",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-layers-thickness-n4-l2-s1-t4",
+      "group": "gradient",
+      "family": "layers/thickness",
+      "kind": "gradient",
+      "tier": "small",
+      "series": "gradient-layers-thickness-parameters-l2-t4",
+      "parameters": {
+        "family": "layers",
+        "parameters": "thickness",
+        "particles": 4,
+        "lmax": 2,
+        "samples": 1,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 4,
+        "dimension": 2
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 4,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "layers",
+        "--parameters",
+        "thickness",
+        "--particles",
+        "4",
+        "--lmax",
+        "2",
+        "--samples",
+        "1",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-layers-thickness-n16-l2-s1-t4",
+      "group": "gradient",
+      "family": "layers/thickness",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-layers-thickness-parameters-l2-t4",
+      "parameters": {
+        "family": "layers",
+        "parameters": "thickness",
+        "particles": 16,
+        "lmax": 2,
+        "samples": 1,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 16,
+        "dimension": 2
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "layers",
+        "--parameters",
+        "thickness",
+        "--particles",
+        "16",
+        "--lmax",
+        "2",
+        "--samples",
+        "1",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-layers-thickness-n32-l2-s1-t4",
+      "group": "gradient",
+      "family": "layers/thickness",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-layers-thickness-parameters-l2-t4",
+      "parameters": {
+        "family": "layers",
+        "parameters": "thickness",
+        "particles": 32,
+        "lmax": 2,
+        "samples": 1,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 32,
+        "dimension": 2
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 32,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "layers",
+        "--parameters",
+        "thickness",
+        "--particles",
+        "32",
+        "--lmax",
+        "2",
+        "--samples",
+        "1",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-field-coefficients-n1-l1-s1-t4",
+      "group": "gradient",
+      "family": "field/coefficients",
+      "kind": "gradient",
+      "tier": "small",
+      "series": "gradient-field-coefficients-samples-n1-l1-t4",
+      "parameters": {
+        "family": "field",
+        "parameters": "coefficients",
+        "particles": 1,
+        "lmax": 1,
+        "samples": 1,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 12,
+        "dimension": 6
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "field",
+        "--parameters",
+        "coefficients",
+        "--particles",
+        "1",
+        "--lmax",
+        "1",
+        "--samples",
+        "1",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-field-coefficients-n1-l1-s16-t4",
+      "group": "gradient",
+      "family": "field/coefficients",
+      "kind": "gradient",
+      "tier": "small",
+      "series": "gradient-field-coefficients-samples-n1-l1-t4",
+      "parameters": {
+        "family": "field",
+        "parameters": "coefficients",
+        "particles": 1,
+        "lmax": 1,
+        "samples": 16,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 12,
+        "dimension": 6
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "field",
+        "--parameters",
+        "coefficients",
+        "--particles",
+        "1",
+        "--lmax",
+        "1",
+        "--samples",
+        "16",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-field-coefficients-n1-l1-s256-t4",
+      "group": "gradient",
+      "family": "field/coefficients",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-field-coefficients-samples-n1-l1-t4",
+      "parameters": {
+        "family": "field",
+        "parameters": "coefficients",
+        "particles": 1,
+        "lmax": 1,
+        "samples": 256,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 12,
+        "dimension": 6
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 256,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "field",
+        "--parameters",
+        "coefficients",
+        "--particles",
+        "1",
+        "--lmax",
+        "1",
+        "--samples",
+        "256",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-field-coefficients-n2-l2-s16-t4",
+      "group": "gradient",
+      "family": "field/coefficients",
+      "kind": "gradient",
+      "tier": "medium",
+      "series": "gradient-field-coefficients-samples-n2-l2-t4",
+      "parameters": {
+        "family": "field",
+        "parameters": "coefficients",
+        "particles": 2,
+        "lmax": 2,
+        "samples": 16,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 64,
+        "dimension": 32
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "field",
+        "--parameters",
+        "coefficients",
+        "--particles",
+        "2",
+        "--lmax",
+        "2",
+        "--samples",
+        "16",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-field-coefficients-n2-l2-s64-t4",
+      "group": "gradient",
+      "family": "field/coefficients",
+      "kind": "gradient",
+      "tier": "medium",
+      "series": "gradient-field-coefficients-samples-n2-l2-t4",
+      "parameters": {
+        "family": "field",
+        "parameters": "coefficients",
+        "particles": 2,
+        "lmax": 2,
+        "samples": 64,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 64,
+        "dimension": 32
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 64,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "field",
+        "--parameters",
+        "coefficients",
+        "--particles",
+        "2",
+        "--lmax",
+        "2",
+        "--samples",
+        "64",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-field-coefficients-n2-l2-s256-t4",
+      "group": "gradient",
+      "family": "field/coefficients",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-field-coefficients-samples-n2-l2-t4",
+      "parameters": {
+        "family": "field",
+        "parameters": "coefficients",
+        "particles": 2,
+        "lmax": 2,
+        "samples": 256,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 64,
+        "dimension": 32
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 256,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "field",
+        "--parameters",
+        "coefficients",
+        "--particles",
+        "2",
+        "--lmax",
+        "2",
+        "--samples",
+        "256",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-field-geometry-n2-l2-s8-t4",
+      "group": "gradient",
+      "family": "field/geometry",
+      "kind": "gradient",
+      "tier": "medium",
+      "series": "gradient-field-geometry-samples-n2-l2-t4",
+      "parameters": {
+        "family": "field",
+        "parameters": "geometry",
+        "particles": 2,
+        "lmax": 2,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 30,
+        "dimension": 32
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "field",
+        "--parameters",
+        "geometry",
+        "--particles",
+        "2",
+        "--lmax",
+        "2",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-field-geometry-n2-l2-s32-t4",
+      "group": "gradient",
+      "family": "field/geometry",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-field-geometry-samples-n2-l2-t4",
+      "parameters": {
+        "family": "field",
+        "parameters": "geometry",
+        "particles": 2,
+        "lmax": 2,
+        "samples": 32,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 102,
+        "dimension": 32
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 32,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "field",
+        "--parameters",
+        "geometry",
+        "--particles",
+        "2",
+        "--lmax",
+        "2",
+        "--samples",
+        "32",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-field-physical-n1-l2-s8-t4",
+      "group": "gradient",
+      "family": "field/physical",
+      "kind": "gradient",
+      "tier": "medium",
+      "series": "gradient-field-physical-parameters-l2-t4",
+      "parameters": {
+        "family": "field",
+        "parameters": "physical",
+        "particles": 1,
+        "lmax": 2,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 60,
+        "dimension": 16
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 60,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "field",
+        "--parameters",
+        "physical",
+        "--particles",
+        "1",
+        "--lmax",
+        "2",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-field-physical-n2-l2-s32-t4",
+      "group": "gradient",
+      "family": "field/physical",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-field-physical-parameters-l2-t4",
+      "parameters": {
+        "family": "field",
+        "parameters": "physical",
+        "particles": 2,
+        "lmax": 2,
+        "samples": 32,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 167,
+        "dimension": 32
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 167,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "field",
+        "--parameters",
+        "physical",
+        "--particles",
+        "2",
+        "--lmax",
+        "2",
+        "--samples",
+        "32",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cylindrical-field-coefficients-n1-l1-s1-t4",
+      "group": "gradient",
+      "family": "cylindrical-field/coefficients",
+      "kind": "gradient",
+      "tier": "small",
+      "series": "gradient-cylindrical-field-coefficients-samples-n1-l1-t4",
+      "parameters": {
+        "family": "cylindrical-field",
+        "parameters": "coefficients",
+        "particles": 1,
+        "lmax": 1,
+        "samples": 1,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 12,
+        "dimension": 6
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 1,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cylindrical-field",
+        "--parameters",
+        "coefficients",
+        "--particles",
+        "1",
+        "--lmax",
+        "1",
+        "--samples",
+        "1",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cylindrical-field-coefficients-n1-l1-s16-t4",
+      "group": "gradient",
+      "family": "cylindrical-field/coefficients",
+      "kind": "gradient",
+      "tier": "small",
+      "series": "gradient-cylindrical-field-coefficients-samples-n1-l1-t4",
+      "parameters": {
+        "family": "cylindrical-field",
+        "parameters": "coefficients",
+        "particles": 1,
+        "lmax": 1,
+        "samples": 16,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 12,
+        "dimension": 6
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cylindrical-field",
+        "--parameters",
+        "coefficients",
+        "--particles",
+        "1",
+        "--lmax",
+        "1",
+        "--samples",
+        "16",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cylindrical-field-coefficients-n1-l1-s256-t4",
+      "group": "gradient",
+      "family": "cylindrical-field/coefficients",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-cylindrical-field-coefficients-samples-n1-l1-t4",
+      "parameters": {
+        "family": "cylindrical-field",
+        "parameters": "coefficients",
+        "particles": 1,
+        "lmax": 1,
+        "samples": 256,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 12,
+        "dimension": 6
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 256,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cylindrical-field",
+        "--parameters",
+        "coefficients",
+        "--particles",
+        "1",
+        "--lmax",
+        "1",
+        "--samples",
+        "256",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cylindrical-field-coefficients-n2-l2-s16-t4",
+      "group": "gradient",
+      "family": "cylindrical-field/coefficients",
+      "kind": "gradient",
+      "tier": "medium",
+      "series": "gradient-cylindrical-field-coefficients-samples-n2-l2-t4",
+      "parameters": {
+        "family": "cylindrical-field",
+        "parameters": "coefficients",
+        "particles": 2,
+        "lmax": 2,
+        "samples": 16,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 40,
+        "dimension": 20
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 16,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cylindrical-field",
+        "--parameters",
+        "coefficients",
+        "--particles",
+        "2",
+        "--lmax",
+        "2",
+        "--samples",
+        "16",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cylindrical-field-coefficients-n2-l2-s64-t4",
+      "group": "gradient",
+      "family": "cylindrical-field/coefficients",
+      "kind": "gradient",
+      "tier": "medium",
+      "series": "gradient-cylindrical-field-coefficients-samples-n2-l2-t4",
+      "parameters": {
+        "family": "cylindrical-field",
+        "parameters": "coefficients",
+        "particles": 2,
+        "lmax": 2,
+        "samples": 64,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 40,
+        "dimension": 20
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 64,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cylindrical-field",
+        "--parameters",
+        "coefficients",
+        "--particles",
+        "2",
+        "--lmax",
+        "2",
+        "--samples",
+        "64",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cylindrical-field-coefficients-n2-l2-s256-t4",
+      "group": "gradient",
+      "family": "cylindrical-field/coefficients",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-cylindrical-field-coefficients-samples-n2-l2-t4",
+      "parameters": {
+        "family": "cylindrical-field",
+        "parameters": "coefficients",
+        "particles": 2,
+        "lmax": 2,
+        "samples": 256,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 40,
+        "dimension": 20
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 256,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cylindrical-field",
+        "--parameters",
+        "coefficients",
+        "--particles",
+        "2",
+        "--lmax",
+        "2",
+        "--samples",
+        "256",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cylindrical-field-geometry-n2-l2-s8-t4",
+      "group": "gradient",
+      "family": "cylindrical-field/geometry",
+      "kind": "gradient",
+      "tier": "medium",
+      "series": "gradient-cylindrical-field-geometry-samples-n2-l2-t4",
+      "parameters": {
+        "family": "cylindrical-field",
+        "parameters": "geometry",
+        "particles": 2,
+        "lmax": 2,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 30,
+        "dimension": 20
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 8,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cylindrical-field",
+        "--parameters",
+        "geometry",
+        "--particles",
+        "2",
+        "--lmax",
+        "2",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cylindrical-field-geometry-n2-l2-s32-t4",
+      "group": "gradient",
+      "family": "cylindrical-field/geometry",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-cylindrical-field-geometry-samples-n2-l2-t4",
+      "parameters": {
+        "family": "cylindrical-field",
+        "parameters": "geometry",
+        "particles": 2,
+        "lmax": 2,
+        "samples": 32,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 102,
+        "dimension": 20
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 32,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cylindrical-field",
+        "--parameters",
+        "geometry",
+        "--particles",
+        "2",
+        "--lmax",
+        "2",
+        "--samples",
+        "32",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cylindrical-field-physical-n1-l2-s8-t4",
+      "group": "gradient",
+      "family": "cylindrical-field/physical",
+      "kind": "gradient",
+      "tier": "medium",
+      "series": "gradient-cylindrical-field-physical-parameters-l2-t4",
+      "parameters": {
+        "family": "cylindrical-field",
+        "parameters": "physical",
+        "particles": 1,
+        "lmax": 2,
+        "samples": 8,
+        "threads": 4,
+        "repeats": 7,
+        "parameter_count": 48,
+        "dimension": 10
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 48,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cylindrical-field",
+        "--parameters",
+        "physical",
+        "--particles",
+        "1",
+        "--lmax",
+        "2",
+        "--samples",
+        "8",
+        "--threads",
+        "4",
+        "--repeats",
+        "7",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cylindrical-field-physical-n2-l2-s32-t4",
+      "group": "gradient",
+      "family": "cylindrical-field/physical",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-cylindrical-field-physical-parameters-l2-t4",
+      "parameters": {
+        "family": "cylindrical-field",
+        "parameters": "physical",
+        "particles": 2,
+        "lmax": 2,
+        "samples": 32,
+        "threads": 4,
+        "repeats": 3,
+        "parameter_count": 143,
+        "dimension": 20
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 143,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cylindrical-field",
+        "--parameters",
+        "physical",
+        "--particles",
+        "2",
+        "--lmax",
+        "2",
+        "--samples",
+        "32",
+        "--threads",
+        "4",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cluster-physical-n8-l2-s8-t1",
+      "group": "gradient",
+      "family": "cluster/physical",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-cluster-physical-parameters-l2-t1",
+      "parameters": {
+        "family": "cluster",
+        "parameters": "physical",
+        "particles": 8,
+        "lmax": 2,
+        "samples": 8,
+        "threads": 1,
+        "repeats": 3,
+        "parameter_count": 49,
+        "dimension": 128
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 49,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cluster",
+        "--parameters",
+        "physical",
+        "--particles",
+        "8",
+        "--lmax",
+        "2",
+        "--samples",
+        "8",
+        "--threads",
+        "1",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-sphere-physical-n16-l3-s8-t1",
+      "group": "gradient",
+      "family": "sphere/physical",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-sphere-physical-parameters-l3-t1",
+      "parameters": {
+        "family": "sphere",
+        "parameters": "physical",
+        "particles": 16,
+        "lmax": 3,
+        "samples": 8,
+        "threads": 1,
+        "repeats": 3,
+        "parameter_count": 113,
+        "dimension": 30
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 113,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "sphere",
+        "--parameters",
+        "physical",
+        "--particles",
+        "16",
+        "--lmax",
+        "3",
+        "--samples",
+        "8",
+        "--threads",
+        "1",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-layers-physical-n16-l2-s4-t1",
+      "group": "gradient",
+      "family": "layers/physical",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-layers-physical-parameters-l2-t1",
+      "parameters": {
+        "family": "layers",
+        "parameters": "physical",
+        "particles": 16,
+        "lmax": 2,
+        "samples": 4,
+        "threads": 1,
+        "repeats": 3,
+        "parameter_count": 49,
+        "dimension": 8
+      },
+      "x": {
+        "name": "Independent real parameters",
+        "value": 49,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "layers",
+        "--parameters",
+        "physical",
+        "--particles",
+        "16",
+        "--lmax",
+        "2",
+        "--samples",
+        "4",
+        "--threads",
+        "1",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-field-coefficients-n2-l2-s256-t1",
+      "group": "gradient",
+      "family": "field/coefficients",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-field-coefficients-samples-n2-l2-t1",
+      "parameters": {
+        "family": "field",
+        "parameters": "coefficients",
+        "particles": 2,
+        "lmax": 2,
+        "samples": 256,
+        "threads": 1,
+        "repeats": 3,
+        "parameter_count": 64,
+        "dimension": 32
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 256,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "field",
+        "--parameters",
+        "coefficients",
+        "--particles",
+        "2",
+        "--lmax",
+        "2",
+        "--samples",
+        "256",
+        "--threads",
+        "1",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-field-geometry-n2-l2-s32-t1",
+      "group": "gradient",
+      "family": "field/geometry",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-field-geometry-samples-n2-l2-t1",
+      "parameters": {
+        "family": "field",
+        "parameters": "geometry",
+        "particles": 2,
+        "lmax": 2,
+        "samples": 32,
+        "threads": 1,
+        "repeats": 3,
+        "parameter_count": 102,
+        "dimension": 32
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 32,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "field",
+        "--parameters",
+        "geometry",
+        "--particles",
+        "2",
+        "--lmax",
+        "2",
+        "--samples",
+        "32",
+        "--threads",
+        "1",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cylindrical-field-coefficients-n2-l2-s256-t1",
+      "group": "gradient",
+      "family": "cylindrical-field/coefficients",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-cylindrical-field-coefficients-samples-n2-l2-t1",
+      "parameters": {
+        "family": "cylindrical-field",
+        "parameters": "coefficients",
+        "particles": 2,
+        "lmax": 2,
+        "samples": 256,
+        "threads": 1,
+        "repeats": 3,
+        "parameter_count": 40,
+        "dimension": 20
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 256,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cylindrical-field",
+        "--parameters",
+        "coefficients",
+        "--particles",
+        "2",
+        "--lmax",
+        "2",
+        "--samples",
+        "256",
+        "--threads",
+        "1",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "gradient-cylindrical-field-geometry-n2-l2-s32-t1",
+      "group": "gradient",
+      "family": "cylindrical-field/geometry",
+      "kind": "gradient",
+      "tier": "large",
+      "series": "gradient-cylindrical-field-geometry-samples-n2-l2-t1",
+      "parameters": {
+        "family": "cylindrical-field",
+        "parameters": "geometry",
+        "particles": 2,
+        "lmax": 2,
+        "samples": 32,
+        "threads": 1,
+        "repeats": 3,
+        "parameter_count": 102,
+        "dimension": 20
+      },
+      "x": {
+        "name": "Field samples",
+        "value": 32,
+        "unit": "count"
+      },
+      "command": [
+        "scripts/benchmark_gradients.py",
+        "--family",
+        "cylindrical-field",
+        "--parameters",
+        "geometry",
+        "--particles",
+        "2",
+        "--lmax",
+        "2",
+        "--samples",
+        "32",
+        "--threads",
+        "1",
+        "--repeats",
+        "3",
+        "--timeout",
+        "1200",
+        "--array-output",
+        "{output_dir}/results/{case_id}.npz"
+      ],
+      "timeout_seconds": 1200
+    }
+  ]
+}

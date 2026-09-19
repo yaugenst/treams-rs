@@ -111,13 +111,17 @@ impl LocalMatrix {
     }
     pub(crate) fn apply(&self, right: &DMatrix<Complex>, adjoint: bool) -> DMatrix<Complex> {
         let mut result = DMatrix::zeros(self.dimension(), right.ncols());
+        self.apply_into(&mut result, right, adjoint);
+        result
+    }
+    fn apply_into(&self, result: &mut DMatrix<Complex>, right: &DMatrix<Complex>, adjoint: bool) {
         let blocks = match self {
             Self::Dense(m) => std::slice::from_ref(m),
             Self::Blocks(blocks) => blocks.as_slice(),
         };
         let mut offset = 0;
         for block in blocks {
-            let target = view_mut(&mut result).subrows_mut(offset, block.nrows());
+            let target = view_mut(result).subrows_mut(offset, block.nrows());
             let rhs = view(right).subrows(offset, block.nrows());
             if adjoint {
                 matmul(
@@ -140,7 +144,6 @@ impl LocalMatrix {
             }
             offset += block.nrows();
         }
-        result
     }
 }
 
@@ -271,13 +274,24 @@ impl InteractionResidual {
                 "invalid interacting-matrix cotangent".into(),
             ));
         }
-        let mut adjoint = cotangent.clone();
-        self.lu.solve_adjoint_in_place(view_mut(&mut adjoint));
-        let mut response = product(&self.coupling, &self.value);
+        let Self {
+            local,
+            coupling: mut adjoint,
+            lu,
+            value,
+        } = self;
+        // C is dead after forming I + C X. Reuse its allocation for A^-H G,
+        // then release the factors before constructing the input cotangents.
+        let mut response = product(&adjoint, &value);
         response.set_diagonal(&(response.diagonal().add_scalar(Complex::new(1.0, 0.0))));
-        let local = local_gradient(&adjoint, &response);
-        drop(response);
-        let coupling = product_adjoint_right(&self.local.apply(&adjoint, true), &self.value);
-        Ok((local, coupling))
+        adjoint.copy_from(cotangent);
+        lu.solve_adjoint_in_place(view_mut(&mut adjoint));
+        drop(lu);
+        let local_gradient = local_gradient(&adjoint, &response);
+        // Both remaining square buffers can be reused: response becomes T^H Y,
+        // and the old adjoint becomes (T^H Y) X^H.
+        local.apply_into(&mut response, &adjoint, true);
+        product_adjoint_right_into(&mut adjoint, &response, &value);
+        Ok((local_gradient, adjoint))
     }
 }

@@ -44,7 +44,10 @@ pub fn equilibrate(operator: &mut DMatrix<Complex>) -> Result<Option<Equilibrati
             "require a finite nonempty square operator".into(),
         ));
     }
-    let relative_floor = f64::EPSILON.sqrt();
+    // LAPACK xLAQGE uses 0.1 for row/column scale ratios. Waiting until
+    // sqrt(epsilon) loses observable digits in moderately unbalanced multipole
+    // systems even though a change of coordinates makes them well conditioned.
+    let relative_floor = 0.1;
     let mut minimum = f64::INFINITY;
     let mut maximum = 0.0_f64;
     for &z in operator.iter() {
@@ -543,7 +546,7 @@ mod conditioning_tests {
     proptest! {
         #[test]
         fn solve_and_adjoint_are_invariant_to_equation_and_unknown_units(
-            exponent in 30_i32..400,
+            exponent in 1_i32..400,
             a in -0.5_f64..0.5,
             b in -0.5_f64..0.5,
         ) {
