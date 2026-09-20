@@ -15,7 +15,7 @@ import treams_rs as tr
     "field", ["efield", "hfield", "dfield", "bfield", "gfield", "ffield"]
 )
 @pytest.mark.filterwarnings("ignore:.*scipy.special.sph_harm.*:DeprecationWarning")
-def test_tmatrix_field_and_basis_selection(cylindrical, field):
+def test_tmatrix_scattered_fields_and_basis_selection(cylindrical, field):
     ours = (
         tr.CylindricalTMatrix.cylinder([0.2], 2, 1.3, 0.2, [3, 1])
         if cylindrical
@@ -41,7 +41,8 @@ def test_tmatrix_field_and_basis_selection(cylindrical, field):
         if field in ("gfield", "ffield")
         else getattr(reference, field)(*args)
     )
-    assert_allclose(getattr(ours, field)(*args), expected, atol=2e-13)
+    outgoing = ours.scatter(np.eye(len(ours.basis)))
+    assert_allclose(getattr(outgoing, field)(*args), expected, atol=2e-13)
     selected = ours.basis[::-2]
     assert_allclose(ours[selected].array, ours.array[::-2, ::-2])
     assert ours[selected].basis == selected

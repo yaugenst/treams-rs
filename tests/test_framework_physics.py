@@ -370,3 +370,25 @@ def test_high_level_jax_rejects_reduced_precision_without_detaching():
         operation(jax.numpy.asarray(0.2, dtype=jax.numpy.float32))
     with jax.enable_x64(False), pytest.raises(ValueError, match="jax_enable_x64"):
         tr.sphere_tmatrix(k0=1.2, lmax=1, radius=0.2, material=3.0)
+
+
+def test_framework_has_the_same_static_geometry_vocabulary(engine):
+    tr, evaluate = engine
+    for name in (
+        "PlaneWavePorts",
+        "PlaneWaveBasis",
+        "SphericalBasis",
+        "CylindricalBasis",
+        "Lattice",
+    ):
+        assert getattr(tr, name) is getattr(core, name)
+    ports = tr.PlaneWavePorts.default([0, 0])
+
+    def objective(thickness):
+        return (
+            tr.slab(k0=1.7, basis=ports, thickness=thickness, material=2.5)
+            .power([0, 1])
+            .reflection
+        )
+
+    check_direction(evaluate, objective, 0.2)

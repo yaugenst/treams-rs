@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -47,7 +48,6 @@ def test_catalog_resolves_and_documents_native_records():
     tmatrix = next(row for row in catalog["api"] if row["path"] == "treams_rs.TMatrix")
     assert {member["path"] for member in tmatrix["members"]} >= {
         "treams_rs.TMatrix.scatter",
-        "treams_rs.TMatrix.efield",
         "treams_rs.TMatrix.interaction",
         "treams_rs.TMatrix.sphere",
     }
@@ -86,7 +86,10 @@ print(json.dumps(catalog['backends']))
         [sys.executable, "-c", code], check=True, capture_output=True, text=True
     )
     result = subprocess.run(
-        [sys.executable, "-m", "treams_rs"], check=True, capture_output=True, text=True
+        [sys.executable, "-m", "treams_rs", "--format", "json"],
+        check=True,
+        capture_output=True,
+        text=True,
     )
     assert json.loads(result.stdout)["schema_version"] == 1
     result = subprocess.run(
@@ -138,3 +141,62 @@ def test_framework_physics_contracts_are_discovered_without_importing_backends()
 def test_generated_reference_is_source_current():
     root = Path(__file__).resolve().parents[1]
     assert (root / "docs/api.md").read_text() == _markdown(tr.support_catalog())
+
+
+def test_focused_installed_help_and_executable_quickstarts():
+    import re
+    import textwrap
+
+    for topic, expected in (
+        (None, "A complete particle calculation"),
+        ("sphere_tmatrix", "response.cross_sections"),
+        ("advect", "ad.value_and_grad"),
+        ("TMatrix.cross_sections", "Named scattering"),
+    ):
+        command = [sys.executable, "-m", "treams_rs"]
+        result = subprocess.run(
+            command + ([topic] if topic else []),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        assert expected in result.stdout
+        assert len(result.stdout) < 20000
+    result = subprocess.run(
+        [sys.executable, "-m", "treams_rs", "--search", "cross_sections"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "treams_rs.TMatrix.cross_sections" in result.stdout
+    for module in (tr, tr.advect):
+        namespace = {}
+        for block in re.findall(r"::\n\n((?:    [^\n]*\n|\n)+)", module.__doc__):
+            exec(textwrap.dedent(block), namespace)
+        assert np.isfinite(namespace["derivative" if module is tr else "gradient"])
+
+
+def test_complete_workflow_examples_and_search_alternatives():
+    import re
+    import textwrap
+
+    for value in (tr.Cluster, tr.solve_periodic, tr.slab, tr.advect.field):
+        for block in re.findall(r"::\n\n((?:    [^\n]*\n|\n)+)", inspect.getdoc(value)):
+            exec(textwrap.dedent(block), {})
+    result = subprocess.run(
+        [sys.executable, "-m", "treams_rs", "--search", r"solve_periodic\|slab"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "treams_rs.solve_periodic" in result.stdout
+    assert "treams_rs.slab" in result.stdout
+
+
+def test_renamed_basis_errors_point_to_the_public_name():
+    with pytest.raises(AttributeError, match=r"exported as treams_rs\.PlaneWavePorts"):
+        _ = tr.PlaneWaveBasisByComp
+    entries = {row["path"] for row in tr.support_catalog()["api"]}
+    for engine in ("advect", "jax", "torch"):
+        assert f"treams_rs.{engine}.PlaneWavePorts" in entries
+        assert f"treams_rs.{engine}.Lattice" in entries

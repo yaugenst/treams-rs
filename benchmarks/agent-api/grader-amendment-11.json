@@ -1,0 +1,6 @@
+{
+  "frozen_utc": "2026-09-20T06:53:37.254470+00:00",
+  "reason": "Add source-bound parent review of helicity setup to final reporting. The frozen power references are degenerate for real chirality and for lossless reciprocal reverse incidence; numerical equality alone cannot establish requested helicity labels or incident side. Inspect those source paths for all cohorts and preserve both automated outcome and source-reviewed outcome. A numerically passing solution that reverses requested helicity labels is partial. No frozen numbers or tolerances change. Supplemental complex-chirality cases independently distinguish these configurations.",
+  "audit_file": "source-audit.json",
+  "numerical_grader_unchanged": true
+}

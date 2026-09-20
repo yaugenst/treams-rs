@@ -3,8 +3,9 @@
 > Private T-matrix scattering package, version 0.1.0. Rust numerics and analytic first-order pullbacks; typed Python interface.
 
 Read these Markdown files at the same Git revision. No public documentation service is required.
-With only an installed wheel, run `python -m treams_rs --format markdown` or
-`python -m treams_rs` (JSON) for signatures, docstrings and backend contracts from that installation.
+With only an installed wheel, run `python -m treams_rs` for a runnable quickstart,
+`python -m treams_rs sphere_tmatrix` for one contract, or `--search TEXT` to find names.
+Use `--format json` or `--format markdown` for the complete source-derived catalog.
 `treams_rs.support_catalog()` never imports optional frameworks.
 
 ## Documentation

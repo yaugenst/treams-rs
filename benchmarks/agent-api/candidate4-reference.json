@@ -1,0 +1,1215 @@
+[
+  {
+    "id": "sphere_spectrum",
+    "category": "forward",
+    "transfer": false,
+    "source": "Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076.",
+    "inspiration": "https://github.com/tfp-photonics/treams/tree/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples",
+    "adaptation": "Small self-contained evaluation inputs; no claim to reproduce a published figure or optimized design.",
+    "prompt": "Only a treams-rs wheel with its declared [advect] dependencies is installed. Use python; do not install packages or access external sources. The installed package and your own workspace are available. Scratch files persist in your workspace and TMPDIR.\n\nCreate solution.py exposing run(config), returning a JSON-serializable dictionary. Its CLI must read one config dictionary from standard input and print the returned dictionary as JSON to standard output. Actually execute your solution for the example config, save results.json, and write a short REPORT.md explaining units, conventions and checks. Your function will also be called with different values of the same input keys; do not hard-code the example answers. Use treams-rs for numerical scattering, not a reimplementation. For sensitivity/optimization tasks use its analytic derivatives (via native pullbacks or the installed Advect adapter); finite differences may validate derivatives but must not supply the requested derivatives or optimization steps. Avoid private API imports. No plotting is required.\n\nCompute a homogeneous dielectric sphere spectrum, illuminated along +z with positive helicity. Use the specified multipole cutoff. Return scattering, extinction and absorption cross sections (areas), and scattering efficiency divided by pi*radius**2, as lists in wavelength order. Keys: scattering, extinction, absorption, efficiency. epsilon=[real,imag] is relative permittivity, not refractive index.\n\nInspiration: Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076. The physical problem is fully specified here; literature access is unnecessary. All lengths are in micrometers; permittivities, permeabilities and chirality are relative/dimensionless. Unless specified, mu=1, chirality=0 and the exterior is vacuum.\n\nExample config:\n{\n  \"radius\": 0.1,\n  \"epsilon\": [\n    12,\n    0.05\n  ],\n  \"wavelengths\": [\n    0.45,\n    0.55,\n    0.65,\n    0.75\n  ],\n  \"lmax\": 4\n}",
+    "inputs": [
+      {
+        "radius": 0.1,
+        "epsilon": [
+          12,
+          0.05
+        ],
+        "wavelengths": [
+          0.45,
+          0.55,
+          0.65,
+          0.75
+        ],
+        "lmax": 4
+      },
+      {
+        "radius": 0.085,
+        "epsilon": [
+          9,
+          0.12
+        ],
+        "wavelengths": [
+          0.48,
+          0.62,
+          0.79
+        ],
+        "lmax": 4
+      }
+    ],
+    "expected": [
+      {
+        "scattering": [
+          0.027145763371895712,
+          0.1624754733812811,
+          0.13980537232012982,
+          0.17933685336031882
+        ],
+        "extinction": [
+          0.029162152948096695,
+          0.16511567166679228,
+          0.14188985450576008,
+          0.18667667760169443
+        ],
+        "absorption": [
+          0.002016389576200983,
+          0.0026401982855111805,
+          0.0020844821856302598,
+          0.007339824241375609
+        ],
+        "efficiency": [
+          0.8640764849280237,
+          5.171754943965309,
+          4.4501432151103,
+          5.708469338168224
+        ]
+      },
+      {
+        "scattering": [
+          0.11263423590653582,
+          0.03764487481236577,
+          0.009618038252318443
+        ],
+        "extinction": [
+          0.11692020297152489,
+          0.04036169115812723,
+          0.010214397747273604
+        ],
+        "absorption": [
+          0.004285967064989071,
+          0.002716816345761465,
+          0.0005963594949551614
+        ],
+        "efficiency": [
+          4.9622963061325445,
+          1.6585101476715838,
+          0.4237393302985229
+        ]
+      }
+    ]
+  },
+  {
+    "id": "coated_sphere",
+    "category": "forward",
+    "transfer": false,
+    "source": "Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076.",
+    "inspiration": "https://github.com/tfp-photonics/treams/tree/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples",
+    "adaptation": "Small self-contained evaluation inputs; no claim to reproduce a published figure or optimized design.",
+    "prompt": "Only a treams-rs wheel with its declared [advect] dependencies is installed. Use python; do not install packages or access external sources. The installed package and your own workspace are available. Scratch files persist in your workspace and TMPDIR.\n\nCreate solution.py exposing run(config), returning a JSON-serializable dictionary. Its CLI must read one config dictionary from standard input and print the returned dictionary as JSON to standard output. Actually execute your solution for the example config, save results.json, and write a short REPORT.md explaining units, conventions and checks. Your function will also be called with different values of the same input keys; do not hard-code the example answers. Use treams-rs for numerical scattering, not a reimplementation. For sensitivity/optimization tasks use its analytic derivatives (via native pullbacks or the installed Advect adapter); finite differences may validate derivatives but must not supply the requested derivatives or optimization steps. Avoid private API imports. No plotting is required.\n\nCompute a concentric core-shell sphere spectrum in a dielectric exterior. radii are increasing outer boundaries, and epsilon_layers supplies one [real,imag] permittivity per layer, inside-out. epsilon_medium describes the exterior. Return rotationally averaged scattering, extinction and absorption cross sections as lists in wavelength order. Do not append the exterior as an extra finite layer.\n\nInspiration: Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076. The physical problem is fully specified here; literature access is unnecessary. All lengths are in micrometers; permittivities, permeabilities and chirality are relative/dimensionless. Unless specified, mu=1, chirality=0 and the exterior is vacuum.\n\nExample config:\n{\n  \"radii\": [\n    0.07,\n    0.12\n  ],\n  \"epsilon_layers\": [\n    [\n      2.25,\n      0.03\n    ],\n    [\n      4,\n      0.06\n    ]\n  ],\n  \"epsilon_medium\": 1.7689,\n  \"wavelengths\": [\n    0.58,\n    0.7,\n    0.82\n  ],\n  \"lmax\": 4\n}",
+    "inputs": [
+      {
+        "radii": [
+          0.07,
+          0.12
+        ],
+        "epsilon_layers": [
+          [
+            2.25,
+            0.03
+          ],
+          [
+            4,
+            0.06
+          ]
+        ],
+        "epsilon_medium": 1.7689,
+        "wavelengths": [
+          0.58,
+          0.7,
+          0.82
+        ],
+        "lmax": 4
+      },
+      {
+        "radii": [
+          0.05,
+          0.105
+        ],
+        "epsilon_layers": [
+          [
+            3,
+            0.01
+          ],
+          [
+            5,
+            0.08
+          ]
+        ],
+        "epsilon_medium": 1.44,
+        "wavelengths": [
+          0.58,
+          0.7,
+          0.82
+        ],
+        "lmax": 4
+      }
+    ],
+    "expected": [
+      {
+        "scattering": [
+          0.03431592329021971,
+          0.018912460310459143,
+          0.012135679701039693
+        ],
+        "extinction": [
+          0.03752383432335133,
+          0.021170157379808374,
+          0.013901066200918097
+        ],
+        "absorption": [
+          0.0032079110331316232,
+          0.0022576970693492307,
+          0.0017653864998784033
+        ]
+      },
+      {
+        "scattering": [
+          0.05513143124475778,
+          0.0274939823210628,
+          0.015811682467051495
+        ],
+        "extinction": [
+          0.058473972610700094,
+          0.029304463606363833,
+          0.017089129242883104
+        ],
+        "absorption": [
+          0.0033425413659423156,
+          0.001810481285301032,
+          0.0012774467758316088
+        ]
+      }
+    ]
+  },
+  {
+    "id": "cylinder_width",
+    "category": "forward",
+    "transfer": false,
+    "source": "Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076.",
+    "inspiration": "https://github.com/tfp-photonics/treams/tree/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples",
+    "adaptation": "Small self-contained evaluation inputs; no claim to reproduce a published figure or optimized design.",
+    "prompt": "Only a treams-rs wheel with its declared [advect] dependencies is installed. Use python; do not install packages or access external sources. The installed package and your own workspace are available. Scratch files persist in your workspace and TMPDIR.\n\nCreate solution.py exposing run(config), returning a JSON-serializable dictionary. Its CLI must read one config dictionary from standard input and print the returned dictionary as JSON to standard output. Actually execute your solution for the example config, save results.json, and write a short REPORT.md explaining units, conventions and checks. Your function will also be called with different values of the same input keys; do not hard-code the example answers. Use treams-rs for numerical scattering, not a reimplementation. For sensitivity/optimization tasks use its analytic derivatives (via native pullbacks or the installed Advect adapter); finite differences may validate derivatives but must not supply the requested derivatives or optimization steps. Avoid private API imports. No plotting is required.\n\nCompute scattering by a homogeneous infinite cylinder parallel to z, with kz=0 and positive-helicity illumination along +x. mmax is the azimuthal cutoff. Return scattering, extinction and absorption cross widths (length units), as wavelength-ordered lists. epsilon is [real,imag]. Do not use sphere area normalization.\n\nInspiration: Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076. The physical problem is fully specified here; literature access is unnecessary. All lengths are in micrometers; permittivities, permeabilities and chirality are relative/dimensionless. Unless specified, mu=1, chirality=0 and the exterior is vacuum.\n\nExample config:\n{\n  \"radius\": 0.08,\n  \"epsilon\": [\n    5,\n    0.1\n  ],\n  \"wavelengths\": [\n    0.5,\n    0.65,\n    0.8\n  ],\n  \"mmax\": 4\n}",
+    "inputs": [
+      {
+        "radius": 0.08,
+        "epsilon": [
+          5,
+          0.1
+        ],
+        "wavelengths": [
+          0.5,
+          0.65,
+          0.8
+        ],
+        "mmax": 4
+      },
+      {
+        "radius": 0.1,
+        "epsilon": [
+          3.5,
+          0.03
+        ],
+        "wavelengths": [
+          0.58,
+          0.73
+        ],
+        "mmax": 4
+      }
+    ],
+    "expected": [
+      {
+        "scattering": [
+          0.5330353956472299,
+          0.2585917233709187,
+          0.2407417378700199
+        ],
+        "extinction": [
+          0.5611064991202259,
+          0.2695397226971211,
+          0.24886445442336302
+        ],
+        "absorption": [
+          0.028071103472996017,
+          0.01094799932620244,
+          0.008122716553343123
+        ]
+      },
+      {
+        "scattering": [
+          0.3719985940075371,
+          0.2393035748023499
+        ],
+        "extinction": [
+          0.38137069077049657,
+          0.24438897061631
+        ],
+        "absorption": [
+          0.00937209676295947,
+          0.005085395813960086
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dimer_field",
+    "category": "forward",
+    "transfer": false,
+    "source": "Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076.",
+    "inspiration": "https://github.com/tfp-photonics/treams/tree/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples",
+    "adaptation": "Small self-contained evaluation inputs; no claim to reproduce a published figure or optimized design.",
+    "prompt": "Only a treams-rs wheel with its declared [advect] dependencies is installed. Use python; do not install packages or access external sources. The installed package and your own workspace are available. Scratch files persist in your workspace and TMPDIR.\n\nCreate solution.py exposing run(config), returning a JSON-serializable dictionary. Its CLI must read one config dictionary from standard input and print the returned dictionary as JSON to standard output. Actually execute your solution for the example config, save results.json, and write a short REPORT.md explaining units, conventions and checks. Your function will also be called with different values of the same input keys; do not hard-code the example answers. Use treams-rs for numerical scattering, not a reimplementation. For sensitivity/optimization tasks use its analytic derivatives (via native pullbacks or the installed Advect adapter); finite differences may validate derivatives but must not supply the requested derivatives or optimization steps. Avoid private API imports. No plotting is required.\n\nTwo spheres sit at x=-separation/2 and +separation/2, y=z=0, with the radii and epsilon values in that order. Include all multiple scattering at the fixed lmax. Illuminate along +z with positive helicity and evaluate the TOTAL electric field at points (incident plus scattered, using the package incident normalization). Return total_field_real and total_field_imag as point-by-3 lists, plus scalar scattering, extinction and absorption cross sections. epsilon entries are [real,imag].\n\nInspiration: Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076. The physical problem is fully specified here; literature access is unnecessary. All lengths are in micrometers; permittivities, permeabilities and chirality are relative/dimensionless. Unless specified, mu=1, chirality=0 and the exterior is vacuum.\n\nExample config:\n{\n  \"radii\": [\n    0.08,\n    0.11\n  ],\n  \"epsilon\": [\n    [\n      4,\n      0.02\n    ],\n    [\n      6,\n      0.08\n    ]\n  ],\n  \"separation\": 0.32,\n  \"wavelength\": 0.72,\n  \"lmax\": 3,\n  \"points\": [\n    [\n      0,\n      0,\n      0.3\n    ],\n    [\n      0.35,\n      0.2,\n      0.1\n    ]\n  ]\n}",
+    "inputs": [
+      {
+        "radii": [
+          0.08,
+          0.11
+        ],
+        "epsilon": [
+          [
+            4,
+            0.02
+          ],
+          [
+            6,
+            0.08
+          ]
+        ],
+        "separation": 0.32,
+        "wavelength": 0.72,
+        "lmax": 3,
+        "points": [
+          [
+            0,
+            0,
+            0.3
+          ],
+          [
+            0.35,
+            0.2,
+            0.1
+          ]
+        ]
+      },
+      {
+        "radii": [
+          0.08,
+          0.11
+        ],
+        "epsilon": [
+          [
+            4,
+            0.02
+          ],
+          [
+            6,
+            0.08
+          ]
+        ],
+        "separation": 0.38,
+        "wavelength": 0.8,
+        "lmax": 3,
+        "points": [
+          [
+            0.1,
+            0,
+            0.4
+          ],
+          [
+            -0.4,
+            0.1,
+            0.2
+          ]
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "total_field_real": [
+          [
+            0.8091898080600006,
+            0.2351329976443919,
+            0.031104001603887987
+          ],
+          [
+            -0.22645481859691516,
+            0.5280397620827059,
+            -0.021238640829799687
+          ]
+        ],
+        "total_field_imag": [
+          [
+            -0.269135943582988,
+            0.8203350596975477,
+            0.07266902851155962
+          ],
+          [
+            -0.6050292641632271,
+            -0.4373650548530759,
+            -0.12124692142006799
+          ]
+        ],
+        "scattering": 0.056484771453383376,
+        "extinction": 0.059102374155315565,
+        "absorption": 0.0026176027019321896
+      },
+      {
+        "total_field_real": [
+          [
+            0.8136525614328508,
+            -0.10073797108509845,
+            0.010580672659029807
+          ],
+          [
+            0.017438794576193524,
+            0.666354183508229,
+            -0.0008533637555436457
+          ]
+        ],
+        "total_field_imag": [
+          [
+            0.09317779607959516,
+            0.8163320989325945,
+            0.016392639671105307
+          ],
+          [
+            -0.699142666989148,
+            -0.005950055583262331,
+            0.029791657809992156
+          ]
+        ],
+        "scattering": 0.034341762131831974,
+        "extinction": 0.03599755350689147,
+        "absorption": 0.001655791375059494
+      }
+    ]
+  },
+  {
+    "id": "chiral_slab",
+    "category": "forward",
+    "transfer": false,
+    "source": "Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076.",
+    "inspiration": "https://github.com/tfp-photonics/treams/tree/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples",
+    "adaptation": "Small self-contained evaluation inputs; no claim to reproduce a published figure or optimized design.",
+    "prompt": "Only a treams-rs wheel with its declared [advect] dependencies is installed. Use python; do not install packages or access external sources. The installed package and your own workspace are available. Scratch files persist in your workspace and TMPDIR.\n\nCreate solution.py exposing run(config), returning a JSON-serializable dictionary. Its CLI must read one config dictionary from standard input and print the returned dictionary as JSON to standard output. Actually execute your solution for the example config, save results.json, and write a short REPORT.md explaining units, conventions and checks. Your function will also be called with different values of the same input keys; do not hard-code the example answers. Use treams-rs for numerical scattering, not a reimplementation. For sensitivity/optimization tasks use its analytic derivatives (via native pullbacks or the installed Advect adapter); finite differences may validate derivatives but must not supply the requested derivatives or optimization steps. Avoid private API imports. No plotting is required.\n\nA uniform reciprocal chiral slab is normal to z, bounded by vacuum on both sides. For +z normal incidence, compute transmitted, reflected and absorbed power fractions for positive and negative helicity at each wavelength. epsilon is [real,imag]; kappa is the package material chirality. Return transmission, reflection and absorption as lists with shape (wavelengths, 2), ordered positive then negative helicity. These are power fractions, not complex amplitude coefficients.\n\nInspiration: Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076. The physical problem is fully specified here; literature access is unnecessary. All lengths are in micrometers; permittivities, permeabilities and chirality are relative/dimensionless. Unless specified, mu=1, chirality=0 and the exterior is vacuum.\n\nExample config:\n{\n  \"thickness\": 0.16,\n  \"epsilon\": [\n    2.25,\n    0.06\n  ],\n  \"kappa\": 0.08,\n  \"wavelengths\": [\n    0.55,\n    0.65,\n    0.8\n  ]\n}",
+    "inputs": [
+      {
+        "thickness": 0.16,
+        "epsilon": [
+          2.25,
+          0.06
+        ],
+        "kappa": 0.08,
+        "wavelengths": [
+          0.55,
+          0.65,
+          0.8
+        ]
+      },
+      {
+        "thickness": 0.21,
+        "epsilon": [
+          3,
+          0.08
+        ],
+        "kappa": -0.05,
+        "wavelengths": [
+          0.55,
+          0.65,
+          0.8
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "transmission": [
+          [
+            0.9054155085149014,
+            0.9054155085149008
+          ],
+          [
+            0.8645715468648709,
+            0.8645715468648703
+          ],
+          [
+            0.8267355006222832,
+            0.8267355006222832
+          ]
+        ],
+        "reflection": [
+          [
+            0.024048636323483422,
+            0.02404863632348342
+          ],
+          [
+            0.08075558211361174,
+            0.0807555821136117
+          ],
+          [
+            0.13015408098134204,
+            0.13015408098134193
+          ]
+        ],
+        "absorption": [
+          [
+            0.0705358551616152,
+            0.07053585516161576
+          ],
+          [
+            0.05467287102151734,
+            0.05467287102151805
+          ],
+          [
+            0.04311041839637478,
+            0.04311041839637489
+          ]
+        ]
+      },
+      {
+        "transmission": [
+          [
+            0.7232927869869298,
+            0.72329278698693
+          ],
+          [
+            0.8595150140138126,
+            0.8595150140138124
+          ],
+          [
+            0.8980188337541102,
+            0.8980188337541101
+          ]
+        ],
+        "reflection": [
+          [
+            0.174727369976538,
+            0.1747273699765379
+          ],
+          [
+            0.039056226620688,
+            0.039056226620688014
+          ],
+          [
+            0.024063171641509652,
+            0.024063171641509652
+          ]
+        ],
+        "absorption": [
+          [
+            0.10197984303653221,
+            0.1019798430365321
+          ],
+          [
+            0.10142875936549942,
+            0.10142875936549962
+          ],
+          [
+            0.07791799460438018,
+            0.07791799460438029
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "id": "array_on_slab",
+    "category": "forward",
+    "transfer": false,
+    "source": "Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076.",
+    "inspiration": "https://github.com/tfp-photonics/treams/tree/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples",
+    "adaptation": "Small self-contained evaluation inputs; no claim to reproduce a published figure or optimized design.",
+    "prompt": "Only a treams-rs wheel with its declared [advect] dependencies is installed. Use python; do not install packages or access external sources. The installed package and your own workspace are available. Scratch files persist in your workspace and TMPDIR.\n\nCreate solution.py exposing run(config), returning a JSON-serializable dictionary. Its CLI must read one config dictionary from standard input and print the returned dictionary as JSON to standard output. Actually execute your solution for the example config, save results.json, and write a short REPORT.md explaining units, conventions and checks. Your function will also be called with different values of the same input keys; do not hard-code the example answers. Use treams-rs for numerical scattering, not a reimplementation. For sensitivity/optimization tasks use its analytic derivatives (via native pullbacks or the installed Advect adapter); finite differences may validate derivatives but must not supply the requested derivatives or optimization steps. Avoid private API imports. No plotting is required.\n\nA square periodic array of identical spheres is above a uniform dielectric slab, with a vacuum propagation gap between the slab top and sphere-center plane. Order the network along +z as slab, vacuum gap, sphere array. All exterior media are vacuum. Illuminate from the negative-z side along +z with positive helicity. The wavelengths exceed the period, so retain only the zeroth propagating diffraction order (both helicities), with Bloch vector [0,0]. Solve the full periodic interaction at the fixed lmax. Return wavelength-ordered transmission, reflection and absorption power fractions. sphere_epsilon and slab_epsilon are real permittivities.\n\nInspiration: Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076. The physical problem is fully specified here; literature access is unnecessary. All lengths are in micrometers; permittivities, permeabilities and chirality are relative/dimensionless. Unless specified, mu=1, chirality=0 and the exterior is vacuum.\n\nExample config:\n{\n  \"radius\": 0.06,\n  \"sphere_epsilon\": 9.0,\n  \"period\": 0.4,\n  \"gap\": 0.12,\n  \"slab_thickness\": 0.09,\n  \"slab_epsilon\": 2.25,\n  \"wavelengths\": [\n    0.65,\n    0.74,\n    0.83\n  ],\n  \"lmax\": 2\n}",
+    "inputs": [
+      {
+        "radius": 0.06,
+        "sphere_epsilon": 9.0,
+        "period": 0.4,
+        "gap": 0.12,
+        "slab_thickness": 0.09,
+        "slab_epsilon": 2.25,
+        "wavelengths": [
+          0.65,
+          0.74,
+          0.83
+        ],
+        "lmax": 2
+      },
+      {
+        "radius": 0.055,
+        "sphere_epsilon": 9.0,
+        "period": 0.43,
+        "gap": 0.14,
+        "slab_thickness": 0.09,
+        "slab_epsilon": 2.25,
+        "wavelengths": [
+          0.68,
+          0.78
+        ],
+        "lmax": 2
+      }
+    ],
+    "expected": [
+      {
+        "transmission": [
+          0.8873286362852488,
+          0.9020687269885587,
+          0.9119142686008936
+        ],
+        "reflection": [
+          0.11267136371475131,
+          0.09793127301144075,
+          0.0880857313991062
+        ],
+        "absorption": [
+          -1.3877787807814457e-16,
+          5.828670879282072e-16,
+          1.5265566588595902e-16
+        ]
+      },
+      {
+        "transmission": [
+          0.8802878110324013,
+          0.8979693942896507
+        ],
+        "reflection": [
+          0.11971218896759754,
+          0.10203060571034923
+        ],
+        "absorption": [
+          1.1796119636642288e-15,
+          4.163336342344337e-17
+        ]
+      }
+    ]
+  },
+  {
+    "id": "sphere_sensitivity",
+    "category": "sensitivity",
+    "transfer": false,
+    "source": "Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076.",
+    "inspiration": "https://github.com/tfp-photonics/treams/tree/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples",
+    "adaptation": "Small self-contained evaluation inputs; no claim to reproduce a published figure or optimized design.",
+    "prompt": "Only a treams-rs wheel with its declared [advect] dependencies is installed. Use python; do not install packages or access external sources. The installed package and your own workspace are available. Scratch files persist in your workspace and TMPDIR.\n\nCreate solution.py exposing run(config), returning a JSON-serializable dictionary. Its CLI must read one config dictionary from standard input and print the returned dictionary as JSON to standard output. Actually execute your solution for the example config, save results.json, and write a short REPORT.md explaining units, conventions and checks. Your function will also be called with different values of the same input keys; do not hard-code the example answers. Use treams-rs for numerical scattering, not a reimplementation. For sensitivity/optimization tasks use its analytic derivatives (via native pullbacks or the installed Advect adapter); finite differences may validate derivatives but must not supply the requested derivatives or optimization steps. Avoid private API imports. No plotting is required.\n\nFor a lossy sphere under positive-helicity +z incidence, calculate scattering efficiency Q=scattering_cross_section/(pi*radius**2). Return scalar value and gradient=[dQ/dradius,dQ/depsilon_real], holding epsilon_imag, wavelength and lmax fixed. Differentiate the normalization as well as the cross section, using analytic derivatives. Verify the gradient separately if useful.\n\nInspiration: Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076. The physical problem is fully specified here; literature access is unnecessary. All lengths are in micrometers; permittivities, permeabilities and chirality are relative/dimensionless. Unless specified, mu=1, chirality=0 and the exterior is vacuum.\n\nExample config:\n{\n  \"radius\": 0.1,\n  \"epsilon_real\": 4.0,\n  \"epsilon_imag\": 0.06,\n  \"wavelength\": 0.72,\n  \"lmax\": 3\n}",
+    "inputs": [
+      {
+        "radius": 0.1,
+        "epsilon_real": 4.0,
+        "epsilon_imag": 0.06,
+        "wavelength": 0.72,
+        "lmax": 3
+      },
+      {
+        "radius": 0.09,
+        "epsilon_real": 5.0,
+        "epsilon_imag": 0.06,
+        "wavelength": 0.79,
+        "lmax": 3
+      }
+    ],
+    "expected": [
+      {
+        "value": 0.46337644643427506,
+        "gradient": [
+          18.65367030480606,
+          0.19972554645600324
+        ]
+      },
+      {
+        "value": 0.2845745934945831,
+        "gradient": [
+          13.607880772631626,
+          0.07699937362807645
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dimer_sensitivity",
+    "category": "sensitivity",
+    "transfer": false,
+    "source": "Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076.",
+    "inspiration": "https://github.com/tfp-photonics/treams/tree/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples",
+    "adaptation": "Small self-contained evaluation inputs; no claim to reproduce a published figure or optimized design.",
+    "prompt": "Only a treams-rs wheel with its declared [advect] dependencies is installed. Use python; do not install packages or access external sources. The installed package and your own workspace are available. Scratch files persist in your workspace and TMPDIR.\n\nCreate solution.py exposing run(config), returning a JSON-serializable dictionary. Its CLI must read one config dictionary from standard input and print the returned dictionary as JSON to standard output. Actually execute your solution for the example config, save results.json, and write a short REPORT.md explaining units, conventions and checks. Your function will also be called with different values of the same input keys; do not hard-code the example answers. Use treams-rs for numerical scattering, not a reimplementation. For sensitivity/optimization tasks use its analytic derivatives (via native pullbacks or the installed Advect adapter); finite differences may validate derivatives but must not supply the requested derivatives or optimization steps. Avoid private API imports. No plotting is required.\n\nTwo identical spheres at x=-separation/2 and +separation/2 are illuminated along +z with positive helicity. Include multiple scattering. At the fixed point, define value=sum(abs(E_total)**2), including the incident field. Return scalar value and scalar gradient=dvalue/dseparation. The sphere positions both move as separation changes; point, wavelength, radii, material and lmax stay fixed. epsilon is [real,imag]. Use analytic derivatives.\n\nInspiration: Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076. The physical problem is fully specified here; literature access is unnecessary. All lengths are in micrometers; permittivities, permeabilities and chirality are relative/dimensionless. Unless specified, mu=1, chirality=0 and the exterior is vacuum.\n\nExample config:\n{\n  \"radius\": 0.08,\n  \"epsilon\": [\n    4.0,\n    0.04\n  ],\n  \"separation\": 0.3,\n  \"wavelength\": 0.72,\n  \"lmax\": 2,\n  \"point\": [\n    0.05,\n    0.02,\n    0.28\n  ]\n}",
+    "inputs": [
+      {
+        "radius": 0.08,
+        "epsilon": [
+          4.0,
+          0.04
+        ],
+        "separation": 0.3,
+        "wavelength": 0.72,
+        "lmax": 2,
+        "point": [
+          0.05,
+          0.02,
+          0.28
+        ]
+      },
+      {
+        "radius": 0.08,
+        "epsilon": [
+          4.0,
+          0.04
+        ],
+        "separation": 0.36,
+        "wavelength": 0.8,
+        "lmax": 2,
+        "point": [
+          0.03,
+          0.06,
+          0.3
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "value": 1.1855506354526992,
+        "gradient": -0.40372542061252303
+      },
+      {
+        "value": 1.1230955658629564,
+        "gradient": -0.2747288276676667
+      }
+    ]
+  },
+  {
+    "id": "antireflection_design",
+    "category": "optimization",
+    "transfer": false,
+    "source": "Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076.",
+    "inspiration": "https://github.com/tfp-photonics/treams/tree/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples",
+    "adaptation": "Small self-contained evaluation inputs; no claim to reproduce a published figure or optimized design.",
+    "prompt": "Only a treams-rs wheel with its declared [advect] dependencies is installed. Use python; do not install packages or access external sources. The installed package and your own workspace are available. Scratch files persist in your workspace and TMPDIR.\n\nCreate solution.py exposing run(config), returning a JSON-serializable dictionary. Its CLI must read one config dictionary from standard input and print the returned dictionary as JSON to standard output. Actually execute your solution for the example config, save results.json, and write a short REPORT.md explaining units, conventions and checks. Your function will also be called with different values of the same input keys; do not hard-code the example answers. Use treams-rs for numerical scattering, not a reimplementation. For sensitivity/optimization tasks use its analytic derivatives (via native pullbacks or the installed Advect adapter); finite differences may validate derivatives but must not supply the requested derivatives or optimization steps. Avoid private API imports. No plotting is required.\n\nUse analytic thickness gradients to minimize reflected power of one lossless coating at normal incidence from vacuum (+z) into a substrate. The coating epsilon and positive-side substrate epsilon are supplied; no vacuum gap after the coating. Start at initial_thickness and stay within bounds. Return thickness, reflection, initial_reflection, gradient (final dR/dthickness), and loss_history. Achieve reflection <1e-7. Do not substitute a closed-form quarter-wave answer for running gradient-based optimization.\n\nInspiration: Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076. The physical problem is fully specified here; literature access is unnecessary. All lengths are in micrometers; permittivities, permeabilities and chirality are relative/dimensionless. Unless specified, mu=1, chirality=0 and the exterior is vacuum.\n\nExample config:\n{\n  \"wavelength\": 0.7,\n  \"epsilon\": 2.25,\n  \"substrate_epsilon\": 5.0625,\n  \"initial_thickness\": 0.05,\n  \"bounds\": [\n    0.025,\n    0.21\n  ]\n}",
+    "inputs": [
+      {
+        "wavelength": 0.7,
+        "epsilon": 2.25,
+        "substrate_epsilon": 5.0625,
+        "initial_thickness": 0.05,
+        "bounds": [
+          0.025,
+          0.21
+        ]
+      },
+      {
+        "wavelength": 0.81,
+        "epsilon": 2.25,
+        "substrate_epsilon": 5.0625,
+        "initial_thickness": 0.19,
+        "bounds": [
+          0.03,
+          0.24
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "optimum": 0.11666666666666665,
+        "initial_reflection": 0.09594027275235124
+      },
+      {
+        "optimum": 0.135,
+        "initial_reflection": 0.05830011409576683
+      }
+    ]
+  },
+  {
+    "id": "radius_inverse_design",
+    "category": "optimization",
+    "transfer": false,
+    "source": "Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076.",
+    "inspiration": "https://github.com/tfp-photonics/treams/tree/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples",
+    "adaptation": "Small self-contained evaluation inputs; no claim to reproduce a published figure or optimized design.",
+    "prompt": "Only a treams-rs wheel with its declared [advect] dependencies is installed. Use python; do not install packages or access external sources. The installed package and your own workspace are available. Scratch files persist in your workspace and TMPDIR.\n\nCreate solution.py exposing run(config), returning a JSON-serializable dictionary. Its CLI must read one config dictionary from standard input and print the returned dictionary as JSON to standard output. Actually execute your solution for the example config, save results.json, and write a short REPORT.md explaining units, conventions and checks. Your function will also be called with different values of the same input keys; do not hard-code the example answers. Use treams-rs for numerical scattering, not a reimplementation. For sensitivity/optimization tasks use its analytic derivatives (via native pullbacks or the installed Advect adapter); finite differences may validate derivatives but must not supply the requested derivatives or optimization steps. Avoid private API imports. No plotting is required.\n\nInfer a homogeneous lossless sphere radius from target scattering efficiencies at the given wavelengths. epsilon is fixed, vacuum exterior, and lmax fixed. Minimize mean(((Q-target)/target)**2) with analytic radius gradients; start at initial_radius and stay in bounds. Return radius, loss, initial_loss, gradient (final derivative of loss), fitted_efficiencies, and loss_history. Achieve loss <1e-7. The targets are measurements supplied with the config, not a reference radius.\n\nInspiration: Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076. The physical problem is fully specified here; literature access is unnecessary. All lengths are in micrometers; permittivities, permeabilities and chirality are relative/dimensionless. Unless specified, mu=1, chirality=0 and the exterior is vacuum.\n\nExample config:\n{\n  \"epsilon\": 4.0,\n  \"lmax\": 3,\n  \"wavelengths\": [\n    0.58,\n    0.69,\n    0.81\n  ],\n  \"initial_radius\": 0.075,\n  \"bounds\": [\n    0.06,\n    0.14\n  ],\n  \"target_efficiencies\": [\n    1.5627981729618399,\n    0.801921545910126,\n    0.4253871223811858\n  ]\n}",
+    "inputs": [
+      {
+        "epsilon": 4.0,
+        "lmax": 3,
+        "wavelengths": [
+          0.58,
+          0.69,
+          0.81
+        ],
+        "initial_radius": 0.075,
+        "bounds": [
+          0.06,
+          0.14
+        ],
+        "target_efficiencies": [
+          1.5627981729618399,
+          0.801921545910126,
+          0.4253871223811858
+        ]
+      },
+      {
+        "epsilon": 4.0,
+        "lmax": 3,
+        "wavelengths": [
+          0.61,
+          0.74,
+          0.85
+        ],
+        "initial_radius": 0.13,
+        "bounds": [
+          0.06,
+          0.14
+        ],
+        "target_efficiencies": [
+          1.0716270214081052,
+          0.5079772324063079,
+          0.287936256975912
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "initial_loss": 0.6215290002286552
+      },
+      {
+        "initial_loss": 1.994002556369321
+      }
+    ]
+  },
+  {
+    "id": "reverse_stack_transfer",
+    "category": "forward",
+    "transfer": true,
+    "source": "Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076.",
+    "inspiration": "https://github.com/tfp-photonics/treams/tree/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples",
+    "adaptation": "Small self-contained evaluation inputs; no claim to reproduce a published figure or optimized design.",
+    "prompt": "Only a treams-rs wheel with its declared [advect] dependencies is installed. Use python; do not install packages or access external sources. The installed package and your own workspace are available. Scratch files persist in your workspace and TMPDIR.\n\nCreate solution.py exposing run(config), returning a JSON-serializable dictionary. Its CLI must read one config dictionary from standard input and print the returned dictionary as JSON to standard output. Actually execute your solution for the example config, save results.json, and write a short REPORT.md explaining units, conventions and checks. Your function will also be called with different values of the same input keys; do not hard-code the example answers. Use treams-rs for numerical scattering, not a reimplementation. For sensitivity/optimization tasks use its analytic derivatives (via native pullbacks or the installed Advect adapter); finite differences may validate derivatives but must not supply the requested derivatives or optimization steps. Avoid private API imports. No plotting is required.\n\nA two-layer lossless stack is ordered negative-z to positive-z with the supplied thicknesses and permittivities. Both exterior media are vacuum. Compute wavelength-ordered transmission and reflection for incidence from POSITIVE z toward negative z, with positive helicity relative to propagation. Return transmission and reflection as lists. Preserve layer order when reversing incidence.\n\nInspiration: Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076. The physical problem is fully specified here; literature access is unnecessary. All lengths are in micrometers; permittivities, permeabilities and chirality are relative/dimensionless. Unless specified, mu=1, chirality=0 and the exterior is vacuum.\n\nExample config:\n{\n  \"thicknesses\": [\n    0.08,\n    0.13\n  ],\n  \"epsilon_layers\": [\n    2.25,\n    4.0\n  ],\n  \"wavelengths\": [\n    0.6,\n    0.73,\n    0.87\n  ]\n}",
+    "inputs": [
+      {
+        "thicknesses": [
+          0.08,
+          0.13
+        ],
+        "epsilon_layers": [
+          2.25,
+          4.0
+        ],
+        "wavelengths": [
+          0.6,
+          0.73,
+          0.87
+        ]
+      },
+      {
+        "thicknesses": [
+          0.11,
+          0.07
+        ],
+        "epsilon_layers": [
+          3.24,
+          1.69
+        ],
+        "wavelengths": [
+          0.6,
+          0.73,
+          0.87
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "transmission": [
+          0.9221534072379811,
+          0.9567455026902143,
+          0.8478035413246561
+        ],
+        "reflection": [
+          0.07784659276201748,
+          0.04325449730978588,
+          0.15219645867534315
+        ]
+      },
+      {
+        "transmission": [
+          0.9084629856378391,
+          0.8173485786300454,
+          0.7687958553027862
+        ],
+        "reflection": [
+          0.09153701436216119,
+          0.18265142136995577,
+          0.23120414469721484
+        ]
+      }
+    ]
+  },
+  {
+    "id": "coated_sphere_sensitivity_transfer",
+    "category": "sensitivity",
+    "transfer": true,
+    "source": "Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076.",
+    "inspiration": "https://github.com/tfp-photonics/treams/tree/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples",
+    "adaptation": "Small self-contained evaluation inputs; no claim to reproduce a published figure or optimized design.",
+    "prompt": "Only a treams-rs wheel with its declared [advect] dependencies is installed. Use python; do not install packages or access external sources. The installed package and your own workspace are available. Scratch files persist in your workspace and TMPDIR.\n\nCreate solution.py exposing run(config), returning a JSON-serializable dictionary. Its CLI must read one config dictionary from standard input and print the returned dictionary as JSON to standard output. Actually execute your solution for the example config, save results.json, and write a short REPORT.md explaining units, conventions and checks. Your function will also be called with different values of the same input keys; do not hard-code the example answers. Use treams-rs for numerical scattering, not a reimplementation. For sensitivity/optimization tasks use its analytic derivatives (via native pullbacks or the installed Advect adapter); finite differences may validate derivatives but must not supply the requested derivatives or optimization steps. Avoid private API imports. No plotting is required.\n\nFor a concentric core-shell sphere in vacuum, compute absorption cross section and its analytic derivative with respect to outer_radius. core_radius remains fixed; the shell permittivity and all other quantities stay fixed. Positive-helicity +z incidence. Return scalar value and gradient. Materials are supplied as [real,imag].\n\nInspiration: Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076. The physical problem is fully specified here; literature access is unnecessary. All lengths are in micrometers; permittivities, permeabilities and chirality are relative/dimensionless. Unless specified, mu=1, chirality=0 and the exterior is vacuum.\n\nExample config:\n{\n  \"core_radius\": 0.06,\n  \"outer_radius\": 0.11,\n  \"core_epsilon\": [\n    4.0,\n    0.05\n  ],\n  \"shell_epsilon\": [\n    2.25,\n    0.1\n  ],\n  \"wavelength\": 0.71,\n  \"lmax\": 3\n}",
+    "inputs": [
+      {
+        "core_radius": 0.06,
+        "outer_radius": 0.11,
+        "core_epsilon": [
+          4.0,
+          0.05
+        ],
+        "shell_epsilon": [
+          2.25,
+          0.1
+        ],
+        "wavelength": 0.71,
+        "lmax": 3
+      },
+      {
+        "core_radius": 0.06,
+        "outer_radius": 0.12,
+        "core_epsilon": [
+          4.0,
+          0.05
+        ],
+        "shell_epsilon": [
+          2.25,
+          0.1
+        ],
+        "wavelength": 0.8,
+        "lmax": 3
+      }
+    ],
+    "expected": [
+      {
+        "value": 0.003194947452395555,
+        "gradient": 0.11017737774350768
+      },
+      {
+        "value": 0.003702645260360281,
+        "gradient": 0.11404946291781108
+      }
+    ]
+  },
+  {
+    "id": "wavelength_design_transfer",
+    "category": "optimization",
+    "transfer": true,
+    "source": "Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076.",
+    "inspiration": "https://github.com/tfp-photonics/treams/tree/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples",
+    "adaptation": "Small self-contained evaluation inputs; no claim to reproduce a published figure or optimized design.",
+    "prompt": "Only a treams-rs wheel with its declared [advect] dependencies is installed. Use python; do not install packages or access external sources. The installed package and your own workspace are available. Scratch files persist in your workspace and TMPDIR.\n\nCreate solution.py exposing run(config), returning a JSON-serializable dictionary. Its CLI must read one config dictionary from standard input and print the returned dictionary as JSON to standard output. Actually execute your solution for the example config, save results.json, and write a short REPORT.md explaining units, conventions and checks. Your function will also be called with different values of the same input keys; do not hard-code the example answers. Use treams-rs for numerical scattering, not a reimplementation. For sensitivity/optimization tasks use its analytic derivatives (via native pullbacks or the installed Advect adapter); finite differences may validate derivatives but must not supply the requested derivatives or optimization steps. Avoid private API imports. No plotting is required.\n\nA fixed lossless single-layer coating lies between vacuum on negative z and a dielectric substrate on positive z. Minimize reflected power by varying wavelength using analytic derivatives, starting from initial_wavelength within bounds. Normal +z positive-helicity incidence. Return wavelength, reflection, initial_reflection, gradient (final dR/dwavelength) and loss_history. Achieve reflection <1e-7. Geometry stays fixed; remember k0 depends on wavelength. Run gradient-based optimization rather than a closed-form quarter-wave answer.\n\nInspiration: Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076. The physical problem is fully specified here; literature access is unnecessary. All lengths are in micrometers; permittivities, permeabilities and chirality are relative/dimensionless. Unless specified, mu=1, chirality=0 and the exterior is vacuum.\n\nExample config:\n{\n  \"thickness\": 0.12,\n  \"epsilon\": 2.25,\n  \"substrate_epsilon\": 5.0625,\n  \"initial_wavelength\": 0.61,\n  \"bounds\": [\n    0.55,\n    0.88\n  ]\n}",
+    "inputs": [
+      {
+        "thickness": 0.12,
+        "epsilon": 2.25,
+        "substrate_epsilon": 5.0625,
+        "initial_wavelength": 0.61,
+        "bounds": [
+          0.55,
+          0.88
+        ]
+      },
+      {
+        "thickness": 0.135,
+        "epsilon": 2.25,
+        "substrate_epsilon": 5.0625,
+        "initial_wavelength": 0.92,
+        "bounds": [
+          0.62,
+          0.98
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "optimum": 0.72,
+        "initial_reflection": 0.013379705141609008
+      },
+      {
+        "optimum": 0.81,
+        "initial_reflection": 0.006015809467147074
+      }
+    ]
+  },
+  {
+    "id": "chiral_stack_sides",
+    "category": "forward",
+    "transfer": true,
+    "source": "Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076.",
+    "inspiration": "https://github.com/tfp-photonics/treams/tree/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples",
+    "adaptation": "Small self-contained evaluation inputs; no claim to reproduce a published figure or optimized design.",
+    "prompt": "Only a treams-rs wheel with its declared [advect] dependencies is installed. Use python; do not install packages or access external sources. The installed package and your own workspace are available. Scratch files persist in your workspace and TMPDIR.\n\nCreate solution.py exposing run(config), returning a JSON-serializable dictionary. Its CLI must read one config dictionary from standard input and print the returned dictionary as JSON to standard output. Actually execute your solution for the example config, save results.json, and write a short REPORT.md explaining units, conventions and checks. Your function will also be called with different values of the same input keys; do not hard-code the example answers. Use treams-rs for numerical scattering, not a reimplementation. For sensitivity/optimization tasks use its analytic derivatives (via native pullbacks or the installed Advect adapter); finite differences may validate derivatives but must not supply the requested derivatives or optimization steps. Avoid private API imports. No plotting is required.\n\nA lossy reciprocal chiral two-layer stack is ordered negative-z to positive-z. For both normal-incidence directions and both helicities, compute transmitted, reflected and absorbed power fractions. Preserve layer order when changing incidence. epsilon_layers and kappa_layers contain [real,imag] values; mu=1 throughout. The exterior permittivities are negative_epsilon and positive_epsilon. Return exactly the keys transmission, reflection, absorption, each with shape (wavelengths, 2 sides, 2 helicities): sides negative then positive, helicities positive then negative relative to propagation. Preserve the supplied wavelength order. The complex chirality and asymmetric losses distinguish the cases.\n\nInspiration: Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076. The physical problem is fully specified here; literature access is unnecessary. All lengths are in micrometers; permittivities, permeabilities and chirality are relative/dimensionless. Unless specified, mu=1, chirality=0 and the exterior is vacuum.\n\nExample config:\n{\n  \"thicknesses\": [\n    0.08,\n    0.13\n  ],\n  \"epsilon_layers\": [\n    [\n      2.3,\n      0.1\n    ],\n    [\n      3.8,\n      0.2\n    ]\n  ],\n  \"kappa_layers\": [\n    [\n      0.12,\n      0.015\n    ],\n    [\n      -0.08,\n      0.005\n    ]\n  ],\n  \"negative_epsilon\": 1.0,\n  \"positive_epsilon\": 2.25,\n  \"wavelengths\": [\n    0.73,\n    0.61,\n    0.86\n  ]\n}",
+    "inputs": [
+      {
+        "thicknesses": [
+          0.08,
+          0.13
+        ],
+        "epsilon_layers": [
+          [
+            2.3,
+            0.1
+          ],
+          [
+            3.8,
+            0.2
+          ]
+        ],
+        "kappa_layers": [
+          [
+            0.12,
+            0.015
+          ],
+          [
+            -0.08,
+            0.005
+          ]
+        ],
+        "negative_epsilon": 1.0,
+        "positive_epsilon": 2.25,
+        "wavelengths": [
+          0.73,
+          0.61,
+          0.86
+        ]
+      },
+      {
+        "thicknesses": [
+          0.11,
+          0.09
+        ],
+        "epsilon_layers": [
+          [
+            2.3,
+            0.1
+          ],
+          [
+            3.8,
+            0.2
+          ]
+        ],
+        "kappa_layers": [
+          [
+            -0.05,
+            0.01
+          ],
+          [
+            0.09,
+            -0.008
+          ]
+        ],
+        "negative_epsilon": 1.44,
+        "positive_epsilon": 1.0,
+        "wavelengths": [
+          0.69,
+          0.83
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "transmission": [
+          [
+            [
+              0.8159905662748513,
+              0.8696539356041386
+            ],
+            [
+              0.8159905662748524,
+              0.8696539356041388
+            ]
+          ],
+          [
+            [
+              0.7804976399587962,
+              0.8423149247303496
+            ],
+            [
+              0.7804976399587965,
+              0.8423149247303494
+            ]
+          ],
+          [
+            [
+              0.8077724210816831,
+              0.8526464468201896
+            ],
+            [
+              0.8077724210816829,
+              0.852646446820189
+            ]
+          ]
+        ],
+        "reflection": [
+          [
+            [
+              0.009437257412857105,
+              0.009437257412857098
+            ],
+            [
+              0.007305576434352393,
+              0.007305576434352391
+            ]
+          ],
+          [
+            [
+              0.012199664416354585,
+              0.012199664416354587
+            ],
+            [
+              0.007625963696785961,
+              0.007625963696785944
+            ]
+          ],
+          [
+            [
+              0.05192564073893428,
+              0.05192564073893428
+            ],
+            [
+              0.05050798001380096,
+              0.050507980013800934
+            ]
+          ]
+        ],
+        "absorption": [
+          [
+            [
+              0.17457217631229155,
+              0.12090880698300428
+            ],
+            [
+              0.17670385729079516,
+              0.12304048796150877
+            ]
+          ],
+          [
+            [
+              0.20730269562484924,
+              0.14548541085329578
+            ],
+            [
+              0.21187639634441754,
+              0.15005911157286464
+            ]
+          ],
+          [
+            [
+              0.1403019381793826,
+              0.09542791244087609
+            ],
+            [
+              0.14171959890451613,
+              0.09684557316601008
+            ]
+          ]
+        ]
+      },
+      {
+        "transmission": [
+          [
+            [
+              0.7580037149595236,
+              0.7685683560895253
+            ],
+            [
+              0.7580037149595237,
+              0.7685683560895246
+            ]
+          ],
+          [
+            [
+              0.7587644688854129,
+              0.7675456586490025
+            ],
+            [
+              0.7587644688854132,
+              0.7675456586490024
+            ]
+          ]
+        ],
+        "reflection": [
+          [
+            [
+              0.07658772383132735,
+              0.07658772383132748
+            ],
+            [
+              0.1122911447601565,
+              0.11229114476015654
+            ]
+          ],
+          [
+            [
+              0.1178122877787684,
+              0.11781228777876847
+            ],
+            [
+              0.13627303972481028,
+              0.13627303972481028
+            ]
+          ]
+        ],
+        "absorption": [
+          [
+            [
+              0.1654085612091491,
+              0.15484392007914718
+            ],
+            [
+              0.12970514028031982,
+              0.1191404991503189
+            ]
+          ],
+          [
+            [
+              0.12342324333581867,
+              0.11464205357222905
+            ],
+            [
+              0.10496249138977656,
+              0.09618130162618735
+            ]
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "id": "circular_absorption_sensitivity",
+    "category": "sensitivity",
+    "transfer": true,
+    "source": "Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076.",
+    "inspiration": "https://github.com/tfp-photonics/treams/tree/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples",
+    "adaptation": "Small self-contained evaluation inputs; no claim to reproduce a published figure or optimized design.",
+    "prompt": "Only a treams-rs wheel with its declared [advect] dependencies is installed. Use python; do not install packages or access external sources. The installed package and your own workspace are available. Scratch files persist in your workspace and TMPDIR.\n\nCreate solution.py exposing run(config), returning a JSON-serializable dictionary. Its CLI must read one config dictionary from standard input and print the returned dictionary as JSON to standard output. Actually execute your solution for the example config, save results.json, and write a short REPORT.md explaining units, conventions and checks. Your function will also be called with different values of the same input keys; do not hard-code the example answers. Use treams-rs for numerical scattering, not a reimplementation. For sensitivity/optimization tasks use its analytic derivatives (via native pullbacks or the installed Advect adapter); finite differences may validate derivatives but must not supply the requested derivatives or optimization steps. Avoid private API imports. No plotting is required.\n\nA homogeneous lossy reciprocal chiral slab in vacuum has epsilon=[real,imag] and kappa=kappa_real+1j*kappa_imag, with mu=1. For normal incidence along +z, calculate the absorbed-power difference A_positive_helicity minus A_negative_helicity. Return exactly two scalar keys: value (that difference) and gradient (its analytic derivative with respect to kappa_imag). Hold all other inputs fixed, including kappa_real. The two helicities are defined relative to propagation. Use native analytic derivatives; a finite difference is only an optional validation.\n\nInspiration: Beutel, Fernandez-Corbaton and Rockstuhl, treams, Computer Physics Communications 297, 109076 (2024), doi:10.1016/j.cpc.2023.109076. The physical problem is fully specified here; literature access is unnecessary. All lengths are in micrometers; permittivities, permeabilities and chirality are relative/dimensionless. Unless specified, mu=1, chirality=0 and the exterior is vacuum.\n\nExample config:\n{\n  \"thickness\": 0.17,\n  \"epsilon\": [\n    2.3,\n    0.1\n  ],\n  \"kappa_real\": 0.12,\n  \"kappa_imag\": 0.015,\n  \"wavelength\": 0.73\n}",
+    "inputs": [
+      {
+        "thickness": 0.17,
+        "epsilon": [
+          2.3,
+          0.1
+        ],
+        "kappa_real": 0.12,
+        "kappa_imag": 0.015,
+        "wavelength": 0.73
+      },
+      {
+        "thickness": 0.13,
+        "epsilon": [
+          3.8,
+          0.2
+        ],
+        "kappa_real": -0.08,
+        "kappa_imag": -0.005,
+        "wavelength": 0.81
+      }
+    ],
+    "expected": [
+      {
+        "value": 0.07211299307244115,
+        "gradient": 4.810620319465701
+      },
+      {
+        "value": -0.012924517429702909,
+        "gradient": 2.5849911046751015
+      }
+    ]
+  }
+]

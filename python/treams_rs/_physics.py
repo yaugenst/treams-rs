@@ -39,7 +39,16 @@ def sphere_tmatrix(
     medium: MaterialLike = 1,
     polarization: str = "helicity",
 ) -> TMatrix:
-    """Homogeneous sphere response. Radius and 1/k0 use the same length unit."""
+    """Homogeneous sphere response, ready for illumination or cluster assembly.
+
+    ``k0=2*pi/vacuum_wavelength``; radius and 1/k0 share a length unit.
+    ``material`` is a permittivity or Material(epsilon, mu, kappa); ``medium``
+    is the exterior, vacuum by default. lmax is the fixed multipole cutoff.
+    Use ``response.cross_sections(plane_wave(...))`` for named scattering,
+    extinction and absorption areas, ``response.average_cross_sections`` for
+    rotational/polarization averages, or ``response.scatter(wave).efield(xyz)``
+    for scattered fields. Use treams_rs.advect/jax/torch for traced parameters.
+    """
     return TMatrix.sphere(lmax, k0, radius, [material, medium], polarization)
 
 
@@ -111,6 +120,25 @@ class Cluster:
     Construction only assembles particles. Solve creates a full coupled response;
     scatter computes requested illuminations. No numerical matrix multiplication
     is provided on an unsolved cluster.
+
+    Complete finite-scattering workflow::
+
+        import treams_rs as tr
+
+        particles = [tr.sphere_tmatrix(k0=2., lmax=2, radius=r, material=3.)
+                     for r in (0.12, 0.16)]
+        system = tr.Cluster(particles, positions=[[0, 0, 0], [0.6, 0, 0]])
+        incident = tr.plane_wave([0, 0, 1], "positive_helicity", k0=2.)
+        response = system.solve()
+        cross = response.cross_sections(incident)
+        points = [[0.2, 0.1, 0.8]]
+        total_e = incident.efield(points) + response.scatter(incident).efield(points)
+        assert total_e.shape == (1, 3)
+        assert abs(cross.absorption) < 1e-12  # lossless materials
+
+    For fields alone, use ``system.scatter(incident).efield(points)`` and add
+    the incident field. For geometry/material gradients choose an explicit
+    framework namespace and construct changing quantities inside the objective.
     """
 
     def __init__(
@@ -371,6 +399,27 @@ def solve_periodic(
     Cluster). Do not pass an already coupled cluster response. Lattice lengths,
     basis positions and inverse k0 use the same units. Eta controls the Ewald
     splitting; zero asks the native kernel to choose it.
+
+    A subwavelength square array, optionally combined with planar layers::
+
+        import treams_rs as tr
+
+        k0 = 2.0
+        cell = tr.Lattice.square(0.9)
+        particle = tr.sphere_tmatrix(k0=k0, lmax=2, radius=0.12, material=3.)
+        response = tr.solve_periodic(particle, lattice=cell, kpar=[0, 0])
+        ports = tr.PlaneWavePorts.default([0, 0])  # zeroth order, both helicities
+        array = response.to_smatrix(ports)
+        layer = tr.slab(k0=k0, basis=ports, thickness=0.2, material=2.)
+        gap = tr.propagation(k0=k0, basis=ports, distance=0.3)
+        network = tr.stack([layer, gap, array])  # negative to positive z
+        wave = tr.plane_wave([0, 0, 1], "positive_helicity", k0=k0)
+        power = network.power(wave, side="negative")
+        assert abs(power.transmission + power.reflection - 1) < 1e-10
+
+    Include every open diffraction order for shorter wavelengths or larger
+    periods; ``PlaneWavePorts.diffr_orders`` constructs those mode channels.
+    The propagation distance ends at the array's particle-center plane.
     """
     if not isinstance(unit_cell, Cluster) and not unit_cell.isglobal:
         raise ValueError(
@@ -417,7 +466,34 @@ def slab(
     positive_medium: MaterialLike = 1,
     polarization: str = "helicity",
 ) -> SMatrices:
-    """One homogeneous layer between explicitly named exterior media."""
+    """One homogeneous layer between explicitly named exterior media.
+
+    ``basis=PlaneWavePorts.default([0, 0])`` supplies normal-incidence channels.
+    k0 is 2*pi/vacuum_wavelength; thickness uses the matching length unit.
+    material is the layer permittivity or Material(epsilon, mu, kappa).
+    Exterior media default to vacuum. Pass a physical plane wave to
+    ``network.power(incident)`` for named transmission, reflection and absorption
+    fractions; its direction selects the illuminated side. For derivatives use
+    ``treams_rs.advect.slab`` inside ``advect.value_and_grad``.
+
+    A lossy chiral layer distinguishes the two helicities::
+
+        import numpy as np
+        import treams_rs as tr
+
+        k0 = 2*np.pi/0.8
+        ports = tr.PlaneWavePorts.default([0, 0])
+        network = tr.slab(basis=ports, k0=k0, thickness=0.17,
+                          material=tr.Material(2.3+0.08j, 1, 0.2+0.01j))
+        incident = tr.plane_wave([0, 0, 1], "positive_helicity", k0=k0)
+        power = network.power(incident)
+        # Explicit amplitudes use the actual channel labels, not an assumed order.
+        positive = (ports.pol == 1).astype(complex)
+        np.testing.assert_allclose(power.transmission,
+                                   network.power(positive).transmission)
+        negative = tr.plane_wave([0, 0, 1], "negative_helicity", k0=k0)
+        assert abs(power.transmission - network.power(negative).transmission) > 0.01
+    """
     return multilayer_slab(
         basis=basis,
         k0=k0,

@@ -1,0 +1,9 @@
+{
+  "frozen_utc": "2026-09-20T06:48:19Z",
+  "reason": "Source audit found reversed port-order guidance. Earlier real-chirality/lossless power cases cannot distinguish helicity or incident side reliably; these supplementary cases explicitly do. Preserve every original task, reference and result.",
+  "design": "Two new cases x four models x two fresh attempts after corrected wheel freezes. Target >=90% full passes. Existing transfer tasks become confirmation tasks after the documentation correction; do not call those unseen again.",
+  "hashes": {
+    "polarization-reference.json": "a4fa82cce6749ce0725ae157b27ccedaeddfc39560e6a1c11836f9253090728c",
+    "polarization-prompts.json": "4015466bea85d7e10e2b7a06de9ae830c1caaeec3d04161667e147e177fcb389"
+  }
+}

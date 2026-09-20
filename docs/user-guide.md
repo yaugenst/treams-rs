@@ -39,6 +39,12 @@ The corresponding cylinder constructors take axial `kz` and azimuthal cutoff
 `mmax`; use `cross_widths` for a result in length units, rather than sphere
 `cross_sections` in area units.
 
+Fields belong to waves. A T-matrix response does not expose bound field
+operators: use `response.scatter(incident).efield(points)` for scattered fields,
+and add `incident.efield(points)` for total fields. Applying a response-level
+field operator to already scattered coefficients would apply the response twice.
+Use `operators.efield(...)` when an explicit numerical field matrix is needed.
+
 `Wave` retains coefficients, basis, frequency, medium, polarization convention,
 and regular/outgoing or plane direction. It supports E/H/D/B/G/F evaluation,
 `in_basis`, and `with_polarization`. Coefficient batches have shape

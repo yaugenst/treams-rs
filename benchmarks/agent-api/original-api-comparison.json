@@ -1,0 +1,15 @@
+{
+  "frozen_utc": "2026-09-20T05:52:50.892110+00:00",
+  "comparison": "Original API at api-redesign parent 2843a70 versus final redesigned wheel. Existing baseline-85986f1 incremental comparison remains separately reported, including its original success criterion.",
+  "original_api_commit": "2843a70c8dae1a204d31eb672441900d30d160bb",
+  "qualified_main_commit": "0137eca72fdcf684564f3a4b528937870b7ee189",
+  "numerical_and_python_source_between_original_and_main": "git diff --exit-code 2843a70 0137eca -- crates Cargo.lock Cargo.toml pyproject.toml python",
+  "cases_and_grading": "Identical already frozen prompts, hidden references, numerical tolerances and amended name normalization; no task changes. Only wheel source revision differs.",
+  "design": "10 tasks x 4 models x 3 fresh attempts. Final candidate repeated cohort reused as the candidate side for both original-API and incremental comparisons. Transfer cohort unchanged.",
+  "success": "At least 90% correct completed tasks, at least half as many nonpasses as original API, and report aggregate wall-time and effective-token changes. If original already >=90%, require >=40% aggregate wall-time reduction with no pass-rate loss.",
+  "nonclaim": "Gains in this comparison measure the whole redesign, including the existing 85986f1 implementation. They must not be attributed solely to subsequent help/namespace changes.",
+  "hashes": {
+    "main-prompts.json": "49cf9eab7b2e716d79c2e8ff2fea348b0bf26cddcad2061ab6f55714c9ad1917",
+    "transfer-prompts.json": "70261c497bff8a3f347bc23590920b273a92ab81e45c642f07ba14efbdb7adf8"
+  }
+}

@@ -9,8 +9,11 @@ returns typed waves; periodic responses convert without another solve.
 With an installed wheel and no checkout, inspect the exact installed API offline:
 
 ```sh
-python -m treams_rs --format markdown
-python -m treams_rs > support.json
+python -m treams_rs                         # Quickstart, including gradients
+python -m treams_rs sphere_tmatrix          # One operation
+python -m treams_rs advect.Cluster          # One framework class
+python -m treams_rs --search cross          # Matching public names
+python -m treams_rs --format json > support.json
 ```
 
 The JSON includes signatures, docstrings, returned pullback methods, installed

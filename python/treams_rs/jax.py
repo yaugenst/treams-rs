@@ -22,6 +22,10 @@ from ._core import (
     PlaneWaveBasisByComp,
     SphericalWaveBasis,
 )
+from ._core import CylindricalWaveBasis as CylindricalBasis
+from ._core import PlaneWaveBasisByComp as PlaneWavePorts
+from ._core import PlaneWaveBasisByUnitVector as PlaneWaveBasis
+from ._core import SphericalWaveBasis as SphericalBasis
 from ._framework import (
     BandModes as BandModes,
 )
@@ -45,6 +49,7 @@ from ._framework import ScatteredPorts as ScatteredPorts
 from ._framework import SMatrix as SMatrix
 from ._framework import TMatrix as TMatrix
 from ._framework import Wave as Wave
+from ._lattice import Lattice as Lattice
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -517,13 +522,18 @@ __all__ = [
     "BandModes",
     "Cluster",
     "CrossSections",
+    "CylindricalBasis",
+    "Lattice",
     "Material",
     "PeriodicResponse",
     "PlaneWave",
+    "PlaneWaveBasis",
+    "PlaneWavePorts",
     "PortWave",
     "PowerBalance",
     "SMatrix",
     "ScatteredPorts",
+    "SphericalBasis",
     "TMatrix",
     "Wave",
     "bessel",

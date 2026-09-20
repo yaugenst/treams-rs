@@ -19,8 +19,17 @@ The browser/WASM playground is preserved on `experimental/browser`;
 CUDA support is preserved on `experimental/gpu`. Neither experiment
 is part of the core build, public API catalog, or CI. Historical benchmark records
 retain their original build identities; they do not qualify this branch revision.
-The corrected CPU benchmark campaign remains paused; see
-[the resume checklist](../benchmarks/RESUME.md).
+Linux core correctness, performance and peak-memory qualification completed on
+`main` at `0137eca` on this machine. Its results and explicit performance exceptions
+remain bound to that revision; the API redesign does not relabel those measurements.
+This branch's agent campaign measures workflow success and agent effort, not
+solver speed or peak memory.
+Its final wheel-only Linux evaluation reached 118/120 full main-task passes,
+versus 110/120 for the original API, plus 24/24 confirmation and 16/16 fresh
+polarization-transfer passes. Agent time fell 27.4%; the predeclared 40% time
+gate was not met. The remaining nonpasses concern a private import and a
+requested gradient output structure, not incorrect physical quantities.
+See the [complete campaign and retained evidence](../benchmarks/results/agent-api-20260920/REPORT.md).
 
 ## Numerical and workflow coverage
 
@@ -55,8 +64,17 @@ constructors, typed scattered waves, distinct unsolved `Cluster` and solved
 Old root basis names and operator re-exports have been removed. Unsolved
 `TMatrix.cluster` and implicitly solving `SMatrix.from_array` constructors have
 been removed from the public API; explicit numerical methods remain available
-for expert calculations.
+for expert calculations. Framework namespaces expose the same fixed basis and
+lattice types as the root namespace. Fields are evaluated on waves, e.g.
+`response.scatter(incident).efield(points)`; bound T-matrix field operators were
+removed because applying them to scattered coefficients applies the response twice.
 
+The wheel includes an executable quickstart and focused offline symbol lookup:
+`python -m treams_rs`, `python -m treams_rs advect`, and
+`python -m treams_rs --search periodic`. Explicit `--format json` or `--format markdown`
+exports the complete source-derived catalog. The wheel-only evaluation protocol
+and independently replayed numerical tasks are in
+[the campaign specification](../benchmarks/agent-api/README.md).
 
 Import as `treams_rs`; the distinct name allows the development oracle to coexist.
 Numerical conventions follow treams. This is an

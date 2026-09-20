@@ -1,0 +1,1869 @@
+[
+  {
+    "trial": "candidate3-r123/luna/antireflection_design/repeat-01",
+    "solution_sha256": "179250a37fa0c63ad23228ca57b89b30eabb8998a5cdf32645338dbbab4b9cec",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/luna/antireflection_design/repeat-02",
+    "solution_sha256": "5f000a21d92897d30f52501960f85ea0181af77117722c6ace76c362706169ac",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/luna/dimer_sensitivity/repeat-01",
+    "solution_sha256": "f352e349d6032f02581f8425653e20a22cb08d35ef50f12397abd21b25bc46a9",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/luna/dimer_sensitivity/repeat-02",
+    "solution_sha256": "3e3dcf20aec9ccd9c2fe047cb2ebda2b7c83852e36cc5e6d967d3929503fb91d",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/luna/radius_inverse_design/repeat-01",
+    "solution_sha256": "a4fcf4434289b439756f151e913fa8bd1b6d097635cdb306f359db983b764c8f",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/luna/radius_inverse_design/repeat-02",
+    "solution_sha256": "28f5ee4911af4a8f9973a6c3f4ae42e2120ffcf6d8205f2fc1aedb86ad6cafc1",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/luna/sphere_sensitivity/repeat-01",
+    "solution_sha256": "e27c051c4dfbee240d24d49201d9d702687b612f5f26e287eaa757c65b0bbe19",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/luna/sphere_sensitivity/repeat-02",
+    "solution_sha256": "234057912441607f8c09983a35789caf8541469ac2b2a8321aac470319ddf7ea",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/opus/antireflection_design/repeat-01",
+    "solution_sha256": "75538b7eeb5990ab24d51fb05232c98a35b707bc65556731b812c2fd9c3b5aa1",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/opus/antireflection_design/repeat-02",
+    "solution_sha256": "883cca59a7e6d9ee1c3b71112157e3d35b9e720029d4cfeb4fa1a8148419c725",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/opus/dimer_sensitivity/repeat-01",
+    "solution_sha256": "7c3ffcba126296020e7732baa415d30d5f55e4a82e8352c3428f1743d99c35a4",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/opus/dimer_sensitivity/repeat-02",
+    "solution_sha256": "a9123061b30dff01a16a88bdfaace73491f4a7257215de8660c479a8e709cb6b",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/opus/radius_inverse_design/repeat-01",
+    "solution_sha256": "9bd4d96aa8a447617dd09d89378721ee0173dd8a35d91ceb6bf96abdb79858c7",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/opus/radius_inverse_design/repeat-02",
+    "solution_sha256": "3cd5b7dc10666eaba3795626b79adcc3889c9b0d1f0fd8180a5abd9a610c4b98",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/opus/sphere_sensitivity/repeat-01",
+    "solution_sha256": "a2c23e660094b6689fc1bafcac3ac4e73731a582a06bfdd1f492f0da36df2e65",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/opus/sphere_sensitivity/repeat-02",
+    "solution_sha256": "4443283ca61adc3764a445d7efc5cf7f83706aa874ba3be6a93f96ddd3dace1e",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/sol/antireflection_design/repeat-01",
+    "solution_sha256": "78440b5f2bfaa0277916fa1e667b83f8c8f866dc90125ea6d4a1f0d4e74cd262",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/sol/antireflection_design/repeat-02",
+    "solution_sha256": "2b5894ef64548bda0289ba719c72d11a143863310beb0a4c5fd80c248446a4cd",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/sol/dimer_sensitivity/repeat-01",
+    "solution_sha256": "865ec17b2e09d4395695be6e57d893e762bf3e98fa10ad72fde60020ccd18fa8",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/sol/dimer_sensitivity/repeat-02",
+    "solution_sha256": "222ddab3cdd111923d7a0a4e13b17398473e70d0d93be05d8adcfcc84cfb7ec4",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/sol/radius_inverse_design/repeat-01",
+    "solution_sha256": "5e184c3e919540dd555814bf4f9e007c4fd57198a768497caf5e36e8ab0d9637",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/sol/radius_inverse_design/repeat-02",
+    "solution_sha256": "385d4ed7bb36c2fbd7ea7cb7f0964dda1ccdc2dbab2d21ad8096ac9f7a0ae5e7",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/sol/sphere_sensitivity/repeat-01",
+    "solution_sha256": "9a661a8b63966b92265ebec7e98491dc95b49395243f4f22530086d2e3cb5676",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/sol/sphere_sensitivity/repeat-02",
+    "solution_sha256": "c95c26917ce107195d784d2c723cec67267030614726e79daf96741988936e2c",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/sonnet/antireflection_design/repeat-01",
+    "solution_sha256": "002ed784893d4839298aff6c81881c1fcedf63b368f0a09efadb0c5c25c11831",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/sonnet/antireflection_design/repeat-02",
+    "solution_sha256": "274fecacea2b7140eaac41637a7d17075d30b4eb5a58f2693627bc06a56f6e11",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/sonnet/dimer_sensitivity/repeat-01",
+    "solution_sha256": "32ff6a462e2939a2d3d1cb6e6e049c2a8dbeea2442ef62fcd50df36b25ce36be",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/sonnet/dimer_sensitivity/repeat-02",
+    "solution_sha256": "af46896b6fb01f8939c99ada1a75525e5e1e6522df0d9476197ca1b7ed0c9604",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/sonnet/radius_inverse_design/repeat-01",
+    "solution_sha256": "9d22a516e307e3efd66dda0474aebb7259433877224214a25f792f8aa08cca20",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/sonnet/radius_inverse_design/repeat-02",
+    "solution_sha256": "3c961c91124a2b62f3445501e84af8e045f36e51ae97926627c9f9778e79578a",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/sonnet/sphere_sensitivity/repeat-01",
+    "solution_sha256": "b44ebbd424ad5adc8be43d0dab726ec65f20ee2e4a0573dc4b0f2a55f7e2897b",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-r123/sonnet/sphere_sensitivity/repeat-02",
+    "solution_sha256": "15b41af35ecf4c86b60fd05b986a55bb681b59498987eb9cdb1629ea1e2ea875",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-transfer/luna/wavelength_design_transfer/repeat-01",
+    "solution_sha256": "f68828732c1ce7f260260c2b9405b47bd41e53ef5d9f40447a094b50a97dba8b",
+    "review": "Parent inspected objective and gradient data flow; native derivatives supply returned gradient and optimization directions."
+  },
+  {
+    "trial": "candidate3-transfer/luna/coated_sphere_sensitivity_transfer/repeat-01",
+    "solution_sha256": "ca4197dee2796df588af38b42a1b063c263a1f3226fd2375a544947fb42f8bf6",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply returned gradient and optimization directions.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/luna/reverse_stack_transfer/repeat-01",
+    "solution_sha256": "cecde30e68620c328a5bc7c8b5048ade796fd94cede334eb4fedff373439e945",
+    "review": "Preserves layer order and selects positive-side positive-helicity illumination.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/opus/coated_sphere_sensitivity_transfer/repeat-01",
+    "solution_sha256": "abe99adb1bfff55f34372ef8b7b22d11b334d4749b9cb8d0656f40b1c374fe56",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply returned gradient and optimization directions.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/opus/reverse_stack_transfer/repeat-01",
+    "solution_sha256": "c8bf06b7fae0c39f48ca14e064fdde6674eb489c862e064047e6a4d263f212e2",
+    "review": "Preserves layer order and selects positive-side positive-helicity illumination.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/opus/wavelength_design_transfer/repeat-01",
+    "solution_sha256": "713f1402bc9e0da25698f0141b3b9adb716f95ac03e8b9127ea8c25bb910cdff",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply returned gradient and optimization directions.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/sol/coated_sphere_sensitivity_transfer/repeat-01",
+    "solution_sha256": "1b5e8afccf9f223ab3237c23c2eddb21e94a3e35c64423fadf3a2f37f3cb103c",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply returned gradient and optimization directions.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/sol/reverse_stack_transfer/repeat-01",
+    "solution_sha256": "f0263ac57ce75942f684edcbf4f0827bdcd462a3a1882d33ffc44ad6ee86f53c",
+    "review": "Wrong requested helicity: raw [0,1] selects negative helicity in default ports; powers are degenerate here. Correct layer order and incidence side. Product quickstart gives this incorrect ordering.",
+    "outcome_override": "partial"
+  },
+  {
+    "trial": "candidate3-transfer/sol/wavelength_design_transfer/repeat-01",
+    "solution_sha256": "48726f803fa71ca486418e4bb70996f9a8569e2f1facab484fba44014415c8e3",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply returned gradient and optimization directions.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/sonnet/coated_sphere_sensitivity_transfer/repeat-01",
+    "solution_sha256": "03da3784284d0cf9e6b56c7f44494945671f2b9988be7ca05f354ddf3180f414",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply returned gradient and optimization directions.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/sonnet/reverse_stack_transfer/repeat-01",
+    "solution_sha256": "13a0e5825247664c5dd912b6036964f32f9bcc55a6d786be0dbabf17c38b43fe",
+    "review": "Preserves layer order and selects positive-side positive-helicity illumination.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/sonnet/wavelength_design_transfer/repeat-01",
+    "solution_sha256": "aab98272a3b3ac146c544051ab4d1ff9b64bc40c69d19fe57d29779f4d230fa2",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply returned gradient and optimization directions.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/luna/chiral_slab/repeat-01",
+    "solution_sha256": "9799b617ed0f20711c5b8c5b14069615de3be7929c96553b1f18a3fd209fbe5a",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/luna/chiral_slab/repeat-02",
+    "solution_sha256": "4a03cafedda14d2911b098a13804791394dac0829bd44f9212dcb907bb49ee9b",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/opus/chiral_slab/repeat-01",
+    "solution_sha256": "95ad96c592f3b3f3059f3b969ee7c962ad0b6f0373fad582ac703aee210bac3c",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/opus/chiral_slab/repeat-02",
+    "solution_sha256": "05c5f337eedbccaf1e56c3643ad265725d4bdfc082c39e953a6183c90ed32aa4",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sol/chiral_slab/repeat-01",
+    "solution_sha256": "61c6dffb3dc64391d693f7ec97309bd3f78bb0420290264ca3f9ad07231b5382",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sol/chiral_slab/repeat-02",
+    "solution_sha256": "a0c96aba024c67ed1396264f6fe7662e2f22f230b7f4567e60d004ac4d4fe959",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sonnet/chiral_slab/repeat-01",
+    "solution_sha256": "1fc31e6b452f3f816a47f9b72c1253250c65b74fac3a71dcfdc42dff4cfd622b",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sonnet/chiral_slab/repeat-02",
+    "solution_sha256": "c765dddb715689475ec88bb3844fd9569ba4a95d6b9f12c03ad6295149bc672a",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/luna/chiral_slab/repeat-01",
+    "solution_sha256": "a69c331f1001ebf0ba16bd1e9a7f1c7819c1d4093e9eb0e59bb992a4fca1fc4e",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/opus/chiral_slab/repeat-01",
+    "solution_sha256": "e26bf90eef486c873b20eb4cec5f57fc26999690fefc3b9ed41c9a032e35b08b",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/sol/chiral_slab/repeat-01",
+    "solution_sha256": "6818bda0320325acdaf14becbcb3c749705261388d9700f85aa5dbd02027b1a9",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/sonnet/chiral_slab/repeat-01",
+    "solution_sha256": "64465278699a057c5d17a4015ef042aac277ed669b4bff86b899a8d2ac0e08e9",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/luna/chiral_slab/repeat-01",
+    "solution_sha256": "83569f145b091ae25fce5e40d8c4908b4cf25ebc3c58d8f9ef507358737af546",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/luna/chiral_slab/repeat-02",
+    "solution_sha256": "c0f9bd5f3cf03a375acc3443db1be17e609eb38d7d3b80fddf8a54ce3bd07f0e",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/opus/chiral_slab/repeat-01",
+    "solution_sha256": "a9e3125765581c19b25860b7bb958470983fcbdd96f1e970b98ee25be909794f",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/opus/chiral_slab/repeat-02",
+    "solution_sha256": "940401f97738c58c48a2ec2bce82859d8b07ed997ad6c4fb855728eb9d5d0e80",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/sol/chiral_slab/repeat-01",
+    "solution_sha256": "8612d03c2a71aaf814092f0b0af165c4c333abbf7cfec428b68f5467a5fa65b9",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/sol/chiral_slab/repeat-02",
+    "solution_sha256": "95108ab2c3a7d7c5c770bd9dee98c0da150d5e03c42eb5e8a26acc84236b9a1d",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/sonnet/chiral_slab/repeat-01",
+    "solution_sha256": "addfcc77a4b516a8503e0b496a4ca04b73ed3a4906e5331bba9a82e45d81c31d",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/sonnet/chiral_slab/repeat-02",
+    "solution_sha256": "4a762fbff4fd0bd000f4605379c4617d58b4cfa9d6b1d43f813d939c2a60882f",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate1-r1/luna/chiral_slab/repeat-01",
+    "solution_sha256": "cbb05cb84c891cb110621e65e18afa47219b78b2744d1adedc282c89f7229fc3",
+    "review": "Helicity columns reversed: raw [0,1] is negative helicity in default ports [pol=1,pol=0]. Real chirality makes the power columns numerically degenerate, masking the mislabeled setup.",
+    "outcome_override": "partial"
+  },
+  {
+    "trial": "candidate1-r1/opus/chiral_slab/repeat-01",
+    "solution_sha256": "2732752c39a2ab2019c84a61dad30f9f338b58a3d0333905ea63176ee948d884",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate1-r1/sol/chiral_slab/repeat-01",
+    "solution_sha256": "72749e0d43d0bbb4a55c1d12c87cb7f7fd180ceb2f24234988d82cdc28480a89",
+    "review": "Helicity columns reversed: raw [0,1] is negative helicity in default ports [pol=1,pol=0]. Real chirality makes the power columns numerically degenerate, masking the mislabeled setup.",
+    "outcome_override": "partial"
+  },
+  {
+    "trial": "candidate1-r1/sonnet/chiral_slab/repeat-01",
+    "solution_sha256": "7c4bd11d25e0c80efb3890c41667d87248f772cfdba9b2e7c20a1268eb43c202",
+    "review": "Helicity columns reversed: raw [0,1] is negative helicity in default ports [pol=1,pol=0]. Real chirality makes the power columns numerically degenerate, masking the mislabeled setup.",
+    "outcome_override": "partial"
+  },
+  {
+    "trial": "candidate2-r1/luna/chiral_slab/repeat-01",
+    "solution_sha256": "3495c968f2b293498fa2e38970e7117d0d489e7ff49ed9a2678d8c95fae3990d",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate2-r1/opus/chiral_slab/repeat-01",
+    "solution_sha256": "e8b964b67a8b8f5f4f5fead62ff0541cbca67b56375695fcbcd7f7bdb8838f7e",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate2-r1/sol/chiral_slab/repeat-01",
+    "solution_sha256": "d0feca83b7316aab5f17a1e2e448a5f4fec376b7ee3707fb588cd9eb5bfe72c2",
+    "review": "Helicity columns reversed: raw [0,1] is negative helicity in default ports [pol=1,pol=0]. Real chirality makes the power columns numerically degenerate, masking the mislabeled setup.",
+    "outcome_override": "partial"
+  },
+  {
+    "trial": "candidate2-r1/sonnet/chiral_slab/repeat-01",
+    "solution_sha256": "110d38dc191621b1728e1df5aac0e89025d7ba56025d3999a183322fb9b96e55",
+    "review": "Helicity columns reversed: raw [0,1] is negative helicity in default ports [pol=1,pol=0]. Real chirality makes the power columns numerically degenerate, masking the mislabeled setup.",
+    "outcome_override": "partial"
+  },
+  {
+    "trial": "candidate3-r123/luna/chiral_slab/repeat-01",
+    "solution_sha256": "37a6b0142fad7f9f169f78f4011c1ba13ee918492428539893665f75537f2b4f",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/luna/chiral_slab/repeat-02",
+    "solution_sha256": "1ef04d36c276fcc5b8694930499a43082b5dedc4640c54ef9dae30b85b13e02b",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/luna/chiral_slab/repeat-03",
+    "solution_sha256": "1f33005a9acf82c045ce1adb93f3dcf623c32007c4e2bb4b5a1f639ab794fb5b",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/opus/chiral_slab/repeat-01",
+    "solution_sha256": "8e96ecdfc5729fa9f3c8232660bcc01090fd723e7776e827ec11f0a92cd20e31",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/opus/chiral_slab/repeat-02",
+    "solution_sha256": "b6df424ba69bc642be17e64d02b65e3fce15db7060ab3413477cf1cfc248e702",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/opus/chiral_slab/repeat-03",
+    "solution_sha256": "bce9cdc591ca46bdbafa42eab609fc40c8a3d089874891eef1f55c5d96aa1e4d",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/sol/chiral_slab/repeat-01",
+    "solution_sha256": "6b9b7a2ecfdcc99d24a224ffb67d6a798ea82bee3f0ce3fed74953f8998845cb",
+    "review": "Helicity columns reversed: raw [0,1] is negative helicity in default ports [pol=1,pol=0]. Real chirality makes the power columns numerically degenerate, masking the mislabeled setup.",
+    "outcome_override": "partial"
+  },
+  {
+    "trial": "candidate3-r123/sol/chiral_slab/repeat-02",
+    "solution_sha256": "9973e11ec32cf59b164164a937c67bb9ac98759f971abbdb1bddeb82dd6d45f3",
+    "review": "Helicity columns reversed: raw [0,1] is negative helicity in default ports [pol=1,pol=0]. Real chirality makes the power columns numerically degenerate, masking the mislabeled setup.",
+    "outcome_override": "partial"
+  },
+  {
+    "trial": "candidate3-r123/sol/chiral_slab/repeat-03",
+    "solution_sha256": "1ed953c0a87e565922ad3f75ba401c39c3982c2e7123da16c0d88f77dd20b13a",
+    "review": "Helicity columns reversed: raw [0,1] is negative helicity in default ports [pol=1,pol=0]. Real chirality makes the power columns numerically degenerate, masking the mislabeled setup.",
+    "outcome_override": "partial"
+  },
+  {
+    "trial": "candidate3-r123/sonnet/chiral_slab/repeat-01",
+    "solution_sha256": "ca619f66562ed188771f229529568d8180712b175189a31f20d312d037ad625b",
+    "review": "Helicity columns reversed: raw [0,1] is negative helicity in default ports [pol=1,pol=0]. Real chirality makes the power columns numerically degenerate, masking the mislabeled setup.",
+    "outcome_override": "partial"
+  },
+  {
+    "trial": "candidate3-r123/sonnet/chiral_slab/repeat-02",
+    "solution_sha256": "1d316266eb66f48cc6fc133cc7a27379149d5a341b2d920e6e55a4ddf9047530",
+    "review": "Parent checked actual basis labels, physical-wave polarization, and output column order: positive then negative helicity.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/sonnet/chiral_slab/repeat-03",
+    "solution_sha256": "6237a0c09f9188ccc6725b9ac4d375aef3c615407fe09c763fc7466eb0bb0044",
+    "review": "Helicity columns reversed: raw [0,1] is negative helicity in default ports [pol=1,pol=0]. Real chirality makes the power columns numerically degenerate, masking the mislabeled setup.",
+    "outcome_override": "partial"
+  },
+  {
+    "trial": "candidate3-transfer/luna/reverse_stack_transfer/repeat-02",
+    "solution_sha256": "521b9cb2a892a05dec8c3499a8f75cbc4a655300dd4df71a71c07862c67b0c36",
+    "review": "Raw [0,1] selects negative helicity in default ports, contradicting the requested positive-helicity setup. Side and layer order correct; degenerate powers mask the helicity error.",
+    "outcome_override": "partial"
+  },
+  {
+    "trial": "candidate3-transfer/opus/reverse_stack_transfer/repeat-02",
+    "solution_sha256": "e8b3df9755e953347270a09f2c09d88d86ceaae8a68005ecb001bbebe1d457b2",
+    "review": "Parent verified positive helicity, positive-side incidence and preserved layer order.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/sol/reverse_stack_transfer/repeat-02",
+    "solution_sha256": "d3c81d7d06a32b5eedfa346f6f184c5556adeba56f1bfd675fac296ee00997f9",
+    "review": "Parent verified positive helicity, positive-side incidence and preserved layer order.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/sonnet/reverse_stack_transfer/repeat-02",
+    "solution_sha256": "ea613b4ffc1edfcb507125ef1bbb9bf38c7bbf61192d27b28add84979b3fa598",
+    "review": "Parent verified positive helicity, positive-side incidence and preserved layer order.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/luna/antireflection_design/repeat-03",
+    "solution_sha256": "bc1f4f5208fafb8a8d1349c28cffe85a26741dcc6a1825d5332117d3baaf6627",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/luna/dimer_sensitivity/repeat-03",
+    "solution_sha256": "61d7c140ef6967e2c45e9217a2bd2d7c481afbe83ec98ff9ceaea690417eb97c",
+    "review": "Native derivatives are used, but raw scattered fields incorrectly use regular radial functions and ks=[k0,-k0]. Independent numerical checks reject the result.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/luna/radius_inverse_design/repeat-03",
+    "solution_sha256": "53d1709648fa59b31e35b2a73c0a08a83cef1b172a66f9b6671262324faa041e",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/luna/sphere_sensitivity/repeat-03",
+    "solution_sha256": "f149ecaec4a32b9c5b1ef29aa034493924ed516e08a6346aa7faa91f31d3c0aa",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/opus/antireflection_design/repeat-03",
+    "solution_sha256": "aa8156e78a250c2ca319d9b0cb56c25e2f5e34341b3d9a0fa6fd923cc92e2569",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/opus/dimer_sensitivity/repeat-03",
+    "solution_sha256": "f70c04f9d9b220daba825562d8f5c9ba441ca0a95b0b46a00e55f294e71e7161",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/opus/radius_inverse_design/repeat-03",
+    "solution_sha256": "c9a742c4c906906f1bc63b763104a6a23e8c5c7cc80d16bc5ab2b01cc0ea1167",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/opus/sphere_sensitivity/repeat-03",
+    "solution_sha256": "ebdfd641f5ab80ef1dcf8d0fd0c76db5c259b6e94b968c73ad34784318f6b2b4",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/sol/antireflection_design/repeat-03",
+    "solution_sha256": "60977e6a447ef8ba5577998fb8bb145c6b68e51c7d42dd0a1c285f7325f577b0",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/sol/dimer_sensitivity/repeat-03",
+    "solution_sha256": "0603f4a3d2ab5efd63caea04b76daf246bdb325c9647194ebfb191565a926f5d",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/sol/radius_inverse_design/repeat-03",
+    "solution_sha256": "c4b26d92cea47c8a18727bcd5db889639142f73471b485c4a7230544c5c4528b",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/sol/sphere_sensitivity/repeat-03",
+    "solution_sha256": "c7b0774c524a9d26c71d776ad1670e575c336d8dc90654348391e3fff14b36f7",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/sonnet/antireflection_design/repeat-03",
+    "solution_sha256": "e8a6da528aa4a24b3791a3e6bcd38e0ce7b6e4cdb98a07cf39cc04f33e86ebdf",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/sonnet/dimer_sensitivity/repeat-03",
+    "solution_sha256": "3c9b57c4f97a7ac6c26d57b87a98d4bd1995d96566b031f3235f3f5967299c37",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/sonnet/radius_inverse_design/repeat-03",
+    "solution_sha256": "197f16279a573bdc82096cc8bdbd2725d3164f08c8b3709f65496b2a2da1a113",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-r123/sonnet/sphere_sensitivity/repeat-03",
+    "solution_sha256": "7eb97bcf915263105b340d2063e8dcfad006b1aee07ee922dad2c58986d8c021",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/luna/coated_sphere_sensitivity_transfer/repeat-02",
+    "solution_sha256": "278bee45d34a51ae18b6521e8c46ba359a58e7b096acfccea0a18f7d4911ea0b",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/opus/coated_sphere_sensitivity_transfer/repeat-02",
+    "solution_sha256": "9f48ac0ae91b4c2716f231fd5cdf372664bb9073db092e9c247370dad03b0481",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/sol/coated_sphere_sensitivity_transfer/repeat-02",
+    "solution_sha256": "70d7e9ee13ed9be5ff042f30b972e46f859c296bdf551f7915119e55bef4a82e",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/sonnet/coated_sphere_sensitivity_transfer/repeat-02",
+    "solution_sha256": "fd7d9022544afbf096beb8b4ad44a3467af2f92649cb737ff4f24d1b3ff64750",
+    "review": "Parent inspected objective and analytic derivative data flow; native derivatives supply the returned sensitivity or optimization steps.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/luna/chiral_slab/repeat-03",
+    "solution_sha256": "aac21a5145214ba59f4f48674419cb3bbabcdb7c4905036e4ddc681be5167dc7",
+    "review": "Parent verified actual helicity labels and positive-then-negative output order.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/opus/chiral_slab/repeat-03",
+    "solution_sha256": "6770e823d8066d3f6abf6d51af41ab29f06cdcdb3aa1cc37b4332eef3885314b",
+    "review": "Parent verified actual helicity labels and positive-then-negative output order.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sol/chiral_slab/repeat-03",
+    "solution_sha256": "8ea07eaaf6c284cccbf06e86a5625927b6c039a245deb623af8e34dfec73c4a3",
+    "review": "Parent verified actual helicity labels and positive-then-negative output order.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sonnet/chiral_slab/repeat-03",
+    "solution_sha256": "406d861fa689d3b345301db99ae1e4f6df09fdea990e15f5ebc2e6efa89e40b6",
+    "review": "Parent verified actual helicity labels and positive-then-negative output order.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/luna/wavelength_design_transfer/repeat-02",
+    "solution_sha256": "8d48abc81cd0ea81004192d165f27477a74bb77cdddd109d7f6ea1d651d64cdd",
+    "review": "Parent verified wavelength remains traced through k0 and layer response; analytic gradients supply optimization directions and final derivative.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/opus/wavelength_design_transfer/repeat-02",
+    "solution_sha256": "e2f412d947524b4dd6f024eae075cb6bd7694620abbf825da993702f1623a8f1",
+    "review": "Parent verified wavelength remains traced through k0 and layer response; analytic gradients supply optimization directions and final derivative.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/sol/wavelength_design_transfer/repeat-02",
+    "solution_sha256": "af45ad0b0ab286d302218595b4f5ffff8591114254b0fed1477a570d88a79931",
+    "review": "Parent verified wavelength remains traced through k0 and layer response; analytic gradients supply optimization directions and final derivative.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate3-transfer/sonnet/wavelength_design_transfer/repeat-02",
+    "solution_sha256": "7a14ba9e1f0b08d08cfa123995cdc9bd2ad507191649cfb98afdb51b22d53e62",
+    "review": "Parent verified wavelength remains traced through k0 and layer response; analytic gradients supply optimization directions and final derivative.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/luna/antireflection_design/repeat-01",
+    "solution_sha256": "85af00069ab950993bb933bdfc310fe8b0df65a1d0c64b6678bd653e49615491",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/luna/antireflection_design/repeat-02",
+    "solution_sha256": "ebc36948bc135289688990e9dde9c123e0ca9077cf3183abb844af81a86cf04b",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/luna/antireflection_design/repeat-03",
+    "solution_sha256": "777db3eaf73724f42ec4c155b3b557ca740f187df808ad0b965defd546a2a9e5",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/luna/dimer_sensitivity/repeat-03",
+    "solution_sha256": "b4483245ce2a39d99443aaaa1e4e27c02dc40bbdf510b59ac2d142952fb5aab3",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/luna/radius_inverse_design/repeat-01",
+    "solution_sha256": "0f95d1e2889829ccd78d1918255a062894b2b6248fea46dd34eb9da0d2ca69ca",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/luna/radius_inverse_design/repeat-02",
+    "solution_sha256": "d07f0dfe267649c31508dc7d136e4ec37b4a77fd2b60f6203ae41ae063708c2c",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/luna/radius_inverse_design/repeat-03",
+    "solution_sha256": "80f7555880ecda4b0a41a3128c508afbb410eef790de6efb28c18c563af36b6d",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/luna/sphere_sensitivity/repeat-01",
+    "solution_sha256": "49447e5d34c8790fea2861d8ebc326b694c00e1055b8048f92beb49ceff724ad",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/luna/sphere_sensitivity/repeat-02",
+    "solution_sha256": "48de4c1c6358fcb182e117ec3f0152813539b1344f1a2cb63337913e5cc2b08d",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/luna/sphere_sensitivity/repeat-03",
+    "solution_sha256": "98e7d9f3e980c03778ddbbe0e78cb031d9d2326fe0af37a1593e7dd1055ac8c1",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/opus/antireflection_design/repeat-01",
+    "solution_sha256": "b86203ecd2bc922170ec12e3926ae0b3657bca91d5746b85d3f2bc373117c862",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/opus/antireflection_design/repeat-02",
+    "solution_sha256": "46e0f63048a2c7636279baaf349470206b72917670b45dc572356a6fee93459c",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/opus/antireflection_design/repeat-03",
+    "solution_sha256": "6a6e4ad5ae448da7480fa8bea7b90813157929fd5769835b0f82e9e175d58abe",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/opus/dimer_sensitivity/repeat-01",
+    "solution_sha256": "6df8a2495979168c37622f8b1fbcbd9d1642ea93014ef21ba5430e121c3f1855",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/opus/dimer_sensitivity/repeat-02",
+    "solution_sha256": "05b78648bebc1b107b1a52fcc680a22dcc569ca1505f8ba1535880d0494246fd",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/opus/dimer_sensitivity/repeat-03",
+    "solution_sha256": "f406f4452766eef5525fd7fd6a8b170414e7e6c9cefe1e2cbd3a64ac3d431de7",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/opus/radius_inverse_design/repeat-01",
+    "solution_sha256": "641a2f2bdcc5060d26f948f1fe9c989a3542197f5297f79762297efb10d63590",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/opus/radius_inverse_design/repeat-02",
+    "solution_sha256": "eb9d3ee32821873c49f14b26787d990d7422c8d5eeedb3b8b962c6ce5d2317e6",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/opus/radius_inverse_design/repeat-03",
+    "solution_sha256": "d22e52ba7c90e46b308dc40574e39a8a15717671b345377d4c28c93b0903ffa8",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/opus/sphere_sensitivity/repeat-01",
+    "solution_sha256": "e4edf2bac9f5f6d57f53fb2b760e0da017fdcd781121666a2cc3d8cda4a1d5a0",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/opus/sphere_sensitivity/repeat-02",
+    "solution_sha256": "f4495dbf45c017cd33ed5ebe233a968ca030355a6583fae919a921130811a516",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/opus/sphere_sensitivity/repeat-03",
+    "solution_sha256": "56279e0ff95ae14c922ec40a0da7e7f6bf8a82764b66e383a79965daeec53689",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sol/antireflection_design/repeat-01",
+    "solution_sha256": "8fd717eef30c154fda37f4195a31fe12900752b7c913649be5048ed4f60a8af2",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sol/antireflection_design/repeat-02",
+    "solution_sha256": "1d7019bb2f93c32345cbe15466395392f25cf6a8a789ec527ff5e9cdbaf9bdca",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sol/antireflection_design/repeat-03",
+    "solution_sha256": "6570c852e94703dd2c89e83881b9a6f65069504f99cd5d434821bd2bf010301b",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sol/dimer_sensitivity/repeat-01",
+    "solution_sha256": "45d651fd55e27f0dbc2504a3d5f1a8f214f94f6fc98709b0c7c83e2f7ce0037e",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sol/dimer_sensitivity/repeat-02",
+    "solution_sha256": "63e39b0cde456fef2892bfe4fec1deabc58690544e7871bcf3a7cec360dd7d2f",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sol/dimer_sensitivity/repeat-03",
+    "solution_sha256": "841f16fe3b72579c5708848c30fb08ce2854e10ff8e3996a71bfa41fa7a7bbe5",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sol/radius_inverse_design/repeat-01",
+    "solution_sha256": "9bb867cff0b6b815272e2da56125ebf71edda666a4de4a2cb42c3c0646123fe6",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sol/radius_inverse_design/repeat-02",
+    "solution_sha256": "1f804d48b2d43464bd85d49104196b73f114d67d9f93ba6617cc25f26f0ff626",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sol/radius_inverse_design/repeat-03",
+    "solution_sha256": "9f64807275b788bf11911698428c413e12c1d6a8bdb7e8081545e33b8e6526a6",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sol/sphere_sensitivity/repeat-01",
+    "solution_sha256": "d1b3a729138b0c70b02fc68abd567f108b47bc16f31e02399f5a6306dc77e7ab",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sol/sphere_sensitivity/repeat-02",
+    "solution_sha256": "a2c91e3b14d5b37bd6b69293975046874f348220e7402ea60fca173889022716",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sol/sphere_sensitivity/repeat-03",
+    "solution_sha256": "869da11201c3d2b6290edb4957e6141f9a8f15ec91b576944540bfdef089e98f",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sonnet/antireflection_design/repeat-01",
+    "solution_sha256": "787f0b275efb4881cecda8448e0abe3964d121a31c333d76d50eec2c28f16ebd",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sonnet/antireflection_design/repeat-02",
+    "solution_sha256": "76c4895b5a3b23fd8dca3c57cfa3c8b32bba6080d6f9b51b7954c3901a843655",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sonnet/antireflection_design/repeat-03",
+    "solution_sha256": "61a44205b173a61002cd9f852715f5fed857c3530befc882eaf22be7f1c8d966",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sonnet/dimer_sensitivity/repeat-01",
+    "solution_sha256": "ddef71ad0db5a5634e094a63b2527d997ec4afa6abd1c5b3982fdf5a5b3858ec",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sonnet/dimer_sensitivity/repeat-02",
+    "solution_sha256": "c4f7dc75c9ac103419b219301ffc05df1d05a77608a4c847b7d031c271e421ba",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sonnet/dimer_sensitivity/repeat-03",
+    "solution_sha256": "2e1f64424f3cc817098ef4987ac28e64fd564f88c7d81462cdc50d4bcbf60b41",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sonnet/radius_inverse_design/repeat-01",
+    "solution_sha256": "8a35279a2a13df523b59ebe9c92a625dfe1ef084693674ff48899247d3265661",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sonnet/radius_inverse_design/repeat-02",
+    "solution_sha256": "32948823994adb00db38d75b9f9542f7f91c0ed958e6e66b67b15f0e6438dca4",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sonnet/radius_inverse_design/repeat-03",
+    "solution_sha256": "164d4f38b5afe09f2b97bb5d2d3aea94fbf4846e7bd56869b1682084e4fc92d4",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sonnet/sphere_sensitivity/repeat-01",
+    "solution_sha256": "eff3b75396861a0707e5d8cba09eff0028ecaee82cfbbdd35fc1f1c5b48a8980",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sonnet/sphere_sensitivity/repeat-02",
+    "solution_sha256": "a8e7301c36c92395eb398df4bb55606b2e604c844248c9bf7c219601398c68c9",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/luna/antireflection_design/repeat-01",
+    "solution_sha256": "281e80bf311b4d40f3b18b322a6c4bf3c5935d0232f7a2fe29aebec34b4c5a11",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/luna/dimer_sensitivity/repeat-01",
+    "solution_sha256": "061efa56a66cc5fd5963321925954822d2c3f9cf6e4f0986d758533188e58f33",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/luna/radius_inverse_design/repeat-01",
+    "solution_sha256": "d71f9072788696ceb53e84679e8301ca650b877330715219eefb6a61daa7bc49",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/luna/sphere_sensitivity/repeat-01",
+    "solution_sha256": "cd438b6177eb6b745ef9a9946f16985c44baf08f69a16584bc63d9505c0cfe39",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/opus/antireflection_design/repeat-01",
+    "solution_sha256": "2a91eb950e695d10e90a15c539a21280d81837de0f366c8b408791c99fae9bed",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/opus/dimer_sensitivity/repeat-01",
+    "solution_sha256": "4eba9f77304427dfd1338524f251808db760edea742e31be2cd77b44debaa6e7",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/opus/radius_inverse_design/repeat-01",
+    "solution_sha256": "9c65051f2e21c94b9d2dcd9813b627533eb1244e491a2be896fd6349a4aaf442",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/opus/sphere_sensitivity/repeat-01",
+    "solution_sha256": "cb06ddb2ffe7012f328d9f1f40f011ef1b34795b324094e2da0da57943746b7d",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/sol/antireflection_design/repeat-01",
+    "solution_sha256": "b335cb1a57d24f5477d9e84bbfc1b36d2df434b7a137329a26182131d62ad7c1",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/sol/dimer_sensitivity/repeat-01",
+    "solution_sha256": "d874c56be7d13bbf976a3a863139ee408b1af9ddc5c65ce59cf6efb4c9829221",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/sol/radius_inverse_design/repeat-01",
+    "solution_sha256": "1b0845c198380635d0a01d61cbae950401bbc4cda223195d67f39b7f155f9ec1",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/sol/sphere_sensitivity/repeat-01",
+    "solution_sha256": "b05e4ee40f1e0b84555fea50839b14dd6b2ecf25fa506cb85d98bf205c61aa87",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/sonnet/antireflection_design/repeat-01",
+    "solution_sha256": "a0ce980da3aaafbb28fa74c2be2e79f5d9c9a35f103e244b752a39a2a7b89980",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/sonnet/dimer_sensitivity/repeat-01",
+    "solution_sha256": "14fc44bee1f1ec07fff2c504c2eea94cc5c8542dce0f091ca4ed2c9ec7516295",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/sonnet/radius_inverse_design/repeat-01",
+    "solution_sha256": "08d29a227fa6de4dcfe53a833c82fe8e4403820fbf36bd46e476e89360eca561",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r1/sonnet/sphere_sensitivity/repeat-01",
+    "solution_sha256": "8bfb09ade126b47806a4a805f6685cb5fc254b5b81bc025032808e22d0b77850",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/luna/antireflection_design/repeat-01",
+    "solution_sha256": "718124472dc8e176dcffa1742e39f0d83ddd05c7b9d631536857f2821ab37e96",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/luna/antireflection_design/repeat-02",
+    "solution_sha256": "0a8c57b44134428290b442c10cf96fa3b863e6c09567cbca8ca708edcd595733",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/luna/dimer_sensitivity/repeat-01",
+    "solution_sha256": "ec5ba68cdf03b65612a55d46491f271baa34872be302b0b461f5326dadcac702",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/luna/dimer_sensitivity/repeat-02",
+    "solution_sha256": "f2e9450246234a6448c0612e6b76c1cef4195d074f4103852be7ef525a9fc14d",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/luna/radius_inverse_design/repeat-01",
+    "solution_sha256": "f8dcae73a11610210d8dc2093e2ac11d056d976a01e1470505246caaa71f6bb9",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/luna/radius_inverse_design/repeat-02",
+    "solution_sha256": "ed3e4c277a0a16d64fb9caab99dcdeb15faa60fa00858f00df76b2b12dccb5de",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/luna/sphere_sensitivity/repeat-01",
+    "solution_sha256": "5fffa6bcc2ae9f97429e353e6364c47b1fe11b9cea0b06ee50efd0408ec82074",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/luna/sphere_sensitivity/repeat-02",
+    "solution_sha256": "fe80028dcde7bcea81f8fc73cddbf95acce78c5a6a272600e47f19e67c3e90dd",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/opus/antireflection_design/repeat-01",
+    "solution_sha256": "ce8bf58817997729ebb446888c0eb823701f4e4ac225d581f5780ea788f54533",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/opus/antireflection_design/repeat-02",
+    "solution_sha256": "872195dfdf6836c1c35f91a05fde92ba8a34e01504450c5fc6a8a33497938a97",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/opus/dimer_sensitivity/repeat-01",
+    "solution_sha256": "2ab3702d548af2f9aa752b00874c07bfa5a8bc0137691aceffaacffe2ac43ea0",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/opus/dimer_sensitivity/repeat-02",
+    "solution_sha256": "ec7495f96ea362cbb487c2caec27dd85ba143a0a1e940b934650e5ab36a1bf4f",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/opus/radius_inverse_design/repeat-01",
+    "solution_sha256": "0d16cf634356957837301cf354624d3862a30947182420e8d818f9f7cabf4636",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/opus/radius_inverse_design/repeat-02",
+    "solution_sha256": "61f6769c90befb18c0462dbab124de0bb1c14aba68b307d4793b63ea6f8e93ec",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/opus/sphere_sensitivity/repeat-01",
+    "solution_sha256": "2994591ba01ae2e51951e301034b331895724de702ddcc37ac4e18b758a78d9b",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/opus/sphere_sensitivity/repeat-02",
+    "solution_sha256": "bb7ee49444bdd2781e24269fe2dfcb15dd5cab5b1b503f95a759d60c3b126fc6",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/sol/antireflection_design/repeat-01",
+    "solution_sha256": "497434ec40fc9e6ee60845b013457284c14a16c2cf16d5e370b0fae5a741c2b5",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/sol/dimer_sensitivity/repeat-01",
+    "solution_sha256": "e157d15da9a5837fe6b57964391413abb75254f8ba4c20a9efff356fa9ada9e4",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/sol/dimer_sensitivity/repeat-02",
+    "solution_sha256": "bb48d76b68513175dafc8c42b85313685a2637953c51d63965d3cdd9a5039754",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/sol/radius_inverse_design/repeat-01",
+    "solution_sha256": "4eba33c9933715f5c7ec2cc93a17192530a8aa9247dbb773cf42ad7219de7cc1",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/sol/sphere_sensitivity/repeat-01",
+    "solution_sha256": "4957742c26b65ac0e9bac02fcfdacbbaaefca5dfa4aae323fef74c73382750f8",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/sol/sphere_sensitivity/repeat-02",
+    "solution_sha256": "61db923c474208e117ea8959ee6d1f73f0715126e63b12dddf73c2c65cdf4207",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/sonnet/antireflection_design/repeat-01",
+    "solution_sha256": "e95e9116b52ff8d8a6b5513343c6dfc73d0dfc609c7ab97ef9c2f2e373c25e4b",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/sonnet/antireflection_design/repeat-02",
+    "solution_sha256": "475c9d768a476f6ba14ea06895ce4565b32ccdaf8ad6cbd6cf2e68a965b6300f",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/sonnet/dimer_sensitivity/repeat-01",
+    "solution_sha256": "8a5bcf4d6abbb783f30443f799262562f4aae8dd12f5785fc2119fa7eeff401b",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/sonnet/dimer_sensitivity/repeat-02",
+    "solution_sha256": "b7d29f43774e7f101f38d4468ef1988b841b5f2a63c6a2944fcb032bea681d0d",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/sonnet/radius_inverse_design/repeat-01",
+    "solution_sha256": "7e1f738d11915149cc8d6809514af0789d793215fcf90213f7651634be46b5f7",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/sonnet/radius_inverse_design/repeat-02",
+    "solution_sha256": "081d524d8ee06967382a3792257a33e306e3ee78b09492c72f817dafa546e54a",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/sonnet/sphere_sensitivity/repeat-01",
+    "solution_sha256": "6e1faff1e074043edfd5e52943c0c0d8c3ffea6418d1f7852b8cf88f1e74f92f",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "baseline-r23/sonnet/sphere_sensitivity/repeat-02",
+    "solution_sha256": "14aa1fd23a83e19bf00bef98ce5e0a52464577d9b7e35b0c936fa1730671373b",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate1-r1/luna/antireflection_design/repeat-01",
+    "solution_sha256": "7d81537c083f83ca847d95568fc116e901390234fe11bc4e25681e4a709aa716",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate1-r1/luna/dimer_sensitivity/repeat-01",
+    "solution_sha256": "496d1f9cd3eca579129658f57e5157611098ff27ea430659ddbda2293ba142e4",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate1-r1/luna/radius_inverse_design/repeat-01",
+    "solution_sha256": "346967faa8eefc5182d5c13a4af3d6c16b4b65e9f29b6d30f1e715f05cd1c52f",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate1-r1/luna/sphere_sensitivity/repeat-01",
+    "solution_sha256": "606a40d0e8c03463adb7969f59db1bcaa7a23cc09b79d4842f4f71a89fadce68",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate1-r1/opus/antireflection_design/repeat-01",
+    "solution_sha256": "6307b8914d46885b59e45bc58c169292d1f2294dc107b1e19b4257efef216ab2",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate1-r1/opus/dimer_sensitivity/repeat-01",
+    "solution_sha256": "1cfbe1cc4e98f7f00e1fe70c259dbd1de0d4e4128dfaf1e736a414559de1e299",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate1-r1/opus/radius_inverse_design/repeat-01",
+    "solution_sha256": "ddda12741ef5fbd0335691e9387ac91526aa0db4b938a19d1df172c6dc2615b3",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate1-r1/opus/sphere_sensitivity/repeat-01",
+    "solution_sha256": "b443c9bcb203b30a938dcd21d6ae65c76696bd1e6caaa144a333766fe23ba3f8",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate1-r1/sol/antireflection_design/repeat-01",
+    "solution_sha256": "798077b37bdce561b64b69be785ebd41576147e2aafeb4c0b1dc47d05271c129",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate1-r1/sol/dimer_sensitivity/repeat-01",
+    "solution_sha256": "79ab4e378f323ac857379fbfe9d6708c94ac6958d1b86fa9e764899e84caa94e",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate1-r1/sol/radius_inverse_design/repeat-01",
+    "solution_sha256": "bb9786a310424dcaff0750f9280a1d0aeee4a43b01d40ca61d4bc974f90b2f85",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate1-r1/sol/sphere_sensitivity/repeat-01",
+    "solution_sha256": "683f44f71e9c15a164a0c78646ca12534676a2e8238c1b2c02856badbfa98320",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate1-r1/sonnet/antireflection_design/repeat-01",
+    "solution_sha256": "a5e8b45d8cdade22d20ee319b767db83f56ef133e11a82f4ef2498f00d0b7737",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate1-r1/sonnet/dimer_sensitivity/repeat-01",
+    "solution_sha256": "3865d229a779ab045e6e28777a9e181e173bc337f2a607dc61085dee717ce3ca",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate1-r1/sonnet/radius_inverse_design/repeat-01",
+    "solution_sha256": "00330d3de59da982c1e66e70f0109cb855192232ac2ccfca29748196f8484fd7",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate1-r1/sonnet/sphere_sensitivity/repeat-01",
+    "solution_sha256": "0782fa9b468121d80911202a78633582979efcca237b7a11aeb5fc698429d087",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate2-r1/luna/antireflection_design/repeat-01",
+    "solution_sha256": "059e38dff5942127cf46a38ae9b86d89e2f2c2d53919247603a3b125c8e55b5e",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate2-r1/luna/dimer_sensitivity/repeat-01",
+    "solution_sha256": "5e3013c8462d5284371b55b0804f045ac2c7e837e81d8c5e4627f957456891f7",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate2-r1/luna/radius_inverse_design/repeat-01",
+    "solution_sha256": "0d65d9e2ed122e13bd4e70f445a13ab19d97b9fa2b230bc9ff91e680fb74ceea",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate2-r1/luna/sphere_sensitivity/repeat-01",
+    "solution_sha256": "c8052e04b5c95a8b1e29c113a4377a6179e1f2e07dffe43ccdf79ae6e6353c75",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate2-r1/opus/antireflection_design/repeat-01",
+    "solution_sha256": "0e57f942f21ed81c4b2209444c1e12562bb905665b5216d2f15f6be968418b23",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate2-r1/opus/dimer_sensitivity/repeat-01",
+    "solution_sha256": "0b60cbca43a2b443300b77e5807adcd829d2ec6087e303a5a9de574cdd80c467",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate2-r1/opus/radius_inverse_design/repeat-01",
+    "solution_sha256": "462058dcb8c6f93c7034478c24ff4dde2dec3645d387d6c063da980ae0a4c34a",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate2-r1/opus/sphere_sensitivity/repeat-01",
+    "solution_sha256": "6cf7fee6034578a469c8a9c3a0593b953af67a9bf16358f95629364d770749d3",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate2-r1/sol/antireflection_design/repeat-01",
+    "solution_sha256": "9bc6f0271faa90c7d543a41777f4fbf0a7735e18c2724ca292100a6c2454f9dd",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate2-r1/sol/dimer_sensitivity/repeat-01",
+    "solution_sha256": "2277cda04bd5b385d51ec0209ba7d7b31c86d87389e03df00c4b1e993a12a958",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate2-r1/sol/radius_inverse_design/repeat-01",
+    "solution_sha256": "3d203d6d0b251ba49b05e1ee73744eec019adcfbd2788e5a0f28fd89fae968ca",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate2-r1/sol/sphere_sensitivity/repeat-01",
+    "solution_sha256": "b4b8c9545ea1f2c9989326a61f0f2d4f5eb0ff33858d86ea179ed6a0ccf28166",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate2-r1/sonnet/antireflection_design/repeat-01",
+    "solution_sha256": "8509089a7209572dfa02dd6b041c109079e8b1fd6f3d70d3efe54b65ceca3fe4",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate2-r1/sonnet/dimer_sensitivity/repeat-01",
+    "solution_sha256": "2176adc639a9f8fa4b0c9a2079d96e44b34f8f228314b156d6e33c778b04c7e7",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate2-r1/sonnet/radius_inverse_design/repeat-01",
+    "solution_sha256": "95176a3fbe9a161e7d7a37cabe06627485e5dc4166f0248b1e3eaf47c6b7a49f",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate2-r1/sonnet/sphere_sensitivity/repeat-01",
+    "solution_sha256": "5962c2cda4fd1d0b4838a469cb4cced23ddfe9b041f655de7dfa9f93d61cd3e5",
+    "review": "Parent inspected native derivative calls and gradient-driven update expressions; independent replay and native-call profiling check the resulting values and actual native execution. No finite-difference substitution found.",
+    "outcome_override": null
+  },
+  {
+    "trial": "original-r123/sonnet/sphere_sensitivity/repeat-03",
+    "solution_sha256": "e47b22740c46f31b38e7f9b0f827b61dd0bb9c3f0c2b161ab18532e740862172",
+    "review": "Native value and both derivative components match independent references on both inputs, but gradient is a dictionary instead of the explicitly requested ordered list. Primary interface-contract failure is retained.",
+    "outcome_override": null
+  },
+  {
+    "trial": "candidate4-r123/luna/antireflection_design/repeat-01",
+    "solution_sha256": "5d3f3c5a48682278f85bdfd2796fcd0149de5b7ae981194fcfd17ff7119543ae",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/luna/antireflection_design/repeat-02",
+    "solution_sha256": "2d22d840dd528d9cb38f66794c23734cfbe3ad0e2bc840f24c8493cd58263ce4",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/luna/chiral_slab/repeat-01",
+    "solution_sha256": "e17f6589c0f2c59b5502496d23e9d5a5bec09dec0e52602c47071f996498e100",
+    "review": "Parent inspected physical wave helicity, propagation direction and layer/column ordering; named wave selection avoids the degenerate power-reference ambiguity."
+  },
+  {
+    "trial": "candidate4-r123/luna/chiral_slab/repeat-02",
+    "solution_sha256": "3a4a7a3b3c2470ab159c097a586c8f99e425592669949dd2713c71bafa55fbd5",
+    "review": "Parent inspected physical wave helicity, propagation direction and layer/column ordering; named wave selection avoids the degenerate power-reference ambiguity."
+  },
+  {
+    "trial": "candidate4-r123/luna/dimer_sensitivity/repeat-01",
+    "solution_sha256": "159e2575be21376af877271647e92efebfde11bf5756c1d258139e519ccd4268",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/luna/dimer_sensitivity/repeat-02",
+    "solution_sha256": "ee7261d3494dd1acc7652b278ecb3955249bc04cef81b328e042514126803d41",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/luna/radius_inverse_design/repeat-01",
+    "solution_sha256": "7cd5cb7dbe017902d2aba2fe9dc017785fd7bc3dad771deca0aef931c062d3d1",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/luna/radius_inverse_design/repeat-02",
+    "solution_sha256": "ee03232f6f68f33c4b088c3063965d2b6431730307ae9890e08d6749fb437d13",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/luna/sphere_sensitivity/repeat-01",
+    "solution_sha256": "1daa05a21d27023e1c9785ff5b6c6c5561860c3b774cfa621b5f09771971d0f0",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/luna/sphere_sensitivity/repeat-02",
+    "solution_sha256": "3b5fe12499afc3efc4adf7cfa7186762ebe27961b64684a936c0df4fc6d73589",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/opus/antireflection_design/repeat-01",
+    "solution_sha256": "43e41342b61761ff576e7f304d1bcf6f9b5b6b6a10f77de02e76c44fba0fd5e2",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/opus/antireflection_design/repeat-02",
+    "solution_sha256": "2c66fb89070895f66f1f8886e5b3620be919eb115ad42a7323050559d907d97a",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/opus/chiral_slab/repeat-01",
+    "solution_sha256": "151d2a8a38525c0e0bef4e832403fc74a62c573e163175503e5d9c1aab1076d8",
+    "review": "Parent inspected physical wave helicity, propagation direction and layer/column ordering; named wave selection avoids the degenerate power-reference ambiguity."
+  },
+  {
+    "trial": "candidate4-r123/opus/chiral_slab/repeat-02",
+    "solution_sha256": "4b1c8088414f517eb96d2b1273551583e56b8dce4c82b8e35aeff1b032c898b8",
+    "review": "Parent inspected physical wave helicity, propagation direction and layer/column ordering; named wave selection avoids the degenerate power-reference ambiguity."
+  },
+  {
+    "trial": "candidate4-r123/opus/dimer_sensitivity/repeat-01",
+    "solution_sha256": "0629195b2831d3559022421f264756b9e6e86ba18bd2119e3b37371dfcb4fada",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/opus/dimer_sensitivity/repeat-02",
+    "solution_sha256": "89f525ccded1acc4594296b30c3af8b5c9cde919bf4794a4893743c0dc28c07f",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/opus/radius_inverse_design/repeat-01",
+    "solution_sha256": "d47bd9ddd75bc6358ba1cecf67b084104939e632586384371242a46883cedabc",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/opus/radius_inverse_design/repeat-02",
+    "solution_sha256": "5b52f7bd8b95d22e06003c7384b2ff48ea3fa1673e86c108fe3b380928bb64f2",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/opus/sphere_sensitivity/repeat-01",
+    "solution_sha256": "8fa1d905b31d33500a596ece47ad89971e9f99481b0a8d3190179537c07a13d9",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/opus/sphere_sensitivity/repeat-02",
+    "solution_sha256": "d29d8ca7a8b74c16bef01d6eb9f1061e3460683995098c82e98937af97c57f47",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/sol/antireflection_design/repeat-01",
+    "solution_sha256": "efc3d45161f955f38bcd1eb049b61b536ca8519940bd29c67aaed293c7636d1b",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/sol/antireflection_design/repeat-02",
+    "solution_sha256": "655de79ed7ed4a0907737d7909bf8ad181fc7d92c88508c743c5889d2989b610",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/sol/chiral_slab/repeat-01",
+    "solution_sha256": "734550a2a1932eb1e7ce6a98e7005fa11199cb5cedb2b68e0ffbead4846ab643",
+    "review": "Parent inspected physical wave helicity, propagation direction and layer/column ordering; named wave selection avoids the degenerate power-reference ambiguity."
+  },
+  {
+    "trial": "candidate4-r123/sol/chiral_slab/repeat-02",
+    "solution_sha256": "afdf0fd5a43b0be1beb4950cd00a7cf861c8cb88b016f1d26f44f57bea1a9e84",
+    "review": "Parent inspected physical wave helicity, propagation direction and layer/column ordering; named wave selection avoids the degenerate power-reference ambiguity."
+  },
+  {
+    "trial": "candidate4-r123/sol/dimer_sensitivity/repeat-01",
+    "solution_sha256": "3cc7da5612e164e94d535f9fd9eadcf1a0f713c5482575d50e4b00a2e5d5cb86",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/sol/dimer_sensitivity/repeat-02",
+    "solution_sha256": "09d1ead208724c890679636e10d608b0c441fd3837c012eede635e1cf3c741ec",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/sol/radius_inverse_design/repeat-01",
+    "solution_sha256": "de8bd55bfa054fd7ee3f2ca90c78fab9acf5a403a7758e9b68145d83a51a0a04",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/sol/radius_inverse_design/repeat-02",
+    "solution_sha256": "586efb1379788e57029cf67b8e027def3d2de40bbaee942d1e4351f8562ca8fc",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/sol/sphere_sensitivity/repeat-01",
+    "solution_sha256": "9ed490b98c0f33a90ebffcbb75b60c8f4be37cba2e7b98b227709cdc549033dd",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/sol/sphere_sensitivity/repeat-02",
+    "solution_sha256": "485461f1d23b2de2d7b7ffe96d0116b306e366131890e40670dca63ccc2477f1",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/sonnet/antireflection_design/repeat-01",
+    "solution_sha256": "8306ce2c919303c3aa94dca2720099bd89707ab4304bf9d22031e5e739bf5fe2",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/sonnet/antireflection_design/repeat-02",
+    "solution_sha256": "5a3ccd3df4ccb286742cd1fcb4e1dd8e5ac58632842be3cf1c9fee5b12842d37",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/sonnet/chiral_slab/repeat-01",
+    "solution_sha256": "c7841906c82f8a6b159c19d7798015e07d1a033b79da2a049d965c6ad95d8fab",
+    "review": "Parent inspected physical wave helicity, propagation direction and layer/column ordering; named wave selection avoids the degenerate power-reference ambiguity."
+  },
+  {
+    "trial": "candidate4-r123/sonnet/chiral_slab/repeat-02",
+    "solution_sha256": "41001e09fd47a53cab8668588fed2d40dd8548438684888816490826f5e7e8d5",
+    "review": "Parent inspected physical wave helicity, propagation direction and layer/column ordering; named wave selection avoids the degenerate power-reference ambiguity."
+  },
+  {
+    "trial": "candidate4-r123/sonnet/dimer_sensitivity/repeat-01",
+    "solution_sha256": "054deefbaff22ae869bd0849d0da7f13777c7fcac2e3dc64e331f3a2fb6c864d",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/sonnet/dimer_sensitivity/repeat-02",
+    "solution_sha256": "1705ec3148fae466cde56a03a19541cd383343c7838c682743c8f812b7688e99",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/sonnet/radius_inverse_design/repeat-01",
+    "solution_sha256": "5c7166fb12621239f816d35e6af5f984f3e9a16f983ab9e6a2dca871041dd04a",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/sonnet/radius_inverse_design/repeat-02",
+    "solution_sha256": "660644256f440e9ad1d3f33a9708f07abd15f08711b6ae74ca0551fa087c347c",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/sonnet/sphere_sensitivity/repeat-01",
+    "solution_sha256": "e41af78a8430ae705a65ce3ca49b660fe0e45104c57d16465d1c77145ff05258",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/sonnet/sphere_sensitivity/repeat-02",
+    "solution_sha256": "010bc9e97700616292ac6430c9bdcdaf06b9c8b8648a401218c40a6c3fe85e1e",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/luna/circular_absorption_sensitivity/repeat-01",
+    "solution_sha256": "abf816bfd6991cdb55e8355919e5410c417b481c11d73f2603df2635580dfb9f",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/luna/circular_absorption_sensitivity/repeat-02",
+    "solution_sha256": "c8b7967e0bce610e9bf583e2462de9ce7ee8fed6292bbeb09c64980b68bfb1bb",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/luna/coated_sphere_sensitivity_transfer/repeat-01",
+    "solution_sha256": "14a71fcfebde660e5dd16344752a78e5d18e89fc2a88f87e622beefb8657bc6a",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/luna/coated_sphere_sensitivity_transfer/repeat-02",
+    "solution_sha256": "80ab5939f7ea52b9e2d9326af4b6c118691340a423f9657818594f0538555f55",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/luna/reverse_stack_transfer/repeat-01",
+    "solution_sha256": "b4ab651fa06a7263c9e651cb8418f92958693a136dcdab9c527663633e6dc950",
+    "review": "Parent inspected physical wave helicity, propagation direction and layer/column ordering; named wave selection avoids the degenerate power-reference ambiguity."
+  },
+  {
+    "trial": "candidate4-transfer/luna/reverse_stack_transfer/repeat-02",
+    "solution_sha256": "48b72547ea367fdfe51ece842477d2fb66ac23abd0f46e49ddb7695fe6f7a7dc",
+    "review": "Parent inspected physical wave helicity, propagation direction and layer/column ordering; named wave selection avoids the degenerate power-reference ambiguity."
+  },
+  {
+    "trial": "candidate4-transfer/luna/wavelength_design_transfer/repeat-01",
+    "solution_sha256": "85b9773d7d77df1e04b58cb93f6d88148ac77ec6618e922edfff8eb81d36d454",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/luna/wavelength_design_transfer/repeat-02",
+    "solution_sha256": "331d3d4d35736d1906c226ba9dc83d334f6582936087876712da12a87ebefe79",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/opus/circular_absorption_sensitivity/repeat-01",
+    "solution_sha256": "e475a28283fe28fb9c243a1857cf076da5e248fc2538374e4e8392a7d418429e",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/opus/circular_absorption_sensitivity/repeat-02",
+    "solution_sha256": "f2510c508c63cd625d0d7be6c3146ac2b8e8297a43df925436fe415460e8dce3",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/opus/coated_sphere_sensitivity_transfer/repeat-01",
+    "solution_sha256": "596b1ac2e4f3ab45b1c25eb2f385607cf7c7d139e5cdc7c290298ac92dcd8271",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/opus/coated_sphere_sensitivity_transfer/repeat-02",
+    "solution_sha256": "8a74b5283caf684bdeb80fc3dba1f02443abeda3147c75a947dc7bc7a5cbbf58",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/opus/reverse_stack_transfer/repeat-01",
+    "solution_sha256": "51895ef7cbc1e526f09d1415dde303dfce09fb3b1c2ba96fb4d112b7bab4de34",
+    "review": "Parent inspected physical wave helicity, propagation direction and layer/column ordering; named wave selection avoids the degenerate power-reference ambiguity."
+  },
+  {
+    "trial": "candidate4-transfer/opus/reverse_stack_transfer/repeat-02",
+    "solution_sha256": "8a5d76623d95c82acad812179e82b7afb02acad2112f9c55f84e262488d53b0b",
+    "review": "Parent inspected physical wave helicity, propagation direction and layer/column ordering; named wave selection avoids the degenerate power-reference ambiguity."
+  },
+  {
+    "trial": "candidate4-transfer/opus/wavelength_design_transfer/repeat-01",
+    "solution_sha256": "afab4140802db9c4280252eedd69e5018cc442316bf3c51cc50f9e87af366f7b",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/opus/wavelength_design_transfer/repeat-02",
+    "solution_sha256": "283e26cd5a5602ee006cac3bfcd0197ee41d2d9ea33e003b6e8e7fd2e2cef928",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/sol/circular_absorption_sensitivity/repeat-01",
+    "solution_sha256": "bffacca78162ccd23b9847123e5ffc6c2ccd29b9b808103f1dc1e5ab390aca4b",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/sol/circular_absorption_sensitivity/repeat-02",
+    "solution_sha256": "bb60bbae93a645fb8c49eb82df4837f33372a29f932ffd6b7601257ba5ea0ceb",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/sol/coated_sphere_sensitivity_transfer/repeat-01",
+    "solution_sha256": "2b8746271258042dc14221684abe747df06306c903e8415067f8c3ac05a7c9b9",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/sol/coated_sphere_sensitivity_transfer/repeat-02",
+    "solution_sha256": "c18e3c6e8a07a7deea4b7e950d915453526b4287ea6eeed390fe0cbff556b8f2",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/sol/reverse_stack_transfer/repeat-01",
+    "solution_sha256": "143cfd205e230fdbc53fa6e6600424388598803ef44adb31d408a95c488d57b8",
+    "review": "Parent inspected physical wave helicity, propagation direction and layer/column ordering; named wave selection avoids the degenerate power-reference ambiguity."
+  },
+  {
+    "trial": "candidate4-transfer/sol/reverse_stack_transfer/repeat-02",
+    "solution_sha256": "00ee13750964f84f2dfb2d22774db71e050a257cf7621aa0dc900ca96add1688",
+    "review": "Parent inspected physical wave helicity, propagation direction and layer/column ordering; named wave selection avoids the degenerate power-reference ambiguity."
+  },
+  {
+    "trial": "candidate4-transfer/sol/wavelength_design_transfer/repeat-01",
+    "solution_sha256": "690ca032a295e26904fb9e9e72d10e32742fd13193e01ae9caec06142f0ee1df",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/sol/wavelength_design_transfer/repeat-02",
+    "solution_sha256": "b1f5890a00e3544f1c7dbd98ffb65ac4fee12e7e7b6c58f358e92f825e20c47e",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/sonnet/circular_absorption_sensitivity/repeat-01",
+    "solution_sha256": "031b021ee3414b63d4142c8a9ad492132127dfaae6e3795974c49ccdb9b80758",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/sonnet/circular_absorption_sensitivity/repeat-02",
+    "solution_sha256": "9a29c60e7c2a39cbdae06279a85e702e8e157b78f25bf91a96d0ed7adc8328e9",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/sonnet/coated_sphere_sensitivity_transfer/repeat-01",
+    "solution_sha256": "92edbf1e3de9174c2e0b6c2f88d76f232d23fde617edebcbba141c46c56cfcba",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/sonnet/coated_sphere_sensitivity_transfer/repeat-02",
+    "solution_sha256": "031b7d2b415da6f6f22a2c15ad594fee48a69fec9c6b526ac13b0679892b2895",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/sonnet/reverse_stack_transfer/repeat-01",
+    "solution_sha256": "f4df2c48182b2126085ae6ea760292b0085552352da031532c5086fe7a985bbb",
+    "review": "Parent inspected physical wave helicity, propagation direction and layer/column ordering; named wave selection avoids the degenerate power-reference ambiguity."
+  },
+  {
+    "trial": "candidate4-transfer/sonnet/reverse_stack_transfer/repeat-02",
+    "solution_sha256": "a1d7d0b9e57cf63d8be94dd7c732e50a4a0678926acaef45e2aa1dc4adad489d",
+    "review": "Parent inspected physical wave helicity, propagation direction and layer/column ordering; named wave selection avoids the degenerate power-reference ambiguity."
+  },
+  {
+    "trial": "candidate4-transfer/sonnet/wavelength_design_transfer/repeat-01",
+    "solution_sha256": "80b292cf0542db85d21fe603c207699df5d59111aa2ed122707d27f96fabe0a0",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-transfer/sonnet/wavelength_design_transfer/repeat-02",
+    "solution_sha256": "c9ab6acde58e177a1c797b45bbba7d7ba8dd9c1c149f7f3fd6eb589b4cdc77fb",
+    "review": "Parent inspected native differentiation calls, objective construction, returned gradient data flow and, for design tasks, gradient-based update expressions. Independent replay checks both configurations."
+  },
+  {
+    "trial": "candidate4-r123/luna/chiral_slab/repeat-03",
+    "solution_sha256": "b88ebd1ff717732c382e5f58cbba970d8cc2496b0086ca37cd3aac09390e7935",
+    "review": "Parent inspected named wave helicities and output ordering; positive precedes negative."
+  },
+  {
+    "trial": "candidate4-r123/luna/dimer_sensitivity/repeat-03",
+    "solution_sha256": "a3cb9eb75aac6496b9e6c2e65c9d311962644b0dc98fd3e3f715b167d3d54218",
+    "review": "Parent inspected objective construction and native gradient data flow through geometry/material parameters and requested observables."
+  },
+  {
+    "trial": "candidate4-r123/luna/sphere_sensitivity/repeat-03",
+    "solution_sha256": "ce946269f3ed48fea4fbb55c7565ea4dd66ce2af71dc3c83290c4f28b55d2055",
+    "review": "Parent inspected objective construction and native gradient data flow through geometry/material parameters and requested observables."
+  },
+  {
+    "trial": "candidate4-r123/opus/chiral_slab/repeat-03",
+    "solution_sha256": "095511f9bfaa8aee3bc22ba05a70f63beee639478a098b49f2e5f05884a6bc13",
+    "review": "Parent inspected named wave helicities and output ordering; positive precedes negative."
+  },
+  {
+    "trial": "candidate4-r123/opus/dimer_sensitivity/repeat-03",
+    "solution_sha256": "95bd4b65ae72ba99f11d46c24eba2a6c23abdb20847ca9a0807c7523ccbf8e90",
+    "review": "Parent inspected objective construction and native gradient data flow through geometry/material parameters and requested observables."
+  },
+  {
+    "trial": "candidate4-r123/opus/sphere_sensitivity/repeat-03",
+    "solution_sha256": "4ddecdb00fa2dde239cbc7f5e9ad4887687000d2ce92f07546035abb2298e921",
+    "review": "Parent inspected objective construction and native gradient data flow through geometry/material parameters and requested observables."
+  },
+  {
+    "trial": "candidate4-r123/sol/chiral_slab/repeat-03",
+    "solution_sha256": "9c2321baf3cf7eca08a22aa64b862a0a1310c7a1390127c373feabb3c1fcb642",
+    "review": "Parent inspected named wave helicities and output ordering; positive precedes negative."
+  },
+  {
+    "trial": "candidate4-r123/sol/dimer_sensitivity/repeat-03",
+    "solution_sha256": "4e78ac5763a420f529b87bbde5e9c860935af2de5c5759f46c37e60759a5b588",
+    "review": "Parent inspected objective construction and native gradient data flow through geometry/material parameters and requested observables."
+  },
+  {
+    "trial": "candidate4-r123/sol/sphere_sensitivity/repeat-03",
+    "solution_sha256": "70d6bc263ae8a4127b9bf0d7122e56612eba57931d5425fc111bd9defcfeb352",
+    "review": "Parent inspected objective construction and native gradient data flow through geometry/material parameters and requested observables."
+  },
+  {
+    "trial": "candidate4-r123/sonnet/chiral_slab/repeat-03",
+    "solution_sha256": "4e3257263445ff7e120a6638f7a5f846f16dc0a80449adbb432f117761ad267a",
+    "review": "Parent inspected named wave helicities and output ordering; positive precedes negative."
+  },
+  {
+    "trial": "candidate4-r123/sonnet/dimer_sensitivity/repeat-03",
+    "solution_sha256": "5c2136d8f6ae0655444578fc90c221531fcebb1679f755af9c82085b11bf8f08",
+    "review": "Parent inspected objective construction and native gradient data flow through geometry/material parameters and requested observables."
+  },
+  {
+    "trial": "candidate4-r123/sonnet/sphere_sensitivity/repeat-03",
+    "solution_sha256": "bded52df2076cb05d26161e578e62c8a6fad22dd2095abf50be99dbadf57004b",
+    "review": "Parent inspected objective construction and native gradient data flow through geometry/material parameters and requested observables. Both replayed numerical values and analytic gradient components independently match the references. The failure remains: the prompt explicitly requests an ordered gradient list, but this solution returns a dictionary; its value key is also unrecognized by the grader. No numeric or API-execution failure is attributed to this attempt."
+  },
+  {
+    "trial": "candidate4-r123/luna/antireflection_design/repeat-03",
+    "solution_sha256": "f29baedad1185385b1e661e3c9ba829bed9e3d8b1992b867e77ccb52acae253b",
+    "review": "Parent inspected native objective and gradient construction, gradient-based search directions, bounded updates and returned final derivative; both input variants pass independent replay."
+  },
+  {
+    "trial": "candidate4-r123/luna/radius_inverse_design/repeat-03",
+    "solution_sha256": "05fe52b0e0fda11d4e7ccc65290ed9e660054702befda031a832c49efbe8f4be",
+    "review": "Parent inspected native objective and gradient construction, gradient-based search directions, bounded updates and returned final derivative; both input variants pass independent replay."
+  },
+  {
+    "trial": "candidate4-r123/opus/antireflection_design/repeat-03",
+    "solution_sha256": "1c8f628a0b4797f7380fab9e85cc057210ec1b8de8a4583e4f1b1e274873f4e1",
+    "review": "Parent inspected native objective and gradient construction, gradient-based search directions, bounded updates and returned final derivative; both input variants pass independent replay."
+  },
+  {
+    "trial": "candidate4-r123/opus/radius_inverse_design/repeat-03",
+    "solution_sha256": "92d2918b17cbe21aa0497a6899421707453fb4ffa854cb3d9c0416a3de98efb1",
+    "review": "Parent inspected native objective and gradient construction, gradient-based search directions, bounded updates and returned final derivative; both input variants pass independent replay."
+  },
+  {
+    "trial": "candidate4-r123/sol/antireflection_design/repeat-03",
+    "solution_sha256": "d47f6950b3ca3f5247eb7fbdbb9be25e551ccee41b54e0eab66ad152b878963f",
+    "review": "Parent inspected native objective and gradient construction, gradient-based search directions, bounded updates and returned final derivative; both input variants pass independent replay."
+  },
+  {
+    "trial": "candidate4-r123/sol/radius_inverse_design/repeat-03",
+    "solution_sha256": "86caefaed0ef18491a0786e636872d09b1097ae5538d93693ef07a3b3a3756bf",
+    "review": "Parent inspected native objective and gradient construction, gradient-based search directions, bounded updates and returned final derivative; both input variants pass independent replay."
+  },
+  {
+    "trial": "candidate4-r123/sonnet/antireflection_design/repeat-03",
+    "solution_sha256": "06b548d515f3bb141fa812d08e4bc97c696c51159a400c8f1b3fe3c48635c4cf",
+    "review": "Parent inspected native objective and gradient construction, gradient-based search directions, bounded updates and returned final derivative; both input variants pass independent replay."
+  },
+  {
+    "trial": "candidate4-r123/sonnet/radius_inverse_design/repeat-03",
+    "solution_sha256": "77813418e00069d58c9c599873d650f70510c259fec8fd0cf038882832443aff",
+    "review": "Parent inspected native objective and gradient construction, gradient-based search directions, bounded updates and returned final derivative; both input variants pass independent replay."
+  }
+]

@@ -1,0 +1,27 @@
+{
+  "frozen_utc": "2026-09-20T05:21:50Z",
+  "baseline_commit": "85986f1e157a78be35538fb34e4a9ec98be3ea93",
+  "models": {
+    "luna": "gpt-5.6-luna",
+    "sol": "gpt-5.6-sol",
+    "sonnet": "claude-sonnet-5",
+    "opus": "claude-opus-5"
+  },
+  "effort": "medium",
+  "seconds_per_attempt": 900,
+  "workers": 4,
+  "primary_design": "10 tasks x 4 models x 3 fresh attempts for baseline and final candidate; development screens may use one repeat, all preserved.",
+  "transfer_design": "3 unseen task families x 4 models x 2 fresh attempts after candidate freezes, no fixes between transfer trials.",
+  "success": "Final main and transfer cohorts each >=90% full passes; main failures at most half baseline. If baseline already >=90%, require >=40% reduction in aggregate agent wall time with no pass-rate loss. Report time and effective tokens regardless; no solver-speed claim.",
+  "scoring": "Replay both supplied and hidden numeric input variants. Every required numerical result must match independent upstream/Airy references. Optimization must meet requested loss, initial/final replay and history checks; sensitivity/optimization must execute native analytic pullbacks. Parent reviews successful derivative source for finite-difference substitution and public API compliance. Missing any requested artifact prevents full pass.",
+  "timeouts": "Retain all attempts, no favorable retries; artifacts present by deadline can be scored. Infrastructure failures are listed separately but included as nonpasses in primary denominator.",
+  "isolation": "Installed wheel[advect] and declared dependencies only; no repository, upstream, scipy, grader, other trials, global instructions, skills, plugins, MCP or tool network. Identical dependency versions across wheels.",
+  "interpretation": "Literature-inspired self-contained adaptations, not published-figure reproduction. Task families and model services are bounded; repeats are not broad ecosystem reliability proof.",
+  "hashes": {
+    "reference.json": "36b4bfbc54cabf4e27d23d33caadd7518ae6b41ae0f063e27d9a704f9c4e7327",
+    "tasks.json": "8b4992c0e41cedb2ddacbd40034fa547d121bfb99234bcc7dc245150ee63e780",
+    "main-prompts.json": "49cf9eab7b2e716d79c2e8ff2fea348b0bf26cddcad2061ab6f55714c9ad1917",
+    "transfer-prompts.json": "70261c497bff8a3f347bc23590920b273a92ab81e45c642f07ba14efbdb7adf8"
+  },
+  "grader_sha256": "25b5618c368c981ed03fcee998b7c8d2e2a61d9cc29d6c6c84cc1be7848e57e3"
+}

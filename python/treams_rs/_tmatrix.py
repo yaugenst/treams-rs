@@ -47,12 +47,15 @@ class _TMatrix[B: (SphericalWaveBasis, CylindricalWaveBasis)]:
     translate = op.OperatorAttribute(op.Translate)
     expandlattice = op.OperatorAttribute(op.ExpandLattice)
     permute = op.OperatorAttribute(op.Permute)
-    efield = op.OperatorAttribute(op.EField)
-    hfield = op.OperatorAttribute(op.HField)
-    dfield = op.OperatorAttribute(op.DField)
-    bfield = op.OperatorAttribute(op.BField)
-    gfield = op.OperatorAttribute(op.GField)
-    ffield = op.OperatorAttribute(op.FField)
+
+    def __getattr__(self, name: str) -> Any:
+        if name in {"efield", "hfield", "dfield", "bfield", "gfield", "ffield"}:
+            raise AttributeError(
+                f"Fields belong to waves, not T-matrix responses. Use "
+                f"response.scatter(incident).{name}(...) for scattered fields; "
+                f"operators.{name}(...) builds a numerical field matrix."
+            )
+        raise AttributeError(f"{type(self).__name__!s} has no attribute {name!r}")
 
     def __init__(
         self,

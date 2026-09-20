@@ -893,7 +893,10 @@ def field(
     """Electric samples (N, 3); VJP returns (coefficients, points, origins, ks).
 
     Inputs are multipole amplitudes, Cartesian points (N, 3), a multipole basis,
-    and negative/positive helicity wavenumbers. The residual uses linear storage.
+    and negative/positive helicity wavenumbers (both k0 in vacuum, not +/-k0).
+    Use ``singular=True`` for scattered/outgoing coefficients; the default
+    ``singular=False`` samples regular waves. Physical wave objects choose this
+    automatically through ``wave.efield(points)``. The residual uses linear storage.
     For cylindrical bases, ``context.pullback_axial`` additionally returns real
     per-mode axial-wavenumber gradients as the last array.
     """

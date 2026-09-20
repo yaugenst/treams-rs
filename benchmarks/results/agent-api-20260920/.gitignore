@@ -1,0 +1,8 @@
+*
+!.gitignore
+!REPORT.md
+!summary.json
+!comparison.svg
+!comparison.png
+!provenance.json
+!evidence.tar.gz

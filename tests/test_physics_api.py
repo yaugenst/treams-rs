@@ -328,3 +328,28 @@ def test_periodic_cylindrical_and_spherical_to_cylindrical_paths(monkeypatch):
     assert_allclose(
         cylinder_response.to_smatrix(ports).array, expected_ports.array, atol=1e-13
     )
+
+
+@pytest.mark.parametrize("family", ["sphere", "cylinder"])
+@pytest.mark.parametrize(
+    "field", ["efield", "hfield", "dfield", "bfield", "gfield", "ffield"]
+)
+def test_response_fields_require_scattering_a_wave(family, field):
+    response = (
+        tr.sphere_tmatrix(k0=1.3, lmax=2, radius=0.2, material=3)
+        if family == "sphere"
+        else tr.cylinder_tmatrix(k0=1.3, kz=0, mmax=2, radius=0.2, material=3)
+    )
+    with pytest.raises(AttributeError, match=r"response.scatter\(incident\)"):
+        getattr(response, field)
+    incident = tr.plane_wave([1, 0, 0], 1, k0=1.3)
+    outgoing = response.scatter(incident)
+    points = [[0.7, 0.2, 0.4]]
+    operator = getattr(tr.operators, field)
+    sample = getattr(outgoing, field)
+    args = (0, points) if field in ("gfield", "ffield") else (points,)
+    expected = (
+        operator(*args, basis=response.basis, k0=1.3, modetype="singular")
+        @ outgoing.coefficients
+    )
+    assert_allclose(sample(*args), expected, rtol=1e-12, atol=1e-13)

@@ -1,8 +1,38 @@
-"""First-order Advect adapters for native forward/pullback operations.
+"""Differentiable physical scattering with Advect and native Rust pullbacks.
 
-Install ``treams-rs[advect]``. Each reverse pass consumes its native residual
-once. Forward mode, higher derivatives, staging, and checkpointing are unsupported.
-A fresh forward call creates a fresh residual.
+Use this namespace for all objects inside a differentiated objective::
+
+    import advect as ad
+    import advect.numpy as np
+    import treams_rs.advect as tr
+
+    def objective(radius):
+        sphere = tr.sphere_tmatrix(k0=2.0, lmax=2, radius=radius, material=3.0)
+        wave = tr.plane_wave([0, 0, 1], "positive_helicity", k0=2.0)
+        return sphere.cross_sections(wave).scattering
+
+    value, gradient = ad.value_and_grad(objective)(0.2)
+
+Use ``ad.grad`` for just the derivative, or ``ad.value_and_grad`` for both.
+For multiple parameters use an array (or pytree) argument and unpack it inside
+objective; its gradient has the same structure. Build traced geometry using
+``advect.numpy.stack`` or ``asarray``; never convert a traced value to float or
+plain NumPy. ``tr.Material(epsilon=...)`` accepts traced real/complex parameters.
+The same functions work without tracing for value evaluation. Convert to NumPy
+or float only after the transform returns, e.g. to write JSON.
+
+``Cluster(..., positions=...).scatter(wave).efield(points)`` includes multiple
+scattering; add ``wave.efield(points)`` for the total field. ``slab(...).power``
+returns differentiable power fractions. ``tr.PlaneWavePorts`` and
+``tr.Lattice`` supply fixed mode geometry in this namespace too. Numerical arrays are exposed as
+``.array`` on responses and ``.coefficients`` on waves.
+
+Install ``treams-rs[advect]``. CPU, float64/complex128 and first-order reverse
+mode; mode cutoffs, integer labels and topology remain static. Each reverse
+pass consumes its native residual once. Forward mode, higher derivatives,
+staging and checkpointing are unsupported. Call the transformed objective
+again for every optimization step to create fresh residuals. The root
+``treams_rs`` namespace is NumPy-only; mixing it into a trace loses derivatives.
 """
 
 from __future__ import annotations
@@ -16,6 +46,10 @@ import numpy as np
 from . import _framework as _physics
 from . import coeffs, diff, lattice
 from ._core import CylindricalWaveBasis, PlaneWaveBasisByComp, SphericalWaveBasis
+from ._core import CylindricalWaveBasis as CylindricalBasis
+from ._core import PlaneWaveBasisByComp as PlaneWavePorts
+from ._core import PlaneWaveBasisByUnitVector as PlaneWaveBasis
+from ._core import SphericalWaveBasis as SphericalBasis
 from ._framework import (
     BandModes as BandModes,
 )
@@ -39,6 +73,7 @@ from ._framework import ScatteredPorts as ScatteredPorts
 from ._framework import SMatrix as SMatrix
 from ._framework import TMatrix as TMatrix
 from ._framework import Wave as Wave
+from ._lattice import Lattice as Lattice
 from ._operators import _rs_weights
 from .config import _resolve_poltype
 
@@ -743,7 +778,28 @@ def field(
     singular: bool = False,
     kzs: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
-    """Electric samples with native geometry/medium and optional cylindrical kz VJPs."""
+    """Electric samples with native geometry/medium and optional cylindrical kz VJPs.
+
+    For routine scattering prefer ``Cluster(...).scatter(incident).efield(points)``.
+    Raw scattered coefficients require ``singular=True`` (outgoing waves);
+    ``singular=False`` means regular incident waves. ``ks`` contains medium
+    wavenumbers for negative/positive helicity, both k0 in vacuum. Helicity
+    labels do not mean opposite propagation directions or opposite signs of k.
+
+    The raw path agrees with the physical wave API::
+
+        import numpy as np
+        import treams_rs.advect as tr
+
+        k0 = 2.0
+        sphere = tr.sphere_tmatrix(k0=k0, lmax=2, radius=0.2, material=3.0)
+        incident = tr.plane_wave([0, 0, 1], "positive_helicity", k0=k0)
+        scattered = sphere.scatter(incident)
+        points = [[0.4, 0.1, 0.3]]
+        raw = tr.field(scattered.coefficients, points, scattered.basis.positions,
+                       [k0, k0], basis=scattered.basis, singular=True)
+        np.testing.assert_allclose(raw, scattered.efield(points))
+    """
     poltype = _resolve_poltype(poltype)
 
     def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
@@ -1665,13 +1721,18 @@ __all__ = [
     "BandModes",
     "Cluster",
     "CrossSections",
+    "CylindricalBasis",
+    "Lattice",
     "Material",
     "PeriodicResponse",
     "PlaneWave",
+    "PlaneWaveBasis",
+    "PlaneWavePorts",
     "PortWave",
     "PowerBalance",
     "SMatrix",
     "ScatteredPorts",
+    "SphericalBasis",
     "TMatrix",
     "Wave",
     "angular",

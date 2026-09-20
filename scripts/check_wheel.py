@@ -17,6 +17,15 @@ from treams_rs.testing import check_pullback
 for dependency in ("treams", "scipy", "autograd", "h5py", "jax", "torch"):
     assert importlib.util.find_spec(dependency) is None, dependency
 
+for name in (
+    "PlaneWavePorts",
+    "PlaneWaveBasis",
+    "SphericalBasis",
+    "CylindricalBasis",
+    "Lattice",
+):
+    assert getattr(ad, name) is getattr(tr, name)
+
 # Primary physical workflow works in the isolated wheel, without an oracle.
 particle = tr.sphere_tmatrix(k0=1.3, lmax=2, radius=0.2, material=3)
 source = tr.plane_wave(direction=[0, 0, 1], polarization="positive_helicity", k0=1.3)
@@ -27,6 +36,7 @@ np.testing.assert_allclose(
     rtol=1e-11,
 )
 assert wave.efield([[0.1, 0.2, 0.8]]).shape == (1, 3)
+assert not hasattr(particle, "efield")
 
 
 def physical_loss(radius):
