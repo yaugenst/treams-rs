@@ -8,6 +8,7 @@ import argparse
 import ast
 import hashlib
 import json
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -166,12 +167,11 @@ def grade_run(log, tasks):
             "checks": [],
             "reason": "solution.py absent",
         }
-    (trial / ".eval_replay.py").write_text(REPLAY)
     for index, config in enumerate(task["inputs"]):
         result = {"input": index, "passed": False}
         try:
             process = subprocess.run(
-                tool_command(trial, "python .eval_replay.py"),
+                tool_command(trial, "python -c " + shlex.quote(REPLAY)),
                 input=json.dumps(config),
                 text=True,
                 capture_output=True,

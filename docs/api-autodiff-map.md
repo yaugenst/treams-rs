@@ -38,6 +38,10 @@ Compile scalar or array objectives, with physics objects created inside them.
 The objects are not registered JAX PyTrees; returning a physical object directly
 from `jit` is not supported. PyTorch uses the same constructors and ordinary
 `backward()`. Advect uses the same constructors and ordinary `advect.grad`.
+Pass array primals, including scalars as `advect.numpy.asarray(x)`, to Advect
+transforms. In Advect 0.2.1, promoting a Python-float primal to complex in an
+expression such as `epsilon + 0.1j` can lose cotangent contributions before
+calling treams-rs; array primals preserve them.
 The bridges retain their existing residual lifetime and complex-gradient
 conventions, documented in [adapters](adapters.md).
 

@@ -11,13 +11,16 @@ Use this namespace for all objects inside a differentiated objective::
         wave = tr.plane_wave([0, 0, 1], "positive_helicity", k0=2.0)
         return sphere.cross_sections(wave).scattering
 
-    value, gradient = ad.value_and_grad(objective)(0.2)
+    value, gradient = ad.value_and_grad(objective)(np.asarray(0.2))
 
 Use ``ad.grad`` for just the derivative, or ``ad.value_and_grad`` for both.
 For multiple parameters use an array (or pytree) argument and unpack it inside
 objective; its gradient has the same structure. Build traced geometry using
 ``advect.numpy.stack`` or ``asarray``; never convert a traced value to float or
 plain NumPy. ``tr.Material(epsilon=...)`` accepts traced real/complex parameters.
+Pass array primals to Advect transforms, including scalars as ``np.asarray(x)``.
+Advect 0.2.1 can lose complex cotangent contributions when a Python-float primal
+is promoted in expressions such as ``epsilon + 0.1j`` before entering this package.
 The same functions work without tracing for value evaluation. Convert to NumPy
 or float only after the transform returns, e.g. to write JSON.
 

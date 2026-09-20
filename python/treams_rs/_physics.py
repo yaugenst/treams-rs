@@ -11,7 +11,7 @@ from ._core import PlaneWaveBasisByComp, PlaneWaveBasisByUnitVector
 from ._lattice import WaveVector
 from ._operators import _periodic_channels, expandlattice
 from ._plane import PlaneWave
-from ._smatrix import SMatrices
+from ._smatrix import SMatrix
 from ._source import MultipoleWave
 from ._tmatrix import TMatrix, TMatrixC
 from .lattice import _geometry
@@ -343,7 +343,7 @@ class PeriodicResponse:
         )
         return PeriodicWave(local, self.lattice, self.kpar)
 
-    def to_smatrix(self, basis: PlaneWaveBasisByComp) -> SMatrices:
+    def to_smatrix(self, basis: PlaneWaveBasisByComp) -> SMatrix:
         """Convert the solved response to matching up/down diffraction ports."""
         channels = _periodic_channels(
             self.basis,
@@ -354,7 +354,7 @@ class PeriodicResponse:
             self.polarization,
         )
         array, _ = diff.smatrix_from_array(self.array, channels)
-        return SMatrices(
+        return SMatrix(
             array,
             basis=basis,
             k0=self.k0,
@@ -449,9 +449,9 @@ def interface(
     negative_medium: MaterialLike,
     positive_medium: MaterialLike,
     polarization: str = "helicity",
-) -> SMatrices:
+) -> SMatrix:
     """Planar interface from negative to positive side of the basis normal."""
-    return SMatrices.interface(
+    return SMatrix.interface(
         basis, k0, [negative_medium, positive_medium], polarization
     )
 
@@ -465,7 +465,7 @@ def slab(
     negative_medium: MaterialLike = 1,
     positive_medium: MaterialLike = 1,
     polarization: str = "helicity",
-) -> SMatrices:
+) -> SMatrix:
     """One homogeneous layer between explicitly named exterior media.
 
     ``basis=PlaneWavePorts.default([0, 0])`` supplies normal-incidence channels.
@@ -514,9 +514,9 @@ def multilayer_slab(
     negative_medium: MaterialLike = 1,
     positive_medium: MaterialLike = 1,
     polarization: str = "helicity",
-) -> SMatrices:
+) -> SMatrix:
     """Layers ordered along the positive normal, with one material per thickness."""
-    return SMatrices.slab(
+    return SMatrix.slab(
         thicknesses,
         basis,
         k0,
@@ -532,11 +532,11 @@ def propagation(
     k0: float,
     medium: MaterialLike = 1,
     polarization: str = "helicity",
-) -> SMatrices:
+) -> SMatrix:
     """Homogeneous propagation by a normal distance or Cartesian displacement."""
-    return SMatrices.propagation(distance, basis, k0, medium, polarization)
+    return SMatrix.propagation(distance, basis, k0, medium, polarization)
 
 
-def stack(layers: Sequence[SMatrices]) -> SMatrices:
+def stack(layers: Sequence[SMatrix]) -> SMatrix:
     """Cascade layers in order from negative to positive side of their normal."""
-    return SMatrices.stack(layers)
+    return SMatrix.stack(layers)

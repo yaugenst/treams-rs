@@ -11,7 +11,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from grade import check
+from grade import check, grade_run
 from reference import coating_reflection, derivative, sphere_efficiency
 from summarize import trace
 
@@ -43,6 +43,26 @@ def main():
             rejected.returncode != 0 and "Refusing artifact symlink" in rejected.stderr
         )
         assert not list((root / "export").rglob("solution.py"))
+        (trial / "solution.py").unlink()
+        (trial / "solution.py").write_text(
+            "import json, sys\ndef run(config): return {'value': config['x']}\n"
+            "if __name__ == '__main__': print(json.dumps(run(json.load(sys.stdin))))\n"
+        )
+        (trial / "REPORT.md").write_text("control\n")
+        (trial / "results.json").write_text('{"value": 1}\n')
+        (trial / ".tmp").mkdir()
+        (trial / ".eval_replay.py").symlink_to(outside)
+        (log / "run.json").write_text(
+            json.dumps({"trial": str(trial), "case": "control"})
+        )
+        control = {
+            "id": "control",
+            "category": "forward",
+            "inputs": [{"x": 1}],
+            "expected": [{"value": 1}],
+        }
+        assert grade_run(log, {"control": control})["outcome"] == "pass"
+        assert outside.read_text() == "MUST_NOT_EXPORT"
         path = Path(directory) / "events.jsonl"
         events = [
             {

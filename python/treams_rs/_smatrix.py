@@ -60,7 +60,7 @@ class CircularDichroism(NamedTuple):
     outgoing_power: float
 
 
-class SMatrix(PhysicsArray):
+class ScatteringBlock(PhysicsArray):
     """One scattering block with explicit input and output port metadata."""
 
     def __init__(
@@ -92,7 +92,7 @@ class SMatrix(PhysicsArray):
         )
 
 
-class SMatrices:
+class SMatrix:
     """Four scattering blocks indexed by outgoing and incoming up/down direction.
 
     ``material`` is ordered (positive side, negative side) along the basis normal.
@@ -143,7 +143,7 @@ class SMatrices:
             return self.array[keys[key[0]], keys[key[1]]]
         return self.array[keys[key]]
 
-    def block(self, outgoing: int | str, incoming: int | str) -> SMatrix:
+    def block(self, outgoing: int | str, incoming: int | str) -> ScatteringBlock:
         """Read-only block view with port metadata, sharing this stack's storage.
 
         Numeric indexing remains an ndarray view for inexpensive numerical work.
@@ -154,7 +154,7 @@ class SMatrices:
         outgoing_keys = {0: 0, 1: 1, "up": 0, "down": 1, "positive": 0, "negative": 1}
         incoming_keys = {0: 0, 1: 1, "up": 0, "down": 1, "negative": 0, "positive": 1}
         i, j = outgoing_keys[outgoing], incoming_keys[incoming]
-        result = SMatrix.__new__(SMatrix)
+        result = ScatteringBlock.__new__(ScatteringBlock)
         result.array = self.array[i, j]
         result.basis, result.k0, result.poltype = self.basis, self.k0, self.poltype
         result.material = (self.material[i], self.material[1 - j])
@@ -180,11 +180,11 @@ class SMatrices:
         """Polarization channel convention."""
         return self.poltype
 
-    def cascade(self, next_layer: SMatrices) -> SMatrices:
+    def cascade(self, next_layer: SMatrix) -> SMatrix:
         """Place the next layer on the positive side and compose all reflections."""
         return self.add(next_layer)
 
-    def with_polarization(self, polarization: str) -> SMatrices:
+    def with_polarization(self, polarization: str) -> SMatrix:
         """Express the same scattering response in another polarization convention."""
         return self.changepoltype(polarization)
 
@@ -266,7 +266,7 @@ class SMatrices:
         k0: float,
         materials: Sequence[MaterialLike],
         poltype: str | None = None,
-    ) -> SMatrices:
+    ) -> SMatrix:
         poltype = _resolve_poltype(poltype)
         if len(materials) != 2:
             raise ValueError("an interface requires two materials, below then above")
@@ -305,7 +305,7 @@ class SMatrices:
         lattice: ArrayLike,
         kpar: ArrayLike,
         eta: complex = 0,
-    ) -> SMatrices:
+    ) -> SMatrix:
         """Solve an uncoupled unit cell and radiate into matching plane-wave ports.
 
         Spherical arrays use a 2D xy cell. Cylindrical arrays use a 1D period along
@@ -326,7 +326,7 @@ class SMatrices:
         k0: float,
         material: MaterialLike = 1,
         poltype: str | None = None,
-    ) -> SMatrices:
+    ) -> SMatrix:
         poltype = _resolve_poltype(poltype)
         axis = basis.normal_axis
         distance = np.asarray(r, dtype=np.float64)
@@ -341,7 +341,7 @@ class SMatrices:
             value, basis=basis, k0=k0, material=Material(material), poltype=poltype
         )
 
-    def add(self, upper: SMatrices) -> SMatrices:
+    def add(self, upper: SMatrix) -> SMatrix:
         self._check_adjacent(upper)
         value, _ = diff.smatrix_add(self.array, upper.array)
         return type(self)(
@@ -352,7 +352,7 @@ class SMatrices:
             poltype=self.poltype,
         )
 
-    def _check_adjacent(self, upper: SMatrices) -> None:
+    def _check_adjacent(self, upper: SMatrix) -> None:
         if (
             self.k0 != upper.k0
             or self.poltype != upper.poltype
@@ -365,7 +365,7 @@ class SMatrices:
             )
 
     @classmethod
-    def stack(cls, items: Sequence[SMatrices]) -> SMatrices:
+    def stack(cls, items: Sequence[SMatrix]) -> SMatrix:
         if not items:
             raise ValueError("stack requires at least one S matrix")
         result = items[0]
@@ -381,7 +381,7 @@ class SMatrices:
         k0: float,
         materials: Sequence[MaterialLike],
         poltype: str | None = None,
-    ) -> SMatrices:
+    ) -> SMatrix:
         poltype = _resolve_poltype(poltype)
         values = np.atleast_1d(np.asarray(thickness, dtype=np.float64))
         if (
@@ -430,7 +430,7 @@ class SMatrices:
             )
         return result
 
-    def double(self, n: int = 1) -> SMatrices:
+    def double(self, n: int = 1) -> SMatrix:
         if n < 0:
             raise ValueError("doubling count must be nonnegative")
         result = self
@@ -438,7 +438,7 @@ class SMatrices:
             result = result.add(result)
         return result
 
-    def changepoltype(self, poltype: str | None = None) -> SMatrices:
+    def changepoltype(self, poltype: str | None = None) -> SMatrix:
         poltype = (
             ("parity" if self.poltype == "helicity" else "helicity")
             if poltype is None
@@ -459,7 +459,7 @@ class SMatrices:
             poltype=poltype,
         )
 
-    def rotate(self, phi: float, theta: float = 0, psi: float = 0) -> SMatrices:
+    def rotate(self, phi: float, theta: float = 0, psi: float = 0) -> SMatrix:
         """Rotate xy plane-wave labels and their periodic metadata around z."""
         if theta != 0:
             raise ValueError("plane rotations require zero theta")
@@ -467,7 +467,7 @@ class SMatrices:
 
     def _with_array(
         self, value: NDArray[np.complex128], basis: PlaneWaveBasisByComp
-    ) -> SMatrices:
+    ) -> SMatrix:
         """Adopt an internally owned result without copying its dense storage."""
         if not np.isfinite(value).all():
             raise ValueError("S-matrix transformation produced nonfinite values")
@@ -476,7 +476,7 @@ class SMatrices:
         result.array, result.basis = value, basis
         return result
 
-    def translate(self, r: ArrayLike) -> SMatrices:
+    def translate(self, r: ArrayLike) -> SMatrix:
         """Translate channel reference origins using native diagonal phase factors."""
         r = np.asarray(r, dtype=float)
         if r.shape != (3,):
@@ -495,7 +495,7 @@ class SMatrices:
                 value[i, j] = left[:, None] * self.array[i, j] * right[None, :]
         return self._with_array(value, self.basis)
 
-    def permute(self, n: int = 1) -> SMatrices:
+    def permute(self, n: int = 1) -> SMatrix:
         """Cyclic coordinate change of both ports and their polarization frames."""
         basis = self.basis.permute(n)
         lookup = {mode: index for index, mode in enumerate(self.basis.modes)}
@@ -564,7 +564,7 @@ class SMatrices:
         illu2: ArrayLike | PlaneWave | MultipoleWave | None = None,
         *,
         modetype: str | None = None,
-        smat: SMatrices | None = None,
+        smat: SMatrix | None = None,
     ) -> tuple[NDArray[np.complex128], ...]:
         """Outgoing fields, and optionally internal fields below an adjacent stack.
 

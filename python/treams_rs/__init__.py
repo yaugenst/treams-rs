@@ -110,11 +110,11 @@ from ._smatrix import (
     CircularDichroism,
     PowerBalance,
     ScatteredPorts,
+    ScatteringBlock,
+    SMatrix,
     chirality_density,
     poynting_avg_z,
 )
-from ._smatrix import SMatrices as SMatrix
-from ._smatrix import SMatrix as ScatteringBlock
 from ._source import MultipoleWave as Wave
 from ._source import cylindrical_wave, spherical_wave
 from ._tmatrix import CrossSections, TMatrix

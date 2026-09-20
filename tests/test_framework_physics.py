@@ -25,6 +25,7 @@ def engine(request):
             return y.detach().numpy(), x.grad.numpy()
         if name == "jax":
             return framework.jit(framework.value_and_grad(function))(value)
+        value = np.asarray(value)
         return function(value), framework.grad(function)(value)
 
     return tr, evaluate
@@ -86,19 +87,106 @@ def test_cluster_requested_illumination_gradient(engine):
     check_direction(evaluate, objective, 0.2)
 
 
-def test_periodic_to_power_gradient(engine):
+@pytest.mark.parametrize("polarization", ["helicity", "parity"])
+def test_periodic_to_power_gradient(engine, polarization):
     tr, evaluate = engine
     ports = core.PlaneWavePorts.default([[0.1, 0.05]])
 
     def objective(radius):
-        tm = tr.sphere_tmatrix(k0=1.2, lmax=1, radius=radius, material=3 + 0.1j)
+        tm = tr.sphere_tmatrix(
+            k0=1.2,
+            lmax=1,
+            radius=radius,
+            material=3 + 0.1j,
+            polarization=polarization,
+        )
         response = tr.solve_periodic(
             tm, lattice=[[2.0, 0.0], [0.0, 2.0]], kpar=[0.1, 0.05]
         )
-        power = response.to_smatrix(ports).power([1.0, 0.0])
+        network = response.to_smatrix(ports)
+        assert network.polarization == polarization
+        power = network.power([1.0, 0.0])
         return power.transmission + 0.3 * power.reflection
 
-    check_direction(evaluate, objective, 0.2)
+    actual = check_direction(evaluate, objective, 0.2)
+    tm = core.sphere_tmatrix(
+        k0=1.2,
+        lmax=1,
+        radius=0.2,
+        material=3 + 0.1j,
+        polarization=polarization,
+    )
+    expected = (
+        core.solve_periodic(tm, lattice=[[2.0, 0.0], [0.0, 2.0]], kpar=[0.1, 0.05])
+        .to_smatrix(ports)
+        .power([1.0, 0.0])
+    )
+    assert_allclose(
+        actual, expected.transmission + 0.3 * expected.reflection, rtol=1e-12
+    )
+
+
+@pytest.mark.parametrize("direction", [[1, 0, 0], [0, 0, 1], [1, 0.2, 0.3]])
+def test_plane_material_branch_matches_normal_api(engine, direction):
+    tr, evaluate = engine
+    basis = core.SphericalBasis.default(1)
+    points = [[0.2, 0.4, 0.7]]
+
+    def observable(wave):
+        return (
+            wave.efield(points).real.sum()
+            + wave.in_basis(basis).coefficients.real.sum()
+        )
+
+    def objective(index):
+        return observable(
+            tr.plane_wave(
+                direction,
+                "positive_helicity",
+                k0=1.2,
+                medium=tr.Material(index + 0.1j, index + 0.1j),
+            )
+        )
+
+    actual = check_direction(evaluate, objective, -1.0)
+    expected = observable(
+        core.plane_wave(
+            direction,
+            "positive_helicity",
+            k0=1.2,
+            medium=core.Material(-1 + 0.1j, -1 + 0.1j),
+        )
+    )
+    assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
+
+
+def test_cylinder_cross_widths_gradient(engine):
+    tr, evaluate = engine
+
+    def objective(radius):
+        cylinder = tr.cylinder_tmatrix(
+            k0=1.2, kz=0.0, mmax=1, radius=radius, material=3.0
+        )
+        incident = tr.plane_wave([1, 0, 0], "positive_helicity", k0=1.2)
+        return cylinder.cross_widths(incident).extinction
+
+    actual = check_direction(evaluate, objective, 0.2)
+    expected = core.cylinder_tmatrix(k0=1.2, kz=0.0, mmax=1, radius=0.2, material=3.0)
+    incident = core.plane_wave([1, 0, 0], "positive_helicity", k0=1.2)
+    assert_allclose(actual, expected.cross_widths(incident).extinction, rtol=1e-12)
+
+
+def test_polarization_conversion_requires_complete_pairs(engine):
+    tr, _ = engine
+    basis = core.SphericalBasis.default(1)[:1]
+    wave = tr.wave([1.0], basis=basis, k0=1.2)
+    ports = core.PlaneWavePorts.default([0.1, 0.05])[:1]
+    network = tr.slab(basis=ports, k0=1.2, thickness=0.2, material=2.0)
+    port_wave = network.scatter(negative=[1.0]).positive
+    for physical in (wave, network, port_wave):
+        assert physical.with_polarization("helicity").polarization == "helicity"
+        with pytest.raises(ValueError, match="both polarizations"):
+            physical.with_polarization("parity")
 
 
 def test_layers_and_cylinder_gradient(engine):

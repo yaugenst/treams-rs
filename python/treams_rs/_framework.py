@@ -77,6 +77,18 @@ class Backend:
         self.xp, self.call, self.torch = xp, call, torch
         self.validate = validate
 
+    def polarization_change(self, basis: Any, source: str, target: str) -> Any:
+        from ._operators import changepoltype
+
+        if source == target:
+            return self.array(np.eye(len(basis)), complex_=True)
+        change = changepoltype((target, source), basis=basis)
+        if not np.all(np.count_nonzero(change, axis=0) == 2):
+            raise ValueError(
+                "polarization conversion requires both polarizations of each mode"
+            )
+        return self.array(change, complex_=True)
+
     def array(self, value: Any, *, complex_: bool = False) -> Any:
         if self.validate is not None:
             self.validate(value)
@@ -393,11 +405,10 @@ class Wave(_Fields):
 
     def with_polarization(self, polarization: str) -> Wave:
         """Change the static multipole polarization convention."""
-        from ._operators import changepoltype
-
-        change = self._backend.array(
-            changepoltype((polarization, self.polarization), basis=self.basis),
-            complex_=True,
+        change = self._backend.polarization_change(
+            self.basis,
+            self.polarization,
+            polarization,
         )
         return Wave(
             change @ self.coefficients,
@@ -471,11 +482,20 @@ class PlaneWave(_Fields):
                 "cylindrical plane illumination currently requires kz=0 and transverse incidence; use the expert plane_expansion primitive for fixed axial sectors"
             )
         zero_basis = type(basis)(basis.modes, np.zeros_like(basis.positions))
-        angular, _ = diff.plane_expansion(
-            zero_basis, np.tile(self.direction, (2, 1)), [0, 1], fixed_vectors=True
-        )
+
+        def record_angular(vectors: Any) -> Any:
+            value, context = diff.plane_expansion(
+                zero_basis, vectors, [0, 1], fixed_vectors=True
+            )
+
+            def pullback(g: Any) -> Any:
+                return context.pullback(g)[1]
+
+            return value, pullback
+
+        angular = b.invoke(record_angular, (len(basis), 2), vectors)
         phases = b.invoke(diff.plane_phases, (origins.shape[0], 2), origins, vectors)
-        operator = b.array(angular, complex_=True) * phases[basis.pidx.copy()]
+        operator = angular * phases[basis.pidx.copy()]
         return Wave(
             operator @ self.coefficients,
             basis=basis,
@@ -491,23 +511,25 @@ class PlaneWave(_Fields):
         points = b.array(points)
         shape = tuple(points.shape)
         vectors = b.ks(self.medium, self.k0)[:, None] * b.array(self.direction)[None, :]
-        electric, _ = diff.plane_field(
-            None,
-            np.zeros((1, 3)),
-            np.tile(self.direction, (2, 1)),
-            [0, 1],
-            fixed_vectors=True,
-        )
+
+        def record_electric(vectors: Any) -> Any:
+            value, context = diff.plane_field(
+                None, np.zeros((1, 3)), vectors, [0, 1], fixed_vectors=True
+            )
+
+            def pullback(g: Any) -> Any:
+                return context.pullback(g)[2]
+
+            return value, pullback
+
+        electric = b.invoke(record_electric, (1, 3, 2), vectors)
         phases = b.invoke(
             diff.plane_phases,
             (int(np.prod(shape[:-1])), 2),
             points.reshape(-1, 3),
             vectors,
         )
-        return (
-            (phases * self.coefficients)
-            @ b.array(electric.reshape(3, 2).T, complex_=True)
-        ).reshape(shape)
+        return ((phases * self.coefficients) @ electric.reshape(3, 2).T).reshape(shape)
 
     @override
     def hfield(self, points: Any) -> Any:
@@ -611,14 +633,13 @@ class PortWave(_Fields):
     def with_polarization(self, polarization: str) -> PortWave:
         from copy import copy
 
-        from ._operators import changepoltype
-
         labels = PlaneWaveBasisByComp(
             [(float(group), 0.0, pol) for group, pol in self.modes]
         )
-        change = self._backend.array(
-            changepoltype((polarization, self.polarization), basis=labels),
-            complex_=True,
+        change = self._backend.polarization_change(
+            labels,
+            self.polarization,
+            polarization,
         )
         wave = copy(self)
         wave.coefficients = change @ self.coefficients
@@ -681,7 +702,11 @@ class TMatrix:
     def cross_sections(
         self, incident: PlaneWave | Wave, *, flux: Any = 0.5
     ) -> CrossSections:
-        """Named scattering/extinction for a nonabsorbing propagating exterior."""
+        """Named cross sections (area), or cylindrical widths (length).
+
+        The exterior must be nonabsorbing and propagating. For a cylindrical
+        response, ``cross_widths`` makes the length units explicit.
+        """
         b = self._backend
         wave = incident.in_basis(self.basis, positions=self.positions, outgoing=False)
         wave.coefficients = b.match(wave.coefficients, self, incident)
@@ -735,13 +760,20 @@ class TMatrix:
             -b.xp.sum(b.xp.conj(wave.coefficients) * weighted).real * factor / flux,
         )
 
+    def cross_widths(
+        self, incident: PlaneWave | Wave, *, flux: Any = 0.5
+    ) -> CrossSections:
+        """Named cylindrical scattering/extinction/absorption widths in length units."""
+        if not isinstance(self.basis, CylindricalWaveBasis):
+            raise ValueError("cross widths require a cylindrical basis")
+        return self.cross_sections(incident, flux=flux)
+
     def with_polarization(self, polarization: str) -> TMatrix:
         """Convert the response convention with a fixed analytic basis transform."""
-        from ._operators import changepoltype
-
-        change = self._backend.array(
-            changepoltype((polarization, self.polarization), basis=self.basis),
-            complex_=True,
+        change = self._backend.polarization_change(
+            self.basis,
+            self.polarization,
+            polarization,
         )
         return TMatrix(
             change @ self.array @ change.T,
@@ -994,6 +1026,7 @@ class PeriodicResponse:
             k0=tm.k0,
             media=(tm.medium, tm.medium),
             backend=b,
+            polarization=tm.polarization,
             transverse=q,
             modes=modes,
             alignment=alignment,
@@ -1029,6 +1062,7 @@ class SMatrix:
         k0: Any,
         media: tuple[Material, Material],
         backend: Backend,
+        polarization: str = "helicity",
         transverse: Any = None,
         modes: tuple[tuple[int, int], ...] | None = None,
         alignment: str = "xy",
@@ -1042,7 +1076,7 @@ class SMatrix:
             backend,
         )
 
-        self.polarization = "helicity"
+        self.polarization = polarization
         self.fixed_q = fixed_q
         if basis is not None and transverse is None:
             groups = list(dict.fromkeys(tuple(q) for q in basis.components))
@@ -1058,32 +1092,29 @@ class SMatrix:
 
     def with_polarization(self, polarization: str) -> SMatrix:
         """Convert the port polarization convention using a static basis matrix."""
-        if polarization == getattr(self, "polarization", "helicity"):
+        if polarization == self.polarization:
             return self
-        from ._operators import changepoltype
 
         labels = PlaneWaveBasisByComp(
             [(float(group), 0.0, pol) for group, pol in self.modes]
         )
-        change = self._backend.array(
-            changepoltype(
-                (polarization, getattr(self, "polarization", "helicity")), basis=labels
-            ),
-            complex_=True,
+        change = self._backend.polarization_change(
+            labels,
+            self.polarization,
+            polarization,
         )
-        result = SMatrix(
+        return SMatrix(
             change @ self.array @ change.T,
             basis=self.basis,
             k0=self.k0,
             media=self.media,
             backend=self._backend,
+            polarization=polarization,
             transverse=self.transverse_wavevectors,
             modes=self.modes,
             alignment=self.alignment,
             fixed_q=self.fixed_q,
         )
-        result.polarization = polarization
-        return result
 
     def _incident(self, incident: Any, side: str) -> Any:
         b = self._backend
@@ -1175,18 +1206,11 @@ class SMatrix:
             metadata(incident.k0, incident.medium),
         )
         if incident.polarization != self.polarization:
-            from ._operators import changepoltype
-
             labels = PlaneWaveBasisByComp(
                 [(float(group), 0.0, pol) for group, pol in self.modes]
             )
             value = (
-                b.array(
-                    changepoltype(
-                        (self.polarization, incident.polarization), basis=labels
-                    ),
-                    complex_=True,
-                )
+                b.polarization_change(labels, incident.polarization, self.polarization)
                 @ value
             )
         return value
@@ -1325,19 +1349,18 @@ class SMatrix:
             parameters(self.media[0]),
             parameters(upper.media[1]),
         )
-        result = SMatrix(
+        return SMatrix(
             array,
             basis=self.basis,
             k0=self.k0,
             media=(upper.media[0], self.media[1]),
             backend=b,
+            polarization=self.polarization,
             transverse=self.transverse_wavevectors,
             modes=self.modes,
             alignment=self.alignment,
             fixed_q=self.fixed_q,
         )
-        result.polarization = self.polarization
-        return result
 
     def bands(self, period: Any) -> BandModes:
         """Principal-branch normal Bloch wavenumbers and right vectors."""

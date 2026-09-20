@@ -136,6 +136,13 @@ def test_framework_physics_contracts_are_discovered_without_importing_backends()
     assert "treams_rs.efield" not in entries
     assert "treams_rs.SMatrix" in entries
     assert "treams_rs.SMatrices" not in entries
+    network = {
+        member["path"]: member for member in entries["treams_rs.SMatrix"]["members"]
+    }
+    assert network["treams_rs.SMatrix.block"]["signature"].endswith(
+        "-> ScatteringBlock"
+    )
+    assert network["treams_rs.SMatrix.cascade"]["signature"].endswith("-> SMatrix")
 
 
 def test_generated_reference_is_source_current():
