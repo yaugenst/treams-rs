@@ -205,6 +205,44 @@ core/Advect/HDF5 validation passed. The grader's 30 independent controls reject
 corrupted outputs and missing native derivatives. The final chart was rendered
 and visually inspected.
 
+## Final merge review and compatibility replay
+
+A five-part review covered correctness, API quality, intent/evaluation evidence,
+clarity and unnecessary complexity. The resulting fixes in `05a1310` preserve
+periodic polarization metadata, evaluate fixed-direction plane-wave gauges using
+physical wavevectors in negative-index media, reject incomplete polarization
+pairs, support identity conversions, expose framework cylinder `cross_widths`,
+and align actual class names with the public `SMatrix`/`ScatteringBlock` signatures.
+No Rust numerical source changed.
+
+The review also removed the grader's host-side `.eval_replay.py` write, which
+could follow an agent-created symlink. Replay code now runs directly inside the
+sandbox. A sentinel regression verifies that grading leaves the symlink's external
+target unchanged. Numerical grading criteria and original scores are unchanged.
+
+Independent reproduction exposed an Advect 0.2.1 dependency limitation: complex
+promotion of a Python-float primal can lose cotangent contributions before calling
+treams-rs. Array primals, including `advect.numpy.asarray(x)` for scalar parameters,
+preserve those contributions. Installed help and the autodiff guide document this
+boundary; regression tests use array primals for complex-material objectives.
+
+The tree integrated with qualified main passed `just verify` (93 Rust and 2,307
+Python tests; 14 optional plotting skips). All 40 plotting/report tests passed
+separately with Matplotlib. Optimized clean-wheel core/Advect/HDF5 checks,
+warnings-as-errors rustdoc, and all 30 grader controls also passed.
+
+All **160 saved final submissions** were replayed in copied, isolated workspaces
+against the reviewed wheel: **158 pass, one partial, one fail**, with **zero changed
+outcomes**. The main subset remains 118/120, with all 40 confirmation/transfer
+submissions passing. These are compatibility replays, not fresh agent attempts;
+the timing and token comparisons above still belong to frozen candidate 4.
+No new solver performance, peak-memory, macOS or GPU qualification is claimed.
+
+The [review verification record](review-verification.json) binds every replay,
+source hash, check log and installed wheel file. The [review archive](review-evidence.tar.gz)
+contains the replay script, retained harness, outputs and check logs. Reviewed
+wheel SHA-256: `3a724e3c72df9199b8b83399777811720dc5a261509fceb6ec6282eded7bb191`.
+
 ## Reviewable evidence
 
 - [Per-attempt scores, usage and source reviews](summary.json).
@@ -225,5 +263,6 @@ checked to contain no artifact symlinks. Archive contents were verified against
 their manifest hashes.
 
 The full local provider streams and wheel files remain ignored working evidence;
-they are not included in the sanitized Git archive. No public package release,
-merge to main, pull request or external comment is part of this campaign.
+they are not included in the sanitized Git archive. The reviewed implementation
+and this evidence are integrated into main. No public package release, pull
+request or external comment was created.

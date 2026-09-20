@@ -1,0 +1,483 @@
+{
+  "schema_version": 1,
+  "scope": "Linux CPU performance and peak RSS on Ryzen 9 9950X / Python 3.13.1; declared correction-plan.json cases only.",
+  "qualification_complete": true,
+  "native_numerical_gates_passed": true,
+  "all_measured_comparisons_faster_and_lower_rss": false,
+  "new_cases": 685,
+  "retained_gradient_and_boundary_cases": 84,
+  "total_performance_cases": 769,
+  "total_correctness_and_performance_cases": 1300,
+  "plan": {
+    "path": "benchmarks/correction-plan.json",
+    "sha256": "1bb7f420536f23d9cd707c0e7b40717810272930e9896efb05edb2a59a4eb58e"
+  },
+  "source": {
+    "native_sha256": "8c51f988575238b90ce88168c79526882346a533dadb5a2926477d38a9c695f8",
+    "python_source_sha256": "e735acc3561b112167b3b7fbb84bb87fd3d7a2ff67092f5407f815de2c72cbde",
+    "native_profile": "release",
+    "commit": "2470fbe859894240814a06d0df563642703f7018",
+    "harness_sha256": {
+      "scripts/benchmark_cluster.py": "23036662c78c4dbaf87c819c07104fcd7746ccceb1b045d2445f1334c53bfd08"
+    },
+    "runner_sha256": "d3d3bf0c983f26bac0d397fb5664e96384e4e828a6ef86d12fcaa690d020cb6c",
+    "numerical_source_sha256": "2fd350d6907d65014954201ffaf94a146982801b7665f74acfc300627add4789"
+  },
+  "environment": {
+    "os": "Linux",
+    "os_version": "7.2.5-200.fc44.x86_64",
+    "architecture": "x86_64",
+    "python": "3.13.1",
+    "logical_cores": 32,
+    "cpu_affinity": [
+      8,
+      9,
+      10,
+      11
+    ],
+    "cpu_model": "AMD Ryzen 9 9950X 16-Core Processor",
+    "physical_cores": 16,
+    "ram_bytes": 64846077952,
+    "power_mode": {
+      "policy11": "powersave",
+      "policy8": "powersave",
+      "policy6": "powersave",
+      "policy28": "powersave",
+      "policy18": "powersave",
+      "policy4": "powersave",
+      "policy26": "powersave",
+      "policy16": "powersave",
+      "policy2": "powersave",
+      "policy24": "powersave",
+      "policy14": "powersave",
+      "policy0": "powersave",
+      "policy22": "powersave",
+      "policy12": "powersave",
+      "policy9": "powersave",
+      "policy30": "powersave",
+      "policy20": "powersave",
+      "policy10": "powersave",
+      "policy7": "powersave",
+      "policy29": "powersave",
+      "policy19": "powersave",
+      "policy5": "powersave",
+      "policy27": "powersave",
+      "policy17": "powersave",
+      "policy3": "powersave",
+      "policy25": "powersave",
+      "policy15": "powersave",
+      "policy1": "powersave",
+      "policy23": "powersave",
+      "policy13": "powersave",
+      "policy31": "powersave",
+      "policy21": "powersave"
+    }
+  },
+  "correctness_record": "benchmarks/linux-core-qualification.json",
+  "phases": [
+    {
+      "group": "broad",
+      "cases": 527,
+      "manifest": {
+        "path": "benchmarks/results/linux-core-performance-20260919/broad/manifest.json",
+        "sha256": "cb31038d1cbfc1ab2855b28d0bd8a8e07e9c3c148dd7c364126cc6cd3a43d30b"
+      },
+      "started": "2026-09-19T21:44:49.050624+00:00",
+      "finished": "2026-09-19T22:41:04.308095+00:00"
+    },
+    {
+      "group": "scaling",
+      "cases": 107,
+      "manifest": {
+        "path": "benchmarks/results/linux-core-performance-20260919/scaling/manifest.json",
+        "sha256": "cd856f0677f7086ad2791bdd7ba53a23b3820627b902b9969a19ff9b12d279e1"
+      },
+      "started": "2026-09-19T22:41:10.182659+00:00",
+      "finished": "2026-09-19T23:43:16.887854+00:00"
+    },
+    {
+      "group": "thread-scaling",
+      "cases": 30,
+      "manifest": {
+        "path": "benchmarks/results/linux-core-performance-20260919/thread-scaling/manifest.json",
+        "sha256": "77c0c68e8ebef30f71227863c84ea4d4ecb9a987f0fcb57f1ac63d4a435b5bc4"
+      },
+      "started": "2026-09-19T23:43:23.063994+00:00",
+      "finished": "2026-09-20T00:09:11.020931+00:00"
+    },
+    {
+      "group": "illumination",
+      "cases": 21,
+      "manifest": {
+        "path": "benchmarks/results/linux-core-performance-20260919/illumination/manifest.json",
+        "sha256": "5e5eec6f37944fa4a65e0e762472e02398da34a5a8a3291f9dd542fabda655ed"
+      },
+      "started": "2026-09-20T00:09:17.700480+00:00",
+      "finished": "2026-09-20T00:45:11.677881+00:00"
+    },
+    {
+      "group": "gradient",
+      "cases": 51,
+      "manifest": {
+        "path": "benchmarks/results/linux-core-correctness-20260919/gradient/manifest.json",
+        "sha256": "69dc5bd4213aa8e0ea9e5bf77e43c34dd7b2f073bae21327b33b70179f76dc6f"
+      },
+      "started": "2026-09-19T20:40:04.681021+00:00",
+      "finished": "2026-09-19T20:49:34.210302+00:00"
+    },
+    {
+      "group": "correction-boundary",
+      "cases": 33,
+      "manifest": {
+        "path": "benchmarks/results/linux-core-correctness-20260919/correction-boundary/manifest.json",
+        "sha256": "699f743c1942f188fc8a27fe93bb5782abdd3f716136b34de02b3da71ec91ce7"
+      },
+      "started": "2026-09-19T20:49:39.062905+00:00",
+      "finished": "2026-09-19T20:51:12.951743+00:00"
+    }
+  ],
+  "audits": [
+    {
+      "path": "benchmarks/results/linux-core-performance-20260919/audit.json",
+      "sha256": "2dc984fde33fb0689c564aa29caf3f1557fcbebfdea81d95f0805a13e49ed61f"
+    },
+    {
+      "path": "benchmarks/results/linux-core-correctness-20260919/audit-selected.json",
+      "sha256": "c57c92dc78320702730c9e82ecd2389097e52a1044e76ac5bb7985ac14924fa4"
+    }
+  ],
+  "protocol": [
+    "Frozen optimized package; no rebuilding, tolerance changes or favorable retries.",
+    "Declared repeats and timeouts; 16 GiB process-group guard; no timeout or memory-limit outcome.",
+    "CPUs 8-11, except thread scaling on physical CPUs 0-15; matched backend thread budgets.",
+    "Speedups use paired estimates where supplied; RSS is full-process high water including imports and allocator retention.",
+    "Confidence intervals describe within-run samples, not host/day variation; larger calls use fixed upstream-then-native order."
+  ],
+  "comparisons": {
+    "broad": {
+      "comparisons": 527,
+      "speedup_min": 1.0180186944659202,
+      "speedup_median": 5.116291629404576,
+      "speedup_max": 572.2002668017295,
+      "rss_ratio_median": 0.6576581702321347,
+      "rss_ratio_max": 1.4429698334352306,
+      "slower_cases": [],
+      "higher_rss_cases": [
+        {
+          "case": "broad-052-geometry-recheck-internal-adjoint-l512-p8",
+          "speedup": 1.472230446352225,
+          "rss_ratio": 1.4429698334352306
+        },
+        {
+          "case": "broad-066-geometry-recheck-internal-adjoint-l512-p1",
+          "speedup": 1.5131193148539617,
+          "rss_ratio": 1.4382395123700251
+        }
+      ]
+    },
+    "scaling": {
+      "comparisons": 107,
+      "speedup_min": 2.1190803358956867,
+      "speedup_median": 26.682436442842793,
+      "speedup_max": 1209.4569138613301,
+      "rss_ratio_median": 0.6568483063328424,
+      "rss_ratio_max": 1.2982374044610825,
+      "slower_cases": [],
+      "higher_rss_cases": [
+        {
+          "case": "scaling-particle-cluster-public-n64-l3-s2048-t4",
+          "speedup": 24.134462860625643,
+          "rss_ratio": 1.1575482676911428
+        },
+        {
+          "case": "scaling-cylindrical-particle-cluster-public-n64-l3-s2048-t4",
+          "speedup": 3.1898333501280303,
+          "rss_ratio": 1.117527213458292
+        },
+        {
+          "case": "scaling-slab-n128-l3-s64-t4",
+          "speedup": 98.39248742552945,
+          "rss_ratio": 1.2982374044610825
+        },
+        {
+          "case": "scaling-rotation-n2-l24-s2048-t4",
+          "speedup": 9.380103894597179,
+          "rss_ratio": 1.060640208472726
+        }
+      ]
+    },
+    "thread-scaling": {
+      "comparisons": 30,
+      "speedup_min": 2.28868252658573,
+      "speedup_median": 18.711006648782337,
+      "speedup_max": 292.8357055749888,
+      "rss_ratio_median": 0.47362507912902985,
+      "rss_ratio_max": 1.0403364751190838,
+      "slower_cases": [],
+      "higher_rss_cases": [
+        {
+          "case": "thread-scaling-slab-n32-l3-s64-t16",
+          "speedup": 122.08766191229485,
+          "rss_ratio": 1.0403364751190838
+        }
+      ]
+    },
+    "correction-boundary": {
+      "comparisons": 33,
+      "speedup_min": 0.4280855292766682,
+      "speedup_median": 1.7671421502524076,
+      "speedup_max": 3.325163262185562,
+      "rss_ratio_median": 0.8227425821972735,
+      "rss_ratio_max": 1.8760960334029229,
+      "slower_cases": [
+        {
+          "case": "correction-internal-recorded-l255-p1-t4",
+          "speedup": 0.8494660511217972,
+          "rss_ratio": 0.9879860689522958
+        },
+        {
+          "case": "correction-internal-recorded-l255-p16-t4",
+          "speedup": 0.840556254165521,
+          "rss_ratio": 0.9946828833418238
+        },
+        {
+          "case": "correction-polar-tl_vcw_r-recorded-n1-t4",
+          "speedup": 0.4280855292766682,
+          "rss_ratio": 0.6622632686462474
+        }
+      ],
+      "higher_rss_cases": [
+        {
+          "case": "correction-internal-recorded-l256-p1-t4",
+          "speedup": 2.164758665703003,
+          "rss_ratio": 1.3719150564377272
+        },
+        {
+          "case": "correction-internal-recorded-l256-p8-t4",
+          "speedup": 1.3316126352116093,
+          "rss_ratio": 1.3636507735226984
+        },
+        {
+          "case": "correction-internal-recorded-l256-p9-t4",
+          "speedup": 1.5635858166254986,
+          "rss_ratio": 1.41124852955203
+        },
+        {
+          "case": "correction-internal-recorded-l256-p16-t4",
+          "speedup": 1.4812170001201919,
+          "rss_ratio": 1.4360404322063436
+        },
+        {
+          "case": "correction-internal-recorded-l257-p1-t4",
+          "speedup": 2.009289894270725,
+          "rss_ratio": 1.3775072316348262
+        },
+        {
+          "case": "correction-internal-recorded-l257-p8-t4",
+          "speedup": 1.195098906170253,
+          "rss_ratio": 1.3322379854023825
+        },
+        {
+          "case": "correction-internal-recorded-l257-p9-t4",
+          "speedup": 1.4894415561290466,
+          "rss_ratio": 1.4113025848960974
+        },
+        {
+          "case": "correction-internal-recorded-l257-p16-t4",
+          "speedup": 1.33059142650494,
+          "rss_ratio": 1.4426581598812418
+        },
+        {
+          "case": "correction-internal-recorded-l512-p9-t4",
+          "speedup": 1.207376415775368,
+          "rss_ratio": 1.8760960334029229
+        },
+        {
+          "case": "correction-internal-recorded-l512-p16-t4",
+          "speedup": 1.2064766943130452,
+          "rss_ratio": 1.654706423540413
+        }
+      ]
+    },
+    "gradient-forward": {
+      "comparisons": 51,
+      "speedup_min": 1.2329475282741047,
+      "speedup_median": 13.89632731714068,
+      "speedup_max": 1116.8986383976358,
+      "rss_ratio_median": 0.6776403646286941,
+      "rss_ratio_max": 0.7082521117608837,
+      "slower_cases": [],
+      "higher_rss_cases": []
+    },
+    "gradient-vs-finite-differences": {
+      "comparisons": 51,
+      "speedup_min": 5.124104058187535,
+      "speedup_median": 512.4500425511337,
+      "speedup_max": 62355.79223271119,
+      "rss_ratio_median": 0.6806564126022071,
+      "rss_ratio_max": 0.7121132053314544,
+      "slower_cases": [],
+      "higher_rss_cases": []
+    },
+    "gradient-vs-exact-linear-adjoint": {
+      "comparisons": 14,
+      "speedup_min": 1.3833889293813717,
+      "speedup_median": 5.0744663562423025,
+      "speedup_max": 6.4194031683428525,
+      "rss_ratio_median": 0.7044449089773566,
+      "rss_ratio_max": 0.7110393423370522,
+      "slower_cases": [],
+      "higher_rss_cases": []
+    },
+    "illumination-full-fresh": {
+      "comparisons": 19,
+      "speedup_min": 8.191954291828708,
+      "speedup_median": 11.750944289108576,
+      "speedup_max": 33.40326304042047,
+      "rss_ratio_median": 0.6623439559587501,
+      "rss_ratio_max": 0.8038679754807112,
+      "slower_cases": [],
+      "higher_rss_cases": []
+    },
+    "illumination-selected-fresh": {
+      "comparisons": 19,
+      "speedup_min": 8.905514697468444,
+      "speedup_median": 33.84380968023921,
+      "speedup_max": 93.66264220454339,
+      "rss_ratio_median": 0.5496861579121242,
+      "rss_ratio_max": 0.65625,
+      "slower_cases": [],
+      "higher_rss_cases": []
+    },
+    "illumination-matrix-free-fresh": {
+      "comparisons": 19,
+      "speedup_min": 0.6810845800717957,
+      "speedup_median": 12.703927838786324,
+      "speedup_max": 104.41567000273338,
+      "rss_ratio_median": 0.3716339912791665,
+      "rss_ratio_max": 0.6454742008999007,
+      "slower_cases": [
+        {
+          "case": "illumination-weak-n128-l1-p32-t4",
+          "speedup": 0.6810845800717957,
+          "rss_ratio": 0.37996031746031744
+        }
+      ],
+      "higher_rss_cases": []
+    }
+  },
+  "gradient_scope": "All 51 complete gradients retain their original correctness checks and measured arrays. Finite differences are a different algorithm; the 14 exact dense linear adjoints are reported separately.",
+  "illumination_scope": {
+    "fresh": "Includes setup and requested columns. Reuse and reverse costs are separate in the report; fresh speedups do not qualify reuse speed.",
+    "reference": "Full compares with upstream full T matrix; selected and matrix-free compare with upstream coupling plus SciPy LU.",
+    "native_only_cases": [
+      {
+        "case": "illumination-weak-n2048-l1-p1-t4",
+        "reason": "dimension 12288 exceeds explicit upstream limit 6144; no same-size treams runtime or RSS comparison claimed"
+      },
+      {
+        "case": "illumination-weak-n4096-l1-p1-t4",
+        "reason": "dimension 24576 exceeds explicit upstream limit 6144; no same-size treams runtime or RSS comparison claimed"
+      }
+    ]
+  },
+  "native_thread_scaling_1_to_16": {
+    "cluster-n32-l3-s2048-threads": 0.4861239002355019,
+    "cluster-n128-l3-s2048-threads": 2.394547359695396,
+    "field-n4-l3-s8192-threads": 12.684993892255797,
+    "periodic-n9-l3-s2048-threads": 4.591001375788331,
+    "plane-field-n4-l16-s65536-threads": 12.278887460432095,
+    "slab-n32-l3-s64-threads": 2.4226285795537206
+  },
+  "dense_memory_before_after": [
+    {
+      "particles": 128,
+      "baseline": {
+        "path": "benchmarks/results/linux-core-performance-20260919/baseline/scaling-cluster-n128-l3-s2048-t4.json",
+        "sha256": "8415b2d0a91e5feec4a419571eb0d6720136862bfc2eb795d55b8cc12c9f3fdd"
+      },
+      "current": {
+        "path": "benchmarks/results/linux-core-performance-20260919/scaling/results/scaling-cluster-n128-l3-s2048-t4.json",
+        "sha256": "d0910bafae00898d51b308752b7d7632ce92a4d20e5024d9751a274480ce9594"
+      },
+      "baseline_native_sha256": "deb0139c884061349efc2ec78fad639c98ff318b68b66271562c43e18f17b6bf",
+      "baseline_forward_and_reverse_peak_rss_mib": 2107.82421875,
+      "current_forward_and_reverse_peak_rss_mib": 1880.6953125,
+      "reduction_fraction": 0.10775514591282853
+    },
+    {
+      "particles": 256,
+      "baseline": {
+        "path": "benchmarks/results/linux-core-performance-20260919/baseline/scaling-cluster-n256-l3-s2048-t4.json",
+        "sha256": "116640604ff84cd6108eec9713dc58b35324227c56806adfefb88a37d7798571"
+      },
+      "current": {
+        "path": "benchmarks/results/linux-core-performance-20260919/scaling/results/scaling-cluster-n256-l3-s2048-t4.json",
+        "sha256": "a51bc5aa3299096b955ac4ebad80790b79e194009d58efc219565476957566e4"
+      },
+      "baseline_native_sha256": "deb0139c884061349efc2ec78fad639c98ff318b68b66271562c43e18f17b6bf",
+      "baseline_forward_and_reverse_peak_rss_mib": 8219.64453125,
+      "current_forward_and_reverse_peak_rss_mib": 7316.0625,
+      "reduction_fraction": 0.10992957515555579
+    }
+  ],
+  "dense_memory_scope": "Historical versus current build with matching case parameters, not a same-run controlled experiment. Forward-only peak RSS is essentially unchanged.",
+  "report": {
+    "path": "benchmarks/linux-qualification-report/index.html",
+    "manifest_index": {
+      "path": "benchmarks/linux-qualification-report/manifest-index.json",
+      "sha256": "f7b02881ef08682e7e45b31d23432fc3bcbbb8c8dff44ce82482ab1bf35f909b"
+    },
+    "renderer": {
+      "path": "scripts/plot_benchmarks.py",
+      "sha256": "06051067b1a47a448d20e0047ce5a78f9736f18ec2315d4af719aaa451fa1876"
+    },
+    "checks": [
+      "40 report tests passed",
+      "2660 local HTML links resolve",
+      "Representative runtime, RSS, scaling, illumination and thread figures visually inspected"
+    ],
+    "not_verified": [
+      "HTML browser interaction: no browser connected"
+    ],
+    "cases": 1300,
+    "figures": 331
+  },
+  "remaining_limits": [
+    "One Linux host and Python 3.13.1; no new macOS, Python 3.12 or other-host qualification.",
+    "Browser/WASM and CUDA are deferred on separate experimental branches.",
+    "Three recorded-forward boundary cases are slower; matrix-free fresh illumination with 32 columns is slower than upstream selected LU.",
+    "Seven broad/scaling/thread cases and ten retained boundary cases have higher forward peak RSS than upstream.",
+    "More threads need not improve small problems; fresh-setup wins do not imply faster factor reuse.",
+    "No numerical implementation fixes or tolerance changes were needed for this campaign."
+  ],
+  "evidence_archives": [
+    {
+      "path": "benchmarks/results/linux-core-performance-20260919.tar.gz",
+      "sha256": "13076c8208690f840e5c1aa3e7661193d18bf6a5068c02a0b012273330069fb2",
+      "files": 2752,
+      "bytes": 954922,
+      "extract_from_repository_root": "tar -xzf benchmarks/results/linux-core-performance-20260919.tar.gz"
+    },
+    {
+      "path": "benchmarks/results/linux-qualification-report-20260920.tar.gz",
+      "sha256": "49582ee9d52e63908f9c7d3aa17eb2107e6b3ee04e606881e5c87386217e1631",
+      "files": 2365,
+      "bytes": 71254470,
+      "parts": [
+        {
+          "path": "benchmarks/results/linux-qualification-report-20260920.tar.gz.part-00",
+          "sha256": "eea3eff5195a7173c6162fa00da318a0b252a7b2f5385084107d5d6b20e9697c",
+          "bytes": 41943040
+        },
+        {
+          "path": "benchmarks/results/linux-qualification-report-20260920.tar.gz.part-01",
+          "sha256": "87d4e8f22ee81aa5d98bd4fd9863d4c91abf884a9e94c728af67d13fa62ce331",
+          "bytes": 29311430
+        }
+      ],
+      "extract_from_repository_root": "cat benchmarks/results/linux-qualification-report-20260920.tar.gz.part-00 benchmarks/results/linux-qualification-report-20260920.tar.gz.part-01 | tar -xz",
+      "storage": "Split gzip archive to fit the existing per-file artifact limit. The unsplit archive is not committed."
+    }
+  ]
+}

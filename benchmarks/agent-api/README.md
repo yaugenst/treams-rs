@@ -41,7 +41,7 @@ that attempt's workspace; package directories are read-only and tool network
 access is blocked. Model transport/authentication runs outside that sandbox.
 No evaluation agent decides grading, acceptance or API changes.
 
-Run from the redesign worktree, using the development environment only for the
+Run from the repository root, using the development environment only for the
 trusted controller and grader:
 
 ```sh
@@ -81,3 +81,10 @@ references are preserved. After correcting the guide, the original transfer
 cases are confirmation tasks, not unseen tasks again. See
 [`the campaign report`](../results/agent-api-20260920/REPORT.md) for final results
 and explicit acceptance-gate decisions.
+
+The subsequent merge review is recorded separately in the report and
+[`review-verification.json`](../results/agent-api-20260920/review-verification.json).
+It replays saved final solutions on the reviewed wheel without fresh model calls
+or new agent timing. Original campaign scores, source audits and wheel hashes
+remain unchanged. The replay command and check logs are retained in
+`review-evidence.tar.gz`; the original submitted solutions are in `evidence.tar.gz`.

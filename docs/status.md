@@ -22,6 +22,7 @@ retain their original build identities; they do not qualify this branch revision
 Linux core correctness, performance and peak-memory qualification completed on
 `main` at `0137eca` on this machine. Its results and explicit performance exceptions
 remain bound to that revision; the API redesign does not relabel those measurements.
+The [qualification summary](../benchmarks/RESUME.md) retains all performance exceptions.
 This branch's agent campaign measures workflow success and agent effort, not
 solver speed or peak memory.
 Its final wheel-only Linux evaluation reached 118/120 full main-task passes,
@@ -30,6 +31,9 @@ polarization-transfer passes. Agent time fell 27.4%; the predeclared 40% time
 gate was not met. The remaining nonpasses concern a private import and a
 requested gradient output structure, not incorrect physical quantities.
 See the [complete campaign and retained evidence](../benchmarks/results/agent-api-20260920/REPORT.md).
+||||||| 2843a70
+The corrected CPU benchmark campaign remains paused; see
+[the resume checklist](../benchmarks/RESUME.md).
 
 ## Numerical and workflow coverage
 
@@ -110,7 +114,9 @@ Advect, JAX and PyTorch compose these numerical boundaries with user objectives.
 Ordinary NumPy object constructors do not trace framework arrays: use the
 [framework adapters](adapters.md) for continuous parameters. Static basis labels,
 discretization sizes, quadrature nodes, material topology, and eigenvalue ordering
-are not differentiated.
+are not differentiated. Advect 0.2.1 requires array primals for objectives
+that promote real parameters to complex material values; see the
+[documented dependency limitation](api-autodiff-map.md).
 Forward mode and higher derivatives are outside this first-order contract. JAX
 supports CPU `jit`, sequential `vmap` and checkpointing using host callbacks;
 PyTorch supports eager CPU backward and repeated backward through native
@@ -124,8 +130,67 @@ smooth derivative.
 
 ## Verification and performance
 
-The September 19 API redesign passed `just verify` on Linux with Python 3.13:
-93 Rust tests and 2,271 Python tests, including Advect, JAX and Torch, with
+The September 19 Linux correctness campaign qualifies commit `2843a70` on the
+Ryzen 9 9950X with Python 3.13.1 and one accepted optimized extension hash. All
+615 selected cases pass their native numerical gates: 527 upstream workflow
+comparisons, 51 complete-gradient cases, 33 boundary cases, and four collectors
+for independent references, physical invariants, published workflows and cluster
+conditioning. The high-precision collector passes all 2,032 finite-output reference cases;
+18 inputs exceed float64 range and remain explicit exclusions.
+
+Five high-order cluster observations still disagree with raw upstream results.
+Independent balanced-system references with forward-error bounds pass at orders
+6, 8 and 12 using unchanged tolerances; the worst bound-inclusive scaled error
+is 0.0436 against an acceptance limit of 1. This certifies the encoded equations,
+not arbitrary multipole convergence. The full thermal reproduction also passes:
+300 absorption samples, 600 angular values and 22 cutoff checks, with the archived
+52-point upstream comparison identified separately.
+
+The first accuracy run was superseded because the installed extension changed
+partway through it. Accuracy was rerun against a copied package matching the
+binary already used for gradient/boundary checks. Both accepted evidence audits
+report zero integrity errors and zero unresolved native gates. No numerical code
+or tolerances changed. The [machine-readable record](../benchmarks/linux-core-qualification.json)
+links the raw manifests, audits, exclusions and provenance exception.
+
+The September 19–20 performance campaign completes all 685 remaining cases on
+commit `2470fbe`, with the same numerical source, Python source and optimized
+extension as the accepted correctness run. Together with its 51 gradient and
+33 boundary cases, all 1,300 planned cases have accepted evidence. The new audit
+reports zero integrity errors and zero unresolved native gates. No timeouts or
+memory-limit stops occurred; no numerical code or tolerance changes were needed.
+
+| Linux group | Cases | Median speedup | Median native/upstream peak RSS |
+| --- | ---: | ---: | ---: |
+| Broad grid | 527 | 5.12× | 0.658 |
+| Size scaling | 107 | 26.68× | 0.657 |
+| Thread scaling | 30 | 18.71× | 0.474 |
+
+All 664 comparisons above are faster, but seven have higher peak RSS. The retained
+boundary group has three slower recorded-forward cases and ten higher-RSS cases.
+All 14 matched exact linear-adjoint comparisons are faster with lower peak RSS
+(median speedup 5.07×); finite-difference comparisons remain separate.
+Full and selected dense illumination win all 19 fresh-setup upstream comparisons.
+Matrix-free illumination uses less memory but loses on fresh runtime at 32 columns;
+the two largest cases are native-only. Reuse costs and derivatives are separate.
+Sixteen threads slow the small cluster case relative to one thread.
+
+For the 256-particle dense case, forward-and-reverse peak RSS falls from 8,219.6
+to 7,316.1 MiB (11.0%) against the preserved earlier build; forward-only peak RSS
+is essentially unchanged. This is a historical comparison, not a same-run
+controlled experiment. The [performance record](../benchmarks/linux-core-performance.json)
+and [report instructions](../benchmarks/RESUME.md) preserve all exceptions,
+raw samples, manifests, build identities and report archives.
+
+The September 19 core extraction passed `just verify` on Linux: 93 Rust tests
+and 2,197 Python tests, with 14 plotting tests skipped in the base environment.
+All 40 report tests passed separately with Matplotlib. The clean-wheel check
+(including optional HDF5) and warnings-as-errors rustdoc also passed. The
+macOS rerun and experimental browser/GPU hardware lanes were not rerun for this
+extraction. The Linux benchmark campaign was completed subsequently as above.
+
+The September 20 integrated API redesign passed `just verify` on Linux with Python 3.13:
+93 Rust tests and 2,307 Python tests, including Advect, JAX and Torch, with
 14 plotting tests skipped in the base environment. All 40 report tests passed
 separately with Matplotlib. The release clean-wheel check (including typed
 scattering, an Advect physical objective and optional HDF5) and
@@ -133,12 +198,22 @@ warnings-as-errors rustdoc also passed. New API checks cover dense/requested
 cluster agreement, periodic conversion without another solve, all six field
 families, optical-theorem and scale identities, moving diffraction ports and
 first-order gradients. Numerical kernels and dependencies were not changed.
+The final review also checked periodic parity metadata, negative-index plane-wave
+fields/expansion and their derivatives, incomplete polarization-pair rejection,
+identity conversions, and framework cylinder widths.
 
 The benchmark campaign, macOS rerun, Python 3.12 rerun and experimental
 browser/GPU hardware lanes were not rerun for this redesign. Framework
 high-level objects retain the static-direction/static-axial-label limits in
 the [autodiff map](api-autodiff-map.md); specialized kernels retain explicit
 expert interfaces. No new runtime or memory-performance qualification is claimed.
+||||||| 2843a70
+The September 19 core extraction passed `just verify` on Linux: 93 Rust tests
+and 2,197 Python tests, with 14 plotting tests skipped in the base environment.
+All 40 report tests passed separately with Matplotlib. The clean-wheel check
+(including optional HDF5) and warnings-as-errors rustdoc also passed. The
+benchmark campaign, macOS rerun, and experimental browser/GPU hardware lanes
+were not rerun for this extraction.
 
 `just ci` runs Rust proptest/unit tests, Python reference/Hypothesis/workflow and
 adjoint tests, rustfmt, warnings-as-errors Clippy/rustdoc, Ruff, strict Pyrefly,
@@ -211,8 +286,10 @@ fractional pi/tau are not implemented.
 The original independent high-precision campaign exposed zero Mie blocks for a
 large metallic sphere at size parameter 80, `epsilon=-8+0.4j`, `mu=1` in vacuum.
 The current source includes the scaled-inverse correction and its targeted
-regression checks. The full corrected accuracy/performance campaign has not run;
-its original failures remain archived in the [comparison report](benchmark-comparison.md).
+regression checks. The full independent reference grid now passes its finite-output gates in the
+Linux correctness campaign. Original failures remain archived in the
+[historical comparison report](benchmark-comparison.md); the current Linux
+performance rerun is recorded above.
 
 Dense outputs and LU storage remain quadratic in channel dimension, with cubic
 factorization work. Requested-illumination factors avoid the full interacting

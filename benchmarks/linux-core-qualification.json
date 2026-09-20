@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "scope": "Linux CPU correctness on this machine; finite documented API/numerical domain. No performance or universal correctness claim.",
+  "passed": true,
+  "tested_commit": "2843a70c8dae1a204d31eb672441900d30d160bb",
+  "environment": {
+    "os": "Linux",
+    "os_version": "7.2.5-200.fc44.x86_64",
+    "architecture": "x86_64",
+    "python": "3.13.1",
+    "logical_cores": 32,
+    "cpu_affinity": [
+      8,
+      9,
+      10,
+      11
+    ],
+    "cpu_model": "AMD Ryzen 9 9950X 16-Core Processor",
+    "physical_cores": 16,
+    "ram_bytes": 64846077952,
+    "power_mode": {
+      "policy11": "powersave",
+      "policy8": "powersave",
+      "policy6": "powersave",
+      "policy28": "powersave",
+      "policy18": "powersave",
+      "policy4": "powersave",
+      "policy26": "powersave",
+      "policy16": "powersave",
+      "policy2": "powersave",
+      "policy24": "powersave",
+      "policy14": "powersave",
+      "policy0": "powersave",
+      "policy22": "powersave",
+      "policy12": "powersave",
+      "policy9": "powersave",
+      "policy30": "powersave",
+      "policy20": "powersave",
+      "policy10": "powersave",
+      "policy7": "powersave",
+      "policy29": "powersave",
+      "policy19": "powersave",
+      "policy5": "powersave",
+      "policy27": "powersave",
+      "policy17": "powersave",
+      "policy3": "powersave",
+      "policy25": "powersave",
+      "policy15": "powersave",
+      "policy1": "powersave",
+      "policy23": "powersave",
+      "policy13": "powersave",
+      "policy31": "powersave",
+      "policy21": "powersave"
+    }
+  },
+  "source": {
+    "native_sha256": "8c51f988575238b90ce88168c79526882346a533dadb5a2926477d38a9c695f8",
+    "python_source_sha256": "e735acc3561b112167b3b7fbb84bb87fd3d7a2ff67092f5407f815de2c72cbde",
+    "native_profile": "release",
+    "commit": "2843a70c8dae1a204d31eb672441900d30d160bb",
+    "harness_sha256": {
+      "scripts/benchmark_cluster.py": "23036662c78c4dbaf87c819c07104fcd7746ccceb1b045d2445f1334c53bfd08"
+    },
+    "runner_sha256": "d3d3bf0c983f26bac0d397fb5664e96384e4e828a6ef86d12fcaa690d020cb6c",
+    "numerical_source_sha256": "2fd350d6907d65014954201ffaf94a146982801b7665f74acfc300627add4789"
+  },
+  "selected_cases": 615,
+  "phases": [
+    {
+      "group": "accuracy-references",
+      "cases": 1,
+      "manifest": "benchmarks/results/linux-core-correctness-frozen-20260919/accuracy-references/manifest.json",
+      "manifest_sha256": "7c4ac4d19fa1390df6674de2b5de422fec5b9aaff04b7754dad6e5c644ee1409"
+    },
+    {
+      "group": "accuracy-physics",
+      "cases": 3,
+      "manifest": "benchmarks/results/linux-core-correctness-frozen-20260919/accuracy-physics/manifest.json",
+      "manifest_sha256": "09ae8d08209d5888bbf62c6aba77cd3e03ac9ed73e91a3f7295c6f367de751f2"
+    },
+    {
+      "group": "accuracy-upstream",
+      "cases": 527,
+      "manifest": "benchmarks/results/linux-core-correctness-frozen-20260919/accuracy-upstream/manifest.json",
+      "manifest_sha256": "14f256cdad10d21b6cc6ad8ac37dab39ccde05ebe824ae45d6c7c85ea7b8ae6b"
+    },
+    {
+      "group": "gradient",
+      "cases": 51,
+      "manifest": "benchmarks/results/linux-core-correctness-20260919/gradient/manifest.json",
+      "manifest_sha256": "69dc5bd4213aa8e0ea9e5bf77e43c34dd7b2f073bae21327b33b70179f76dc6f"
+    },
+    {
+      "group": "correction-boundary",
+      "cases": 33,
+      "manifest": "benchmarks/results/linux-core-correctness-20260919/correction-boundary/manifest.json",
+      "manifest_sha256": "699f743c1942f188fc8a27fe93bb5782abdd3f716136b34de02b3da71ec91ce7"
+    }
+  ],
+  "audits": [
+    {
+      "path": "benchmarks/results/linux-core-correctness-20260919/audit-selected.json",
+      "sha256": "c57c92dc78320702730c9e82ecd2389097e52a1044e76ac5bb7985ac14924fa4"
+    },
+    {
+      "path": "benchmarks/results/linux-core-correctness-frozen-20260919/audit.json",
+      "sha256": "163af8cf9427c42b83b456ada168efa49d598b6ab1c1c1be5d236eb6dbfa9e0e"
+    }
+  ],
+  "independent_reference_counts": {
+    "cases": 2050,
+    "reference_overflow_cases": 18,
+    "reference_subnormal_cases": 6,
+    "reference_below_min_subnormal_cases": 4,
+    "reference_rounds_to_zero_cases": 4,
+    "native_status": {
+      "passed": 2032,
+      "error": 18
+    },
+    "upstream_status": {
+      "passed": 1941,
+      "error": 22,
+      "failed": 87
+    }
+  },
+  "cluster_disagreements": {
+    "upstream_failed_observations": 5,
+    "native_reference_passed": true,
+    "certificate_orders": [
+      6,
+      8,
+      12
+    ],
+    "maximum_scaled_error_including_reference_bound": 0.04351077769755278,
+    "acceptance_bound": 1.0,
+    "reference_scope": "Independent solution with forward-error bound for the encoded upstream interaction equations; not a certificate of exact continuous-physics discretization."
+  },
+  "thermal": {
+    "path": "benchmarks/results/linux-core-correctness-frozen-20260919/thermal.json",
+    "sha256": "5e992f62490e244b7b931e15347a4591cc2a762e935140a5a196d12cfa6bb5ae",
+    "native_frequency_samples": 300,
+    "angular_values": 600,
+    "cutoff_checks": 22,
+    "archived_upstream_samples": 52,
+    "summary": {
+      "finite_nonnegative_absorption": true,
+      "max_author_relative_error": 0.005766535419109065,
+      "upstream_comparison_count": 52,
+      "max_upstream_relative_error": 0.0002957910535347535,
+      "max_angular_author_relative_error": 2.1735015137535308e-07,
+      "max_angular_symmetry_error": 2.500056574649668e-14,
+      "rust_total_seconds": 76.72898883399466,
+      "upstream_total_seconds": 268.38178816917934,
+      "max_lmax10_convergence_relative_error": 0.0005695067880443624,
+      "paper_relative_tolerance": 0.01,
+      "paper_agreement": true,
+      "passed": true
+    }
+  },
+  "provenance_exception": {
+    "initial_accuracy_groups": "Retained but superseded. Installed extension changed during initial accuracy-upstream at case 255. Cause was not established.",
+    "initial_audit": "benchmarks/results/linux-core-correctness-20260919/audit-provenance.json",
+    "accepted_accuracy_groups": "Rerun against a copied package with the same native hash as gradient and correction-boundary; no source/tolerance changes.",
+    "frozen_native_sha256": "8c51f988575238b90ce88168c79526882346a533dadb5a2926477d38a9c695f8"
+  },
+  "remaining": [
+    "Linux Python 3.13 on this host only; no new Python 3.12/macOS/other-platform qualification",
+    "Browser/GPU remain on separate experimental branches",
+    "18 independent-reference inputs exceed float64 range and are excluded from finite-output qualification"
+  ],
+  "evidence_archive": {
+    "path": "benchmarks/results/linux-core-qualification-20260919.tar.gz",
+    "sha256": "d5404e3b55916858a0ef68b41e3c74e4d0195da6c42887e9d0b52006a562204f",
+    "files": 4657,
+    "extract_from_repository_root": "tar -xzf benchmarks/results/linux-core-qualification-20260919.tar.gz"
+  },
+  "subsequent_performance_qualification": "benchmarks/linux-core-performance.json"
+}
