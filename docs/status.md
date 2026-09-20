@@ -18,9 +18,9 @@ The browser/WASM playground is preserved on `experimental/browser`;
 CUDA support is preserved on `experimental/gpu`. Neither experiment
 is part of the core build, public API catalog, or CI. Historical benchmark records
 retain their original build identities; they do not qualify this branch revision.
-The Linux correctness campaign is qualified on this machine; the remaining
-performance campaign is deferred. See [the qualification record](../benchmarks/linux-core-qualification.json)
-and [the remaining-work checklist](../benchmarks/RESUME.md).
+The Linux correctness, performance and peak-memory campaign is complete on this
+machine. See [the qualification summary](../benchmarks/RESUME.md) for results and
+explicit performance exceptions; this is not a universal speed or memory guarantee.
 
 ## Numerical and workflow coverage
 
@@ -115,15 +115,43 @@ partway through it. Accuracy was rerun against a copied package matching the
 binary already used for gradient/boundary checks. Both accepted evidence audits
 report zero integrity errors and zero unresolved native gates. No numerical code
 or tolerances changed. The [machine-readable record](../benchmarks/linux-core-qualification.json)
-links the raw manifests, audits, exclusions and provenance exception. No refreshed
-whole-campaign speed or memory claim follows from this correctness qualification.
+links the raw manifests, audits, exclusions and provenance exception.
+
+The September 19–20 performance campaign completes all 685 remaining cases on
+commit `2470fbe`, with the same numerical source, Python source and optimized
+extension as the accepted correctness run. Together with its 51 gradient and
+33 boundary cases, all 1,300 planned cases have accepted evidence. The new audit
+reports zero integrity errors and zero unresolved native gates. No timeouts or
+memory-limit stops occurred; no numerical code or tolerance changes were needed.
+
+| Linux group | Cases | Median speedup | Median native/upstream peak RSS |
+| --- | ---: | ---: | ---: |
+| Broad grid | 527 | 5.12× | 0.658 |
+| Size scaling | 107 | 26.68× | 0.657 |
+| Thread scaling | 30 | 18.71× | 0.474 |
+
+All 664 comparisons above are faster, but seven have higher peak RSS. The retained
+boundary group has three slower recorded-forward cases and ten higher-RSS cases.
+All 14 matched exact linear-adjoint comparisons are faster with lower peak RSS
+(median speedup 5.07×); finite-difference comparisons remain separate.
+Full and selected dense illumination win all 19 fresh-setup upstream comparisons.
+Matrix-free illumination uses less memory but loses on fresh runtime at 32 columns;
+the two largest cases are native-only. Reuse costs and derivatives are separate.
+Sixteen threads slow the small cluster case relative to one thread.
+
+For the 256-particle dense case, forward-and-reverse peak RSS falls from 8,219.6
+to 7,316.1 MiB (11.0%) against the preserved earlier build; forward-only peak RSS
+is essentially unchanged. This is a historical comparison, not a same-run
+controlled experiment. The [performance record](../benchmarks/linux-core-performance.json)
+and [report instructions](../benchmarks/RESUME.md) preserve all exceptions,
+raw samples, manifests, build identities and report archives.
 
 The September 19 core extraction passed `just verify` on Linux: 93 Rust tests
 and 2,197 Python tests, with 14 plotting tests skipped in the base environment.
 All 40 report tests passed separately with Matplotlib. The clean-wheel check
 (including optional HDF5) and warnings-as-errors rustdoc also passed. The
-benchmark campaign, macOS rerun, and experimental browser/GPU hardware lanes
-were not rerun for this extraction.
+macOS rerun and experimental browser/GPU hardware lanes were not rerun for this
+extraction. The Linux benchmark campaign was completed subsequently as above.
 
 `just ci` runs Rust proptest/unit tests, Python reference/Hypothesis/workflow and
 adjoint tests, rustfmt, warnings-as-errors Clippy/rustdoc, Ruff, strict Pyrefly,
@@ -198,8 +226,8 @@ large metallic sphere at size parameter 80, `epsilon=-8+0.4j`, `mu=1` in vacuum.
 The current source includes the scaled-inverse correction and its targeted
 regression checks. The full independent reference grid now passes its finite-output gates in the
 Linux correctness campaign. Original failures remain archived in the
-[comparison report](benchmark-comparison.md); the broader performance campaign
-has not been rerun.
+[historical comparison report](benchmark-comparison.md); the current Linux
+performance rerun is recorded above.
 
 Dense outputs and LU storage remain quadratic in channel dimension, with cubic
 factorization work. Requested-illumination factors avoid the full interacting

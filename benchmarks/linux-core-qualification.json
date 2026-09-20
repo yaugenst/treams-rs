@@ -164,7 +164,6 @@
     "frozen_native_sha256": "8c51f988575238b90ce88168c79526882346a533dadb5a2926477d38a9c695f8"
   },
   "remaining": [
-    "685 unrun broad/scaling/thread-scaling/illumination campaign cases; no refreshed overall speed or memory claims",
     "Linux Python 3.13 on this host only; no new Python 3.12/macOS/other-platform qualification",
     "Browser/GPU remain on separate experimental branches",
     "18 independent-reference inputs exceed float64 range and are excluded from finite-output qualification"
@@ -174,5 +173,6 @@
     "sha256": "d5404e3b55916858a0ef68b41e3c74e4d0195da6c42887e9d0b52006a562204f",
     "files": 4657,
     "extract_from_repository_root": "tar -xzf benchmarks/results/linux-core-qualification-20260919.tar.gz"
-  }
+  },
+  "subsequent_performance_qualification": "benchmarks/linux-core-performance.json"
 }

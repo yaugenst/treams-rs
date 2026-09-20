@@ -1,5 +1,10 @@
 # Mac and Linux benchmark comparison
 
+This page describes the historical two-platform campaign. The completed
+September 19–20 Linux-only qualification is recorded in
+[the current summary](../benchmarks/RESUME.md), including its measured performance
+and memory exceptions. macOS has not been rerun for the current core source.
+
 The [generated report](../benchmarks/comparison-report/index.html) compares
 upstream treams 0.4.5 with treams-rs on two independently measured platforms.
 It includes downloadable figures, a combined PDF, a searchable case ledger,
