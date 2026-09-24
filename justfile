@@ -59,6 +59,9 @@ test: rust-test test-py
 
 verify: check test
 
+formal:
+    cd formal && lake exe cache get && lake build
+
 ci: verify
     RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 

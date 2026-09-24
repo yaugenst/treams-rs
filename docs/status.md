@@ -273,6 +273,16 @@ result. Raw results, exact scope, and historical
 measurements are in [benchmarks](benchmarks.md). Finite measurements do not establish a universal
 speed or memory guarantee for every input.
 
+[Lean proofs](../formal/README.md) establish, over exact arithmetic, the following:
+- diffraction-order enumeration is complete and duplicate-free;
+- lattice shells partition the integer lattice;
+- the translation degree loop matches the Wigner 3j selection rules;
+- the dense requested-illumination pullback is the exact derivative.
+
+They do not cover rounding. The diffraction-order proof exposed a rounding case: a
+cutoff equal to an order's magnitude could drop that order. The enumeration now keeps
+such rows, and `diffraction_cutoff_on_an_order_keeps_it` covers the case.
+
 ## Numerical and platform limits
 
 A supported label bound is not an accuracy certification throughout that range.

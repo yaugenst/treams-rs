@@ -71,6 +71,12 @@ lists. The installed catalog includes signatures and docstrings even for optiona
 modules whose frameworks are absent; `python -m treams_rs --format markdown`
 prints that reference offline.
 
+[Lean proofs](../formal/README.md) cover diffraction-order enumeration, lattice
+shells, translation selection rules and the requested-illumination pullback. After
+changing one of those Rust functions, update its Lean definition and run
+`just formal`; it needs [elan](https://github.com/leanprover/elan) and is not part
+of `just verify`.
+
 Mark runnable documentation fences with `python exec`; `tests/test_docs.py`
 executes them. Keep these examples self-contained, with valid physical inputs
 and assertions that check the claimed result. Run
