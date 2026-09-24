@@ -169,13 +169,12 @@ pub fn diffraction_orders(b: [[f64; 2]; 2], radius: f64) -> Result<Vec<i64>> {
     }
     let mut orders = vec![0, 0];
     for m in 0..=bound as i64 {
+        // Rounding can place a row holding a boundary order just beyond the radius;
+        // the padded window keeps it and the hypot test below decides.
         let distance = (m as f64 * det / length).abs();
-        if distance > radius {
-            continue;
-        }
         let center =
             -(m as f64) * (b[0][0] * (b[1][0] / length) + b[0][1] * (b[1][1] / length)) / length;
-        let half = ((radius - distance) * (radius + distance)).sqrt() / length;
+        let half = ((radius - distance) * (radius + distance)).max(0.0).sqrt() / length;
         let lower = (center - half).floor() as i64 - 1;
         let upper = (center + half).ceil() as i64 + 1;
         let mut emit = |n: i64| {
@@ -301,5 +300,47 @@ mod tests {
             let expected:std::collections::BTreeSet<_>=(-4..=4).flat_map(|m|(-16..=16).map(move|n|(m,n))).filter(|&(m,n)|f64::from(m).hypot(f64::from(m)*skew+f64::from(n))<=radius).map(|(m,n)|(i64::from(m),i64::from(n))).collect();
             prop_assert_eq!(set,expected);
         }
+    }
+
+    #[test]
+    #[allow(clippy::indexing_slicing)]
+    fn diffraction_cutoff_on_an_order_keeps_it() -> Result<()> {
+        // A cutoff equal to an order's magnitude must keep that order, although the
+        // row distance of the same order can round above the cutoff.
+        let mut failures = Vec::new();
+        for a in [
+            0.1, 0.2, 0.25, 0.3, 0.4, 0.45, 0.5, 0.6, 0.7, 0.8, 1.0, 1.3, 1.5, 2.0,
+        ] {
+            let s = 3.0_f64.sqrt();
+            for b in [
+                [[TAU / a, 0.0], [0.0, TAU / a]],
+                [[TAU / a, 0.0], [0.0, TAU / (1.7 * a)]],
+                [[TAU / a, -TAU / (a * s)], [0.0, 2.0 * TAU / (a * s)]],
+            ] {
+                let magnitude = |m: i32, n: i32| {
+                    let (m, n) = (f64::from(m), f64::from(n));
+                    (m * b[0][0] + n * b[1][0]).hypot(m * b[0][1] + n * b[1][1])
+                };
+                for (m, n) in [(1, 0), (0, 1), (1, 1), (2, 0), (1, -1), (2, 1)] {
+                    let radius = magnitude(m, n);
+                    let orders = diffraction_orders(b, radius)?;
+                    let set: std::collections::BTreeSet<_> =
+                        orders.chunks_exact(2).map(|p| (p[0], p[1])).collect();
+                    let expected: std::collections::BTreeSet<_> = (-8..=8)
+                        .flat_map(|m| (-8..=8).map(move |n| (m, n)))
+                        .filter(|&(m, n)| magnitude(m, n) <= radius)
+                        .map(|(m, n)| (i64::from(m), i64::from(n)))
+                        .collect();
+                    if set != expected {
+                        failures.push((a, b, (m, n)));
+                    }
+                }
+            }
+        }
+        assert!(
+            failures.is_empty(),
+            "orders dropped at the cutoff: {failures:?}"
+        );
+        Ok(())
     }
 }
