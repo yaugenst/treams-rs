@@ -1,0 +1,50 @@
+name: Formal
+
+on:
+  pull_request:
+    paths:
+      - formal/**
+      - crates/treams-core/src/geometry.rs
+      - crates/treams-core/src/waves.rs
+      - crates/treams-core/src/translation_plan.rs
+      - crates/treams-core/src/illumination.rs
+      - crates/treams-core/src/linalg.rs
+      - justfile
+      - .github/workflows/formal.yml
+  push:
+    branches: [main]
+    paths:
+      - formal/**
+      - crates/treams-core/src/geometry.rs
+      - crates/treams-core/src/waves.rs
+      - crates/treams-core/src/translation_plan.rs
+      - crates/treams-core/src/illumination.rs
+      - crates/treams-core/src/linalg.rs
+      - justfile
+      - .github/workflows/formal.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: formal-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proofs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6
+        with:
+          just-version: "1.48.0"
+      - name: Install elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/v4.2.4/elan-init.sh \
+            | sh -s -- -y --no-modify-path --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Check proofs and reference outputs
+        run: just formal

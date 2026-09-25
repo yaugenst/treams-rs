@@ -277,11 +277,15 @@ speed or memory guarantee for every input.
 - diffraction-order enumeration is complete and duplicate-free;
 - lattice shells partition the integer lattice;
 - the translation degree loop matches the Wigner 3j selection rules;
+- equilibrated LU solves are exact solves;
 - the dense requested-illumination pullback is the exact derivative.
 
 They do not cover rounding. The diffraction-order proof exposed a rounding case: a
 cutoff equal to an order's magnitude could drop that order. The enumeration now keeps
 such rows, and `diffraction_cutoff_on_an_order_keeps_it` covers the case.
+
+The proofs cover hand-written models, not the Rust source. Rust tests compare
+`cube`, `degrees` and `harmonics` with outputs generated from those models.
 
 ## Numerical and platform limits
 

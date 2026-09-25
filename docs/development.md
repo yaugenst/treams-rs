@@ -72,10 +72,11 @@ modules whose frameworks are absent; `python -m treams_rs --format markdown`
 prints that reference offline.
 
 [Lean proofs](../formal/README.md) cover diffraction-order enumeration, lattice
-shells, translation selection rules and the requested-illumination pullback. After
-changing one of those Rust functions, update its Lean definition and run
-`just formal`; it needs [elan](https://github.com/leanprover/elan) and is not part
-of `just verify`.
+shells, translation selection rules, LU equilibration and the requested-illumination
+pullback. After changing one of those Rust functions, update its Lean definition and
+run `just formal`. It needs [elan](https://github.com/leanprover/elan) and is not
+part of `just verify`. `cargo test` compares `cube`, `degrees` and `harmonics`
+against Lean-generated files in `formal/golden/`.
 
 Mark runnable documentation fences with `python exec`; `tests/test_docs.py`
 executes them. Keep these examples self-contained, with valid physical inputs

@@ -8,6 +8,11 @@ use crate::{
 };
 use rayon::prelude::*;
 
+/// Harmonic `(p, m)` pairs in table order; `(p, m)` sits at `p * p + p + m`.
+fn harmonics(order: i32) -> impl Iterator<Item = (i32, i32)> {
+    (0..=order).flat_map(|p| (-p..=p).map(move |m| (p, m)))
+}
+
 #[derive(Clone, Debug)]
 struct Term {
     index: usize,
@@ -54,8 +59,8 @@ impl TranslationPlan {
     }
 
     pub(crate) fn normalize_lattice(&mut self) {
-        let normalization: Vec<_> = (0..=self.order)
-            .flat_map(|l| (-l..=l).map(move |m| crate::lattice::normalization(l, m)))
+        let normalization: Vec<_> = harmonics(self.order)
+            .map(|(l, m)| crate::lattice::normalization(l, m))
             .collect();
         for term in self.entries.iter_mut().flatten() {
             term.weight /= normalization[term.index];
@@ -131,9 +136,7 @@ impl TranslationPlan {
         lattice: &crate::lattice::Lattice,
         eta: Complex,
     ) -> Result<Vec<Complex>> {
-        let modes: Vec<_> = (0..=self.order)
-            .flat_map(|l| (-l..=l).map(move |m| (l, m)))
-            .collect();
+        let modes: Vec<_> = harmonics(self.order).collect();
         let table = modes
             .par_iter()
             .map(|&(l, m)| {
@@ -157,9 +160,7 @@ impl TranslationPlan {
         eta: Complex,
         cotangent: &[Vec<Complex>; 2],
     ) -> Result<[crate::lattice::Gradient; 2]> {
-        let modes: Vec<_> = (0..=self.order)
-            .flat_map(|l| (-l..=l).map(move |m| (l, m)))
-            .collect();
+        let modes: Vec<_> = harmonics(self.order).collect();
         let mut g = vec![[Complex::default(); 2]; modes.len()];
         for (pol, inputs) in cotangent.iter().enumerate() {
             for (terms, &input) in self.entries.iter().zip(inputs) {
@@ -242,5 +243,31 @@ impl TranslationPlan {
             }
         }
         Ok((gradient, gk))
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    #[test]
+    fn harmonics_match_lean_model() {
+        // `just formal` keeps this file equal to `Treams.Harmonics.table`.
+        let golden = include_str!("../../../formal/golden/harmonics.txt");
+        for line in golden.lines() {
+            let (order, pairs) = line.split_once(':').unwrap();
+            let expected: Vec<(i32, i32)> = pairs
+                .split_whitespace()
+                .map(|pair| {
+                    let (p, m) = pair.split_once(',').unwrap();
+                    (p.parse().unwrap(), m.parse().unwrap())
+                })
+                .collect();
+            let actual: Vec<_> = super::harmonics(order.parse().unwrap()).collect();
+            assert_eq!(actual, expected, "order {order}");
+            for (index, (p, m)) in actual.into_iter().enumerate() {
+                assert_eq!(usize::try_from(p * p + p + m).unwrap(), index);
+            }
+        }
+        assert_eq!(golden.lines().count(), 9);
     }
 }

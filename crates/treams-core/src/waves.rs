@@ -155,6 +155,23 @@ pub(crate) fn harmonic(
     }
 }
 
+/// Degrees `p` that `helper` admits for source `(l, m)` and destination `(lambda, mu)`,
+/// descending in steps of two. `formal/Formal/SelectionRules.lean` proves this range.
+pub(crate) fn degrees(
+    l: i32,
+    m: i32,
+    lambda: i32,
+    mu: i32,
+    cross: bool,
+) -> impl Iterator<Item = i32> {
+    let start = l + lambda - i32::from(cross);
+    let end = (lambda - l)
+        .abs()
+        .saturating_add(i32::from(cross))
+        .max((m - mu).abs());
+    (end..=start).rev().step_by(2)
+}
+
 pub(crate) fn terms(to: Mode, from: Mode, helicity: bool) -> Vec<(i32, i32, Complex)> {
     let mut terms = Vec::new();
     if helicity && to.pol != from.pol {
@@ -176,12 +193,7 @@ pub(crate) fn terms(to: Mode, from: Mode, helicity: bool) -> Vec<(i32, i32, Comp
         } else {
             1.0
         };
-        let start = l + lambda - i32::from(cross);
-        let end = (lambda - l)
-            .abs()
-            .saturating_add(i32::from(cross))
-            .max((m - mu).abs());
-        for p in (end..=start).rev().step_by(2) {
+        for p in degrees(l, m, lambda, mu, cross) {
             let factor = if cross {
                 (f64::from(l + lambda + 1 + p)
                     * f64::from(l + lambda + 1 - p)
@@ -199,4 +211,29 @@ pub(crate) fn terms(to: Mode, from: Mode, helicity: bool) -> Vec<(i32, i32, Comp
         }
     }
     terms
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+mod tests {
+    #[test]
+    fn degrees_match_lean_model() {
+        // `just formal` keeps this file equal to `Treams.SelectionRules.termDegrees`.
+        let golden = include_str!("../../../formal/golden/degrees.txt");
+        for line in golden.lines() {
+            let (case, degrees) = line.split_once(':').unwrap();
+            let case: Vec<i32> = case
+                .split_whitespace()
+                .map(|x| x.parse().unwrap())
+                .collect();
+            let expected: Vec<i32> = degrees
+                .split_whitespace()
+                .map(|x| x.parse().unwrap())
+                .collect();
+            let actual: Vec<_> =
+                super::degrees(case[0], case[1], case[2], case[3], case[4] == 1).collect();
+            assert_eq!(actual, expected, "{line}");
+        }
+        assert_eq!(golden.lines().count(), 2450);
+    }
 }

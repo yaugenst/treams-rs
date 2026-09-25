@@ -343,4 +343,25 @@ mod tests {
         );
         Ok(())
     }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn cube_matches_lean_model() {
+        // `just formal` keeps this file equal to `Treams.Shells.cube`.
+        let golden = include_str!("../../../formal/golden/cube.txt");
+        for line in golden.lines() {
+            let (case, points) = line.split_once(':').unwrap();
+            let mut case = case.split_whitespace();
+            let dim = case.next().unwrap().parse().unwrap();
+            let n = case.next().unwrap().parse().unwrap();
+            let edge = case.next() == Some("true");
+            let expected: Vec<i64> = points
+                .split_whitespace()
+                .flat_map(|point| point.split(','))
+                .map(|x| x.parse().unwrap())
+                .collect();
+            assert_eq!(cube(dim, n, edge).unwrap(), expected, "{line}");
+        }
+        assert_eq!(golden.lines().count(), 30);
+    }
 }
