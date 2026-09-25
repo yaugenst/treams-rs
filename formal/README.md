@@ -26,8 +26,8 @@ cutoff: on a 0.3 by 0.51 rectangular lattice with the cutoff at `|G10|`, the ord
 
 ## Keeping models and code aligned
 
-A hand-written model can drift from its Rust source. `lake exe golden` evaluates the
-executable models and writes [`golden/`](golden). Three Rust tests compare the Rust
+A hand-written model can drift from its Rust source. `lake env lean --run Golden.lean`
+evaluates the executable models and writes [`golden/`](golden). Three Rust tests compare the Rust
 functions against these files exactly, including order:
 - `cube_matches_lean_model` checks `geometry::cube` against `Shells.cube`;
 - `degrees_match_lean_model` checks `waves::degrees` against `SelectionRules.termDegrees`;

@@ -60,7 +60,7 @@ test: rust-test test-py
 verify: check test
 
 formal:
-    cd formal && lake exe cache get && lake build --wfail && lake exe golden --check
+    cd formal && lake exe cache get && lake build --wfail && lake env lean --run Golden.lean --check
 
 ci: verify
     RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps

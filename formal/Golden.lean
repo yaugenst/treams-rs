@@ -3,8 +3,9 @@ import Formal.SelectionRules
 
 /-!
 Reference outputs of the executable Lean models. Rust tests compare `geometry::cube`,
-`waves::degrees` and `translation_plan::harmonics` against them. `lake exe golden`
-rewrites `golden/`; `lake exe golden --check` fails when a file is stale.
+`waves::degrees` and `translation_plan::harmonics` against them. `lake env lean --run Golden.lean`
+rewrites `golden/`; adding `--check` fails when a file is stale. The interpreter
+avoids compiling Mathlib to native code.
 -/
 
 open Treams
@@ -35,7 +36,7 @@ def main (args : List String) : IO UInt32 := do
     for (path, content) in files do
       let current ← try IO.FS.readFile path catch _ => pure ""
       if current != content then
-        IO.eprintln s!"{path} is stale; run `lake exe golden` in formal/"
+        IO.eprintln s!"{path} is stale; run `lake env lean --run Golden.lean` in formal/"
         stale := true
     return if stale then 1 else 0
   IO.FS.createDirAll "golden"
