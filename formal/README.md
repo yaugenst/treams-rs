@@ -1,12 +1,14 @@
 # Formal proofs
 
-Lean 4 and Mathlib proofs about six kernels in `treams-core`. Each file under
-[`Formal/`](Formal) restates a Rust algorithm as a Lean definition and proves
-properties of that definition over exact integers and reals. None of these proofs
-cover floating-point rounding.
+Lean 4 and Mathlib proofs about six kernels in `treams-core`, in two kinds.
 
-The `experimental/aeneas` branch holds an experiment that instead proves
-a property of `visit_cube` as Charon and Aeneas translate it from the Rust source.
+- **Hand-written models.** Each file under [`Formal/`](Formal) restates a Rust
+  algorithm as a Lean definition and proves properties of that definition over exact
+  integers and reals.
+- **Translated Rust.** The project under [`aeneas/`](aeneas) proves a property of the
+  Lean code that Charon and Aeneas generate from the Rust source of `visit_cube`.
+
+None of these proofs cover floating-point rounding.
 
 | Rust source | Lean file | Main theorems | Result |
 | --- | --- | --- | --- |
@@ -16,6 +18,7 @@ a property of `visit_cube` as Charon and Aeneas translate it from the Rust sourc
 | `waves::terms`, `helper`, `angular::wigner3j` | [SelectionRules](Formal/SelectionRules.lean) | `mem_termDegrees`, `threeJ_zero_odd`, `skipped_degree_vanishes`, `visited_term_index` | The degree loop visits exactly the degrees that pass `helper`'s guard. Every skipped degree has a zero coefficient under the Racah formula. Every visited degree indexes the plan table in bounds. |
 | `illumination::Residual::pullback` | [ImplicitAdjoint](Formal/ImplicitAdjoint.lean) | `pullback_correct` | For invertible `I - T C`, the adjoint solve and the three returned gradients give the exact derivative of `Re tr(Gᴴ X)` in every direction `(dT, dC, da)`. |
 | `linalg::equilibrate`, `Lu::solve_in_place`, `Lu::solve_adjoint_in_place` | [Equilibration](Formal/Equilibration.lean) | `solve_eq`, `solveAdjoint_eq`, `transposed_branch`, `illumination_uses_exact_solves` | For any nonzero real scales, the scaled forward and adjoint solves equal `A⁻¹ b` and `Aᴴ⁻¹ g`. The transposed branch returns the correctly swapped scales, so the pullback theorem covers the equilibrated path. |
+| `geometry::visit_cube`, translated | [VisitCubeProof](aeneas/TreamsAeneas/VisitCubeProof.lean) | `append_spec`, `visit_cube_records`, `visit_cube_ok` | The translated Rust recursion returns `Ok` and records exactly the points of `Shells.cube`, padded with zeros to three coordinates. This holds for dimensions up to 3 and every `n` from 0 to `i64::MAX`, with no overflow or panic. |
 
 The diffraction-order proof exposed a rounding bug. Before a fix, a row whose distance
 rounded above the cutoff was skipped. That dropped orders whose `hypot` equals the
@@ -42,13 +45,55 @@ The drift checks compare outputs only on the sampled inputs; they don't prove
 equivalence. The diffraction-order, illumination and equilibration models have no
 executable counterpart and are checked only by review.
 
+## The Aeneas proof
+
+[Charon](https://github.com/AeneasVerif/charon) and
+[Aeneas](https://github.com/AeneasVerif/aeneas) translate `visit_cube` from the Rust
+source into [`aeneas/VisitCube/Funs.lean`](aeneas/VisitCube/Funs.lean). These tools
+handle only a narrow part of this repository:
+
+- Aeneas rejects floating point, so it cannot translate the other kernels.
+- Its default loop translation produced Lean that fails to compile. The recursive
+  `append` calls itself from inside loops, and Lean cannot prove the `loop`
+  combinator monotone. `-loops-to-rec` avoids the problem.
+- It left four standard-library functions as axioms: array iteration, `i64::abs`,
+  `RangeInclusive::contains` and `String::from`. They are defined in
+  [`FunsExternal.lean`](aeneas/VisitCube/FunsExternal.lean) and
+  [`TypesExternal.lean`](aeneas/VisitCube/TypesExternal.lean). Those definitions
+  model the Rust standard library and are trusted.
+- The proof uses a visitor that records each point; the real callers' closures are
+  not translated.
+
+The proof also trusts Charon, Aeneas and Aeneas's Lean library. `append_spec` and
+`visit_cube_records` depend only on the standard Lean axioms. `visit_cube_ok` also
+depends on the native evaluation axiom, which the generated definition uses for a
+string literal.
+
+Aeneas pins Lean v4.31.0, so the project has its own toolchain and Mathlib. It also
+carries a copy of `Range.lean` and `Shells.lean` with one lemma name adjusted. To
+regenerate the translation, run Aeneas `63afc34` with its pinned Charon
+`62585970` from `crates/treams-core`:
+
+```sh
+charon cargo --preset=aeneas --start-from 'crate::geometry::visit_cube' --dest-file visit_cube.llbc
+aeneas -backend lean visit_cube.llbc -dest out -split-files -loops-to-rec
+```
+
+Copy `Types.lean` and `Funs.lean` from `out` into `aeneas/VisitCube`. Nothing checks
+automatically that the generated files match the current Rust source.
+
 ## Build
 
-Install [elan](https://github.com/leanprover/elan), then run `just formal` from the
-repository root. It downloads the prebuilt Mathlib cache, checks every proof with
-warnings as errors, and checks `golden/`. A `sorry` produces a warning, so the build
-fails on any unproved step. The [Formal workflow](../.github/workflows/formal.yml)
-runs `just formal` when this directory or a modeled Rust file changes.
+Install [elan](https://github.com/leanprover/elan). From the repository root:
+- `just formal` downloads the prebuilt Mathlib cache, checks every proof in
+  `Formal/` with warnings as errors, and checks `golden/`;
+- `just formal-aeneas` checks the Aeneas proof. The first run also compiles Aeneas's
+  Lean library.
+
+A `sorry` produces a warning, so the build fails on any unproved step. The
+[Formal workflow](../.github/workflows/formal.yml) runs `just formal` when this
+directory or a modeled Rust file changes. The Aeneas check is not in CI.
 
 After changing one of the Rust functions above, update its Lean definition and
-reference files and run `just formal`.
+reference files and run `just formal`. After changing `visit_cube`, regenerate the
+translation and run `just formal-aeneas`.

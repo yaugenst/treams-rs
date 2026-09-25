@@ -1,0 +1,14 @@
+name = "treams_aeneas"
+defaultTargets = ["VisitCube", "TreamsAeneas"]
+
+[[require]]
+name = "aeneas"
+git = "https://github.com/AeneasVerif/aeneas"
+rev = "63afc34e006673e38b4dd7289e4f824567050e47"
+subDir = "backends/lean"
+
+[[lean_lib]]
+name = "VisitCube"
+
+[[lean_lib]]
+name = "TreamsAeneas"

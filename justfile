@@ -62,6 +62,9 @@ verify: check test
 formal:
     cd formal && lake exe cache get && lake build --wfail && lake exe golden --check
 
+formal-aeneas:
+    cd formal/aeneas && lake exe cache get && lake build --wfail
+
 ci: verify
     RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 

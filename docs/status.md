@@ -284,8 +284,9 @@ They do not cover rounding. The diffraction-order proof exposed a rounding case:
 cutoff equal to an order's magnitude could drop that order. The enumeration now keeps
 such rows, and `diffraction_cutoff_on_an_order_keeps_it` covers the case.
 
-The proofs cover hand-written models, not the Rust source. Rust tests compare
-`cube`, `degrees` and `harmonics` with outputs generated from those models.
+Rust tests compare `cube`, `degrees` and `harmonics` with outputs generated from the
+Lean models. For `visit_cube`, a proof also covers the Rust source itself, as
+translated by Charon and Aeneas. The other proofs cover hand-written models.
 
 ## Numerical and platform limits
 
