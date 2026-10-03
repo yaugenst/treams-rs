@@ -3,6 +3,16 @@
 This module describes planar and periodic structures with four S-matrix
 blocks relating incoming and outgoing plane waves.
 
+```mermaid
+flowchart TD
+    layers["Interfaces and layer propagation"] --> blocks["Four S-matrix blocks"]
+    arrays["Periodic multipole arrays"] --> blocks
+    blocks --> compose["Combine structures: compose.rs"]
+    blocks --> fields["Internal fields: illuminate.rs"]
+    blocks --> power["Transmission and reflection: tr.rs"]
+    blocks --> bands["Transfer matrices and Bloch bands: periodic.rs"]
+```
+
 [interface.rs](interface.rs) computes interfaces and propagation;
 [layers.rs](layers.rs) assembles layer stacks. [compose.rs](compose.rs)
 combines structures through Redheffer composition.

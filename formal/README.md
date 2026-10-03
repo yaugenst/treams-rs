@@ -8,6 +8,13 @@ algorithm as a Lean definition and proves properties of it over exact integers a
 reals. Three Rust tests compare Rust functions with the model outputs in
 [`golden/`](golden).
 
+```mermaid
+flowchart LR
+    Models["Formal/: Lean models and proofs"] -->|"Golden.lean: three models"| Outputs["golden/: reference outputs"]
+    Outputs --> Tests["Rust comparison tests"]
+    Rust["treams-core functions"] --> Tests
+```
+
 ## Requirements
 
 [elan](https://github.com/leanprover/elan), the Lean toolchain installer. The
