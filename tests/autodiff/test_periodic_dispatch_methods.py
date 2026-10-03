@@ -161,3 +161,41 @@ def test_periodic_solves_accept_lattice_metadata(engine, cell):
     expected = (objective(tr, 0.2 + step) - objective(tr, 0.2 - step)) / (2 * step)
     assert_allclose(value, objective(tr, 0.2), rtol=1e-12)
     assert_allclose(gradient, expected, rtol=2e-5, atol=1e-8)
+
+
+@pytest.mark.parametrize("spherical", [True, False])
+@pytest.mark.parametrize(
+    "period", ["lattice", "list", "moving_scalar", "moving_list", "moving_nested"]
+)
+def test_chain_solves_accept_every_period_form(engine, spherical, period):
+    def objective(api, x):
+        moving = period.startswith("moving")
+        p, radius = (x + 0.9, 0.2) if moving else (1.1, x)
+        if period == "lattice":
+            lattice = tr.Lattice(p, "z" if spherical else "x")
+        else:
+            lattice = {"list": [p], "moving_list": [p], "moving_nested": [[p]]}.get(
+                period, p
+            )
+        if spherical:
+            particle = api.sphere_tmatrix(
+                k0=1.2, lmax=1, radius=radius, material=3 + 0.1j
+            )
+            response = api.solve_periodic(particle, lattice=lattice, kpar=[0])
+            incident = api.plane_wave([1, 0, 0], "positive_helicity", k0=1.2)
+            basis = api.CylindricalBasis.default([0], 1)
+            wave = response.scatter(incident).in_basis(basis, kind="singular")
+            solved = wave.efield([[0.7, 0.4, 0.1]])
+        else:
+            particle = api.cylinder_tmatrix(
+                k0=1.2, kz=[0.0], mmax=1, radius=radius, material=3 + 0.1j
+            )
+            solved = api.solve_periodic(particle, lattice=lattice, kpar=[0]).array
+        coupled = particle.latticeinteraction.solve(lattice, [0])
+        return (abs(solved) ** 2).sum() + (abs(coupled) ** 2).sum()
+
+    value, gradient = engine.value_and_grad(objective, 0.2)
+    step = 1e-6
+    expected = (objective(tr, 0.2 + step) - objective(tr, 0.2 - step)) / (2 * step)
+    assert_allclose(value, objective(tr, 0.2), rtol=1e-12)
+    assert_allclose(gradient, expected, rtol=2e-5, atol=1e-8)

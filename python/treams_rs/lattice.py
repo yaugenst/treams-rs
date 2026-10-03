@@ -958,7 +958,8 @@ def _framework_sum(
     for name in names[:-1]:
         if name not in values:
             raise TypeError(f"missing required argument: {name!r}")
-    dim = values.pop("dim") if dim is None else dim
+    generic = dim is None
+    dim = values.pop("dim") if generic else dim
     if not 1 <= dim <= (3 if spherical else 2):
         raise ValueError("invalid lattice dimension")
     degree, order = np.asarray(values.get("l", 0)), np.asarray(values.get("m", 0))
@@ -968,11 +969,13 @@ def _framework_sum(
     a, kpar = _framework_cell(backend, values["a"], values["kpar"], spherical, dim)
     r = backend.array(values["r"])
     eta = backend.array(values.get("eta", 0), complex_=True)
-    if dim == 1:
-        if kpar.shape[-1:] != (1,):
-            kpar = kpar[..., None]
-        if a.shape[-2:] != (1, 1):
-            a = a[..., None, None]
+    if generic and dim == 1:
+        # As in NumPy, the dimension-first sums read a raw period of shape (1, 1)
+        # and Bloch vector of shape (1,) as one cell, not as a batch of one.
+        if a.shape == (1, 1, 1, 1):
+            a = a[0, 0]
+        if kpar.shape == (1, 1):
+            kpar = kpar[0]
     if not shift:
         if dim == 1:
             zero = r * 0

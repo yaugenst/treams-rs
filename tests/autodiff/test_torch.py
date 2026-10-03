@@ -200,6 +200,38 @@ def test_single_precision_native_inputs_and_repeated_pullbacks(dtype):
     assert seen == [(native_dtype, native_dtype)] * 2
 
 
+@pytest.mark.parametrize(
+    "dtype,constant",
+    [(torch.float64, 0.3), (torch.complex128, 0.3 + 0.1j), (torch.float32, 0.3)],
+)
+def test_python_numbers_beside_tensors_stay_double(dtype, constant):
+    def objective(value):
+        return (
+            value.real.sum() + 0.37 * value.imag.sum()
+            if value.is_complex()
+            else value.sum()
+        )
+
+    x = torch.tensor(0.4, dtype=dtype, requires_grad=True)
+    value = tr.special.lpmv(1, 2, [x, constant])
+    expected = tr.special.lpmv(1, 2, [x.detach().numpy(), constant])
+    assert value.dtype == (torch.complex128 if dtype.is_complex else torch.float64)
+    assert_allclose(value.detach().numpy(), expected, rtol=1e-15, atol=0)
+    (gradient,) = torch.autograd.grad(objective(value), x)
+    (alone,) = torch.autograd.grad(objective(tr.special.lpmv(1, 2, x)), x)
+    assert gradient.dtype == dtype
+    assert_allclose(gradient.numpy(), alone.numpy(), rtol=1e-15, atol=0)
+
+
+def test_python_numbers_beside_tensors_in_materials_stay_double():
+    # n = sqrt(epsilon mu), so dn/depsilon = mu / (2 n).
+    epsilon = torch.tensor(2.0, dtype=torch.float64, requires_grad=True)
+    material = tr.Material([epsilon, 1.3, 0.1])
+    assert (material.mu.item(), material.kappa.item()) == (1.3, 0.1)
+    (gradient,) = torch.autograd.grad(material.n.real, epsilon)
+    assert_allclose(gradient.item(), 1.3 / (2 * np.sqrt(2.6)), rtol=1e-15)
+
+
 def test_default_precision_root_sphere_gradient():
     def objective(radius):
         sphere = tr.sphere_tmatrix(k0=2.0, lmax=2, radius=radius, material=3.0)
