@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from treams_rs import lattice
+from treams_rs import Lattice, WaveVector, lattice
 from treams_rs.testing import check_gradient
 
 from _support import jax_x64
@@ -109,8 +109,6 @@ def test_nested_geometry_and_broadcast_gradients(value_and_grad, prefix):
 
 
 def test_static_lattice_metadata_with_a_moving_bloch_vector(value_and_grad):
-    from treams_rs import Lattice
-
     def objective(kpar):
         value = lattice.lsumsw1d_shift(
             2, 1, 2.1 + 0.2j, kpar, Lattice(1.7), [0.19, 0.11, 0.07], 0.9
@@ -124,14 +122,56 @@ def test_static_lattice_metadata_with_a_moving_bloch_vector(value_and_grad):
 
 
 def test_static_wavevector_with_a_moving_period_and_scalar_shift(value_and_grad):
-    from treams_rs import WaveVector
-
     def objective(x):
         value = lattice.lsumsw1d(2, 2.1 + 0.2j, WaveVector(0.13), x[0], x[1], 0.9)
         return abs(value) ** 2
 
     point = np.asarray([1.7, 0.19])
     value, gradient = value_and_grad(objective, point)
+    assert_allclose(value, objective(point), rtol=2e-12)
+    check_gradient(objective, lambda _: gradient, point, rtol=5e-5, atol=3e-7)
+
+
+# One-dimensional sums broadcast raw periods and Bloch numbers like scalars.
+# The dimension-first sums read a (1, 1) period and a (1,) Bloch vector as one
+# cell, and metadata makes both inputs one cell.
+_ONE_DIMENSIONAL_SUMS = [
+    ("lsumsw1d", (2,), [0.13], [[1.7]], 0.19),
+    ("lsumcw1d", (1,), 0.13, [1.7], 0.19),
+    ("realsumsw1d_shift", (2, 1), [[0.13], [0.1]], [1.7], [0.19, 0.11, 0.07]),
+    ("dsumcw1d_shift", (1,), [[0.13]], 1.7, [0.19, 0.11]),
+    ("lsumsw", (1, 2, 1), [0.13], [[1.7]], [0.19, 0.11, 0.07]),
+    ("recsumcw", (1, 1), [[0.13], [0.1]], [[1.7]], [0.19, 0.11]),
+]
+
+
+@pytest.mark.parametrize(
+    "name,labels,kpar,a,r,traced",
+    [(*case, traced) for case in _ONE_DIMENSIONAL_SUMS for traced in ("kpar", "a")]
+    + [
+        ("lsumsw1d", (2,), [0.13], Lattice(1.7), 0.19, "kpar"),
+        ("lsumsw1d", (2,), WaveVector(0.13), [1.7], 0.19, "a"),
+    ],
+)
+def test_one_dimensional_sums_keep_numpy_shapes(
+    value_and_grad, name, labels, kpar, a, r, traced
+):
+    function = getattr(lattice, name)
+    parameter = 2 if name.startswith("dsum") else 0.9
+    expected = np.shape(function(*labels, 2.1 + 0.2j, kpar, a, r, parameter))
+    shapes = []
+
+    def objective(x):
+        geometry = {"kpar": kpar, "a": a, traced: x}
+        value = function(
+            *labels, 2.1 + 0.2j, geometry["kpar"], geometry["a"], r, parameter
+        )
+        shapes.append(np.shape(value))
+        return (abs(value) ** 2).sum()
+
+    point = np.asarray(kpar if traced == "kpar" else a, dtype=float)
+    value, gradient = value_and_grad(objective, point)
+    assert shapes[0] == expected
     assert_allclose(value, objective(point), rtol=2e-12)
     check_gradient(objective, lambda _: gradient, point, rtol=5e-5, atol=3e-7)
 

@@ -508,20 +508,27 @@ def framework_cell(
     """Framework (lattice, Bloch) inputs, resolved as in ``geometry_inputs``.
 
     Lattice/WaveVector metadata gives the components of the cell's alignment,
-    and a 2D/3D diagonal expands into rows that keep its derivatives. ``dim``
-    defaults to the inferred dimension.
+    and a 2D/3D diagonal expands into rows that keep its derivatives. Without
+    ``dim``, the inputs are one periodic cell of the inferred dimension. Lattice
+    sums pass ``dim``; as in NumPy, a 1D period and Bloch number without
+    metadata broadcast like scalars and gain the cell axes. Otherwise a 1D
+    period of shape (1,) is the 1x1 cell.
     """
+    metadata = isinstance(a, Lattice) or isinstance(kpar, WaveVector)
     if not isinstance(a, Lattice):
         a = backend.array(a)
     if not isinstance(kpar, WaveVector):
         kpar = backend.array(kpar)
+    if dim == 1 and not metadata:
+        return a[..., None, None], kpar[..., None]
+    cell = dim is None or metadata
     dim = infer_dimension(a, kpar) if dim is None else dim
     alignment = periodic_alignment(dim, spherical)
     if isinstance(a, Lattice):
         a = backend.array(np.asarray(Lattice(a, alignment)))
     if isinstance(kpar, WaveVector):
         kpar = backend.array([kpar["xyz".index(axis)] for axis in alignment])
-    if a.ndim == 0:
+    if a.ndim == 0 or (cell and a.shape == (1,)):
         a = a.reshape(1, 1)
     elif dim > 1 and a.shape == (dim,):
         a = a[:, None] * backend.array(np.eye(dim))

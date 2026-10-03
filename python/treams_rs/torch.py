@@ -167,7 +167,7 @@ def _operation(
     return wrap(record)(*values)
 
 
-def _physics_array(value: Any, *, dtype: torch.dtype) -> torch.Tensor:
+def _physics_array(value: Any, *, dtype: torch.dtype | None) -> torch.Tensor:
     # torch.as_tensor cannot stack tensors inside lists without detaching them.
     if isinstance(value, torch.Tensor):
         _check_tensor(value)
@@ -177,7 +177,8 @@ def _physics_array(value: Any, *, dtype: torch.dtype) -> torch.Tensor:
     # torch.tensor copies, but rejects reversed (negative-stride) NumPy views.
     if isinstance(value, np.ndarray) and any(s < 0 for s in value.strides):
         value = value.copy()
-    return torch.tensor(value, dtype=dtype)
+    # Python numbers stay double, as in NumPy, rather than torch's float32 default.
+    return torch.tensor(np.asarray(value) if dtype is None else value, dtype=dtype)
 
 
 _backend = _framework_backend.Backend(torch, _operation, asarray=_physics_array)
