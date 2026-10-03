@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from functools import cached_property
+from functools import cached_property, partial
 from typing import TYPE_CHECKING, Any, Self, cast, override
 
 import numpy as np
@@ -331,14 +331,15 @@ class _TMatrix[B: (SphericalBasis, CylindricalBasis)](UpstreamMembers):
         offset = np.asarray(r, dtype=np.float64)
         if offset.shape != (3,):
             raise ValueError("T-matrix translation requires one Cartesian displacement")
-        common = {
-            "basis": self.basis,
-            "k0": self.k0,
-            "material": self.medium,
-            "poltype": self.polarization,
-        }
+        shift = partial(
+            translate,
+            basis=self.basis,
+            k0=self.k0,
+            material=self.medium,
+            poltype=self.polarization,
+        )
         return type(self)._adopt(
-            translate(offset, **common) @ self.array @ translate(-offset, **common),
+            shift(offset) @ self.array @ shift(-offset),
             k0=self.k0,
             basis=self.basis,
             material=self.medium,

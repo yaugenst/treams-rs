@@ -13,7 +13,7 @@ def _entries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(prog="python -m treams_rs", description=__doc__)
     parser.add_argument(
         "topic", nargs="?", help="API path, e.g. sphere_tmatrix or advect.Cluster"
     )

@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["numpy>=2.1", "threadpoolctl>=3.6"]
+# dependencies = ["numpy>=2.1", "threadpoolctl>=3.7"]
 # ///
 """Record physical identities and convergence, independently of upstream treams.
 

@@ -1,90 +1,471 @@
 name: CI
 
 on:
-  pull_request:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+env:
+  ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+  ACTIONLINT_VERSION: 1.7.12
+  FORCE_COLOR: "1"
+  # Keep the same property-test budget in every compatibility lane.
+  HYPOTHESIS_PROFILE: ci
+  # PyPI's Linux torch wheels bundle CUDA; tests use the CPU build of the locked
+  # torch version, which the PyTorch index also publishes for CPython 3.15.
+  TORCH_CPU_INDEX: https://download.pytorch.org/whl/cpu
 
 jobs:
-  rust:
-    # Formatting, Clippy, native tests and rustdoc do not depend on the
-    # Python version; PyO3 only needs an interpreter to configure the build.
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
-        with:
-          python-version: "3.13"
-      - uses: dtolnay/rust-toolchain@89428adc381502888d30f3ce6abbb7ea52739d01
-        with:
-          toolchain: "1.94.0"
-          components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
-        with:
-          version: "0.12.3"
-      - uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6
-        with:
-          just-version: "1.48.0"
-      - name: Create the PyO3 interpreter environment
-        run: uv venv --python 3.13
-      - name: Verify Rust
-        run: just ci-rust
-
   python:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHON_VERSION: ${{ matrix.python-version }}
+      # Exercise the one-thread path on 3.12 and the default pool on other versions.
+      TREAMS_RS_NUM_THREADS: ${{ matrix.python-version == '3.12' && '1' || '' }}
     strategy:
       fail-fast: false
       matrix:
-        # Python 3.12 runs the suite on one thread, 3.13 on every CPU, so both
-        # the serial and the parallel paths are tested at no extra cost.
-        include:
-          - python-version: "3.12"
-            threads: "1"
-          - python-version: "3.13"
-            threads: ""
+        python-version: ["3.12", "3.13", "3.14", "3.15"]
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with:
-          python-version: ${{ matrix.python-version }}
-      - uses: dtolnay/rust-toolchain@89428adc381502888d30f3ce6abbb7ea52739d01
+          toolchain: 1.94.0
+          components: clippy, rustfmt
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
-          toolchain: "1.94.0"
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-        with:
-          key: python-${{ matrix.python-version }}
-      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
-        with:
-          version: "0.12.3"
           enable-cache: true
-      - uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6
+          version-file: pyproject.toml
+
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
         with:
-          just-version: "1.48.0"
+          just-version: "1.58.0"
+
+      - name: Set up Python
+        run: uv python install "$PYTHON_VERSION"
+
+      # Dependency-group markers select the interpreter-specific oracle stack;
+      # tests/conftest.py reports test modules whose dependencies cannot install.
+      # `just build-ext` builds the tested extension, so uv does not build the
+      # project as well.
       - name: Install dependencies
-        # `just ci-python` builds the development extension; installing the
-        # project here would compile an unused optimized build first.
         run: |
-          uv sync --locked --no-install-project --group dev --extra jax --python '${{ matrix.python-version }}'
-          uv pip install --index-url https://download.pytorch.org/whl/cpu 'torch==2.14.0+cpu'
-      - name: Verify Python
-        # 100 Hypothesis examples per property instead of the local default of 30.
-        env:
-          HYPOTHESIS_PROFILE: ci
-          TREAMS_RS_NUM_THREADS: ${{ matrix.threads }}
-        run: just ci-python
-      - name: Verify clean wheel
+          uv sync --locked --no-install-project --group dev --extra jax \
+            --python "$PYTHON_VERSION"
+          torch_version="$(
+            uv export --locked --extra torch --no-emit-project --no-hashes \
+              --no-header --no-annotate | sed -n 's/^torch==\([^ ;]*\).*/\1/p'
+          )"
+          test -n "$torch_version"
+          uv pip install \
+            --python .venv/bin/python \
+            --index-url "$TORCH_CPU_INDEX" \
+            "torch==${torch_version}+cpu"
+
+      - name: Build the extension
+        run: just build-ext
+
+      - name: Lint GitHub Actions workflows
+        if: matrix.python-version == '3.12'
+        run: |
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl -fsSL \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            -o "$archive"
+          echo "${ACTIONLINT_SHA256}  $archive" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+          command -v shellcheck
+          "$RUNNER_TEMP/actionlint" -shellcheck shellcheck
+
+      - name: Test release eligibility guard
+        if: matrix.python-version == '3.12'
+        run: |
+          shellcheck .github/scripts/verify-release-state.sh
+          bash .github/scripts/verify-release-state.sh --self-test
+
+      # `just check` regenerates the API reference from the built extension.
+      - name: Run repository checks
+        if: matrix.python-version == '3.12'
+        run: just check
+
+      - name: Test with coverage
+        if: matrix.python-version == '3.12'
+        run: >-
+          .venv/bin/python -m pytest
+          --cov=treams_rs --cov-report=xml:coverage.xml
+
+      - name: Test
+        if: matrix.python-version != '3.12'
+        run: .venv/bin/python -m pytest
+
+      - name: Upload coverage artifact
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: python-coverage
+          path: coverage.xml
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Check the locally built release wheel
+        if: matrix.python-version == '3.12'
         run: just check-wheel
+
+  coverage:
+    name: Coverage
+    needs: python
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Codecov exchanges GitHub's short-lived OIDC identity
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # A download by name extracts into `path` itself, without a per-artifact
+      # directory.
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: python-coverage
+          path: coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          disable_search: true
+          fail_ci_if_error: true
+          files: coverage/coverage.xml
+          use_oidc: true
+
+  numpy-compatibility:
+    name: NumPy ${{ matrix.numpy-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        numpy-version: ["2.1.*", "2.2.*", "2.3.*", "2.4.*", "2.5.*"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+        with:
+          toolchain: 1.94.0
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          version-file: pyproject.toml
+
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: "1.58.0"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install locked environment
+        run: |
+          uv sync --locked --no-install-project --group dev --extra jax --python 3.12
+          torch_version="$(
+            uv export --locked --extra torch --no-emit-project --no-hashes \
+              --no-header --no-annotate | sed -n 's/^torch==\([^ ;]*\).*/\1/p'
+          )"
+          test -n "$torch_version"
+          uv pip install \
+            --python .venv/bin/python \
+            --index-url "$TORCH_CPU_INDEX" \
+            "torch==${torch_version}+cpu"
+
+      # Restate the oracle pins so selecting NumPy cannot move them.
+      - name: Select NumPy ${{ matrix.numpy-version }}
+        env:
+          NUMPY_VERSION: ${{ matrix.numpy-version }}
+        run: |
+          uv pip install \
+            --python .venv/bin/python \
+            --upgrade \
+            "numpy==$NUMPY_VERSION" \
+            'scipy>=1.16,<1.17' \
+            'treams==0.4.7'
+          uv pip check --python .venv/bin/python
+
+      - name: Build the extension
+        run: just build-ext
+
+      # The API reference is generated with the locked NumPy, and NumPy before 2.4
+      # renders ufunc signatures differently; the Python lanes check freshness.
+      - name: Test the complete suite
+        run: >-
+          .venv/bin/python -m pytest
+          --deselect tests/api/test_support_catalog.py::test_generated_documentation_is_source_current
+
+  optional-dependency-compatibility:
+    name: ${{ matrix.label }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHON_VERSION: ${{ matrix.python-version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The lower-bounds lane installs every declared floor together. The
+        # newest lanes stop at 3.14 because h5py publishes no CPython 3.15
+        # wheels; the Python 3.15 lane covers the remaining frameworks.
+        include:
+          - label: Frameworks lower bounds
+            python-version: "3.12"
+            numpy-requirement: numpy==2.1.*
+            advect-requirement: advect==0.2.0
+            jax-requirement: jax==0.9.0
+            h5py-requirement: h5py==3.11.0
+            torch-requirement: torch==2.7.0
+            # The API reference uses the locked NumPy (see the NumPy lanes).
+            deselect: tests/api/test_support_catalog.py::test_generated_documentation_is_source_current
+          - label: Frameworks latest / Python 3.13
+            python-version: "3.13"
+            numpy-requirement: numpy>=2.1,<2.6
+            advect-requirement: advect>=0.2.0,<0.4
+            jax-requirement: jax>=0.9,<0.12
+            h5py-requirement: h5py>=3.11,<4
+            torch-requirement: torch>=2.7,<3
+            deselect: ""
+          - label: Frameworks latest / Python 3.14
+            python-version: "3.14"
+            numpy-requirement: numpy>=2.1,<2.6
+            advect-requirement: advect>=0.2.0,<0.4
+            jax-requirement: jax>=0.9,<0.12
+            h5py-requirement: h5py>=3.11,<4
+            torch-requirement: torch>=2.7,<3
+            deselect: ""
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+        with:
+          toolchain: 1.94.0
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          version-file: pyproject.toml
+
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: "1.58.0"
+
+      - name: Set up Python
+        run: uv python install "$PYTHON_VERSION"
+
+      - name: Install locked environment
+        run: >-
+          uv sync --locked --no-install-project --group dev --extra jax
+          --python "$PYTHON_VERSION"
+
+      - name: Select optional frameworks
+        env:
+          ADVECT_REQUIREMENT: ${{ matrix.advect-requirement }}
+          H5PY_REQUIREMENT: ${{ matrix.h5py-requirement }}
+          JAX_REQUIREMENT: ${{ matrix.jax-requirement }}
+          NUMPY_REQUIREMENT: ${{ matrix.numpy-requirement }}
+          TORCH_REQUIREMENT: ${{ matrix.torch-requirement }}
+        run: |
+          uv pip install \
+            --python .venv/bin/python \
+            --upgrade \
+            "$NUMPY_REQUIREMENT" \
+            "$ADVECT_REQUIREMENT" \
+            "$JAX_REQUIREMENT" \
+            "$H5PY_REQUIREMENT" \
+            "scipy>=1.16,<1.17; python_version < '3.14'" \
+            "treams==0.4.7; python_version < '3.14'"
+          uv pip install \
+            --python .venv/bin/python \
+            --upgrade "$TORCH_REQUIREMENT" \
+            --index "$TORCH_CPU_INDEX"
+          uv pip check --python .venv/bin/python
+          uv pip list --python .venv/bin/python
+
+      - name: Build the extension
+        run: just build-ext
+
+      - name: Test the complete suite
+        env:
+          DESELECT: ${{ matrix.deselect }}
+        run: |
+          arguments=()
+          if [[ -n "$DESELECT" ]]; then
+            arguments+=(--deselect "$DESELECT")
+          fi
+          .venv/bin/python -m pytest "${arguments[@]}"
+
+  docs:
+    name: Documentation
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/docs.yml
+    permissions:
+      contents: read
+
+  dev-docs:
+    name: Development documentation
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/docs.yml
+    with:
+      version: dev
+    permissions:
+      contents: write # retain versioned documentation on gh-pages
+      pages: write
+      id-token: write
+
+  # rust-toolchain.toml pins 1.94.0 and overrides rustup's default, so every
+  # cargo step selects the lane's toolchain explicitly. Job-level RUSTUP_TOOLCHAIN
+  # would also reach the cargo-deny container and make it install that toolchain.
+  rust:
+    name: Rust ${{ matrix.rust-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        rust-version: ["1.94.0", stable]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+        with:
+          toolchain: ${{ matrix.rust-version }}
+          components: clippy, rustfmt
+
+      - name: Check formatting
+        if: matrix.rust-version == 'stable'
+        env:
+          RUSTUP_TOOLCHAIN: ${{ matrix.rust-version }}
+        run: cargo fmt --all --check
+
+      - name: Lint
+        env:
+          RUSTUP_TOOLCHAIN: ${{ matrix.rust-version }}
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+
+      - name: Test
+        env:
+          RUSTUP_TOOLCHAIN: ${{ matrix.rust-version }}
+        run: cargo test --locked --workspace --all-targets --all-features
+
+      - name: Check API documentation
+        env:
+          RUSTUP_TOOLCHAIN: ${{ matrix.rust-version }}
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --locked --workspace --no-deps
+
+      # The bundle includes the pinned toolchain's standard-library notices.
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        if: matrix.rust-version == '1.94.0'
+        with:
+          version-file: pyproject.toml
+
+      - name: Check wheel license bundle
+        if: matrix.rust-version == '1.94.0'
+        run: |
+          cargo fetch --locked
+          uv run --script scripts/third_party_licenses.py --check
+
+      - name: Check dependency policy
+        if: matrix.rust-version == 'stable'
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check
+          arguments: --all-features
+          command-arguments: -W unmaintained
+
+  native-wheels:
+    name: Native Wheels
+    uses: ./.github/workflows/native-wheels.yml
+    permissions:
+      contents: read
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          curl -fsSL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            -o gitleaks.tar.gz
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz" \
+            | sha256sum --check
+          tar -xzf gitleaks.tar.gz gitleaks
+
+      - name: Scan Git history
+        env:
+          SOURCE_REVISION: ${{ github.sha }}
+        run: ./gitleaks git --redact --verbose --log-opts="$SOURCE_REVISION"
+
+  ci-success:
+    name: CI Success
+    needs:
+      - python
+      - coverage
+      - numpy-compatibility
+      - optional-dependency-compatibility
+      - docs
+      - dev-docs
+      - rust
+      - native-wheels
+      - secrets
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check blocking jobs
+        env:
+          PYTHON_RESULT: ${{ needs.python.result }}
+          COVERAGE_RESULT: ${{ needs.coverage.result }}
+          NUMPY_RESULT: ${{ needs.numpy-compatibility.result }}
+          OPTIONAL_DEPENDENCIES_RESULT: ${{ needs.optional-dependency-compatibility.result }}
+          DOCS_RESULT: ${{ github.event_name == 'push' && needs.dev-docs.result || needs.docs.result }}
+          RUST_RESULT: ${{ needs.rust.result }}
+          WHEELS_RESULT: ${{ needs.native-wheels.result }}
+          SECRETS_RESULT: ${{ needs.secrets.result }}
+        run: |
+          for result in \
+            "$PYTHON_RESULT" \
+            "$COVERAGE_RESULT" \
+            "$NUMPY_RESULT" \
+            "$OPTIONAL_DEPENDENCIES_RESULT" \
+            "$DOCS_RESULT" \
+            "$RUST_RESULT" \
+            "$WHEELS_RESULT" \
+            "$SECRETS_RESULT"; do
+            test "$result" = "success"
+          done

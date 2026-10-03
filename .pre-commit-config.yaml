@@ -1,10 +1,34 @@
+# https://pre-commit.com for more information
+# `uv run --no-sync pre-commit install` installs both hook types below.
+# `just file-hygiene` (part of `just check`, which CI runs) executes every hook
+# of the `manual` stage over all files. `default_stages` below gives each hook
+# without its own `stages` the `manual` stage, so CI enforces it, but not the
+# commit-msg stage, where it would check the message file instead of the
+# repository. The commit-msg and local `just` hooks are deliberately staged:
+# CI does not lint commit messages, and `just check` runs the `just`
+# recipes directly.
+#
+# Advect also sets `default_language_version: {python: python3.12}`; that is
+# left out here because development environments may use Python 3.12 to 3.15
+# and it would require a `python3.12` executable on PATH; the Python hooks
+# (taplo, typos, commitizen) keep pre-commit's default interpreter selection.
+# The minimum version is the `pre-commit` floor of the `dev` dependency group.
+minimum_pre_commit_version: "4.6.0"
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [pre-commit, pre-merge-commit, pre-push, manual]
+
 repos:
+  # ==========================================================================
+  # General file hygiene
+  # ==========================================================================
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
         exclude: /py\.typed$
+      - id: mixed-line-ending
+        args: [--fix=lf]
       - id: check-yaml
       - id: check-json
       - id: check-merge-conflict
@@ -13,12 +37,64 @@ repos:
       - id: destroyed-symlinks
       - id: check-added-large-files
         args: [--maxkb=1000, --enforce-all]
-        exclude: ^benchmarks/(results/|correction-plan\.json$)
+        exclude: ^benchmarks/(results/|comparison-report/|correction-plan\.json$)
       - id: check-added-large-files
         name: check benchmark artifact size
-        files: ^benchmarks/(results/|correction-plan\.json$)
+        files: ^benchmarks/(results/|comparison-report/|correction-plan\.json$)
         args: [--maxkb=50000, --enforce-all]
       - id: detect-private-key
+
+  # ==========================================================================
+  # Markdown: linting with markdownlint-cli2 (.markdownlint-cli2.yaml)
+  # ==========================================================================
+  # A node hook: v0.23 needs Node 22 or later. pre-commit uses the system
+  # node/npm when both are on PATH (GitHub's Ubuntu runners have Node 22 or
+  # later) and installs the hook from npm; otherwise it downloads Node.
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: 916ad0aaa108c64d294101002066f530ea170b10  # frozen: v0.23.3
+    hooks:
+      - id: markdownlint-cli2
+        args: [--fix, --no-globs]
+        exclude: ^benchmarks/results/
+
+  # ==========================================================================
+  # TOML: formatting with taplo (taplo.toml)
+  # ==========================================================================
+  - repo: https://github.com/ComPWA/taplo-pre-commit
+    rev: ade0f95ddcf661c697d4670d2cfcbe95d0048a0a  # frozen: v0.9.3
+    hooks:
+      - id: taplo-format
+
+  # ==========================================================================
+  # Spell checking (_typos.toml)
+  # ==========================================================================
+  # Reports without rewriting: `--force-exclude` replaces the hook's default
+  # `--write-changes`, so a flagged word is either fixed by hand or allowlisted.
+  - repo: https://github.com/crate-ci/typos
+    rev: 00f422f3b19c57bc6338715ebfe3316d38768461  # frozen: v1.50.3
+    hooks:
+      - id: typos
+        args: [--force-exclude]
+
+  # ==========================================================================
+  # Git commit messages: Conventional Commits
+  # ==========================================================================
+  # `cz check` with commitizen's default conventional-commits rules. There is
+  # deliberately no [tool.commitizen] configuration: the Cargo.toml workspace
+  # version is the single version authority, so `cz bump` must not manage it.
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: 3f5ccc87b27966d9ed21cf5ea8ec2fba38ca65ce  # frozen: v4.19.0
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
+
+  # ==========================================================================
+  # Rust and Python: the repository's own `just` recipes
+  # ==========================================================================
+  # These take the place of Advect's ruff-pre-commit hooks (and add Rust and
+  # type checks). They run the tools from the locked environment and toolchain
+  # (uv.lock, rust-toolchain.toml) with the same arguments as CI instead of a
+  # second pinned copy; `just check` runs the recipes directly in CI.
   - repo: local
     hooks:
       - id: no-diff3-base-markers

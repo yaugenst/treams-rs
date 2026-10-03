@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["numpy>=2.1", "scipy>=1.14,<1.17", "treams==0.4.5", "threadpoolctl>=3.6", "mpmath==1.3.0"]
+# dependencies = ["numpy>=2.1", "scipy>=1.16,<1.17", "treams==0.4.7", "threadpoolctl>=3.7", "mpmath==1.3.0"]
 # ///
 """High-cutoff conditioning collector for benchmark_cluster.py's eight-sphere chain.
 

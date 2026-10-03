@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12,<3.14"
-# dependencies = ["mpmath>=1.3", "numpy>=2.1", "treams==0.4.5", "threadpoolctl>=3.6"]
+# dependencies = ["mpmath>=1.3", "numpy>=2.1", "treams==0.4.7", "threadpoolctl>=3.7"]
 # ///
 """Independent high-precision references, retaining failures and domain exclusions.
 

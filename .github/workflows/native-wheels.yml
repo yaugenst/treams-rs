@@ -1,0 +1,264 @@
+name: Native Wheels
+
+on:
+  workflow_call:
+    inputs:
+      source_revision:
+        description: Immutable source commit to build; defaults to the triggering commit
+        required: false
+        type: string
+        default: ""
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-wheels-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FORCE_COLOR: "1"
+
+jobs:
+  wheelhouse:
+    name: ${{ matrix.platform.name }} / Python ${{ matrix.python.version }}
+    runs-on: ${{ matrix.platform.runner }}
+    env:
+      PYTHON_VERSION: ${{ matrix.python.version }}
+      # maturin-action builds Linux wheels in a manylinux container as root. The
+      # container's HOME is /root and CARGO_HOME is not forwarded into it, so
+      # Cargo's registry sources live under /root/.cargo; the checkout is mounted
+      # at the runner's workspace path. macOS and Windows build on the runner.
+      CONTAINER_HOME: ${{ matrix.platform.container_home }}
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        python:
+          - version: "3.12"
+            artifact: py312
+            profiles: base advect io
+            skipped: ""
+          - version: "3.13"
+            artifact: py313
+            profiles: base advect io
+            skipped: ""
+          - version: "3.14"
+            artifact: py314
+            profiles: base advect io
+            skipped: ""
+          - version: "3.15"
+            artifact: py315
+            profiles: base advect
+            # Remove the skip once h5py publishes CPython 3.15 wheels.
+            skipped: "io: h5py publishes no CPython 3.15 wheels"
+        platform:
+          - name: Linux x86-64
+            artifact: linux-x86_64
+            runner: ubuntu-22.04
+            target: x86_64
+            interpreter: versioned
+            manylinux: "2_17"
+            container_home: /root
+          - name: Linux arm64
+            artifact: linux-aarch64
+            runner: ubuntu-24.04-arm
+            target: aarch64
+            interpreter: versioned
+            manylinux: "2_17"
+            container_home: /root
+          - name: macOS Intel
+            artifact: macos-x86_64
+            runner: macos-15-intel
+            target: x86_64
+            interpreter: python
+            manylinux: auto
+            container_home: ""
+          - name: macOS Apple silicon
+            artifact: macos-arm64
+            runner: macos-latest
+            target: aarch64
+            interpreter: python
+            manylinux: auto
+            container_home: ""
+          - name: Windows x86-64
+            artifact: windows-x86_64
+            runner: windows-latest
+            target: x64
+            interpreter: python
+            manylinux: auto
+            container_home: ""
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.source_revision || github.sha }}
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python.version }}
+          allow-prereleases: true
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          version-file: pyproject.toml
+
+      - name: Remap local build paths
+        run: |
+          homes=()
+          if [[ -n "$CONTAINER_HOME" ]]; then
+            homes=(--home "$CONTAINER_HOME")
+          fi
+          flags="$(uv run --script scripts/wheel_build_paths.py rustflags "${homes[@]}")"
+          printf '%s\n' "${flags//$'\x1f'/ }"
+          printf 'CARGO_ENCODED_RUSTFLAGS=%s\n' "$flags" >> "$GITHUB_ENV"
+
+      - name: Build portable wheel
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
+        with:
+          target: ${{ matrix.platform.target }}
+          manylinux: ${{ matrix.platform.manylinux }}
+          maturin-version: v1.15.0
+          rust-toolchain: 1.94.0
+          args: >-
+            --release
+            --locked
+            --compatibility pypi
+            --out dist/wheelhouse
+            --interpreter ${{ matrix.platform.interpreter == 'versioned' && format('python{0}', matrix.python.version) || matrix.platform.interpreter }}
+            --manifest-path crates/treams-py/Cargo.toml
+
+      - name: Check the wheel for local build paths
+        run: |
+          homes=()
+          if [[ -n "$CONTAINER_HOME" ]]; then
+            homes=(--home "$CONTAINER_HOME")
+          fi
+          uv run --script scripts/wheel_build_paths.py check "${homes[@]}" dist/wheelhouse/treams_rs-*.whl
+
+      - name: Smoke-test installed wheel
+        env:
+          SMOKE_PROFILES: ${{ matrix.python.profiles }}
+          SKIPPED_PROFILES: ${{ matrix.python.skipped }}
+        run: |
+          wheel_count=$(find dist/wheelhouse -maxdepth 1 -name 'treams_rs-*.whl' | wc -l)
+          test "$wheel_count" -eq 1
+          if [[ -n "$SKIPPED_PROFILES" ]]; then
+            echo "::notice title=Smoke profile skipped on Python $PYTHON_VERSION::$SKIPPED_PROFILES"
+          fi
+          for profile in $SMOKE_PROFILES; do
+            environment=".wheel-${profile}-smoke"
+            uv venv "$environment" --python "$PYTHON_VERSION"
+            if [[ "$RUNNER_OS" == "Windows" ]]; then
+              smoke_python="$environment/Scripts/python.exe"
+            else
+              smoke_python="$environment/bin/python"
+            fi
+            # Runtime dependencies come from the package declaration itself.
+            dependencies=(--only-binary :all: -r pyproject.toml)
+            requirement=treams-rs
+            if [[ "$profile" != "base" ]]; then
+              dependencies+=(--extra "$profile")
+              requirement="treams-rs[$profile]"
+            fi
+            uv pip install --python "$smoke_python" "${dependencies[@]}"
+            uv pip install \
+              --python "$smoke_python" \
+              --no-cache \
+              --no-index \
+              --find-links dist/wheelhouse \
+              "$requirement"
+            "$smoke_python" scripts/smoke_wheel_install.py "$profile"
+          done
+
+      - name: Smoke-test simultaneous dependency minimums
+        if: matrix.platform.artifact == 'linux-x86_64' && matrix.python.version == '3.12'
+        run: |
+          # The declared floors of every runtime and smoke-profile requirement,
+          # read from pyproject.toml and installed together.
+          minimum_list="$(uv run --script scripts/dependency_minimums.py advect io)"
+          mapfile -t minimums <<< "$minimum_list"
+          echo "Declared floors: ${minimums[*]}"
+          uv venv .wheel-minimum-smoke --python "$PYTHON_VERSION"
+          uv pip install \
+            --python .wheel-minimum-smoke/bin/python \
+            --only-binary :all: \
+            "${minimums[@]}"
+          uv pip install \
+            --python .wheel-minimum-smoke/bin/python \
+            --no-cache \
+            --no-index \
+            --find-links dist/wheelhouse \
+            'treams-rs[advect,io]'
+          uv pip check --python .wheel-minimum-smoke/bin/python
+          .wheel-minimum-smoke/bin/python scripts/smoke_wheel_install.py advect io
+
+      - name: Upload wheel
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: treams-rs-distribution-${{ matrix.platform.artifact }}-${{ matrix.python.artifact }}
+          path: dist/wheelhouse/treams_rs-*.whl
+          if-no-files-found: error
+
+  sdist:
+    name: Source distribution
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.source_revision || github.sha }}
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+        with:
+          toolchain: 1.94.0
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          version-file: pyproject.toml
+
+      - name: Build and verify source distribution
+        run: |
+          uv build --sdist --out-dir dist/sdist --clear
+          # The sdist omits rust-toolchain.toml, so this builds with the
+          # toolchain installed above, as a downstream source build would. The
+          # wheel targets the interpreter of the smoke environment below.
+          uv build \
+            --python 3.12 \
+            --wheel \
+            dist/sdist/treams_rs-*.tar.gz \
+            --out-dir dist/sdist-wheel \
+            --clear
+          uv run --script scripts/check_source_distribution.py \
+            --sdist dist/sdist/treams_rs-*.tar.gz \
+            --wheel dist/sdist-wheel/treams_rs-*.whl
+
+          uv venv .sdist-smoke --python 3.12
+          uv pip install \
+            --python .sdist-smoke/bin/python \
+            --only-binary :all: \
+            -r pyproject.toml
+          uv pip install \
+            --python .sdist-smoke/bin/python \
+            --no-cache \
+            --no-index \
+            --find-links dist/sdist-wheel \
+            treams-rs
+          .sdist-smoke/bin/python scripts/smoke_wheel_install.py base
+
+      - name: Upload source distribution
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: treams-rs-distribution-sdist
+          path: dist/sdist/treams_rs-*.tar.gz
+          if-no-files-found: error

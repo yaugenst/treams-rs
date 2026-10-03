@@ -43,16 +43,23 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
         with:
-          just-version: "1.48.0"
+          just-version: "1.58.0"
       - name: Install elan
+        env:
+          ELAN_INIT_SHA256: a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53
+          ELAN_VERSION: 4.2.4
         run: |
-          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/v4.2.4/elan-init.sh \
-            | sh -s -- -y --no-modify-path --default-toolchain none
+          installer="$RUNNER_TEMP/elan-init.sh"
+          curl -sSfL \
+            "https://raw.githubusercontent.com/leanprover/elan/v${ELAN_VERSION}/elan-init.sh" \
+            -o "$installer"
+          echo "${ELAN_INIT_SHA256}  $installer" | sha256sum --check
+          sh "$installer" -y --no-modify-path --default-toolchain none
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: Check proofs and reference outputs
         run: just formal
