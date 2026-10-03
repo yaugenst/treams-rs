@@ -744,6 +744,51 @@ fn check_vector_wave_maxwell(
     Ok(())
 }
 
+/// Changing the length unit preserves spherical waves, their physical derivatives
+/// and Maxwell's equations, including high degrees that overflow dimensional
+/// solid harmonics. Compare derivatives after returning them to the original units.
+#[test]
+fn spherical_fields_preserve_length_units() {
+    let k = Complex::new(1.2, 0.1);
+    let position = [0.2, -0.3, 0.4];
+    for radial in [Radial::Regular, Radial::Singular] {
+        for (l, m) in [(1, 0), (4, -2), (40, 10)] {
+            for pol in [0, 1] {
+                let mode = Mode { l, m, pol };
+                let expected = fields::spherical_wave(mode, k, position, true, radial).unwrap();
+                let magnitude = expected.value.iter().map(|v| v.norm()).sum::<f64>();
+                for scale in [1e-150, 1e-7, 1.0, 1e7, 1e150] {
+                    let mut actual = fields::spherical_wave(
+                        mode,
+                        k / scale,
+                        position.map(|v| v * scale),
+                        true,
+                        radial,
+                    )
+                    .unwrap();
+                    actual.position = actual.position.map(|row| row.map(|v| v * scale));
+                    actual.k = actual.k.map(|v| v / scale);
+                    for i in 0..3 {
+                        assert!((actual.value[i] - expected.value[i]).norm() < 1e-12 * magnitude);
+                        assert!((actual.k[i] - expected.k[i]).norm() < 1e-10 * magnitude);
+                        for axis in 0..3 {
+                            assert!(
+                                (actual.position[i][axis] - expected.position[i][axis]).norm()
+                                    < 1e-10 * magnitude
+                            );
+                        }
+                    }
+                    // Normalize the wave, so the physical identity tests small regular
+                    // fields just as strictly as large singular fields.
+                    actual.value = actual.value.map(|v| v / magnitude);
+                    actual.position = actual.position.map(|row| row.map(|v| v / magnitude));
+                    check_helicity_maxwell(&actual, k, pol, 1e-10).unwrap();
+                }
+            }
+        }
+    }
+}
+
 /// Euler identity and scale invariance of cylindrical translation coefficients.
 fn check_cylindrical_translation_scale(
     m: i32,

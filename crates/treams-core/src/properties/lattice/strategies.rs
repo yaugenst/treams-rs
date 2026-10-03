@@ -73,7 +73,8 @@ pub(super) fn far_chain() -> impl Strategy<Value = Ewald> {
 }
 
 /// Slopes `Im k / Re k` of the wavenumber: real, lossy or amplifying up to a quarter,
-/// and nearly real of either sign down to 1e-16.
+/// and nearly real of either sign down to 1e-16. Amplifying cases test rejection;
+/// retaining the strategy also preserves replay of its regression seeds.
 pub(super) fn slope() -> impl Strategy<Value = f64> {
     prop_oneof![
         Just(0.0),
@@ -123,7 +124,7 @@ pub(super) fn rotated_chain() -> impl Strategy<Value = Ewald> {
 /// point, and at shifts mostly in the lattice plane or on the lattice axis, otherwise
 /// 1e-12 to 1 off it on either side, on skewed lattices with Bloch vectors that include
 /// 0 and zone edges; `k` with a non-negative `slope` or with `Im k` of 0.3 to 0.8 times
-/// `Re k` (the sums depend on the split for `Im k < 0`), mirrored to `Re k < 0` for
+/// `Re k`, mirrored to `Re k < 0` for
 /// cylindrical waves; real splits of 0.6 to 1.3 or splits of that modulus rotated off
 /// `1 / k` by up to 0.3 either way, for cylindrical waves also of either sign.
 pub(super) fn half_integer_sum() -> impl Strategy<Value = Ewald> {
@@ -630,7 +631,8 @@ enum Wavenumber {
 /// `1 / k` by up to 0.3 either way. Imaginary `k` takes imaginary splits `+-i |eta|`,
 /// with either sign of a zero real part, instead of real ones. Spherical Ewald sums
 /// converge only for `Re(k eta) > 0` and take `Re k > 0`: for them `Re k < 0` stays
-/// `Lossy` and imaginary splits take the sign with `Re(k eta) > 0`.
+/// `Lossy` and imaginary splits take the sign with `Re(k eta) > 0`. Wavenumbers in
+/// the negative imaginary half-plane test rejection.
 pub(super) fn lattice_point() -> impl Strategy<Value = Ewald> {
     let family = prop_oneof![
         (prop_oneof![Just(1_usize), Just(3)], degree_order(0..2))

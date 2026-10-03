@@ -307,6 +307,90 @@ def test_batched_fields_reference(poltype, singular):
     np.testing.assert_allclose(actual, expected, rtol=2e-11, atol=2e-11)
 
 
+@pytest.mark.reference
+@pytest.mark.physics
+@pytest.mark.gradients
+@pytest.mark.parametrize("length_unit", [1e-150, 1e-7, 1.0, 1e7, 1e150])
+@pytest.mark.parametrize("singular", [False, True])
+@pytest.mark.parametrize("degree", [1, 40])
+def test_spherical_fields_reference_and_pullback_across_length_units(
+    length_unit, singular, degree
+):
+    # Two distinct helicity wavenumbers exercise the cached solid harmonics in
+    # different internal units. The public fields depend only on k times lengths.
+    modes = [(degree, 0, 0), (degree, 0, 1)]
+    points = np.array([[0.2, -0.3, 0.4]])
+    origins = np.zeros((1, 3))
+    ks = np.array([1.2 + 0.1j, 1.8 + 0.1j])
+    spherical = upstream_special.car2sph(points[0])
+    function = upstream_special.vsw_A if singular else upstream_special.vsw_rA
+    reference = np.array(
+        [
+            upstream_special.vsph2car(
+                function(degree, 0, k * spherical[0], *spherical[1:], pol),
+                spherical,
+            )
+            for pol, k in enumerate(ks)
+        ]
+    ).T
+    # Normalize each mode, avoiding an absolute tolerance that would hide loss of
+    # the tiny high-degree regular field or overflow of the singular field.
+    coefficients = (0.3 + 0.2j) / np.max(np.abs(reference), axis=0)
+
+    def record(c, p, o, k):
+        return diff.field(c, p, SphericalBasis(modes, o), k, singular=singular)
+
+    value, context = record(
+        coefficients, points * length_unit, origins, ks / length_unit
+    )
+    np.testing.assert_allclose(
+        value[0], reference @ coefficients, rtol=2e-11, atol=2e-13
+    )
+    cotangent = np.array([[0.3 + 0.1j, -0.2j, 0.7]])
+    _, dpoints, dorigins, dk = context.pullback(cotangent)
+    np.testing.assert_allclose(dpoints + dorigins, 0, atol=0)
+    # Euler's identity for simultaneous scaling of all lengths and wavenumbers.
+    np.testing.assert_allclose(
+        np.vdot(dpoints, points * length_unit).real,
+        np.vdot(dk, ks / length_unit).real,
+        rtol=2e-11,
+        atol=2e-12,
+    )
+    check_pullback(
+        record,
+        coefficients,
+        points * length_unit,
+        origins,
+        ks / length_unit,
+        directions=(
+            coefficients * (0.1 - 0.2j),
+            np.array([[0.02, 0.01, -0.03]]) * length_unit,
+            np.array([[-0.03, 0.02, 0.01]]) * length_unit,
+            np.array([0.03 + 0.01j, -0.02 + 0.01j]) / length_unit,
+        ),
+        cotangents=cotangent,
+        step=1e-6,
+        rtol=2e-7,
+        atol=2e-9,
+    )
+
+
+@pytest.mark.reference
+@pytest.mark.parametrize("length_unit", [1e-7, 1.0, 1e7])
+def test_singular_spherical_field_at_small_dimensionless_radius(length_unit):
+    # h_40(1e-4) and its field are finite. Using 1/|k| as the internal length
+    # unit would overflow h_40(kr)/r^40 before its solid harmonic cancels r^40.
+    spherical = np.array([1.0, 0.0, 0.0])
+    expected = upstream_special.vsph2car(
+        upstream_special.vsw_A(40, 0, 1e-4, 0.0, 0.0, 1), spherical
+    )
+    actual, jacobian, dk = _native.spherical_wave_jet(
+        (40, 0, 1), 1e-4 / length_unit, [0, 0, length_unit], True, True
+    )
+    assert all(np.all(np.isfinite(value)) for value in (actual, jacobian, dk, expected))
+    np.testing.assert_allclose(actual, expected, rtol=2e-12, atol=0)
+
+
 @pytest.mark.physics
 @pytest.mark.gradients
 @given(scale=st.floats(0.7, 1.4), offset=st.floats(-0.2, 0.2), singular=st.booleans())

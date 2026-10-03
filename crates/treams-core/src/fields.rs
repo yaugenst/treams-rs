@@ -159,6 +159,20 @@ fn scaled_radial(l: u32, k: Complex, r: f64, radial: Radial) -> Result<Complex> 
     Ok(bessel(f64::from(l), x, radial.into(), true, 0)? / r.powf(f64::from(l)))
 }
 
+/// A common length unit bounds solid-harmonic coordinates by one and bounds the
+/// wavenumber in the regular origin series. Hold this scale fixed when taking
+/// derivatives: the wave is unchanged by any common change of length units.
+fn spherical_arguments(k: Complex, position: [f64; 3], radial: Radial) -> (Complex, [f64; 3], f64) {
+    let mut scale = position.iter().map(|x| x.abs()).fold(0.0, f64::max);
+    // Only regular waves need an origin series. Singular waves keep unit-sized
+    // coordinates even at small kr, so dividing a large Hankel value by r^l
+    // cannot overflow before multiplication by its solid harmonic.
+    if radial == Radial::Regular || scale == 0.0 {
+        scale = scale.max(1.0 / k.re.abs().max(k.im.abs()));
+    }
+    (k * scale, position.map(|x| x / scale), scale)
+}
+
 /// Evaluate a vector spherical wave in treams normalization.
 /// Parity polarization 0 is M, 1 is N; helicity is `(N + (2pol-1) M)/sqrt(2)`.
 ///
@@ -188,6 +202,7 @@ fn spherical_wave_impl<const DERIVATIVES: bool>(
             "require a finite nonzero wavenumber and finite position".into(),
         ));
     }
+    let (k, position, scale) = spherical_arguments(k, position, radial);
     let r2 = position.iter().map(|v| v * v).sum::<f64>();
     let l = mode.l.unsigned_abs();
     let radials = [
@@ -200,7 +215,7 @@ fn spherical_wave_impl<const DERIVATIVES: bool>(
         },
     ];
     let solid = solid::<DERIVATIVES>(mode.l, mode.m, position);
-    let parts = spherical_parts::<DERIVATIVES>(mode.l, k, position, r2, &solid, radials);
+    let parts = spherical_parts::<DERIVATIVES>(mode.l, k, position, r2, &solid, radials, scale);
     Ok(combine::<DERIVATIVES>(
         &parts,
         normalization(mode.l, mode.m),
@@ -215,7 +230,8 @@ fn spherical_wave_impl<const DERIVATIVES: bool>(
 /// `S = r^l P_l^m(cos theta) e^(i m phi)`, the scalar wave is `psi = c S`. Then `m = r x grad psi`,
 /// the negative of the unnormalized `M = curl(r psi) = grad psi x r`, and `n` is the
 /// unnormalized `N`. The inputs are the scaled radial functions of orders `l`, `l + 1` and
-/// `l + 2`; the last one enters only the derivatives.
+/// `l + 2`; the last one enters only the derivatives. `scale` returns the derivatives
+/// from the internal length unit to the caller's unit.
 fn spherical_parts<const DERIVATIVES: bool>(
     l: i32,
     k: Complex,
@@ -223,6 +239,7 @@ fn spherical_parts<const DERIVATIVES: bool>(
     r2: f64,
     solid: &Solid,
     [c, e, f]: [Complex; 3],
+    scale: f64,
 ) -> [VectorWave; 2] {
     let degree = f64::from(l);
     let d = (degree + 1.0) / k * c - r2 * e;
@@ -240,8 +257,9 @@ fn spherical_parts<const DERIVATIVES: bool>(
         let ck = degree / k * c - r2 * e;
         let ek = (degree + 1.0) / k * e - r2 * f;
         let dk = (degree + 1.0) / k * ck - (degree + 1.0) / k.powu(2) * c - r2 * ek;
-        n.k = from_fn(|i| dk * solid.gradient[i] + degree * ek * solid.value * position[i]);
-        m.k = from_fn(|i| ck * rotation[i]);
+        n.k =
+            from_fn(|i| scale * (dk * solid.gradient[i] + degree * ek * solid.value * position[i]));
+        m.k = from_fn(|i| scale * ck * rotation[i]);
         for axis in 0..3 {
             let ca = -k * e * position[axis];
             let ea = -k * f * position[axis];
@@ -251,7 +269,7 @@ fn spherical_parts<const DERIVATIVES: bool>(
             let first = cross(unit, solid.gradient);
             let second = cross(vector, from_fn(|i| solid.hessian[i][axis]));
             for i in 0..3 {
-                n.position[i][axis] = da * solid.gradient[i]
+                n.position[i][axis] = (da * solid.gradient[i]
                     + d * solid.hessian[i][axis]
                     + degree
                         * (ea * solid.value * position[i]
@@ -260,8 +278,9 @@ fn spherical_parts<const DERIVATIVES: bool>(
                                 e * solid.value
                             } else {
                                 Complex::default()
-                            });
-                m.position[i][axis] = ca * rotation[i] + c * (first[i] + second[i]);
+                            }))
+                    / scale;
+                m.position[i][axis] = (ca * rotation[i] + c * (first[i] + second[i])) / scale;
             }
         }
     }
@@ -345,20 +364,17 @@ pub(crate) struct WaveSet {
 }
 
 /// Work shared by the waves of one sample point: scaled radial functions per
-/// (position, wavenumber, order), the last solid harmonic, and the last spherical
-/// parts or cylindrical components, which the adjacent polarization of the same
-/// mode reuses. Every entry is keyed by all of its inputs, so any mode order is
+/// (position, wavenumber, order), and the last spherical parts or cylindrical
+/// components, which the adjacent polarization of the same mode reuses.
+/// Every entry is keyed by all of its inputs, so any mode order is
 /// evaluated exactly as without the cache. `N` is the derivative level
 /// ([`VALUES`], [`SPATIAL_AND_K`] or [`WITH_AXIAL`]).
 pub(crate) struct SampleCache<const N: usize> {
     radials: Vec<Option<Complex>>,
-    solid: Option<(SolidKey, Solid)>,
     spherical: Option<(PartsKey, [VectorWave; 2])>,
     cylindrical: Option<(ComponentsKey, [[Jet<N>; 3]; 2])>,
 }
 
-/// Position index, degree and order of a solid harmonic.
-type SolidKey = (usize, i32, i32);
 /// Position index, wavenumber index, degree and order of spherical parts.
 type PartsKey = (usize, usize, i32, i32);
 /// Position index, wavenumber index, order and axial-wavenumber bits of cylindrical components.
@@ -429,7 +445,6 @@ impl WaveSet {
     pub(crate) fn cache<const N: usize>(&self) -> SampleCache<N> {
         SampleCache {
             radials: vec![None; 2 * self.basis.positions().len() * self.radial_table_len],
-            solid: None,
             spherical: None,
             cylindrical: None,
         }
@@ -497,7 +512,7 @@ impl WaveSet {
     }
 
     /// The spherical parts of `mode` at `point` from the cached radial functions and
-    /// solid harmonic. It rejects what [`spherical_wave`] rejects: a wavenumber whose
+    /// a scaled solid harmonic. It rejects what [`spherical_wave`] rejects: a wavenumber whose
     /// square underflows and a relative position that overflows.
     fn cached_parts<const N: usize>(
         &self,
@@ -514,6 +529,7 @@ impl WaveSet {
                 "require a finite nonzero wavenumber and finite position".into(),
             ));
         }
+        let (k, position, scale) = spherical_arguments(k, position, self.radial);
         let r2 = position.iter().map(|v| v * v).sum::<f64>();
         let table = (2 * pidx + wavenumber) * self.radial_table_len;
         let mut radial = |order: u32| -> Result<Complex> {
@@ -535,23 +551,15 @@ impl WaveSet {
                 Complex::default()
             },
         ];
-        let key = (pidx, mode.l, mode.m);
-        let solid = match cache.solid {
-            Some((cached, solid)) if cached == key => solid,
-            _ => {
-                let solid = if N > VALUES {
-                    solid::<true>(mode.l, mode.m, position)
-                } else {
-                    solid::<false>(mode.l, mode.m, position)
-                };
-                cache.solid = Some((key, solid));
-                solid
-            }
+        let solid = if N > VALUES {
+            solid::<true>(mode.l, mode.m, position)
+        } else {
+            solid::<false>(mode.l, mode.m, position)
         };
         Ok(if N > VALUES {
-            spherical_parts::<true>(mode.l, k, position, r2, &solid, radials)
+            spherical_parts::<true>(mode.l, k, position, r2, &solid, radials, scale)
         } else {
-            spherical_parts::<false>(mode.l, k, position, r2, &solid, radials)
+            spherical_parts::<false>(mode.l, k, position, r2, &solid, radials, scale)
         })
     }
 

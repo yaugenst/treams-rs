@@ -64,8 +64,9 @@ relative accuracy, with the machine precision ``eps = 2.2e-16``.
   ``|k|`` for the shift and the lattice vectors and ``1 / |k|`` for ``k`` and
   ``kpar``. A value can succeed where its gradient fails. Gradients of a single
   part need an explicit nonzero ``eta``.
-- Spherical Ewald sums need ``Re k > 0``; for ``Re k < 0`` they fail or give
-  the values of another function.
+- Ewald sums require ``Im k >= 0``; spherical sums also require ``Re k >= 0``.
+  Unsupported wavenumbers raise ValueError before summation. Finite direct
+  shells accept every finite nonzero complex wavenumber.
 
 Differences from treams:
     - ``a`` may be a ``Lattice`` and ``kpar`` a ``WaveVector``, as described
@@ -247,8 +248,7 @@ def lsumsw(
         dim: Lattice dimension, 1, 2 or 3.
         l: Degree, 0 to 128.
         m: Order, ``|m| <= l``.
-        k: Wavenumber with ``Re k > 0``; for ``Re k < 0`` the sum fails or gives
-            the values of another function.
+        k: Finite nonzero wavenumber with ``Re k >= 0`` and ``Im k >= 0``.
         kpar: Bloch vector: a number in 1D, ``dim`` components otherwise,
             or a ``WaveVector``.
         a: Lattice vectors as rows: the period in 1D, a ``(dim, dim)`` array
@@ -284,7 +284,7 @@ def lsumcw(
     Args:
         dim: Lattice dimension, 1 or 2.
         m: Order, ``|m|`` up to 128.
-        k: Wavenumber, real or complex, nonzero.
+        k: Finite nonzero wavenumber with ``Im k >= 0``.
         kpar: Bloch vector: a number in 1D, ``dim`` components otherwise,
             or a ``WaveVector``.
         a: Lattice vectors as rows: the period in 1D, a ``(dim, dim)`` array
@@ -508,8 +508,7 @@ def realsumsw(
         dim: Lattice dimension, 1, 2 or 3.
         l: Degree, 0 to 128.
         m: Order, ``|m| <= l``.
-        k: Wavenumber with ``Re k > 0``; for ``Re k < 0`` the sum fails or gives
-            the values of another function.
+        k: Finite nonzero wavenumber with ``Re k >= 0`` and ``Im k >= 0``.
         kpar: Bloch vector: a number in 1D, ``dim`` components otherwise,
             or a ``WaveVector``.
         a: Lattice vectors as rows: the period in 1D, a ``(dim, dim)`` array
@@ -546,7 +545,7 @@ def realsumcw(
     Args:
         dim: Lattice dimension, 1 or 2.
         m: Order, ``|m|`` up to 128.
-        k: Wavenumber, real or complex, nonzero.
+        k: Finite nonzero wavenumber with ``Im k >= 0``.
         kpar: Bloch vector: a number in 1D, ``dim`` components otherwise,
             or a ``WaveVector``.
         a: Lattice vectors as rows: the period in 1D, a ``(dim, dim)`` array
@@ -598,8 +597,7 @@ def recsumsw(
         dim: Lattice dimension, 1, 2 or 3.
         l: Degree, 0 to 128.
         m: Order, ``|m| <= l``.
-        k: Wavenumber with ``Re k > 0``; for ``Re k < 0`` the sum fails or gives
-            the values of another function.
+        k: Finite nonzero wavenumber with ``Re k >= 0`` and ``Im k >= 0``.
         kpar: Bloch vector: a number in 1D, ``dim`` components otherwise,
             or a ``WaveVector``.
         a: Lattice vectors as rows: the period in 1D, a ``(dim, dim)`` array
@@ -637,7 +635,7 @@ def recsumcw(
     Args:
         dim: Lattice dimension, 1 or 2.
         m: Order, ``|m|`` up to 128.
-        k: Wavenumber, real or complex, nonzero.
+        k: Finite nonzero wavenumber with ``Im k >= 0``.
         kpar: Bloch vector: a number in 1D, ``dim`` components otherwise,
             or a ``WaveVector``.
         a: Lattice vectors as rows: the period in 1D, a ``(dim, dim)`` array

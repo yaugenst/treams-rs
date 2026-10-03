@@ -123,7 +123,7 @@ pub(super) const RECORDED: &str = "
     s 0 0 1 0.0 1.0 0.0 0.0 0.0 -0.0 -0.3 1.7 0.3 point 0.6 0.8 0.0:
     c 0 2 0.0 1.0 0.0 0.0 0.0 0.0 -0.3 1.7 0.0 0.0 1.5 0.3 0.1 point 0.6 0.8 0.0:
     s 0 0 1 0.0 1.0 0.0 0.0 0.0 0.0 -0.3 1.7 0.3 point 0.6 0.8 0.0:
-    # A recorded chain at Im k < 0 against the principal branch of the self term.
+    # A recorded chain at Im k < 0 now tests rejection of gain media.
     s 0 0 1 0.8 -0.15464196794942472 0.0 0.0 0.0 0.0 0.0 1.3 0.0 point 0 0 0.46436432068201805:
     # A 1D cylindrical sum on its axis whose value and jet paths stop their shells on
     # different components, within the shells they leave out.

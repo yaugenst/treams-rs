@@ -19,12 +19,16 @@ pytestmark = pytest.mark.gradients
 @pytest.mark.parametrize(
     "spherical,dim", [(True, 1), (True, 2), (True, 3), (False, 1), (False, 2)]
 )
-@pytest.mark.parametrize("part", ["full", "real", "reciprocal", "direct"])
-def test_broadcast_geometry_pullbacks_and_owned_inputs(spherical, dim, part):
+@pytest.mark.parametrize(
+    "part,k0",
+    [(part, 2.1 + 0.2j) for part in ("full", "real", "reciprocal", "direct")]
+    + [("direct", k) for k in (2.1 - 0.2j, -2.1 + 0.2j, -2.1 - 0.2j)],
+)
+def test_broadcast_geometry_pullbacks_and_owned_inputs(spherical, dim, part, k0):
     coordinates = 3 if spherical else 2
     # Degrees (2,), k (2, 1), r (2, coordinates) and eta (1, 2) broadcast to
     # the (2, 2) output along different axes.
-    k = np.array([[2.1 + 0.2j], [2.3 + 0.1j]])
+    k = np.array([[k0], [k0 + 0.2 - 0.1j]])
     q = np.linspace(0.1, 0.2, dim)
     a = np.diag(np.linspace(1.5, 1.7, dim))
     r = np.array([[0.19, 0.11, 0.07], [0.21, -0.09, 0.05]])[:, :coordinates]

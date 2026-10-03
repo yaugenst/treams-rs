@@ -432,6 +432,12 @@ def test_chain_sums_do_not_depend_on_a_complex_split(k, kz):
     l, m = np.array([(l, m) for l in range(5) for m in range(-l, l + 1)]).T
     for x in (1.5, 2.5, 3.5, 5.0):
         r = [x, 0.4, 0.3]
+        if k.imag < 0:
+            # These formerly tested a gain-side continuation, outside the outgoing
+            # sum's supported domain even where that continuation was split invariant.
+            with pytest.raises(ValueError, match="gain media are unsupported"):
+                lattice.lsumsw(1, l, m, k, kz, 1.7, r)
+            continue
         values = np.array(
             [
                 lattice.lsumsw(1, l, m, k, kz, 1.7, r, eta)
@@ -987,7 +993,7 @@ def test_plane_and_axis_sums_do_not_depend_on_the_split(spherical, k):
     # 2D spherical (1D cylindrical) sums take gamma functions and Kambe integrals of
     # half-integer degree for their reciprocal orders, on the sheet of the automatic
     # split at every split, of either sign for cylindrical sums, in and off the plane
-    # (axis) and at the lattice point; spherical Ewald sums take Re k > 0.
+    # (axis) and at the lattice point; spherical Ewald sums take Re k >= 0.
     l, m = np.array([(l, m) for l in range(4) for m in range(-l, l + 1)]).T
     splits = [0, 1.1 * abs(k) / k]
     splits += [0.7 * abs(k) / k * np.exp(1j * angle) for angle in (0.25, -0.25)]
