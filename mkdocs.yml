@@ -108,17 +108,61 @@ nav:
 
 theme:
   name: material
+  logo: assets/logo.svg
+  favicon: assets/favicon.svg
+  icon:
+    repo: fontawesome/brands/github
+  font:
+    text: Inter
+    code: JetBrains Mono
+  # Follow the system color scheme until the reader picks one.
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Follow the system color scheme
   features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
     - navigation.sections
     - navigation.indexes
+    - navigation.path
+    - navigation.footer
     - navigation.top
+    - toc.follow
     - search.suggest
+    - search.highlight
     - content.code.copy
     - content.tabs.link
+
+extra_css:
+  - stylesheets/extra.css
 
 extra:
   version:
     provider: mike
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/yaugenst/treams-rs
+      name: treams-rs on GitHub
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/treams-rs/
+      name: treams-rs on PyPI
 
 # The hook strips the test modes from python fences and points links that
 # leave docs/ at GitHub.
@@ -148,6 +192,7 @@ markdown_extensions:
   - attr_list
   - def_list
   - footnotes
+  - md_in_html
   - tables
   - toc:
       permalink: true
@@ -160,9 +205,3 @@ markdown_extensions:
       check_paths: true
   - pymdownx.tabbed:
       alternate_style: true
-  - pymdownx.arithmatex:
-      generic: true
-
-extra_javascript:
-  - javascripts/mathjax.js
-  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js

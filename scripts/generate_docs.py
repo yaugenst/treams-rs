@@ -203,7 +203,8 @@ def _page(description: str, title: str, body: str) -> str:
     front_matter = yaml.safe_dump(
         {"description": description}, allow_unicode=True, width=1000
     )
-    return f"---\n{front_matter}---\n\n{NOTICE}\n\n# {title}\n\n{body.rstrip()}\n"
+    # MkDocs takes the page title from an H1 only when it is the first element.
+    return f"---\n{front_matter}---\n\n# {title}\n\n{NOTICE}\n\n{body.rstrip()}\n"
 
 
 def _cell(text: str) -> str:

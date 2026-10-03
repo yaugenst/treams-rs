@@ -22,6 +22,9 @@ isolated environment, so they leave `.venv` untouched. The strict build fails
 on a warning, such as a broken link or a page missing from the nav. They need
 no extension build: the site holds only committed Markdown.
 
+The site uses the Material theme with its own colors, fonts and logo:
+`theme` in `mkdocs.yml`, `docs/stylesheets/extra.css` and `docs/assets/`.
+
 `just docs-rust` documents `treams-core` with its private items, which makes
 the rustdoc the reference for the numerical code. The site serves it at
 `rust/treams_core/` within each documentation version.

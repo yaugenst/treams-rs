@@ -6,11 +6,16 @@ description: A Rust port of treams with a Python interface and analytic gradient
 
 treams-rs is a Rust port of [treams](https://github.com/tfp-photonics/treams)
 with a Python interface and analytic gradients.
+{ .lead }
 
-**All credit for treams belongs to the original treams contributors.**
-Their work is described in the
-[treams paper](https://doi.org/10.1016/j.cpc.2023.109076); please cite it when
-using this port.
+[Get started](getting-started/install.md){ .md-button .md-button--primary }
+[Coming from treams](coming-from-treams/index.md){ .md-button }
+
+!!! info "All credit for treams belongs to the original treams contributors."
+
+    Their work is described in the
+    [treams paper](https://doi.org/10.1016/j.cpc.2023.109076); please cite it
+    when using this port.
 
 treams-rs computes electromagnetic scattering with T-matrices: spheres,
 cylinders and layered or chiral particles, finite clusters, periodic arrays and
@@ -42,23 +47,43 @@ np.testing.assert_allclose(cross_sections.extinction, 0.6258290233441384, rtol=1
 
 ## What treams-rs adds
 
-- **Analytic gradients.** `treams_rs.advect`, `treams_rs.jax` and
-  `treams_rs.torch` let you differentiate calculations involving T-matrices,
-  clusters, periodic arrays and S-matrices with each library's differentiation
-  functions.
-  Rust computes each derivative analytically, without finite
-  differences. See [Differentiation](differentiation/index.md).
-- **Measured performance.** Archived Linux CPU benchmarks recorded a median
-  speedup of 5.1× over treams 0.4.5 across 527 cases. The results apply to the
-  measured builds and machine; see [Performance](performance/index.md).
-- **Requested illuminations.** `Cluster.scatter` and `Cluster.factor` solve
-  only for the incident waves you ask for, without building the full T-matrix
-  of the cluster.
-- **Matrix-free solves.** `iterative.SphereCluster` solves sphere clusters
-  with GMRES, an iterative solver that needs only matrix-vector products, and
-  does not store the dense coupling matrix. An archived benchmark of 1,024
-  spheres with `lmax=1` on four Linux threads recorded 2.2 s for the solve and
-  2.8 s for its gradient, within 48 MiB. See [Large clusters](guide/large-clusters.md).
+<div class="grid cards" markdown>
+
+- **Analytic gradients**
+
+    Advect, JAX, PyTorch and HIPS Autograd differentiate calculations
+    involving T-matrices, clusters, periodic arrays and S-matrices through the
+    ordinary API. Rust computes each derivative analytically, without finite
+    differences.
+
+    [Differentiation →](differentiation/index.md)
+
+- **Measured performance**
+
+    Archived Linux CPU benchmarks recorded a median speedup of 5.1× over
+    treams 0.4.5 across 527 cases. The results apply to the measured builds
+    and machine.
+
+    [Performance →](performance/index.md)
+
+- **Requested illuminations**
+
+    `Cluster.scatter` and `Cluster.factor` solve only for the incident waves
+    you ask for, without building the full T-matrix of the cluster.
+
+    [Clusters →](guide/clusters.md)
+
+- **Matrix-free solves**
+
+    `iterative.SphereCluster` solves sphere clusters with GMRES, an iterative
+    solver that needs only matrix-vector products, and does not store the
+    dense coupling matrix. An archived benchmark of 1,024 spheres with
+    `lmax=1` on four Linux threads recorded 2.2 s for the solve and 2.8 s for
+    its gradient, within 48 MiB.
+
+    [Large clusters →](guide/large-clusters.md)
+
+</div>
 
 ## Limits
 
@@ -73,15 +98,46 @@ np.testing.assert_allclose(cross_sections.extinction, 0.6258290233441384, rtol=1
 
 ## Where to go next
 
-| Section | Contents |
-| --- | --- |
-| [Getting started](getting-started/install.md) | Install and four short examples |
-| [Coming from treams](coming-from-treams/index.md) | Workflows, the name map, conventions and differences from treams |
-| [User guide](guide/index.md) | Particles, clusters, periodic arrays, planar stacks and numerical functions |
-| [Examples](examples/index.md) | The treams gallery in treams-rs, plus gradient-based design |
-| [Differentiation](differentiation/index.md) | Gradients through Advect, JAX, PyTorch, HIPS Autograd and `diff` |
-| [Design](design/index.md) | Why treams-rs is built the way it is |
-| [Validation](validation/index.md) | How the results are tested, and their limits |
-| [Performance](performance/index.md) | Timings and memory against treams |
-| [Reference](reference/index.md) | Every public function and class, and the glossary |
-| [Development](development/index.md) | Setup and checks for contributors |
+<div class="grid cards" markdown>
+
+- [**Getting started**](getting-started/install.md)
+
+    Install and four short examples
+
+- [**Coming from treams**](coming-from-treams/index.md)
+
+    Workflows, the name map, conventions and differences from treams
+
+- [**User guide**](guide/index.md)
+
+    Particles, clusters, periodic arrays, planar stacks and numerical functions
+
+- [**Examples**](examples/index.md)
+
+    The treams gallery in treams-rs, plus gradient-based design
+
+- [**Differentiation**](differentiation/index.md)
+
+    Gradients through Advect, JAX, PyTorch, HIPS Autograd and `diff`
+
+- [**Design**](design/index.md)
+
+    Why treams-rs is built the way it is
+
+- [**Validation**](validation/index.md)
+
+    How the results are tested, and their limits
+
+- [**Performance**](performance/index.md)
+
+    Timings and memory against treams
+
+- [**Reference**](reference/index.md)
+
+    Every public function and class, and the glossary
+
+- [**Development**](development/index.md)
+
+    Setup and checks for contributors
+
+</div>
