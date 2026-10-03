@@ -18,7 +18,7 @@ Terms used throughout:
   plane-wave ports, ``"up"`` or ``"down"``.
 
 The glossary defines every term:
-https://yaugenst.github.io/treams-rs/reference/glossary/
+https://yaugenst.github.io/treams-rs/latest/reference/glossary/
 
 A complete particle calculation::
 

@@ -104,10 +104,10 @@ exact source revision, as described in [releasing](releasing.md).
 | Workflow | Runs on | Runs |
 |---|---|---|
 | [CI](../../.github/workflows/ci.yml) | pull requests and pushes to `main` | Python 3.12–3.15, supported dependency bounds, Rust checks, coverage, native wheels, documentation and a history secret scan |
-| [Native Wheels](../../.github/workflows/native-wheels.yml) | CI and release-candidate workflows, or by hand | The [core wheel family](../getting-started/install.md#install-from-pypi), installed-wheel smoke checks and a source-distribution rebuild |
-| [Docs](../../.github/workflows/docs.yml) | pull requests, pushes to `main`, and by hand | Strict Material site build and rustdoc; mike maintains `dev`, released versions and the `latest` alias, then the complete site is deployed through a GitHub Pages artifact |
-| [Release Candidate](../../.github/workflows/release-candidate.yml) | by hand | Eligible source revision, immutable distribution artifacts and TestPyPI candidate |
-| [Publish Release](../../.github/workflows/publish-release.yml) | a version tag | The matching tested candidate, PyPI publication and release documentation |
+| [Native Wheels](../../.github/workflows/native-wheels.yml) | called by CI and Release Candidate, or by hand | The [core wheel family](../getting-started/install.md#install-from-pypi), installed-wheel smoke checks and a source-distribution rebuild |
+| [Docs](../../.github/workflows/docs.yml) | called by CI, publication and manual [Deploy docs](../../.github/workflows/deploy-docs.yml) | Strict Material site build and rustdoc; mike maintains `dev`, released versions and the `latest` alias, then the complete site is deployed through a GitHub Pages artifact |
+| [Release Candidate](../../.github/workflows/release-candidate.yml) | called by Publish Release | Eligible source revision and immutable distribution artifacts |
+| [Publish Release](../../.github/workflows/publish-release.yml) | repository dispatch with event type `release` | Build and test the candidate, publish to TestPyPI, wait for the operator's tag and approval, then publish to PyPI and deploy release documentation |
 | [Formal](../../.github/workflows/formal.yml) | pull requests and pushes that change `formal/`, a Rust file with a Lean model, the `justfile` or the workflow | `just formal` |
 
 CI runs the complete oracle suite on Python 3.12 and 3.13 and the available

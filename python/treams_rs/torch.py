@@ -22,7 +22,7 @@ pullbacks. Install ``treams-rs[torch]``. Higher derivatives
 (``create_graph=True``), forward mode, ``torch.func`` and ``torch.compile`` are
 not available. Run another record with ``wrap``.
 
-Framework adapters guide: https://yaugenst.github.io/treams-rs/differentiation/frameworks/
+Framework adapters guide: https://yaugenst.github.io/treams-rs/latest/differentiation/frameworks/
 """
 
 from __future__ import annotations
@@ -121,7 +121,7 @@ def wrap(record: Record) -> Callable[..., Output]:
     """Turn a record into a PyTorch function with a first-order gradient.
 
     For example, ``wrap(diff.solve)`` differentiates a linear solve. Custom
-    records: https://yaugenst.github.io/treams-rs/differentiation/custom-records/
+    records: https://yaugenst.github.io/treams-rs/latest/differentiation/custom-records/
 
     Args:
         record: function of the dynamic inputs that returns ``(value, context)``

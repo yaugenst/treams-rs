@@ -219,7 +219,7 @@ class SMatrix(HasPorts):
             (2, incoming.shape[1]),
             self.array,
             incoming,
-            b.stack([b.ks(m, self.k0) for m in self.media]),
+            b.stack([b.plane_ks(m, self.k0) for m in self.media]),
             b.stack([b.impedance(m) for m in self.media]),
             self.ports.transverse_wavevectors,
             real=True,

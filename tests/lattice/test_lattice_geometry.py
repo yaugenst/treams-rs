@@ -7,7 +7,6 @@ of the diffraction orders that the plane-wave basis uses.
 
 import numpy as np
 import pytest
-import treams.lattice as upstream_lattice
 from hypothesis import example, given, settings
 from hypothesis import strategies as st
 from numpy.testing import assert_allclose, assert_array_equal, assert_array_less
@@ -20,6 +19,8 @@ from treams_rs import PlaneWavePorts, lattice
 @pytest.mark.parametrize("dim", [2, 3])
 @pytest.mark.parametrize("dtype", [np.float64, np.int64])
 def test_cell_gufuncs_and_strides(dim, dtype):
+    import treams.lattice as upstream_lattice
+
     rng = np.random.default_rng(37)
     cells = rng.integers(-4, 5, (17, dim, dim)).astype(dtype)
     cells += 12 * np.eye(dim, dtype=dtype)
@@ -61,6 +62,8 @@ def test_single_cell_fast_path(dim):
 @pytest.mark.parametrize("dim", [1, 2, 3])
 @pytest.mark.parametrize("n", [0, 1, 4])
 def test_cube_and_boundary_match_reference(dim, n):
+    import treams.lattice as upstream_lattice
+
     assert_array_equal(lattice.cube(dim, n), upstream_lattice.cube(dim, n))
     assert_array_equal(lattice.cubeedge(dim, n), upstream_lattice.cubeedge(dim, n))
     boundary = lattice.cubeedge(dim, n)
@@ -95,6 +98,8 @@ def test_cube_beyond_the_address_space_raises_memory_error():
 @pytest.mark.reference
 @pytest.mark.parametrize("b", [np.diag([1.2, 0.8]), [[0, -1.2], [0.8, 0]]])
 def test_diffraction_ordering_matches_orthogonal_reference(b):
+    import treams.lattice as upstream_lattice
+
     assert_array_equal(
         lattice.diffr_orders_circle(b, 3.5),
         upstream_lattice.diffr_orders_circle(np.asarray(b), 3.5),

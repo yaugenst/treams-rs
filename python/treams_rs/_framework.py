@@ -31,6 +31,7 @@ from ._framework_backend import (
 from ._framework_smatrix import SMatrix
 from ._framework_tmatrix import TMatrix
 from ._framework_waves import PlaneWave, PortSet, Wave
+from ._polarization import resolve_poltype
 from ._validation import check_kind
 
 __all__ = ["Constructors", "Operations"]
@@ -370,7 +371,7 @@ class Constructors(_BoundToBackend):
         if d.shape != (3,):
             raise ValueError("distance must be a scalar or Cartesian displacement")
         vectors = b.plane_vectors(
-            b.array(basis.components), b.ks(material, k0)[basis.pol.copy()]
+            b.array(basis.components), b.plane_ks(material, k0)[basis.pol.copy()]
         )
         ordering = np.array([(axis + 1) % 3, (axis + 2) % 3, axis])
         result = b.apply(
@@ -385,7 +386,8 @@ class Constructors(_BoundToBackend):
             k0=k0,
             media=(material, material),
             backend=b,
-        ).with_polarization(polarization)
+            polarization=resolve_poltype(polarization),
+        )
 
     def _layers(
         self,
@@ -413,10 +415,15 @@ class Constructors(_BoundToBackend):
         compact = b.apply(
             record,
             (ports.transverse_wavevectors.shape[0], 2, 2, 2, 2),
-            b.stack([b.ks(m, k0) for m in media]),
+            b.stack([b.plane_ks(m, k0) for m in media]),
             b.stack([b.impedance(m) for m in media]),
             ports.transverse_wavevectors,
             b.vector(thickness),
+        )
+        if polarization == "parity":
+            compact = b.require_achiral(compact, *media[1:-1])
+        compact = b.change_port_polarization(
+            compact, ((0, 0), (0, 1)), "helicity", polarization, (3, 4)
         )
         # One gather builds the (2, 2, ports, ports) blocks from the compact
         # per-group channels; ports in different transverse groups do not couple.
@@ -426,11 +433,14 @@ class Constructors(_BoundToBackend):
         array = compact[rows, outgoing, incoming, pol[:, None], pol[None, :]] * b.array(
             (rows == columns).astype(float)
         )
-        if polarization == "parity":
-            array = b.require_achiral(array, *media[1:-1])
         return SMatrix(
-            array, ports=ports, k0=k0, media=(media[-1], media[0]), backend=b
-        ).with_polarization(polarization)
+            array,
+            ports=ports,
+            k0=k0,
+            media=(media[-1], media[0]),
+            backend=b,
+            polarization=polarization,
+        )
 
 
 class Operations(_BoundToBackend):

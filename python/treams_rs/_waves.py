@@ -459,7 +459,7 @@ class PlaneWave(WaveFields, UpstreamMembers):
     @property
     def kvecs(self) -> NDArray[np.complex128]:
         """Wave vectors in the medium, shape (2, 3), one row per pol index."""
-        return self.medium.ks(self.k0)[:, None] * self.direction
+        return self.medium._plane_ks(self.k0)[:, None] * self.direction
 
     def _expanded(
         self,

@@ -51,6 +51,15 @@ This entry describes the release being prepared; it is not a publication notice.
   differences and conditioning limits; see
   [validation](https://yaugenst.github.io/treams-rs/latest/validation/).
 
+### Numerical corrections
+
+- Ewald sums reject gain wavenumbers (`Im k < 0`) and, for spherical waves,
+  negative real wavenumbers (`Re k < 0`). Finite direct shells retain their
+  full complex-wavenumber domain.
+- Spherical fields and analytic gradients use bounded internal length units,
+  avoiding intermediate solid-harmonic overflow for finite fields expressed
+  in very small or large length units.
+
 ### Migrating from pre-release checkouts
 
 The public API was consolidated before 0.1.0. The table below maps earlier
@@ -111,53 +120,6 @@ Further behavioral changes for pre-release callers:
 - Old class-name pickles are not compatible with the renamed classes. Use the
   public reference for native context types and Rust paths instead of relying
   on pre-release internal names.
-- Removed the private-project and credentials wording, the repository-tooling
-  credit in LICENSE and THIRD_PARTY_NOTICES.md, the references to unpublished
-  experiment branches and the instructions to report push and pull-request state.
-- Added the community files: a public CONTRIBUTING.md (issues, setup, definition of
-  done, license of contributions), CODE_OF_CONDUCT.md (Contributor Covenant 2.1),
-  SECURITY.md, CITATION.cff, GitHub issue forms (bug report, numerical
-  discrepancy, feature request) and a pull request template.
-- Added a documentation site built with MkDocs and the Material theme
-  (`mkdocs.yml`, home page `docs/index.md`). A hook in `docs/_hooks/site.py`
-  removes the test modes from python code fences and turns links to files
-  outside `docs/` into GitHub links; a link to a missing file fails the build.
-  The Docs workflow builds the site and the `treams-core` rustdoc (under
-  `/rust/`) on every pull request and push to main, and publishes them to
-  GitHub Pages only when the repository variable `DOCS_DEPLOY` is `true`.
-- `tests/api/test_docs.py` also runs indented python fences (fences inside
-  tabs), reads the fence modes from the site hook, rejects snippet includes in
-  `exec` fences, and checks that every relative link in the repository's
-  Markdown files and every link to a site page resolves.
-- The documentation is reorganized into the site tree. Each page has a
-  one-sentence `description` in its front matter, and the `mkdocs.yml` nav is
-  the only list of pages: `llms.txt` lists the nav pages with their
-  descriptions, and `just docs-check` fails when a page is missing from the nav
-  or has no description. The Python API reference moves from `docs/api.md` to
-  `docs/reference/python/index.md`. Moved pages (sections of a page can move
-  to other pages of the new tree):
-
-  | Old page | New page |
-  | --- | --- |
-  | `docs/user-guide.md` | `docs/guide/particles-and-waves.md`, with sections in `guide/index.md`, `clusters.md`, `periodic.md`, `planar.md`, `numerical-namespaces.md` and `io.md` |
-  | `docs/agents.md` | `docs/guide/api-discovery.md` |
-  | `docs/iterative.md` | `docs/guide/large-clusters.md` |
-  | `docs/large-problems.md` | `docs/performance/large-problems.md`; usage in `docs/guide/large-clusters.md` |
-  | `docs/api-physics-map.md` | `docs/coming-from-treams/index.md` |
-  | `docs/upstream-findings.md` | `docs/coming-from-treams/differences.md` |
-  | `docs/adapters.md` | `docs/differentiation/frameworks.md` |
-  | `docs/api-autodiff-map.md` | `docs/differentiation/custom-records.md` and `docs/differentiation/frameworks.md` |
-  | `docs/testing.md` | `docs/differentiation/gradient-checks.md` |
-  | `docs/architecture.md` | `docs/design/index.md`, with sections in `design/pullbacks.md`, `design/adapters.md` and `differentiation/index.md` |
-  | `docs/status.md` | `docs/validation/capabilities.md`, with sections in `validation/index.md`, `validation/numerical-limits.md`, `design/python-api.md`, `design/floating-point.md`, `differentiation/index.md` and `performance/index.md` |
-  | `docs/upstream.md` | `docs/validation/capabilities.md#treams-inventory` |
-  | `docs/test-strategy.md` | `docs/development/testing.md`; the kinds of evidence in `docs/validation/index.md` |
-  | `docs/development.md` | `docs/development/index.md`, with sections in `development/architecture.md`, `documentation.md` and `benchmarks.md` |
-  | `docs/benchmarks.md` | `docs/performance/evidence.md`; the summary in `docs/performance/index.md`, LU scheduling in `docs/design/numerics.md` |
-  | `docs/benchmark-comparison.md` | `docs/performance/platform-comparison.md` |
-  | `docs/paper-qualification.md` | `docs/validation/published-applications.md` |
-  | `docs/api.md` | `docs/reference/python/index.md` |
-
   New pages: install and quickstart, the treams name map and conventions, formal
   proofs, releasing, the reference index, the Rust crate, the glossary and the
   changelog.
@@ -314,8 +276,9 @@ Further behavioral changes for pre-release callers:
   Performance, the Python, Rust and glossary Reference, and Development
   (building, tests, the site and releases).
 - `tests/api/test_docs.py` checks that the `docs/` paths and site links in
-  comments and docstrings exist, that page descriptions have at most 140
-  characters, and that the definition of records and gradients
+  comments and docstrings exist, that the public texts carry no private-project
+  or history wording and no jargon outside code font, that page descriptions
+  have at most 140 characters, and that the definition of records and gradients
   appears word for word in the glossary, the differentiation page, the `diff`
   docstring and both crate docs. Every `treams-core` module doc opens with a
   summary and names its treams namespace or says it is a treams-rs extension.
@@ -325,6 +288,11 @@ Further behavioral changes for pre-release callers:
   treams name with "treams-rs keeps the treams name".
 
 ### Tooling
+- `just bench-compare [ref]` (`scripts/compare_builds.py`) times the Python
+  sources of a git ref against the working tree on one release extension, call
+  by call in alternating worker processes, after requiring their values to
+  agree; a call fails when its median paired ratio exceeds 1.05 (1.10 below one
+  millisecond).
 - tests/conftest.py registers the pytest category markers from one `CATEGORIES`
   table of names and descriptions; pyproject.toml no longer lists them.
 - The default Hypothesis profile of the test suite is renamed `treams` → `dev`
@@ -441,16 +409,36 @@ Further behavioral changes for pre-release callers:
   neighbouring float: an error of about 1e-145 that lies halfway between two
   floats came out as 1.0000000000000001e-145, while its string reads 1e-145.
   That error is a fixed example of the error-summary test.
-- Dependabot opens one grouped pull request per week each for the Cargo
-  dependencies, the Python dependencies in `uv.lock` and the GitHub Actions.
 
 ### Fixed
-- Ewald sums reject gain wavenumbers (`Im k < 0`) and, for spherical waves,
-  negative real wavenumbers (`Re k < 0`); finite direct shells retain their
-  full complex-wavenumber domain.
-- Spherical field values and analytic gradients use bounded internal length
-  units, preventing intermediate solid-harmonic overflow when a finite field is
-  expressed in very small or large length units.
+- Finite clusters reject coincident particle centres before assembly, including
+  infinite cylinders on the same transverse axis. Framework outgoing port waves
+  reject conversion to parity in a chiral exterior.
+- Slabs retain both internal polarizations before selecting the requested ports;
+  partial port bases now give the projection of the complete scattering response.
+  Framework slabs and propagation also support partial parity ports.
+- All high-level planar interfaces use the native tangential-field matching used
+  by slabs and the framework APIs, including media with signed wavenumbers. The
+  expert `coeffs.fresnel` function retains the upstream closed-form convention.
+- Gain-medium plane fields obey Maxwell's curl equations on and off the axis;
+  electric displacement and magnetic induction use the constitutive equations,
+  and exactly axial polarizations use the same principal norm as other directions.
+  High-level planar APIs reject incompatible strong-chirality and negative-index
+  branches.
+- The build comparator detaches Torch objective values before scalar conversion,
+  separates library output from its worker protocol, and reaps both workers after
+  a failed measurement.
+- The framework `Cluster.solve` and `Cluster.scatter` of `treams_rs.advect`,
+  `treams_rs.jax` and `treams_rs.torch` returned finite results for two
+  particles at one position; they raise "particle modes must be grouped at
+  distinct positions", as the NumPy `Cluster` does.
+- Framework T-matrices, waves and S-matrices accepted parity channels in a
+  chiral medium. They raise "parity polarization requires an achiral embedding
+  medium", as the NumPy API does; parity layer constructors check every layer,
+  and a chirality that carries gradients is checked when it is evaluated.
+- Framework `PeriodicResponse.to_smatrix` failed with a matrix-shape error for a
+  response solved on a 3x3 lattice; it names the planar lattice and Bloch
+  vector that plane ports need.
 - `PeriodicResponse.to_cylindrical` and `PeriodicWave.in_basis` gave wrong
   results for a cylindrical basis with several axes, because they counted
   every sphere once per axis. In the treams chain example with two spheres

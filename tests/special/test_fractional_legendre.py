@@ -4,7 +4,6 @@ import advect
 import advect.numpy as anp
 import numpy as np
 import pytest
-import treams.special as oracle
 from hypothesis import example, given, settings
 from hypothesis import strategies as st
 from numpy.testing import assert_allclose, assert_array_equal
@@ -27,6 +26,8 @@ mp = pytest.importorskip("mpmath", reason="high-precision oracle")
 )
 @example(label=(20, 11), fraction=0.0625, x=-0.875)
 def test_real_degree_reference_and_advect(label, fraction, x):
+    import treams.special as oracle
+
     # The degree recurrence and the derivative identity are checked natively
     # (real_degree_legendre_recurrence_and_derivative, over a wider domain), the
     # derivative also by the 70-digit fixtures below; the adapter must pass the
@@ -87,6 +88,8 @@ def test_scaled_endpoint_high_precision_fixtures(degree, order, x, value, deriva
 @pytest.mark.interface
 @pytest.mark.reference
 def test_real_degree_broadcast_poles_and_owned_pullback():
+    import treams.special as oracle
+
     degrees = np.array([2.3, 5.7])[:, None]
     orders = np.array([-2, 0, 2])
     x = np.array([0.1, 0.4, 0.7])

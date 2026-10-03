@@ -128,6 +128,11 @@ class Material(UpstreamMembers):
             kx, ky, self.ks(k0)[np.asarray(pol, dtype=np.int64)]
         )
 
+    def _plane_ks(self, k0: float) -> NDArray[np.complex128]:
+        """Wavenumbers after checking the plane-wave polarization convention."""
+        _check_plane_material(self.epsilon, self.mu, self.kappa)
+        return self.ks(k0)
+
     def krhos(
         self, k0: float, kz: ArrayLike, pol: ArrayLike = (0, 1)
     ) -> NDArray[np.complex128]:
@@ -143,3 +148,26 @@ type MaterialLike = (
 def as_material(material: MaterialLike) -> Material:
     """``material`` as a Material; an existing one is reused, being immutable."""
     return material if type(material) is Material else Material(material)
+
+
+def _check_plane_material(epsilon: complex, mu: complex, kappa: complex) -> None:
+    """Reject constitutive branches the principal-norm plane polarizations cannot represent.
+
+    Their curl eigenvalues use the principal sqrt(k dot k), whereas Maxwell's
+    equations require mu/Z minus/plus kappa. These agree only when mu/Z equals
+    the principal sqrt(epsilon*mu) and both chiral indices are principal roots.
+    Gain with positive real indices remains supported on the outgoing branch.
+    """
+    epsilon, mu, kappa = complex(epsilon), complex(mu), complex(kappa)
+    if epsilon == 0 or mu == 0:
+        raise ValueError("plane waves require nonzero permittivity and permeability")
+    n = cmath.sqrt(epsilon * mu)
+    physical_n = mu / cmath.sqrt(mu / epsilon)
+    indices = (n - kappa, n + kappa)
+    if abs(physical_n - n) > abs(physical_n + n) or any(
+        index.real < 0 or (index.real == 0 and index.imag < 0) for index in indices
+    ):
+        raise ValueError(
+            "plane-wave polarizations do not support this material branch: "
+            "require mu/Z = sqrt(epsilon*mu) and principal chiral indices"
+        )

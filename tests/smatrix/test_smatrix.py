@@ -14,6 +14,7 @@ from treams_rs import (
     Material,
     PlaneWavePorts,
     SMatrix,
+    Wave,
     coeffs,
     diff,
     plane_wave,
@@ -319,9 +320,8 @@ def test_advect_complete_slab(thickness, epsilon, q):
 def test_fresnel_interfaces_match_the_native_layer_kernel(
     q, epsilon, mu, kappa, poltype
 ):
-    # xy interfaces use the closed-form Fresnel blocks; a layer stack without
-    # interior layers solves the same boundary in the native planar kernel. For
-    # passive media both agree for propagating and evanescent wavevectors.
+    # Boundary matching agrees with the separate closed-form Fresnel record for
+    # passive media, for both propagating and evanescent wavevectors.
     basis = PlaneWavePorts.default([q, [0.0, 0.0], [q[1], -q[0]]])[::-1]
     lower = Material(1.4, 1.1, 0.05 if poltype == "helicity" else 0)
     upper = Material(
@@ -332,6 +332,20 @@ def test_fresnel_interfaces_match_the_native_layer_kernel(
     interface = SMatrix.interface(basis, 1.3, [lower, upper], poltype)
     layers = SMatrix.slab([], basis, 1.3, [lower, upper], poltype)
     assert_allclose(interface.array, layers.array, rtol=1e-13, atol=1e-13)
+    if poltype == "helicity":
+        pair = PlaneWavePorts.default([q])
+        expected = coeffs.fresnel(
+            [lower.ks(1.3), upper.ks(1.3)],
+            [m.kzs(1.3, *q) for m in (lower, upper)],
+            [lower.impedance, upper.impedance],
+        )
+        # coeffs uses (pol 0, pol 1); default bases use (pol 1, pol 0).
+        assert_allclose(
+            SMatrix.interface(pair, 1.3, [lower, upper]).array,
+            expected[:, :, ::-1, ::-1],
+            rtol=1e-13,
+            atol=1e-13,
+        )
 
 
 @pytest.mark.physics
@@ -497,12 +511,17 @@ def test_oriented_propagation_phase_and_power(alignment):
 @pytest.mark.parametrize("alignment", ["xy", "yz", "zx"])
 @pytest.mark.parametrize("q", [[0, 0], [0.2, 0.3], [2.8, -0.1]])
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
-def test_interface_cartesian_boundary_continuity(alignment, q, poltype):
+@pytest.mark.parametrize("regime", ["passive", "gain", "chiral"])
+def test_interface_cartesian_boundary_continuity(alignment, q, poltype, regime):
     basis = PlaneWavePorts.default([q], alignment)
     materials = [
         Material(1.2 + 0.1j, 1.1, 0.07 if poltype == "helicity" else 0),
         Material(2.8 + 0.2j, 0.9),
     ]
+    if regime == "gain":
+        materials[1] = Material(2.3 - 0.1j)
+    elif regime == "chiral":
+        materials[1] = Material(1, 1, 0.5 if poltype == "helicity" else 0)
     interface = SMatrix.interface(basis, 1.3, materials, poltype)
     inc_up, inc_down = np.array([0.2 + 0.1j, -0.4j]), np.array([0.7j, 0.3])
     out_up, out_down = interface.illuminate(inc_up, inc_down)
@@ -614,3 +633,78 @@ def test_normal_interface_adjoint_has_no_azimuth_singularity():
         rtol=3e-7,
         atol=1e-9,
     )
+
+
+@pytest.mark.physics
+@pytest.mark.parametrize("alignment", ["xy", "yz", "zx"])
+@pytest.mark.parametrize("q", [[0, 0], [0.2, 0.3]])
+@pytest.mark.parametrize("imaginary", [-0.1, 0.1])
+@pytest.mark.parametrize("pol", [0, 1])
+def test_plane_fields_satisfy_maxwell_and_constitutive_equations(
+    alignment, q, imaginary, pol
+):
+    medium = Material(2.3 + 1j * imaginary, 1, 0.1)
+    basis = PlaneWavePorts.default([q], alignment)
+    coefficients = np.array(basis.pol == pol, complex)
+    wave = Wave(coefficients, basis=basis, k0=1.3, medium=medium, kind="up")
+    electric, magnetic, displacement, induction = [
+        getattr(wave, name)([0.1, 0.2, 0.3])
+        for name in ("efield", "hfield", "dfield", "bfield")
+    ]
+    vector = np.column_stack(basis.kvecs(1.3, medium))[np.flatnonzero(coefficients)[0]]
+    assert_allclose(
+        displacement,
+        medium.epsilon * electric + 1j * medium.kappa * magnetic,
+        rtol=2e-13,
+        atol=2e-13,
+    )
+    assert_allclose(
+        induction,
+        medium.mu * magnetic - 1j * medium.kappa * electric,
+        rtol=2e-13,
+        atol=2e-13,
+    )
+    assert_allclose(np.cross(vector, electric), 1.3 * induction, rtol=2e-13, atol=2e-13)
+    assert_allclose(
+        np.cross(vector, magnetic), -1.3 * displacement, rtol=2e-13, atol=2e-13
+    )
+
+
+@pytest.mark.reference
+@pytest.mark.physics
+@pytest.mark.parametrize("q", [[0, 0], [0.2, 0.3]])
+def test_gain_interface_matches_te_admittance_solution(q):
+    medium = Material(2.3 - 0.1j)
+    basis = PlaneWavePorts.default([q])
+    sm = SMatrix.interface(basis, 1.3, [1, medium], "parity")
+    lower = Material().kzs(1.3, *q, 0)
+    upper = medium.kzs(1.3, *q, 0) / medium.mu
+    te = list(basis.pol).index(0)
+    assert_allclose(sm[1, 0][te, te], (lower - upper) / (lower + upper), rtol=2e-13)
+    assert_allclose(sm[0, 0][te, te], 2 * lower / (lower + upper), rtol=2e-13)
+    power = sm.power([0, 1])
+    assert_allclose(
+        power.reflection, abs((lower - upper) / (lower + upper)) ** 2, rtol=2e-13
+    )
+    assert_allclose(
+        power.transmission,
+        upper.real / lower.real * abs(2 * lower / (lower + upper)) ** 2,
+        rtol=2e-13,
+    )
+
+
+@pytest.mark.interface
+@pytest.mark.parametrize(
+    "medium", [Material(1, 1, 1.5), Material(-2 + 0.1j, -1 + 0.1j)]
+)
+def test_unsupported_plane_material_branch_is_rejected(medium):
+    basis = PlaneWavePorts.default([[0.2, 0.3]])
+    attempts = [
+        lambda: SMatrix.interface(basis, 1.3, [1, medium]),
+        lambda: SMatrix.slab(0.4, basis, 1.3, [1, medium, 1]),
+        lambda: SMatrix.propagation(0.4, basis, 1.3, medium),
+        lambda: plane_wave([0, 0, 1], 1, k0=1.3, medium=medium).efield([0, 0, 0]),
+    ]
+    for attempt in attempts:
+        with pytest.raises(ValueError, match="material branch"):
+            attempt()

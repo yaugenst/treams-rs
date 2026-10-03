@@ -64,6 +64,7 @@ module without a counterpart.
 | `linalg` | `treams_rs.diff.solve`, `svdvals`, `eig` | - | Dense LU, SVD and eigensystems with pullbacks, and restarted GMRES |
 | `numerics` | - | - | Forward-mode jets, broadcasting and parallel thresholds |
 | `fpenv` | - | - | A guard that keeps subnormal numbers when the caller flushes them to zero |
+| `threads` | `treams_rs.set_num_threads`, `threads`, `thread_info` | - | The thread budget and the fork-safe pool that runs every parallel region |
 
 <!-- end generated -->
 

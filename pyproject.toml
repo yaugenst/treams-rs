@@ -24,7 +24,7 @@ license-files = [
   "RUST_STDLIB_LICENSE_UNICODE_3_0.txt",
 ]
 requires-python = ">=3.12,<3.16"
-authors = [ { name = "Yannick Augenstein" } ]
+authors = [ { name = "treams-rs contributors" } ]
 keywords = [
   "t-matrix",
   "electromagnetic-scattering",

@@ -24,7 +24,7 @@ pullbacks. Install ``treams-rs[jax]`` and keep the CPU backend: host callbacks
 run the Rust code, and ``vmap`` calls them one after another. Run another
 record with ``wrap``.
 
-Framework adapters guide: https://yaugenst.github.io/treams-rs/differentiation/frameworks/
+Framework adapters guide: https://yaugenst.github.io/treams-rs/latest/differentiation/frameworks/
 """
 
 from __future__ import annotations
@@ -133,7 +133,7 @@ def wrap(record: Record, *example_values: ArrayLike) -> Callable[..., Output]:
     of the inputs and outputs; later calls must use the same input shapes and
     dtypes. For example, ``wrap(diff.eig, matrix)`` differentiates an
     eigensystem. Custom records:
-    https://yaugenst.github.io/treams-rs/differentiation/custom-records/
+    https://yaugenst.github.io/treams-rs/latest/differentiation/custom-records/
 
     Args:
         record: function of the dynamic inputs that returns ``(value, context)``

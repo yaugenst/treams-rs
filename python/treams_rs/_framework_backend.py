@@ -198,6 +198,22 @@ class Backend:
         )
         return k0 * self.upper_half(self.stack((n - medium.kappa, n + medium.kappa)))
 
+    def plane_ks(self, medium: Material, k0: Any) -> Any:
+        """Plane-wave wavenumbers with a Maxwell-consistent material branch."""
+        parameters = (medium.epsilon, medium.mu, medium.kappa)
+        values = self.ks(medium, k0)
+        if all(
+            isinstance(v, (int, float, complex, np.number, np.ndarray))
+            for v in parameters
+        ):
+            _material._check_plane_material(*parameters)
+            return values
+
+        def check(_: Any, key: Any) -> None:
+            _material._check_plane_material(*key)
+
+        return self.guard(check, values, self.medium_key(medium))
+
     def medium_key(self, medium: Material, k0: Any = None) -> Any:
         """Complex [k0,] epsilon, mu and kappa, stacked for guards to compare."""
         values = (medium.epsilon, medium.mu, medium.kappa)

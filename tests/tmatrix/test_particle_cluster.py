@@ -364,6 +364,20 @@ def test_heterogeneous_invalid_inputs_and_single_particle():
 
 
 @pytest.mark.interface
+@pytest.mark.parametrize("cylindrical", [False, True])
+def test_physical_cluster_rejects_coincident_particles_before_any_solve(cylindrical):
+    particle = (
+        tr.cylinder_tmatrix(k0=1.3, kz=0, mmax=1, radius=0.2, material=3)
+        if cylindrical
+        else tr.sphere_tmatrix(k0=1.3, lmax=1, radius=0.2, material=3)
+    )
+    # Moving along z cannot separate two infinite cylinders.
+    positions = [[0, 0, 0], [0, 0, 1 if cylindrical else 0]]
+    with pytest.raises(ValueError, match="distinct"):
+        tr.Cluster([particle, particle], positions=positions)
+
+
+@pytest.mark.interface
 def test_cylindrical_cluster_excludes_coaxial_particles():
     basis = tr.CylindricalBasis.default([0.2], 1)
     a = np.eye(len(basis), dtype=complex)

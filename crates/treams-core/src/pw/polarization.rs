@@ -139,9 +139,8 @@ impl<const N: usize> Direction<N> {
 ///
 /// M is `i (ky, -kx, 0) / transverse` and N is `(-kx kz, -ky kz, transverse^2) /
 /// (k transverse)`, as upstream `vpw_M` and `vpw_N`; helicity combines them as
-/// `polarized_wave` does. On the z axis M is `(0, -i, 0)` and N is `(-s, 0, 0)` with `s`
-/// the sign of `kz` (of its imaginary part for a complex `kz`), the gauge upstream
-/// picks there.
+/// `polarized_wave` does. On the z axis M is `(0, -i, 0)` and N is
+/// `(-kz / sqrt(kz^2), 0, 0)`, using the same principal norm as off the axis.
 #[inline]
 pub(crate) fn polarization_jet<const N: usize>(
     vector: [Complex; 3],
@@ -161,14 +160,11 @@ pub(crate) fn polarization_jet<const N: usize>(
         return Ok(m);
     }
     let n = if transverse.value == Complex::default() {
-        let sign = if z.im == 0.0 {
-            if z.re >= 0.0 { 1.0 } else { -1.0 }
-        } else if z.im >= 0.0 {
-            1.0
-        } else {
-            -1.0
-        };
-        [Jet::constant(-sign), Jet::default(), Jet::default()]
+        [
+            Jet::constant(-ratio(z, k.value)),
+            Jet::default(),
+            Jet::default(),
+        ]
     } else {
         let longitudinal = Jet::variable(z, 2) / k;
         [-xy[0] * longitudinal, -xy[1] * longitudinal, transverse / k]

@@ -30,6 +30,7 @@ gradients with respect to the inputs (see the
 | [`treams_rs.io`](io.md) | T-matrix files in the tmat.h5 layout, and Gmsh meshes of sphere clusters. |
 | [`treams_rs.operators`](operators.md) | Basis and field operators, as functions and as operator objects. |
 | [`treams_rs.iterative`](iterative.md) | Matrix-free scattering by finite clusters of homogeneous spheres in vacuum. |
+| [`treams_rs.parallel`](parallel.md) | CPU threads of the native numerical work. |
 | [`treams_rs.diff`](diff.md) | Records: functions that return a value and a context for its gradients. |
 | [`treams_rs.testing`](testing.md) | Finite-difference checks of first-order gradients and pullbacks. |
 | [`treams_rs.advect`](advect.md) | Advect adapter: physics objects and records differentiated by Advect, on the CPU and in first-order reverse mode only. |

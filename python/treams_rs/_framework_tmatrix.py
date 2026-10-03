@@ -15,7 +15,7 @@ from ._framework_backend import Backend, Basis, Material, Recorded, with_zero_me
 from ._framework_smatrix import SMatrix
 from ._framework_waves import PlaneWave, PortSet, Wave
 from ._results import CrossSections
-from ._validation import one_of
+from ._validation import check_particle_positions, one_of
 
 __all__ = ["Cluster", "PeriodicResponse", "TMatrix", "solve_periodic"]
 
@@ -288,7 +288,9 @@ class Cluster:
         # matrix or full interacting response is formed. The positions only
         # pass through for the check that solve() gets from its native cluster.
         def record(coupling: Any, incident: Any, positions: Any, *blocks: Any) -> Any:
-            _require_distinct_positions(positions)
+            check_particle_positions(
+                positions, cylindrical=isinstance(self.basis, CylindricalBasis)
+            )
             factor = diff.factor_interaction_blocks(list(blocks), coupling)
             value, context = factor.record(np.asarray(incident, dtype=np.complex128))
 
@@ -316,12 +318,6 @@ class Cluster:
             singular=True,
             polarization=self.polarization,
         )
-
-
-def _require_distinct_positions(positions: Any) -> None:
-    """The native cluster's check: one position per particle."""
-    if len(np.unique(np.asarray(positions), axis=0)) != len(positions):
-        raise ValueError("particle modes must be grouped at distinct positions")
 
 
 class PeriodicResponse:

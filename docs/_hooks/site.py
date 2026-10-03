@@ -47,6 +47,18 @@ _SITE_LINK = re.compile(
 )
 
 
+_MARKDOWN_SITE_LINK = re.compile(
+    r"(?P<open>\]\()" + re.escape(SITE) + r"latest/(?P<path>[^)\s]*)"
+)
+
+
+def _relative_site_link(path, source):
+    path, marker, anchor = path.partition("#")
+    relative = posixpath.relpath(path or ".", posixpath.dirname(source))
+    slash = "/" if not path or path.endswith("/") else ""
+    return f"{relative}{slash}{marker}{anchor}"
+
+
 def on_pre_build(config):
     """Clear page sources when a preview rebuilds the site."""
     _page_sources.clear()
@@ -54,8 +66,6 @@ def on_pre_build(config):
 
 def on_page_markdown(markdown, page, config, files):
     """Remove fence mode words and point repository links at GitHub."""
-    from mkdocs.exceptions import PluginError
-
     docs = Path(config["docs_dir"]).resolve()
     root = Path(config["config_file_path"]).resolve().parent
     source = page.file.src_uri
@@ -68,6 +78,8 @@ def on_page_markdown(markdown, page, config, files):
         if resolved.is_relative_to(docs):
             return match[0]
         if not resolved.is_relative_to(root) or not resolved.exists():
+            from mkdocs.exceptions import PluginError
+
             raise PluginError(f"{source}: link target {target} does not exist")
         # Images need the raw file; other links open the GitHub page.
         kind = "raw" if match["image"] else "tree" if resolved.is_dir() else "blob"
@@ -75,19 +87,23 @@ def on_page_markdown(markdown, page, config, files):
         url = f"{REPOSITORY}/{kind}/{revision}/{relative}{hash_}{anchor}"
         return f"{match['image']}{match['text']}({url}"
 
-    def rewrite_links(line):
+    def rewrite_links(line, pattern, replacement):
         # Leave links that start inside an inline code span alone.
         spans = [span.span() for span in _CODE_SPAN.finditer(line)]
 
         def rewrite(match):
             if any(start <= match.start() < end for start, end in spans):
                 return match[0]
-            return repository_link(match)
+            return replacement(match)
 
-        return _PARENT_LINK.sub(rewrite, line)
+        return pattern.sub(rewrite, line)
 
-    lines, fence = [], None
+    def published_link(match):
+        return match["open"] + _relative_site_link(match["path"], source)
+
+    lines, published, fence = [], [], None
     for line in markdown.splitlines(keepends=True):
+        published_line = None
         marker = _FENCE_LINE.match(line)
         if fence is None and marker:
             fence = marker["marker"]
@@ -98,10 +114,12 @@ def on_page_markdown(markdown, page, config, files):
             if closing and marker["marker"].startswith(fence):
                 fence = None
         else:
-            line = rewrite_links(line)
+            line = rewrite_links(line, _PARENT_LINK, repository_link)
+            published_line = rewrite_links(line, _MARKDOWN_SITE_LINK, published_link)
         lines.append(line)
+        published.append(line if published_line is None else published_line)
     result = "".join(lines)
-    _page_sources[source] = result
+    _page_sources[source] = "".join(published)
     return result
 
 
@@ -109,10 +127,7 @@ def on_post_page(output, page, config):
     """Keep links to this project's latest docs inside the displayed version."""
 
     def site_link(match):
-        path, marker, anchor = match["path"].partition("#")
-        relative = posixpath.relpath(path or ".", posixpath.dirname(page.file.url))
-        slash = "/" if not path or path.endswith("/") else ""
-        return f'{match["open"]}{relative}{slash}{marker}{anchor}"'
+        return f'{match["open"]}{_relative_site_link(match["path"], page.file.url)}"'
 
     revision = os.environ.get("TREAMS_RS_DOCS_SOURCE_REF") or "main"
     index = posixpath.relpath("llms.txt", posixpath.dirname(page.file.url))

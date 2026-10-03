@@ -167,14 +167,23 @@ def periodic_power(tr, radius, *, polarization):
     return power.transmission + 0.3 * power.reflection
 
 
-@scenario(-1.0, name="negative_index_plane_x", direction=[1, 0, 0])
-@scenario(-1.0, name="negative_index_plane_z", direction=[0, 0, 1])
-@scenario(-1.0, name="negative_index_plane_oblique", direction=[1, 0.2, 0.3])
-def negative_index_plane(tr, index, *, direction):
+@scenario(1.0, name="complex_index_plane_x", direction=[1, 0, 0])
+@scenario(1.0, name="complex_index_plane_z", direction=[0, 0, 1])
+@scenario(1.0, name="complex_index_plane_oblique", direction=[1, 0.2, 0.3])
+def complex_index_plane(tr, index, *, direction):
     medium = tr.Material(index + 0.1j, index + 0.1j)
     wave = tr.plane_wave(direction, "positive_helicity", k0=1.2, medium=medium)
     coefficients = wave.in_basis(core.SphericalBasis.default(1)).coefficients
     return wave.efield([[0.2, 0.4, 0.7]]).real.sum() + coefficients.real.sum()
+
+
+@pytest.mark.interface
+@pytest.mark.parametrize("direction", [[1, 0, 0], [0, 0, 1], [1, 0.2, 0.3]])
+def test_negative_index_plane_is_outside_supported_material_branches(engine, direction):
+    with pytest.raises(Exception, match="material branch"):
+        engine.value_and_grad(
+            functools.partial(complex_index_plane, direction=direction), -1.0
+        )
 
 
 @scenario(0.2)
@@ -260,6 +269,85 @@ def interleaved_parity_slab(tr, thickness):
         polarization="parity",
     )
     return sm.power([0.0, 1.0, 0.0, 0.0, 0.3j, 0.0]).reflection
+
+
+@scenario(0.4, name="partial_helicity_slab", polarization="helicity")
+@scenario(0.4, name="partial_parity_slab", polarization="parity")
+def partial_slab(tr, thickness, *, polarization):
+    ports = core.PlaneWavePorts.default([[0.6, 0.2]])[:1]
+    sm = tr.slab(
+        basis=ports,
+        k0=1.3,
+        thickness=thickness,
+        material=2.3,
+        polarization=polarization,
+    )
+    return sm.power([1.0]).transmission
+
+
+@scenario(-0.1, name="gain_interface", chirality=False)
+@scenario(0.5, name="chiral_interface", chirality=True)
+def unusual_interface(tr, parameter, *, chirality):
+    medium = (
+        tr.Material(1, 1, parameter) if chirality else tr.Material(2.3 + 1j * parameter)
+    )
+    sm = tr.interface(
+        basis=core.PlaneWavePorts.default([[0.2, 0.3]]),
+        k0=1.3,
+        negative_medium=1,
+        positive_medium=medium,
+    )
+    return (abs(sm.array) ** 2).sum()
+
+
+@scenario(-0.1)
+def gain_interface_power(tr, imaginary):
+    sm = tr.interface(
+        basis=core.PlaneWavePorts.default([[0.2, 0.3]]),
+        k0=1.3,
+        negative_medium=1,
+        positive_medium=tr.Material(2.3 + 1j * imaginary),
+    )
+    power = sm.power([0.0, 1.0])
+    return power.transmission + 0.2 * power.reflection
+
+
+@scenario(-0.1, name="gain_fields_axial", direction=[0, 0, 1])
+@scenario(-0.1, name="gain_fields_oblique", direction=[0.2, 0.3, 1])
+def gain_fields(tr, imaginary, *, direction):
+    wave = tr.plane_wave(
+        direction, "positive_helicity", k0=1.3, medium=tr.Material(2.3 + 1j * imaginary)
+    )
+    return sum((abs(getattr(wave, f)([0.1, 0.2, 0.3])) ** 2).sum() for f in FIELDS[:4])
+
+
+@pytest.mark.interface
+def test_planar_material_branch_check_follows_framework_values(engine):
+    def reflection(tr, kappa):
+        sm = tr.interface(
+            basis=core.PlaneWavePorts.default([[0.2, 0.3]]),
+            k0=1.3,
+            negative_medium=1,
+            positive_medium=tr.Material(1, 1, kappa),
+        )
+        return (abs(sm.array) ** 2).sum()
+
+    value, gradient = engine.value_and_grad(reflection, 0.5)
+    assert np.isfinite(value) and np.isfinite(gradient)
+    with pytest.raises(Exception, match="material branch"):
+        engine.value_and_grad(reflection, 1.5)
+
+
+@scenario(0.4, name="partial_parity_propagation")
+def partial_parity_propagation(tr, distance):
+    sm = tr.propagation(
+        basis=core.PlaneWavePorts.default([[0.6, 0.2]])[:1],
+        k0=1.3,
+        distance=distance,
+        medium=2.3,
+        polarization="parity",
+    )
+    return (sm.array.real**2).sum()
 
 
 @scenario(0.3, name="interleaved_parity_propagation")
@@ -786,13 +874,22 @@ def test_polarization_conversion_requires_complete_pairs(engine):
 
 @pytest.mark.interface
 @pytest.mark.parametrize("seed", range(3))
-def test_polarization_changes_equal_the_dense_operator(engine, seed):
+@pytest.mark.parametrize("family", ["sphere", "cylinder", "cluster"])
+def test_polarization_changes_equal_the_dense_operator(engine, seed, family):
     # The framework applies the change pair by pair; the dense changepoltype
     # matrix is the reference, in both directions and for permuted modes.
     tr = engine.tr
     rng = np.random.default_rng(seed)
-    spherical = core.SphericalBasis.default(2)
-    basis = spherical[rng.permutation(len(spherical))]
+    modes = (
+        core.CylindricalBasis.default([0.0, 0.2], 2)
+        if family == "cylinder"
+        else core.SphericalBasis.default(
+            2,
+            nmax=2 if family == "cluster" else 1,
+            positions=[[0, 0, 0], [0.6, 0.2, 0.3]] if family == "cluster" else None,
+        )
+    )
+    basis = modes[rng.permutation(len(modes))]
     matrix = rng.normal(size=(len(basis),) * 2) + 1j * rng.normal(
         size=(len(basis),) * 2
     )
@@ -831,12 +928,10 @@ def test_coincident_particles_raise_like_the_numpy_cluster(engine):
     system = tr.Cluster([particle, particle], positions=[[0, 0, 0.5], [0, 0, 0.5]])
     wave = tr.plane_wave([0, 0, 1], "positive_helicity", k0=1.2)
     numpy_particle = core.sphere_tmatrix(k0=1.2, lmax=1, radius=0.2, material=3.0)
-    numpy_system = core.Cluster(
-        [numpy_particle, numpy_particle], positions=[[0, 0, 0.5], [0, 0, 0.5]]
-    )
-    for solve in (system.solve, numpy_system.solve):
-        with pytest.raises(Exception, match="distinct positions"):
-            Engine.numpy(solve().array)
+    with pytest.raises(ValueError, match="distinct positions"):
+        core.Cluster([numpy_particle, numpy_particle], positions=[[0, 0, 0.5]] * 2)
+    with pytest.raises(Exception, match="distinct positions"):
+        Engine.numpy(system.solve().array)
     with pytest.raises(Exception, match="distinct positions"):
         Engine.numpy(system.scatter(wave).coefficients)
 
@@ -849,6 +944,14 @@ def test_parity_requires_achiral_media_like_the_numpy_api(engine):
     message = "parity polarization requires an achiral embedding medium"
     tm = tr.sphere_tmatrix(k0=1.2, lmax=1, radius=0.2, material=3.0, medium=chiral)
     attempts = [
+        lambda: (
+            tr.interface(
+                basis=ports, k0=1.2, negative_medium=achiral, positive_medium=chiral
+            )
+            .scatter(negative=[1.0, 0.0])
+            .positive.with_polarization("parity")
+            .coefficients
+        ),
         lambda: tm.with_polarization("parity").array,
         lambda: (
             tr.sphere_tmatrix(
@@ -906,12 +1009,22 @@ def test_parity_requires_achiral_media_like_the_numpy_api(engine):
 
 
 @pytest.mark.gradients
-def test_parity_chirality_check_follows_framework_values(engine):
+@pytest.mark.parametrize("port_wave", [False, True])
+def test_parity_chirality_check_follows_framework_values(engine, port_wave):
     # A chirality carrying gradients is checked when the framework evaluates it:
     # zero passes with its gradient, nonzero raises.
     ports = core.PlaneWavePorts.default([[0.1, 0.05]])
 
     def reflection(tr, kappa):
+        if port_wave:
+            sm = tr.interface(
+                basis=ports,
+                k0=1.2,
+                negative_medium=1,
+                positive_medium=tr.Material(2.0, 1.0, kappa),
+            )
+            wave = sm.scatter(negative=[1.0, 0.0]).positive.with_polarization("parity")
+            return (abs(wave.coefficients) ** 2).sum()
         sm = tr.slab(
             basis=ports,
             k0=1.2,

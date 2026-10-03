@@ -306,7 +306,9 @@ class PlaneWave(_Fields):
     def _vectors(self) -> Any:
         """Wavevectors of the two helicities, one row each."""
         b = self._backend
-        return b.ks(self.medium, self.k0)[:, None] * b.array(self.direction)[None, :]
+        return (
+            b.plane_ks(self.medium, self.k0)[:, None] * b.array(self.direction)[None, :]
+        )
 
     @override
     def efield(self, points: Any) -> Any:
@@ -413,7 +415,7 @@ class PortWave(HasPorts, _Fields):
         b = self._backend
         local = b.plane_vectors(
             self.ports.transverse_wavevectors[self.ports.groups],
-            b.ks(self.medium, self.k0)[self.ports.pols],
+            b.plane_ks(self.medium, self.k0)[self.ports.pols],
             positive=self.positive,
         )
         axis = ALIGNMENT_AXIS[self.ports.alignment]
@@ -451,6 +453,10 @@ class PortWave(HasPorts, _Fields):
         wave.coefficients = self._backend.change_port_polarization(
             self.coefficients, self.ports.modes, self.polarization, polarization, (0,)
         )
+        if polarization == "parity":
+            wave.coefficients = self._backend.require_achiral(
+                wave.coefficients, self.medium
+            )
         wave.polarization = polarization
         return wave
 

@@ -42,6 +42,38 @@ independent reference.
 - **No global configuration.** treams-rs has no `config.POLTYPE`. Every
   function and object takes its convention explicitly, with `"helicity"` as the
   default.
+- **Partial slab ports.** A slab retains both polarizations inside every layer
+  and selects the requested external ports after solving the complete stack.
+  treams projects at each interface instead, discarding internal reflections
+  through unrepresented polarizations. Selected outgoing powers need not sum to
+  one even for a lossless slab: power in omitted external channels is not counted.
+  [Layer tests](../../tests/smatrix/test_layers.py) compare with the projection of
+  a complete treams response and bound each selected power by its complete value.
+- **Gain media and planar material branches.** High-level interfaces and slabs
+  match tangential electric and magnetic fields in the same plane-wave convention.
+  The closed-form `coeffs.fresnel` remains the treams formula; it differs for some
+  gain media. Plane-wave polarizations use the principal norm `sqrt(k dot k)`,
+  including exactly axial waves. Electric displacement and magnetic induction
+  follow the constitutive equations instead of a signed-index shortcut.
+  [Layer physics tests](../../tests/smatrix/test_smatrix.py) check boundary
+  continuity, Maxwell's curl equations, constitutive relations and an independent
+  TE admittance solution; framework tests also check their gradients.
+  Material and normal wavenumbers retain their nonnegative-imaginary-part
+  branches. This convention does not select a causal branch for an arbitrary
+  dispersive gain model.
+
+  High-level plane waves and planar layers reject material branches incompatible
+  with these polarizations. With principal `n = sqrt(epsilon * mu)` and
+  `Z = sqrt(mu / epsilon)`, they require `mu / Z = n` and both `n - kappa` and
+  `n + kappa` on the principal square-root branch: positive real part, or zero
+  real part and nonnegative imaginary part. This excludes strong chirality with
+  a negative real helicity index and double-negative-index materials. The expert
+  wave and coefficient functions still accept literal wavevectors and wavenumbers.
+- **Compatibility power forms.** `poynting_avg_z` retains treams' normalization
+  and complex-medium conventions, including a factor of one half for parity
+  channels. It is not a physical flux matrix for arbitrary media.
+  `SMatrix.power` computes physical transmission and reflection from the native
+  tangential fields; use `0.5 * real(E cross conj(H))` for a local flux.
 - **Subnormal Hankel orders.** Orders below the smallest normal float give the
   zero-order limit; SciPy returns NaN; see
   [the accuracy table](#numerical-accuracy-limitations).
@@ -89,7 +121,7 @@ a double.
 | --- | --- | --- |
 | Exact periodic diffraction poles | At the 350 nm end of the spectrum of the companion array, treams substitutes `1e-20+1e-20j` for a zero radiation denominator and `1e-7` in the singular lattice expression. Its finite value there is a regularized number, not a reference at the threshold. The mathematical pole itself is no defect. | The [published-application checks](../validation/published-applications.md) exclude the endpoint and approach it from one side at four points, including power conservation. [Threshold tests](../../tests/plane/test_diffraction_threshold.py) check finite tangential interfaces without changing the wavelength or adding a pseudoinverse. |
 | Fractional Legendre cutoff, kept for compatibility | The docstring of the real-argument `lpmv` says that it calls SciPy, but treams first returns zero when abs(m) > degree. For m = 4, degree 2.3 and x = 0.3 it returns 0; SciPy and an independent 70-digit hypergeometric evaluation give about -1.9871849213085072. | treams-rs keeps this zero, as `test_real_degree_broadcast_poles_and_owned_pullback` in [fractional Legendre tests](../../tests/special/test_fractional_legendre.py) checks. Its tested Ferrers domain is abs(m) <= degree; the function beyond it is not implemented. The `ferrers` reference in the [high-precision reproducer](../../scripts/qualify_legendre.py) evaluates the unrestricted value. |
-| Fractional-degree Legendre accuracy | For a fractional degree and real x, treams calls SciPy's `lpmv`. SciPy recurs upward in the degree, which loses accuracy near sign changes of the function, and stops its series after 100 terms. For m = 11, degree 20.0625 and x = -0.875 it returns 412007816248.8; a 50-digit mpmath value is 412007810333.4865, a relative error of 1.4e-8. Over degrees 2 to 20 and x in [-0.9, 0.9], SciPy is off by up to 2.9e-7 relative for abs(m) >= 7, and treams-rs by at most 2.6e-11: for x < -0.35 it recurs in the order instead of the degree, and its series sum up to 200 terms. `special.lpmv` and everything built on it can therefore differ from treams by up to about 3e-7. For integer degrees both agree to rounding. | `test_real_degree_reference_and_advect` in [fractional Legendre tests](../../tests/special/test_fractional_legendre.py) compares with mpmath at a relative tolerance of 5e-10, includes the case above, and compares with treams at 1e-6. |
+| Fractional-degree Legendre accuracy | For a fractional degree and real x, treams calls SciPy's `lpmv`. In the archived comparison, m = 11, degree 20.0625 and x = -0.875 gives 412007816248.8; a 50-digit mpmath value is 412007810333.4865, a relative error of 1.4e-8. treams-rs uses an original implementation of DLMF hypergeometric series, degree and order recurrences, and connection formulas, with scaled arithmetic for large intermediate values. It follows independent high-precision references where SciPy loses accuracy. | `test_real_degree_reference_and_advect` in [fractional Legendre tests](../../tests/special/test_fractional_legendre.py) includes this comparison. [Native Ferrers tests](../../crates/treams-core/src/special/ferrers.rs) check high-precision values, endpoint limits and recurrences across the numerical methods. |
 | Subnormal Hankel orders in dependencies | With order = 5e-324 and z = 1+0j, SciPy 1.16.3 (which treams uses) returns NaN for `hankel2`. complex-bessel 0.2.0 gives a wrong finite value, about 0.97428+0.06122j instead of the zero-order limit 0.76520-0.08826j. These are defects of the dependencies, not of treams. | `test_hankel_subnormal_order_continuous_limit` and Hypothesis reflection and derivative checks in [special tests](../../tests/special/test_special.py). The native layer maps subnormal orders to their zero-order limit; the reference checks use the same limit only where SciPy fails. |
 | Near-axis spherical translation | Forming the angular coordinate through cos(theta) can round small transverse offsets onto the axis and lose nonzero terms and derivatives. The Cartesian evaluation is checked against a resolved-angle extrapolation down to offsets of 1e-300. The treams `special` functions also return zero for the dipole A and B coefficients at theta = 1e-10, kr = 1.4+0.2i and phi = 0.4; closed forms give -2.20566e-11+1.53401e-10i and 6.35401e-11+4.87093e-11i. | `test_near_axis_translation_against_resolved_angle_limit` in [translation tests](../../tests/waves/test_translation.py), and `test_tiny_angle_translation_against_closed_dipole_form` in [translation-coefficient tests](../../tests/waves/test_translation_coefficients.py), for singular and regular coefficients down to theta = 1e-100. |
 | Wigner 3j symbols in the classically forbidden regions | `wigner3j` recurs upward in j3 below a switch point that ignores the orders, and downward above it. With extreme orders either forbidden region can reach past the switch, and recurring into it is unstable. Downward into the lower region: (47 60 39; -47 8 39) is exactly 1.33e-11 (Racah formula in rational arithmetic), but treams returns -2.06e-8, and (88 66 56; -10 66 -56) = 5.79e-17 comes back as -2.16e-3. Upward into the upper region: (260 130 190; -260 129 131) = -1.51e-12 comes back as -2.77e-9, and (128 64 95; -128 64 64) = -6.912539e-8 as -6.912476e-8. These symbols weight every spherical translation coefficient. treams-rs continues each recurrence for as long as the symbols grow in its direction. Over sampled extreme-order symbols with j <= 260, its error times sqrt(2 j3 + 1) stays below 5e-13; elsewhere it agrees with the treams recurrence to rounding. | Exact values in `wigner3j_matches_exact_symbols_in_the_forbidden_regions` (`special/wigner.rs`) and in [Wigner tests](../../tests/special/test_wigner.py), which also compare random extreme-order symbols with exact Racah values, and the permutation, reflection and orthogonality properties in `properties/special.rs`, which fail for the treams recurrence. |

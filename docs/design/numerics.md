@@ -112,7 +112,7 @@ follows:
 
 [Lattice sums](../validation/numerical-limits.md#lattice-sums) lists every failure
 message and its remedy; the rustdoc of
-[`lattice::sum`](https://yaugenst.github.io/treams-rs/rust/treams_core/lattice/fn.sum.html)
+[`lattice::sum`](https://yaugenst.github.io/treams-rs/latest/rust/treams_core/lattice/fn.sum.html)
 states the same rules.
 
 ## Complex branches

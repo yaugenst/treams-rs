@@ -36,7 +36,7 @@ repository root. Run the Python checks as `uv run --no-sync pytest ...` after
 | - | - | `io.py` | `tests/api/test_io.py` | `pytest tests/api/test_io.py` |
 | `test_support` | `testing.rs` (`*_jet` hooks) | - | `tests/_support.py`, `tests/_scripts.py`, `tests/test_suite_rules.py` | `pytest tests/test_suite_rules.py` |
 
-The [crate docs](https://yaugenst.github.io/treams-rs/rust/treams_core/#module-map)
+The [crate docs](https://yaugenst.github.io/treams-rs/latest/rust/treams_core/#module-map)
 and the [design crosswalk](../design/index.md#crosswalk) pair each Rust module
 with its `treams_rs` and treams namespaces. [Testing](testing.md) describes the
 test directories.
@@ -79,8 +79,8 @@ These rules hold everywhere:
   and their docstrings. The reference pages, the generated tables and
   `llms.txt` come from it through `just docs`; never edit them by hand, and
   keep no second list of capabilities.
-- **Recorded evidence.** Nothing under `benchmarks/results/` changes
-  ([benchmarks](benchmarks.md)).
+- **Recorded evidence.** Numerical measurements stay unchanged. Privacy-only
+  transformations follow [the evidence policy](../../benchmarks/README.md#privacy-and-provenance).
 - **Renames.** Every public rename gets a bullet under "Unreleased" in
   `CHANGELOG.md`. A public name that differs from its treams counterpart also
   gets an entry in `python/treams_rs/_upstream.py`, which feeds the
@@ -133,7 +133,7 @@ value (a forward):
 The [glossary](../reference/glossary.md) gives one name per concept across Rust,
 the bindings, Python and treams. The crate docs state the rules for each
 layer: "Names" in the
-[`treams-core` docs](https://yaugenst.github.io/treams-rs/rust/treams_core/#names)
+[`treams-core` docs](https://yaugenst.github.io/treams-rs/latest/rust/treams_core/#names)
 and "Naming rules" in
 [`crates/treams-py/src/lib.rs`](../../crates/treams-py/src/lib.rs). The rules
 that cross layers:
