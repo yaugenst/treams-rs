@@ -427,7 +427,7 @@ pub(crate) fn assert_same_bits_on_pools(run: impl Fn() -> Vec<u64> + Sync) {
         (threads, bits)
     });
     let (_, reference) = &runs[0];
-    assert!(!reference.is_empty());
+    assert_ne!(reference.as_slice(), []);
     for (threads, bits) in &runs {
         assert_eq!(bits.len(), reference.len(), "{threads} threads");
         let first = bits.iter().zip(reference).position(|(a, b)| a != b);

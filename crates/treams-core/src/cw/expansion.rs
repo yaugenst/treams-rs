@@ -504,7 +504,7 @@ mod tests {
             radial in radial(),
             seed in -3.0_f64..3.0,
         ) {
-            check_expansion_pullback(mmax, [kzs.0, kzs.1], positions, shared, radial, seed)?;
+            check_expansion_pullback(mmax, kzs.into(), positions, shared, radial, seed)?;
         }
     }
 

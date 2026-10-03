@@ -22,8 +22,6 @@ mod kinds;
 mod loops;
 mod registry;
 
-use std::ffi::c_long;
-
 use pyo3::prelude::*;
 
 use fast_paths::{FALLBACKS, Fallbacks};
@@ -49,7 +47,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
         "recsum",
         "The reciprocal-space part, with the self correction, of the Ewald sum",
     )?;
-    lattice_family::<c_long>(module, "dsum", "Shell ``i`` of the direct sum")?;
+    lattice_family::<i64>(module, "dsum", "Shell ``i`` of the direct sum")?;
 
     // Wrappers that a namespace exposes directly carry the public name under a
     // unique attribute. pickle finds a function through `__module__` and

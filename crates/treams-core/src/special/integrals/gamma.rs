@@ -672,7 +672,7 @@ mod tests {
         let mut integral = Complex::default();
         let mut largest = 0.0_f64;
         for (node, weight) in gauss_legendre(32) {
-            let t = z + 0.5 * (1.0 + node) * h;
+            let t = z + 1.0_f64.midpoint(node) * h;
             let integrand = half_power(t, n - 1.0) * (-t).exp();
             integral += 0.5 * weight * h * integrand;
             largest = largest.max(integrand.norm());

@@ -11,8 +11,8 @@ pub(crate) use memory::{filled, reserve, zeros};
 
 use crate::Complex;
 
-/// The Euler-Mascheroni constant (`std`'s `EGAMMA` is unstable).
-pub(crate) const EULER: f64 = 0.577_215_664_901_532_9;
+/// The Euler-Mascheroni constant.
+pub(crate) const EULER: f64 = std::f64::consts::EULER_GAMMA;
 
 /// The principal square root of `z`, equal to `z.sqrt()` up to rounding.
 ///
@@ -29,7 +29,8 @@ pub(crate) fn complex_sqrt(z: Complex) -> Complex {
     if !(1e-150..=1e150).contains(&scale) {
         return complex_sqrt(z / scale) * scale.sqrt();
     }
-    let dominant = ((z.re.mul_add(z.re, z.im * z.im).sqrt() + z.re.abs()) * 0.5).sqrt();
+    let norm = z.re.mul_add(z.re, z.im * z.im).sqrt();
+    let dominant = norm.midpoint(z.re.abs()).sqrt();
     if z.re >= 0.0 {
         Complex::new(dominant, z.im / (2.0 * dominant))
     } else {

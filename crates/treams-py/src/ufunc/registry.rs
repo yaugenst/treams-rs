@@ -15,7 +15,7 @@
 //! formula, the treams function it mirrors and the differences from it follow.
 
 use std::{
-    ffi::{CStr, CString, c_char, c_long},
+    ffi::{CStr, CString, c_char},
     num::Wrapping,
 };
 
@@ -704,7 +704,7 @@ pub(super) const HIDDEN: [Ufunc; 6] = ufuncs! {
       integer cells give integers.\n\n\
       Mirrors ``treams.lattice.volume``.\n\n\
       Differences from treams: also one-dimensional cells."
-    cell_volume as "volume" "(i,i)->()": volume_loop::<Wrapping<c_long>>, volume_loop::<f64>;
+    cell_volume as "volume" "(i,i)->()": volume_loop::<Wrapping<i64>>, volume_loop::<f64>;
 
     c"reciprocal(a, /, out=None)\n\n\
       The reciprocal lattice vectors ``b`` as rows, with ``a_i . b_j = 2 pi delta_ij`` for \
@@ -718,14 +718,14 @@ pub(super) const HIDDEN: [Ufunc; 6] = ufuncs! {
 const _: () = {
     const D: c_char = NPY_TYPES::NPY_DOUBLE as c_char;
     const Z: c_char = NPY_TYPES::NPY_CDOUBLE as c_char;
-    const L: c_char = NPY_TYPES::NPY_LONG as c_char;
+    const L: c_char = i64::TYPE;
     let jv = Loop::new(bessel_loop::<J, CYLINDRICAL, VALUE>);
     assert!(matches!(jv.types(), [D, Z, Z])); // dD->D
     let wigner3j = Loop::new(wigner3j_loop);
     assert!(matches!(wigner3j.types(), [D, D, D, D, D, D, D])); // dddddd->d
     let vsw = Loop::new(vsw_a_loop::<Complex, REGULAR>);
     assert!(matches!(vsw.types(), [L, L, Z, Z, D, L, Z]) && matches!(vsw.components, Some(3)));
-    let sum = Loop::new(lattice_loop::<c_long, c_long, SPHERICAL, 2, SHIFTED, 2>);
+    let sum = Loop::new(lattice_loop::<i64, i64, SPHERICAL, 2, SHIFTED, 2>);
     assert!(matches!(sum.types(), [L, L, Z, D, D, D, L, Z]) && sum.components.is_none());
 };
 
@@ -743,11 +743,11 @@ pub(super) fn lattice_family<E: Tail>(
         geometry: &str,
     ) -> PyResult<()> {
         let loops = [
-            Loop::new(lattice_loop::<c_long, E, S, DIM, SHIFT, LABELS>),
+            Loop::new(lattice_loop::<i64, E, S, DIM, SHIFT, LABELS>),
             Loop::new(lattice_loop::<f64, E, S, DIM, SHIFT, LABELS>),
         ];
         // Only direct shells (integer tails) take integer mode labels too.
-        let loops = if E::TYPE == c_long::TYPE {
+        let loops = if E::TYPE == i64::TYPE {
             &loops[..]
         } else {
             &loops[1..]
@@ -866,7 +866,7 @@ fn lattice_doc<E: Tail>(
             "orders ``|m|`` up to 128",
         )
     };
-    let (tail, about_tail) = if E::TYPE == c_long::TYPE {
+    let (tail, about_tail) = if E::TYPE == i64::TYPE {
         (
             "i",
             "Shell ``i`` holds the lattice points whose integer coordinates in the basis ``a`` \

@@ -5,7 +5,7 @@
 #![allow(unsafe_code)]
 
 use std::{
-    ffi::{c_char, c_long, c_void},
+    ffi::{c_char, c_void},
     ops::{Add, Mul, Sub},
 };
 
@@ -82,7 +82,7 @@ fn label(value: f64) -> Result<i32> {
     Ok(value as i32)
 }
 
-fn integer_wave_mode(l: c_long, m: c_long, pol: c_long) -> Result<Mode> {
+fn integer_wave_mode(l: i64, m: i64, pol: i64) -> Result<Mode> {
     let invalid = || Error::InvalidInput("invalid integer wave labels".into());
     Ok(Mode {
         l: i32::try_from(l).map_err(|_| invalid())?,
@@ -92,12 +92,12 @@ fn integer_wave_mode(l: c_long, m: c_long, pol: c_long) -> Result<Mode> {
 }
 
 /// [`integer_wave_mode`] as the label of a vector wave.
-fn integer_wave_label(l: c_long, m: c_long, pol: c_long) -> Result<WaveLabel> {
+fn integer_wave_label(l: i64, m: i64, pol: i64) -> Result<WaveLabel> {
     let Mode { l, m, pol } = integer_wave_mode(l, m, pol)?;
     Ok(WaveLabel { l, m, pol })
 }
 
-fn cylindrical_mode(kz: f64, m: c_long, pol: c_long) -> Result<cw::Mode> {
+fn cylindrical_mode(kz: f64, m: i64, pol: i64) -> Result<cw::Mode> {
     Ok(cw::Mode {
         kz,
         m: i32::try_from(m).map_err(|_| Error::InvalidInput("invalid order".into()))?,
@@ -232,7 +232,7 @@ fn cell_dimension(dim: usize) -> Result<usize> {
     (1..=3).contains(&dim).then_some(dim).ok_or_else(invalid)
 }
 
-/// Cell entries whose determinant a volume loop forms: `f64` or `Wrapping<c_long>`.
+/// Cell entries whose determinant a volume loop forms: `f64` or `Wrapping<i64>`.
 pub(super) trait CellEntry:
     Dtype + Default + Add<Output = Self> + Sub<Output = Self> + Mul<Output = Self>
 {
@@ -332,11 +332,11 @@ pub(super) unsafe extern "C" fn reciprocal_loop(
     });
 }
 
-/// A lattice-sum mode label: `c_long`, or an integral `f64`.
+/// A lattice-sum mode label: `i64`, or an integral `f64`.
 pub(super) trait Label: Dtype {
     fn mode(self) -> Result<i32>;
 }
-impl Label for c_long {
+impl Label for i64 {
     fn mode(self) -> Result<i32> {
         i32::try_from(self)
             .map_err(|_| Error::InvalidInput("lattice mode exceeds i32 range".into()))
@@ -370,7 +370,7 @@ impl<const PART: u8> Tail for Eta<PART> {
         (self.0, part)
     }
 }
-impl Tail for c_long {
+impl Tail for i64 {
     fn part(self) -> (Complex, SumPart) {
         (Complex::default(), SumPart::Direct(self))
     }
@@ -498,7 +498,7 @@ scalar_loops! {
         vectorwaves::sph_harm(label(l)?, label(m)?, theta.into(), phi.into())
     }
     vsh_loop[T: Argument, const FAMILY: u8] @ parallel_from::DEFAULT,
-    (l: c_long, m: c_long, theta: T, phi: f64) -> [Complex; 3] {
+    (l: i64, m: i64, theta: T, phi: f64) -> [Complex; 3] {
         let family = match FAMILY {
             vsh::HARMONIC_X => vectorwaves::Family::HarmonicX,
             vsh::HARMONIC_Y => vectorwaves::Family::HarmonicY,
@@ -508,8 +508,8 @@ scalar_loops! {
     }
     // Parity M and N spherical waves.
     vsw_loop[T: Argument, const REGULAR: bool, const POL: u8] @ parallel_from::DEFAULT,
-    (l: c_long, m: c_long, kr: Complex, theta: T, phi: f64) -> [Complex; 3] {
-        let wave_label = integer_wave_label(l, m, c_long::from(POL))?;
+    (l: i64, m: i64, kr: Complex, theta: T, phi: f64) -> [Complex; 3] {
+        let wave_label = integer_wave_label(l, m, i64::from(POL))?;
         wave(
             vectorwaves::Family::Spherical(radial(!REGULAR)),
             wave_label,
@@ -518,7 +518,7 @@ scalar_loops! {
         )
     }
     vsw_a_loop[T: Argument, const REGULAR: bool] @ parallel_from::DEFAULT,
-    (l: c_long, m: c_long, kr: Complex, theta: T, phi: f64, pol: c_long) -> [Complex; 3] {
+    (l: i64, m: i64, kr: Complex, theta: T, phi: f64, pol: i64) -> [Complex; 3] {
         let wave_label = integer_wave_label(l, m, pol)?;
         wave(
             vectorwaves::Family::Spherical(radial(!REGULAR)),
@@ -528,7 +528,7 @@ scalar_loops! {
         )
     }
     vcw_m_loop[const REGULAR: bool] @ parallel_from::DEFAULT,
-    (kz: f64, m: c_long, kr: Complex, phi: f64, z: f64) -> [Complex; 3] {
+    (kz: f64, m: i64, kr: Complex, phi: f64, z: f64) -> [Complex; 3] {
         let arguments = [kz.into(), kr, phi.into(), z.into()];
         wave(
             vectorwaves::Family::Cylindrical(radial(!REGULAR)),
@@ -538,7 +538,7 @@ scalar_loops! {
         )
     }
     vcw_n_loop[const REGULAR: bool] @ parallel_from::DEFAULT,
-    (kz: f64, m: c_long, kr: Complex, phi: f64, z: f64, k: Complex) -> [Complex; 3] {
+    (kz: f64, m: i64, kr: Complex, phi: f64, z: f64, k: Complex) -> [Complex; 3] {
         let arguments = [kz.into(), kr, phi.into(), z.into(), k];
         wave(
             vectorwaves::Family::Cylindrical(radial(!REGULAR)),
@@ -548,7 +548,7 @@ scalar_loops! {
         )
     }
     vcw_a_loop[const REGULAR: bool] @ parallel_from::DEFAULT,
-    (kz: f64, m: c_long, kr: Complex, phi: f64, z: f64, k: Complex, pol: c_long) -> [Complex; 3] {
+    (kz: f64, m: i64, kr: Complex, phi: f64, z: f64, k: Complex, pol: i64) -> [Complex; 3] {
         let arguments = [kz.into(), kr, phi.into(), z.into(), k];
         wave(
             vectorwaves::Family::Cylindrical(radial(!REGULAR)),
@@ -563,7 +563,7 @@ scalar_loops! {
 // reads the helicity from a label operand.
 #[allow(clippy::type_complexity)] // The operand types are the dtype row.
 pub(super) unsafe extern "C" fn plane_wave_loop<T: Argument, const POL: u8, const LABELS: usize>(
-    args: Args<([T; 3], [f64; 3], [c_long; LABELS]), [Complex; 3]>,
+    args: Args<([T; 3], [f64; 3], [i64; LABELS]), [Complex; 3]>,
     dimensions: *mut npy_intp,
     steps: *mut npy_intp,
     _data: *mut c_void,
@@ -602,22 +602,22 @@ scalar_loops! {
     // Regular translations are dominated by the cheaper Bessel series.
     tl_vcw_loop[T: Argument, const REGULAR: bool]
         @ if REGULAR { parallel_from::PHASE } else { parallel_from::BESSEL },
-    (kz: f64, mu: c_long, qz: f64, m: c_long, kr: T, phi: f64, z: f64) -> Complex {
+    (kz: f64, mu: i64, qz: f64, m: i64, kr: T, phi: f64, z: f64) -> Complex {
         cw::tl_vcw(kz, mu, qz, m, [kr.into(), phi.into(), z.into()], radial(!REGULAR))
     }
     sw_rotate_loop @ parallel_from::DEFAULT,
-    (lambda: c_long, mu: c_long, p: c_long, l: c_long, m: c_long, q: c_long,
+    (lambda: i64, mu: i64, p: i64, l: i64, m: i64, q: i64,
      phi: f64, theta: f64, psi: f64) -> Complex {
         let destination = integer_wave_mode(lambda, mu, p)?;
         let source = integer_wave_mode(l, m, q)?;
         rotation::sw_rotate(destination, source, [phi, theta, psi])
     }
     cw_rotate_loop @ parallel_from::DEFAULT,
-    (kz: f64, mu: c_long, p: c_long, qz: f64, m: c_long, q: c_long, phi: f64) -> Complex {
+    (kz: f64, mu: i64, p: i64, qz: f64, m: i64, q: i64, phi: f64) -> Complex {
         rotation::cw_rotate(kz, mu, p, qz, m, q, phi)
     }
     cw_translate_loop[T: Argument, const REGULAR: bool] @ parallel_from::BESSEL,
-    (kz: f64, mu: c_long, p: c_long, qz: f64, m: c_long, q: c_long, kr: T, phi: f64, z: f64)
+    (kz: f64, mu: i64, p: i64, qz: f64, m: i64, q: i64, kr: T, phi: f64, z: f64)
         -> Complex {
         let arguments = [kr.into(), phi.into(), z.into()];
         cw::translate(kz, mu, p, qz, m, q, arguments, radial(!REGULAR))
@@ -627,44 +627,44 @@ scalar_loops! {
         treams_core::pw::translate([kx.into(), ky.into(), kz.into()], [x, y, z])
     }
     pw_to_sw_loop[T: Argument, const HELICITY: bool] @ parallel_from::DEFAULT,
-    (l: c_long, m: c_long, p: c_long, kx: T, ky: T, kz: T, q: c_long) -> Complex {
+    (l: i64, m: i64, p: i64, kx: T, ky: T, kz: T, q: i64) -> Complex {
         let k = [kx.into(), ky.into(), kz.into()];
         treams_core::pw::to_sw(integer_wave_mode(l, m, p)?, k, special::pol_index(q)?, HELICITY)
     }
     pw_to_cw_loop[T: Argument] @ parallel_from::DEFAULT,
-    (kz: f64, m: c_long, p: c_long, kx: f64, ky: T, qz: f64, q: c_long) -> Complex {
+    (kz: f64, m: i64, p: i64, kx: f64, ky: T, qz: f64, q: i64) -> Complex {
         let k = [kx.into(), ky.into(), qz.into()];
         treams_core::pw::to_cw(cylindrical_mode(kz, m, p)?, k, special::pol_index(q)?)
     }
     cw_to_sw_loop[const HELICITY: bool] @ parallel_from::DEFAULT,
-    (l: c_long, m: c_long, p: c_long, kz: f64, mu: c_long, q: c_long, k: Complex) -> Complex {
+    (l: i64, m: i64, p: i64, kz: f64, mu: i64, q: i64, k: Complex) -> Complex {
         let destination = integer_wave_mode(l, m, p)?;
         cw::to_sw(destination, cylindrical_mode(kz, mu, q)?, k, HELICITY)
     }
     // One cyclic xyz permutation (TURNS 1) or its inverse (TURNS 2).
     pw_permute_loop[T: Argument, const HELICITY: bool, const TURNS: usize]
         @ parallel_from::DEFAULT,
-    (kx: T, ky: T, kz: T, p: c_long, q: c_long) -> Complex {
+    (kx: T, ky: T, kz: T, p: i64, q: i64) -> Complex {
         let k = [kx.into(), ky.into(), kz.into()];
         let (p, q) = (special::pol_index(p)?, special::pol_index(q)?);
         treams_core::pw::permute_xyz(k, p, q, TURNS, HELICITY)
     }
     sw_to_pw_loop[T: Argument, const HELICITY: bool] @ parallel_from::DEFAULT,
-    (kx: f64, ky: f64, kz: T, p: c_long, l: c_long, m: c_long, q: c_long, area: f64)
+    (kx: f64, ky: f64, kz: T, p: i64, l: i64, m: i64, q: i64, area: f64)
         -> Complex {
         let k = [kx.into(), ky.into(), kz.into()];
         let mode = integer_wave_mode(l, m, q)?;
         treams_core::channels::sw_periodic_to_pw(mode, k, special::pol_index(p)?, area, HELICITY)
     }
     cw_to_pw_loop[T: Argument] @ parallel_from::DEFAULT,
-    (kx: f64, ky: T, kz: f64, p: c_long, qz: f64, m: c_long, q: c_long, period: f64)
+    (kx: f64, ky: T, kz: f64, p: i64, qz: f64, m: i64, q: i64, period: f64)
         -> Complex {
         let k = [kx.into(), ky.into(), kz.into()];
         let mode = cylindrical_mode(qz, m, q)?;
         treams_core::channels::cw_periodic_to_pw(mode, k, special::pol_index(p)?, period)
     }
     sw_to_cw_loop[const HELICITY: bool] @ parallel_from::DEFAULT,
-    (kz: f64, mu: c_long, p: c_long, l: c_long, m: c_long, q: c_long, k: Complex, period: f64)
+    (kz: f64, mu: i64, p: i64, l: i64, m: i64, q: i64, k: Complex, period: f64)
         -> Complex {
         let (destination, source) = (cylindrical_mode(kz, mu, p)?, integer_wave_mode(l, m, q)?);
         treams_core::sw::periodic_to_cw(destination, source, k, period, HELICITY)
@@ -683,8 +683,8 @@ unsafe fn translations<
     const HELICITY: bool,
     const REGULAR: bool,
 >(
-    call: &Call<([c_long; LABELS], X, Y, f64), Complex>,
-    modes: impl Fn([c_long; LABELS]) -> Result<(Mode, Mode)> + Sync,
+    call: &Call<([i64; LABELS], X, Y, f64), Complex>,
+    modes: impl Fn([i64; LABELS]) -> Result<(Mode, Mode)> + Sync,
 ) -> Result<()> {
     let (labels, kr, theta, phi) = call.inputs;
     // SAFETY: Guaranteed by the caller; elements are read below the loop count.
@@ -719,15 +719,15 @@ unsafe fn translations<
 // Special A and B coefficients from the parity wave (l, m, POL) to (lambda, mu,
 // M): POL M gives A, N gives B.
 pub(super) unsafe extern "C" fn tl_vsw_loop<T: Argument, const POL: u8, const REGULAR: bool>(
-    args: Args<([c_long; 4], Complex, T, f64), Complex>,
+    args: Args<([i64; 4], Complex, T, f64), Complex>,
     dimensions: *mut npy_intp,
     steps: *mut npy_intp,
     _data: *mut c_void,
 ) {
     guard(true, || {
-        let modes = |[lambda, mu, l, m]: [c_long; 4]| {
-            let destination = integer_wave_mode(lambda, mu, c_long::from(pol::M))?;
-            Ok((destination, integer_wave_mode(l, m, c_long::from(POL))?))
+        let modes = |[lambda, mu, l, m]: [i64; 4]| {
+            let destination = integer_wave_mode(lambda, mu, i64::from(pol::M))?;
+            Ok((destination, integer_wave_mode(l, m, i64::from(POL))?))
         };
         // SAFETY: NumPy supplies operands of the dtype row derived from `Args`.
         unsafe {
@@ -745,13 +745,13 @@ pub(super) unsafe extern "C" fn sw_translate_loop<
     const HELICITY: bool,
     const REGULAR: bool,
 >(
-    args: Args<([c_long; 6], T, f64, f64), Complex>,
+    args: Args<([i64; 6], T, f64, f64), Complex>,
     dimensions: *mut npy_intp,
     steps: *mut npy_intp,
     _data: *mut c_void,
 ) {
     guard(true, || {
-        let modes = |[lambda, mu, p, l, m, q]: [c_long; 6]| {
+        let modes = |[lambda, mu, p, l, m, q]: [i64; 6]| {
             Ok((
                 integer_wave_mode(lambda, mu, p)?,
                 integer_wave_mode(l, m, q)?,

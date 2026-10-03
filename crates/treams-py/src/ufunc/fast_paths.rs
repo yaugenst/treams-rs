@@ -22,7 +22,7 @@
 //! for real arguments. None of them records a context, unlike the
 //! `_record_scalar` functions.
 
-use std::{ffi::c_long, sync::OnceLock};
+use std::sync::OnceLock;
 
 use numpy::{
     IntoPyArray, PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2,
@@ -230,7 +230,7 @@ fn plane_wave_call<'py, const POL: u8>(
         && z.im == 0.0
     {
         let pol = label.map_or(Ok(POL), |p| {
-            special::pol_index(p.extract::<c_long>()?).map_err(error)
+            special::pol_index(p.extract::<i64>()?).map_err(error)
         })?;
         let polarization =
             treams_core::pw::polarization([kx, ky, kz], pol, POL == pol::A).map_err(error)?;
@@ -434,11 +434,11 @@ pub(crate) fn pw_translate<'py>(
 #[pyfunction]
 pub(crate) fn cw_rotate_scalar(
     kz: f64,
-    mu: c_long,
-    p: c_long,
+    mu: i64,
+    p: i64,
     qz: f64,
-    m: c_long,
-    q: c_long,
+    m: i64,
+    q: i64,
     phi: f64,
 ) -> PyResult<Complex> {
     ieee(|| rotation::cw_rotate(kz, mu, p, qz, m, q, phi).map_err(error))
@@ -448,9 +448,9 @@ pub(crate) fn cw_rotate_scalar(
 #[pyfunction]
 pub(crate) fn tl_vcw_scalar(
     kz: f64,
-    mu: c_long,
+    mu: i64,
     qz: f64,
-    m: c_long,
+    m: i64,
     kr: Complex,
     phi: f64,
     z: f64,
@@ -466,11 +466,11 @@ pub(crate) fn tl_vcw_scalar(
 #[pyfunction]
 pub(crate) fn cw_translate_scalar(
     kz: f64,
-    mu: c_long,
-    p: c_long,
+    mu: i64,
+    p: i64,
     qz: f64,
-    m: c_long,
-    q: c_long,
+    m: i64,
+    q: i64,
     kr: Complex,
     phi: f64,
     z: f64,
@@ -488,8 +488,8 @@ pub(crate) fn pw_permute_xyz_scalar(
     kx: Complex,
     ky: Complex,
     kz: Complex,
-    p: c_long,
-    q: c_long,
+    p: i64,
+    q: i64,
     helicity: bool,
     inverse: bool,
 ) -> PyResult<Complex> {

@@ -356,7 +356,12 @@ fn sums_match_high_precision_references() {
             _ => SumPart::Reciprocal,
         };
         let tolerance: f64 = tolerance.parse().unwrap();
-        let expected: Vec<Complex> = values.chunks_exact(2).map(|x| c(x[0], x[1])).collect();
+        let expected: Vec<Complex> = values
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|x| c(x[0], x[1]))
+            .collect();
         let mut actual = vec![sum.part(part).unwrap()];
         if jet == "1" {
             let jet = sum.derivatives();
@@ -396,7 +401,12 @@ fn far_off_axis_chains_match_high_precision_references() {
         let k = c(kr, ki);
         #[allow(clippy::cast_possible_truncation)] // Integral labels.
         let wave = sw(l as i32, m as i32);
-        let expected: Vec<Complex> = values.chunks_exact(2).map(|x| c(x[0], x[1])).collect();
+        let expected: Vec<Complex> = values
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|x| c(x[0], x[1]))
+            .collect();
         let scale = expected[0].norm().max(1.0);
         for eta in [Complex::default(), c(1.0, 0.0)] {
             let sum = Ewald::chain(wave, period, kpar, [x, y, z], k, eta);

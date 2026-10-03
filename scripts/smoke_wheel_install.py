@@ -150,6 +150,26 @@ def _check_dependencies(profiles: frozenset[str]) -> None:
 
 
 def _check_numpy_workflows() -> None:
+    # NumPy 2 uses int64 by default on Windows too, where C long is only 32 bits.
+    for dtype in (np.int32, np.int64):
+        orders = np.arange(-2, 3, dtype=dtype)
+        _close(
+            tr.cw.rotate(0.2, orders, 1, 0.2, orders, 1, 0.3), np.exp(-0.3j * orders)
+        )
+        volumes = tr.lattice.volume(np.array([[[2**30, 0], [0, 8]]], dtype=dtype))
+        _require(
+            condition=volumes.dtype == np.dtype("int64"),
+            message="Integer volume lost its dtype",
+        )
+        np.testing.assert_array_equal(volumes, [2**33])
+    for order in (2**32 + 1, np.array([2**32 + 1], dtype=np.int64)):
+        try:
+            tr.cw.rotate(0.2, order, 1, 0.2, order, 1, 0.3)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("An oversized integer order was silently truncated")
+
     # Primary physical workflow works in the isolated wheel, without an oracle.
     particle = tr.sphere_tmatrix(k0=1.3, lmax=2, radius=0.2, material=3)
     source = tr.plane_wave(direction=[0, 0, 1], pol="positive_helicity", k0=1.3)

@@ -36,7 +36,18 @@ macro_rules! dtypes {
     };
 }
 // `Wrapping` is transparent; integer cells wrap on overflow like `NumPy` ones.
-dtypes!(f64: NPY_DOUBLE, Complex: NPY_CDOUBLE, c_long: NPY_LONG, Wrapping<c_long>: NPY_LONG);
+dtypes!(f64: NPY_DOUBLE, Complex: NPY_CDOUBLE);
+impl Dtype for i64 {
+    // NumPy's NPY_INT64 alias: C long is 32 bits on 64-bit Windows.
+    const TYPE: c_char = if size_of::<c_long>() == size_of::<Self>() {
+        NPY_TYPES::NPY_LONG as c_char
+    } else {
+        NPY_TYPES::NPY_LONGLONG as c_char
+    };
+}
+impl Dtype for Wrapping<i64> {
+    const TYPE: c_char = i64::TYPE;
+}
 
 /// One operand of dtype `T` in the current inner-loop call: the address of its
 /// first element and the byte stride between elements.
