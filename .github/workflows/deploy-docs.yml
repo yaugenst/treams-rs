@@ -1,0 +1,63 @@
+name: Deploy docs
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_revision:
+        description: Full source commit SHA to document; defaults to the triggering commit
+        required: false
+        type: string
+        default: ""
+      version:
+        description: Existing released version to refresh, in X.Y.Z format
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate released version and source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      source_revision: ${{ steps.source.outputs.source_revision }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: source
+        env:
+          SOURCE_REVISION: ${{ inputs.source_revision || github.sha }}
+          DOCS_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if [[ ! "$DOCS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "version must identify an existing X.Y.Z release" >&2
+            exit 1
+          fi
+          if [[ ! "$SOURCE_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "source_revision must be a full commit SHA" >&2
+            exit 1
+          fi
+          test "$(git rev-parse --verify "$SOURCE_REVISION^{commit}")" = "$SOURCE_REVISION"
+          git rev-parse --verify "refs/tags/v$DOCS_VERSION^{commit}" > /dev/null
+          test "$(gh api "repos/$GH_REPO/releases/tags/v$DOCS_VERSION" \
+            --jq '(.draft == false) and (.prerelease == false)')" = true
+          echo "source_revision=$SOURCE_REVISION" >> "$GITHUB_OUTPUT"
+
+  docs:
+    name: Publish versioned documentation
+    needs: validate
+    uses: ./.github/workflows/docs.yml
+    with:
+      source_revision: ${{ needs.validate.outputs.source_revision }}
+      version: ${{ inputs.version }}
+    permissions:
+      contents: write
+      pages: write
+      id-token: write

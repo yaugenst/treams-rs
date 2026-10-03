@@ -11,44 +11,45 @@ Open an issue with one of the
 [issue forms](https://github.com/yaugenst/treams-rs/issues/new/choose): bug
 report, numerical discrepancy or feature request.
 
-- Check [Differences from treams](https://yaugenst.github.io/treams-rs/coming-from-treams/differences/)
-  first. Some results differ from treams 0.4.5 by design or because of a known
-  treams defect, and the page says which.
+- Check [Differences from treams](https://yaugenst.github.io/treams-rs/latest/coming-from-treams/differences/)
+  first. It records intentional differences and known reference defects,
+  including the treams version of each comparison.
 - A numerical discrepancy needs a minimal script, the treams-rs, treams, Python
   and NumPy versions, the reference result and the accuracy you expect.
 
 ## Development setup
 
-You need Python 3.12 or 3.13, [uv](https://docs.astral.sh/uv/),
-[just](https://just.systems/) and the Rust toolchain pinned in
+The core supports CPython 3.12–3.15; use 3.12 or 3.13 for the complete
+reference suite. You also need [uv](https://docs.astral.sh/uv/) 0.12.22,
+[just](https://just.systems/) and Rust 1.94.0, pinned in
 [`rust-toolchain.toml`](rust-toolchain.toml). From the repository root:
 
 ```sh
-uv sync --locked --group dev
+uv sync --locked --no-install-project --group dev
 just build-ext
 just ci
 ```
 
 `just build-ext` builds the development extension; run Python with
-`uv run --no-sync`. Add `--extra jax --extra torch` to the sync to run the
-framework adapter tests. `just ci` runs the Rust and Python checks of hosted
-CI. Hosted CI also runs `just check-wheel` and 100 Hypothesis examples per
-property (`HYPOTHESIS_PROFILE=ci`), and runs the Python tests of Python 3.12 on
-one thread (`TREAMS_RS_NUM_THREADS=1`).
+`uv run --no-sync`. The [development setup](https://yaugenst.github.io/treams-rs/latest/development/#setup)
+adds JAX and the CPU build of PyTorch for the optional adapter tests.
+`just ci` runs the local Rust and Python checks. Hosted CI also checks native
+wheels, dependency bounds and the supported Python versions; use
+`HYPOTHESIS_PROFILE=ci` for its 100 examples per property.
 
 The development pages on the site cover the rest:
 
-- [Development](https://yaugenst.github.io/treams-rs/development/): setup,
+- [Development](https://yaugenst.github.io/treams-rs/latest/development/): setup,
   checks, CI workflows and the clean-wheel check.
-- [Source ownership](https://yaugenst.github.io/treams-rs/development/architecture/):
+- [Source ownership](https://yaugenst.github.io/treams-rs/latest/development/architecture/):
   which files own a change, the rules that always hold, and how to add a
   binding or a physics feature.
-- [Testing](https://yaugenst.github.io/treams-rs/development/testing/): where a
+- [Testing](https://yaugenst.github.io/treams-rs/latest/development/testing/): where a
   test goes, markers, Hypothesis profiles and helpers.
-- [Documentation](https://yaugenst.github.io/treams-rs/development/documentation/):
+- [Documentation](https://yaugenst.github.io/treams-rs/latest/development/documentation/):
   the site, tested examples, the generated reference and the gallery.
-- [Benchmarks](https://yaugenst.github.io/treams-rs/development/benchmarks/)
-  and [releasing](https://yaugenst.github.io/treams-rs/development/releasing/).
+- [Benchmarks](https://yaugenst.github.io/treams-rs/latest/development/benchmarks/)
+  and [releasing](https://yaugenst.github.io/treams-rs/latest/development/releasing/).
 
 ## Definition of done
 
@@ -64,19 +65,19 @@ A pull request is ready for review when:
   and `just docs` has regenerated the generated reference and `llms.txt`;
 - `CHANGELOG.md` has a bullet under "Unreleased", and a public name that differs
   from its treams counterpart is listed in `python/treams_rs/_upstream.py`;
-- a numerical or performance-critical change shows agreement with treams
-  0.4.5 or an independent reference, and before/after performance measured with
-  a release build on an otherwise idle host;
+- a numerical or performance-critical change shows agreement with the pinned
+  treams 0.4.7 oracle or an independent reference, and before/after performance
+  measured with a release build on an otherwise idle host;
 - nothing under `benchmarks/results/` changes: it holds archived evidence.
 
 ## License of contributions
 
 treams-rs is released under the [MIT license](LICENSE). Contributions are
 accepted under the same license (inbound = outbound): by opening a pull request
-you license your contribution under the MIT license. Code ported from treams or
-SciPy XSF keeps its attribution in [LICENSE.treams](LICENSE.treams),
-[LICENSE.xsf](LICENSE.xsf) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md);
-add the attribution there when you port further code.
+you license your contribution under the MIT license. Code ported from treams
+keeps its attribution in [LICENSE.treams](LICENSE.treams) and
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Add the source and license
+attribution when you port further code.
 
 ## Conduct and security
 

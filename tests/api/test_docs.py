@@ -184,6 +184,7 @@ def _site_page_exists(page):
 def _link_resolves(path, target):
     if target.startswith(SITE):
         page = target.removeprefix(SITE).partition("#")[0].strip("/")
+        page = re.sub(r"^(?:latest|dev|\d+\.\d+\.\d+)(?:/|$)", "", page)
         # The rustdoc pages are built by cargo, not from docs/.
         if page == "rust" or page.startswith("rust/") or page in UNBUILT_PAGES:
             return True

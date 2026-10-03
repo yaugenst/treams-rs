@@ -2,11 +2,12 @@ cff-version: 1.2.0
 message: "If you use treams-rs, please cite it and the treams paper listed under references."
 title: treams-rs
 type: software
+version: 0.1.0
 authors:
   - family-names: Augenstein
     given-names: Yannick
 repository-code: "https://github.com/yaugenst/treams-rs"
-url: "https://yaugenst.github.io/treams-rs"
+url: "https://yaugenst.github.io/treams-rs/latest/"
 license: MIT
 keywords:
   - t-matrix

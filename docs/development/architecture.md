@@ -120,7 +120,7 @@ value (a forward):
    messages in treams terms.
 4. **Framework adapters.** If a physics object exposes the feature, route it
    through `_framework_*.py`, so that Advect, JAX and PyTorch differentiate it.
-5. **Tests.** Add tests to `tests/<domain>/`: a comparison with treams 0.4.5 or
+5. **Tests.** Add tests to `tests/<domain>/`: a comparison with the pinned treams oracle or
    another reference, a physical identity, and `check_pullback` for the
    gradients ([adding a test](testing.md#adding-a-test)).
 6. **Docs.** Write the docstring with units, shapes and conventions, add a

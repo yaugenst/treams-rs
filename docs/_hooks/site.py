@@ -18,11 +18,14 @@ time, so the tests can load it without MkDocs installed.
 """
 
 import os
+import posixpath
 import re
 from pathlib import Path
 
 FENCE_MODES = (("exec",), ("exec", "jax"), ("exec", "torch"), ("no-exec",))
 REPOSITORY = "https://github.com/yaugenst/treams-rs"
+SITE = "https://yaugenst.github.io/treams-rs/"
+_page_sources = {}
 
 # Longest modes first, so that "exec jax" is not read as "exec".
 _MODES = "|".join(
@@ -39,6 +42,14 @@ _PARENT_LINK = re.compile(
 )
 # An inline code span opens and closes with backtick runs of equal length.
 _CODE_SPAN = re.compile(r"(`+).+?(?<!`)\1(?!`)")
+_SITE_LINK = re.compile(
+    r'(?P<open>href=")' + re.escape(SITE) + r'latest/(?P<path>[^"]*)"'
+)
+
+
+def on_pre_build(config):
+    """Clear page sources when a preview rebuilds the site."""
+    _page_sources.clear()
 
 
 def on_page_markdown(markdown, page, config, files):
@@ -48,7 +59,7 @@ def on_page_markdown(markdown, page, config, files):
     docs = Path(config["docs_dir"]).resolve()
     root = Path(config["config_file_path"]).resolve().parent
     source = page.file.src_uri
-    revision = os.environ.get("GITHUB_SHA", "main")
+    revision = os.environ.get("TREAMS_RS_DOCS_SOURCE_REF") or "main"
 
     def repository_link(match):
         target = match["target"]
@@ -89,4 +100,42 @@ def on_page_markdown(markdown, page, config, files):
         else:
             line = rewrite_links(line)
         lines.append(line)
-    return "".join(lines)
+    result = "".join(lines)
+    _page_sources[source] = result
+    return result
+
+
+def on_post_page(output, page, config):
+    """Keep links to this project's latest docs inside the displayed version."""
+
+    def site_link(match):
+        path, marker, anchor = match["path"].partition("#")
+        relative = posixpath.relpath(path or ".", posixpath.dirname(page.file.url))
+        slash = "/" if not path or path.endswith("/") else ""
+        return f'{match["open"]}{relative}{slash}{marker}{anchor}"'
+
+    revision = os.environ.get("TREAMS_RS_DOCS_SOURCE_REF") or "main"
+    index = posixpath.relpath("llms.txt", posixpath.dirname(page.file.url))
+    output = output.replace(
+        f'href="{REPOSITORY}/blob/{revision}/llms.txt"', f'href="{index}"'
+    )
+    return _SITE_LINK.sub(site_link, output)
+
+
+def on_post_build(config):
+    """Publish the Markdown and agent index beside this version's HTML."""
+    site = Path(config["site_dir"])
+    root = Path(config["config_file_path"]).resolve().parent
+    for source, markdown in _page_sources.items():
+        target = site / source
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(markdown, encoding="utf-8")
+    index = (root / "llms.txt").read_text(encoding="utf-8")
+    index = index.replace(
+        "The Markdown sources linked below are in this repository, at the same Git revision as this file.",
+        "The Markdown sources linked below belong to this documentation version.",
+    ).replace(
+        f"The documentation site is {SITE}.",
+        "The documentation site for these sources is [here](./).",
+    )
+    (site / "llms.txt").write_text(index.replace("](docs/", "]("), encoding="utf-8")

@@ -76,4 +76,5 @@ silently through NumPy operations ([Python API design](../design/python-api.md))
   reproduced; physics objects carry their metadata explicitly.
 - **HDF5 files.** Layout compatibility is not certification against every
   external T-matrix database.
-- **Python 3.12 and 3.13.** treams-rs installs on Python 3.12 and 3.13 only.
+- **CPython 3.12–3.15.** The release targets these Python versions; optional
+  framework and HDF5 support varies by interpreter. See [Install](../getting-started/install.md).
