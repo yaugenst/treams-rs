@@ -3568,17 +3568,18 @@
 
 
 <h1 id="releasing">Releasing<a class="headerlink" href="#releasing" title="Permanent link">&para;</a></h1>
-<p><code>workspace.package.version</code> in <a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/Cargo.toml"><code>Cargo.toml</code></a> sets the
+<p><code>workspace.package.version</code> in <a href="https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/Cargo.toml"><code>Cargo.toml</code></a> sets the
 version of both Rust crates and the Python package. Maturin reads it through
 the dynamic version in <code>pyproject.toml</code>; <code>Cargo.lock</code> records the same value.
 The Rust crates are internal and are not published to crates.io.</p>
 <p>The release build targets CPython 3.12–3.15 on Linux with glibc 2.17 or newer
 (x86-64 and arm64), macOS (Intel and Apple silicon), and Windows x86-64,
 plus one source distribution. The Python classifiers and <code>license-files</code> in
-<a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/pyproject.toml"><code>pyproject.toml</code></a> define the expected distributions.
+<a href="https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/pyproject.toml"><code>pyproject.toml</code></a> define the expected distributions.
 Publication requires that every configured wheel builds and passes its
-installation checks. PyPy, free-threaded CPython, musllinux, Windows ARM64,
-abi3 wheels and conda are outside this release.</p>
+installation checks. The Intel macOS wheels are built on Apple-silicon runners
+and checked on Intel runners. PyPy, free-threaded CPython, musllinux, Windows
+ARM64, abi3 wheels and conda are outside this release.</p>
 <h2 id="repository-setup">Repository setup<a class="headerlink" href="#repository-setup" title="Permanent link">&para;</a></h2>
 <p>Before the first release, check these settings:</p>
 <ul>
@@ -3596,7 +3597,7 @@ abi3 wheels and conda are outside this release.</p>
 <li>Set GitHub Pages <strong>Source</strong> to <strong>GitHub Actions</strong>. The documentation workflow
   publishes the complete version tree through a Pages artifact; <code>gh-pages</code>
   stores the version history used by mike.</li>
-<li>Enable <a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/SECURITY.md">private vulnerability reporting</a>.</li>
+<li>Enable <a href="https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/SECURITY.md">private vulnerability reporting</a>.</li>
 <li>Ensure the release operator can send a repository dispatch with
   contents-write access.</li>
 </ul>
@@ -3621,7 +3622,7 @@ version tag must not exist yet:</p>
 <span class="w">  </span>-f<span class="w"> </span><span class="nv">event_type</span><span class="o">=</span>release<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-f<span class="w"> </span><span class="s1">'client_payload[tag]=vX.Y.Z'</span>
 </code></pre></div>
-<p>The <a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/.github/workflows/publish-release.yml">publication workflow</a>
+<p>The <a href="https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/.github/workflows/publish-release.yml">publication workflow</a>
 fixes the candidate to the current <code>main</code> commit and requires a successful
 <code>CI Success</code> from a push to that commit. It builds and checks the complete
 set of wheels and source distribution, checks metadata and local-path removal,
@@ -3651,20 +3652,20 @@ again.</p>
 <p>Never replace a published file or move a version tag. A failed candidate on
 TestPyPI also consumes its version: fix the issue and choose the next version.</p>
 <h2 id="documentation-site">Documentation site<a class="headerlink" href="#documentation-site" title="Permanent link">&para;</a></h2>
-<p>The reusable <a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/.github/workflows/docs.yml">Docs workflow</a> checks pull
+<p>The reusable <a href="https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/.github/workflows/docs.yml">Docs workflow</a> checks pull
 requests and publishes <code>dev</code> from <code>main</code>. A release publishes <code>X.Y.Z</code> and
 updates <code>latest</code>; the site root follows <code>latest</code> after the first release.
 Every version includes its Rust reference and Markdown sources. Source links
 refer to the documented commit.</p>
 <p>To correct released documentation without changing the package, run
-<a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/.github/workflows/deploy-docs.yml">Deploy docs</a> from <code>main</code>. Set <code>version</code> to an
+<a href="https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/.github/workflows/deploy-docs.yml">Deploy docs</a> from <code>main</code>. Set <code>version</code> to an
 existing release <code>X.Y.Z</code> and <code>source_revision</code> to the full commit SHA of the
 correction. The workflow requires the existing release and immutable tag.
 It replaces that version's documentation and updates <code>latest</code> only for the
 newest release. It does not change the package files or release tag.</p>
 <h2 id="check-a-wheel-locally">Check a wheel locally<a class="headerlink" href="#check-a-wheel-locally" title="Permanent link">&para;</a></h2>
 <p><code>just check-wheel</code> builds an optimized wheel, checks it for local build paths,
-and runs <a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/scripts/smoke_wheel_install.py"><code>smoke_wheel_install.py</code></a> in
+and runs <a href="https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/scripts/smoke_wheel_install.py"><code>smoke_wheel_install.py</code></a> in
 clean environments with NumPy only, Advect, HIPS Autograd and HDF5. CI runs the same smoke
 checks for every configured wheel and for a wheel rebuilt from the source
 distribution. Local success does not replace those platform checks.</p>

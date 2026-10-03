@@ -101,7 +101,7 @@ from the system.
 ## Audit and open work
 
 An audit of the previous baseline (`5dadf1d`, a revision of the original
-history; [`history-provenance.json`](https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/history-provenance.json)
+history; [`history-provenance.json`](https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/benchmarks/history-provenance.json)
 maps it to this repository) covered controls, process hazards, scheduling,
 reproducibility, the bindings, hardware, validation and memory on a shared
 4-vCPU Linux host. The shared host limits the timing evidence.

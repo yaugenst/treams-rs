@@ -62,7 +62,7 @@ The case budgets are constants of `test_support`:
 
 ### Helpers
 
-[`crates/treams-core/src/test_support.rs`](https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/crates/treams-core/src/test_support.rs)
+[`crates/treams-core/src/test_support.rs`](https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/crates/treams-core/src/test_support.rs)
 holds the shared helpers:
 
 - **Pairings.** `re_dot` is `Re Σ conj(a) b`, the pairing of a cotangent (the
@@ -123,7 +123,7 @@ a file for every property of its source file, before the random cases.
 
 Tests that compare with fixed values read them from committed tables:
 
-- [`crates/treams-core/references/`](https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/crates/treams-core/references/README.md)
+- [`crates/treams-core/references/`](https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/crates/treams-core/references/README.md)
   holds mpmath values at 30 to 100 digits. `scripts/generate_references.py`
   regenerates or checks each table, and CI only reads them. Never change a
   committed data line; add a new table or new rows.
@@ -164,7 +164,7 @@ renamed script needs their update too:
 Every test carries at least one marker, for a whole file with `pytestmark` or
 per test; `tests/test_suite_rules.py` fails on a test without one. Select tests
 with `-m`, for example `pytest -m gradients tests/tmatrix`. The descriptions are
-those that `CATEGORIES` in [`tests/conftest.py`](https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/tests/conftest.py)
+those that `CATEGORIES` in [`tests/conftest.py`](https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/tests/conftest.py)
 registers:
 
 | Marker | Description |
@@ -191,9 +191,17 @@ also derandomizes every profile and runs without its example database. An
 explicit `@settings(max_examples=...)` bounds an expensive property under every
 profile.
 
+### Parallel runs
+
+Hosted CI runs pytest with `-n auto`, one
+[pytest-xdist](https://pytest-xdist.readthedocs.io/) worker per CPU; add it to
+a local run to do the same. `tests/conftest.py` gathers the Rayon global-pool
+check and the report of unavailable test dependencies from every worker, so a
+parallel run fails and reports as a serial one does.
+
 ### Helpers and imports
 
-[`tests/_support.py`](https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/tests/_support.py) holds what several test files
+[`tests/_support.py`](https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/tests/_support.py) holds what several test files
 share:
 
 - `assert_one_use_context`, which checks that a context pulls back once and
@@ -206,7 +214,7 @@ share:
 - `assert_unitary_ports`, the `reciprocal` mode map, and `to_oracle` and
   `oracle_smatrix_array`, which build the matching treams objects.
 
-[`tests/_scripts.py`](https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/tests/_scripts.py) imports a script of `scripts/`
+[`tests/_scripts.py`](https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/tests/_scripts.py) imports a script of `scripts/`
 as a module for the tests in `tests/scripts/`.
 
 Test modules import `treams_rs` as `tr`, its namespaces by name
