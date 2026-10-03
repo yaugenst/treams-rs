@@ -1106,9 +1106,9 @@ def test_parity_chirality_check_follows_framework_values(engine, port_wave):
 def test_order_ports_need_a_planar_lattice(engine):
     tr = engine.tr
     tm = tr.sphere_tmatrix(k0=1.2, lmax=1, radius=0.2, material=3.0)
-    # A 3x3 lattice solves on its xy sublattice; ports need the planar cell.
+    # A genuinely three-dimensional array cannot radiate into planar ports.
     response = tr.solve_periodic(
-        tm, lattice=[[2.0, 0, 0], [0, 2.0, 0], [0, 0, 5.0]], kpar=[0.1, 0.05]
+        tm, lattice=[[2.0, 0, 0], [0, 2.0, 0], [0, 0, 5.0]], kpar=[0.1, 0.05, 0.07]
     )
     with pytest.raises(ValueError, match=r"\(2, 2\) xy lattice"):
         response.to_smatrix(core.PlaneWavePorts.default([[0.1, 0.05]]))
