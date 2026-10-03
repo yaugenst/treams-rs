@@ -100,6 +100,8 @@ def _primitive(
     def backward_rule(
         primals: tuple[jax.Array, ...], cotangents: tuple[jax.Array, ...]
     ) -> tuple[jax.Array, ...]:
+        # JAX may return scalar constants as Python values in the saved inputs.
+        primals = tuple(jnp.asarray(value) for value in primals)
         input_specs = tuple(jax.ShapeDtypeStruct(v.shape, v.dtype) for v in primals)
 
         def callback(*packed: Array) -> tuple[Array, ...]:

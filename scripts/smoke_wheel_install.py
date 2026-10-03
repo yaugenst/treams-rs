@@ -158,7 +158,8 @@ def _check_numpy_workflows() -> None:
         )
         volumes = tr.lattice.volume(np.array([[[2**30, 0], [0, 8]]], dtype=dtype))
         _require(
-            condition=volumes.dtype == np.dtype("int64"),
+            condition=isinstance(volumes, np.ndarray)
+            and volumes.dtype == np.dtype("int64"),
             message="Integer volume lost its dtype",
         )
         np.testing.assert_array_equal(volumes, [2**33])

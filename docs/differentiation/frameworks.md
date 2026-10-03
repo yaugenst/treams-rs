@@ -286,12 +286,12 @@ function; see [custom records](custom-records.md).
 
 ## Known framework issues
 
-**Advect: Python floats promoted to complex.** If the input of an Advect
+**Advect 0.2.0: Python floats promoted to complex.** If the input of an Advect
 transform is a Python float, an expression such as
 `advect.numpy.abs(epsilon + 0.1j)` makes
 the reverse pass raise `RuntimeError: Transpose rule for 'array.absolute'
-failed`. An array input works. Verified with advect 0.2.0, the version in
-`uv.lock`.
+failed`. An array input works. Advect 0.3.0, now selected in `uv.lock`, returns
+the correct gradient for both inputs. Use an array when supporting Advect 0.2.0:
 
 ```python exec
 import advect
@@ -302,7 +302,7 @@ def loss(epsilon):
     return anp.abs(epsilon + 0.1j) ** 2
 
 
-assert advect.grad(loss)(anp.asarray(3.0)) == 6.0  # advect.grad(loss)(3.0) raises
+assert advect.grad(loss)(anp.asarray(3.0)) == 6.0
 ```
 
 References: [JAX external callbacks](https://docs.jax.dev/en/latest/external-callbacks.html)
