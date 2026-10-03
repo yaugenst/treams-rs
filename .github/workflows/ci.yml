@@ -79,28 +79,11 @@ jobs:
       - name: Build the extension
         run: just build-ext
 
-      - name: Lint GitHub Actions workflows
+      # Regenerates the API reference from the built extension, so it runs here
+      # rather than with the repository checks.
+      - name: Check generated documentation
         if: matrix.python-version == '3.12'
-        run: |
-          archive="$RUNNER_TEMP/actionlint.tar.gz"
-          curl -fsSL \
-            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
-            -o "$archive"
-          echo "${ACTIONLINT_SHA256}  $archive" | sha256sum --check
-          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
-          command -v shellcheck
-          "$RUNNER_TEMP/actionlint" -shellcheck shellcheck
-
-      - name: Test release eligibility guard
-        if: matrix.python-version == '3.12'
-        run: |
-          shellcheck .github/scripts/verify-release-state.sh
-          bash .github/scripts/verify-release-state.sh --self-test
-
-      # `just check` regenerates the API reference from the built extension.
-      - name: Run repository checks
-        if: matrix.python-version == '3.12'
-        run: just check
+        run: just docs-check
 
       - name: Test with coverage
         if: matrix.python-version == '3.12'
@@ -120,10 +103,6 @@ jobs:
           path: coverage.xml
           if-no-files-found: error
           retention-days: 1
-
-      - name: Check the locally built release wheel
-        if: matrix.python-version == '3.12'
-        run: just check-wheel
 
   coverage:
     name: Coverage
@@ -151,6 +130,102 @@ jobs:
           fail_ci_if_error: true
           files: coverage/coverage.xml
           use_oidc: true
+
+  # The checks of `just check` that need no built extension, beside the tests.
+  checks:
+    name: Repository checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+        with:
+          toolchain: 1.94.0
+          components: clippy, rustfmt
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          version-file: pyproject.toml
+
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: "1.58.0"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      # Pyrefly checks the framework adapters against JAX, Autograd and PyTorch.
+      - name: Install dependencies
+        run: |
+          uv sync --locked --no-install-project --group dev --extra jax --extra autograd --python 3.12
+          torch_version="$(
+            uv export --locked --extra torch --no-emit-project --no-hashes \
+              --no-header --no-annotate | sed -n 's/^torch==\([^ ;]*\).*/\1/p'
+          )"
+          test -n "$torch_version"
+          uv pip install \
+            --python .venv/bin/python \
+            --index-url "$TORCH_CPU_INDEX" \
+            "torch==${torch_version}+cpu"
+
+      - name: Lint GitHub Actions workflows
+        run: |
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl -fsSL \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            -o "$archive"
+          echo "${ACTIONLINT_SHA256}  $archive" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+          command -v shellcheck
+          "$RUNNER_TEMP/actionlint" -shellcheck shellcheck
+
+      - name: Test release eligibility guard
+        run: |
+          shellcheck .github/scripts/verify-release-state.sh
+          bash .github/scripts/verify-release-state.sh --self-test
+
+      - name: Run repository checks
+        run: just check-static
+
+  host-wheel:
+    name: Host release wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # Smoke-test the release build on the one-thread path, as the Python
+      # 3.12 lane tests the development build.
+      TREAMS_RS_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+        with:
+          toolchain: 1.94.0
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          version-file: pyproject.toml
+
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: "1.58.0"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      # The smoke environments install their own dependencies from pyproject.toml.
+      - name: Install build tools
+        run: uv sync --locked --no-install-project --group dev --python 3.12
+
+      - name: Check the locally built release wheel
+        run: just check-wheel
 
   numpy-compatibility:
     name: NumPy ${{ matrix.numpy-version }}
@@ -442,6 +517,8 @@ jobs:
     needs:
       - python
       - coverage
+      - checks
+      - host-wheel
       - numpy-compatibility
       - optional-dependency-compatibility
       - docs
@@ -456,6 +533,8 @@ jobs:
         env:
           PYTHON_RESULT: ${{ needs.python.result }}
           COVERAGE_RESULT: ${{ needs.coverage.result }}
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          HOST_WHEEL_RESULT: ${{ needs.host-wheel.result }}
           NUMPY_RESULT: ${{ needs.numpy-compatibility.result }}
           OPTIONAL_DEPENDENCIES_RESULT: ${{ needs.optional-dependency-compatibility.result }}
           DOCS_RESULT: ${{ github.event_name == 'push' && needs.dev-docs.result || needs.docs.result }}
@@ -466,6 +545,8 @@ jobs:
           for result in \
             "$PYTHON_RESULT" \
             "$COVERAGE_RESULT" \
+            "$CHECKS_RESULT" \
+            "$HOST_WHEEL_RESULT" \
             "$NUMPY_RESULT" \
             "$OPTIONAL_DEPENDENCIES_RESULT" \
             "$DOCS_RESULT" \
