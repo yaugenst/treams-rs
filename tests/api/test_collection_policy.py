@@ -1,4 +1,8 @@
-"""Conditional oracles must not exclude independent tests or disappear silently."""
+"""The conftest session checks hold serially and under pytest-xdist.
+
+Conditional oracles must not exclude independent tests or disappear silently,
+and a session in which native code started Rayon's global pool fails.
+"""
 
 import os
 import runpy
@@ -9,6 +13,9 @@ import pytest
 
 pytestmark = pytest.mark.interface
 
+# pytest-xdist workers collect and run; the controller must still report.
+WORKERS = pytest.mark.parametrize("workers", [[], ["-n", "2"]], ids=["serial", "xdist"])
+
 
 def test_shared_helpers_import_without_oracle(monkeypatch, pytestconfig):
     monkeypatch.setitem(sys.modules, "treams", None)
@@ -18,8 +25,9 @@ def test_shared_helpers_import_without_oracle(monkeypatch, pytestconfig):
         helpers["to_oracle"](None)
 
 
+@WORKERS
 @pytest.mark.parametrize("required", [False, True])
-def test_conditional_oracle_collection(tmp_path, required, pytestconfig):
+def test_conditional_oracle_collection(tmp_path, required, workers, pytestconfig):
     tests = tmp_path / "tests"
     nested = tests / "api"
     nested.mkdir(parents=True)
@@ -62,7 +70,7 @@ def test_conditional_oracle_collection(tmp_path, required, pytestconfig):
         "def test_script():\n    pass\n"
     )
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", "--color=no", str(tests)],
+        [sys.executable, "-m", "pytest", "-q", "--color=no", *workers, str(tests)],
         cwd=tmp_path,
         env={**os.environ, "HYPOTHESIS_PROFILE": "ci"},
         capture_output=True,
@@ -78,3 +86,30 @@ def test_conditional_oracle_collection(tmp_path, required, pytestconfig):
         assert result.returncode == pytest.ExitCode.OK, output
         assert "1 passed, 3 skipped" in output
         assert "2 module(s) not collected, 1 test(s) skipped" in output
+
+
+@WORKERS
+def test_rayon_global_pool_use_fails_the_session(tmp_path, workers, pytestconfig):
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tests / "conftest.py").write_text(
+        (pytestconfig.rootpath / "tests/conftest.py").read_text()
+    )
+    (tmp_path / "pyproject.toml").write_text("[dependency-groups]\ndev = []\n")
+    # The probe starts the global pool, as a stray parallel region would.
+    (tests / "test_pool.py").write_text(
+        "from treams_rs import _native\n"
+        "def test_global_pool():\n"
+        "    assert _native.rayon_global_pool_unused()\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "--color=no", *workers, str(tests)],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    output = result.stdout + result.stderr
+    assert result.returncode == pytest.ExitCode.TESTS_FAILED, output
+    assert "1 passed" in output
+    assert "native code started Rayon's global pool" in output

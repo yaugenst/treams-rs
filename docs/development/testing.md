@@ -195,6 +195,14 @@ also derandomizes every profile and runs without its example database. An
 explicit `@settings(max_examples=...)` bounds an expensive property under every
 profile.
 
+### Parallel runs
+
+Hosted CI runs pytest with `-n auto`, one
+[pytest-xdist](https://pytest-xdist.readthedocs.io/) worker per CPU; add it to
+a local run to do the same. `tests/conftest.py` gathers the Rayon global-pool
+check and the report of unavailable test dependencies from every worker, so a
+parallel run fails and reports as a serial one does.
+
 ### Helpers and imports
 
 [`tests/_support.py`](../../tests/_support.py) holds what several test files
