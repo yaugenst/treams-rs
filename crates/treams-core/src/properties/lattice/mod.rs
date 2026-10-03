@@ -16,8 +16,9 @@ use self::{
         check_ewald_derivative, check_ewald_derivative_identities, check_ewald_forward_paths,
         check_ewald_invariance, check_ewald_part_euler, check_ewald_symmetries,
         check_forward_parts, check_lattice_point, check_off_axis_chain, check_reduced_integrals,
-        check_small_split, check_split, check_tiny_normal_shift, check_vanishing, components,
-        fails_with, prop_assert_jets_close, prop_assert_jets_on_their_scales, spectral_chain_sum,
+        check_rejected_wavenumber, check_small_split, check_split, check_tiny_normal_shift,
+        check_vanishing, components, fails_with, prop_assert_jets_close,
+        prop_assert_jets_on_their_scales, spectral_chain_sum,
     },
     ewald::{Ewald, c, cw, cylinder_point, diagonal, explicit_split, pinned, sw},
     periodic::{
@@ -81,7 +82,8 @@ proptest! {
     /// As `chain_series_matches_the_ewald_sum` at real splits and splits rotated off
     /// `1 / k`, for `Im k` of either sign or nearly zero and Bloch vectors that include 0
     /// and `+-2 pi / a`. There the principal branch of a Kambe integral can differ from
-    /// the root `Im k_q >= 0` that the series takes, and the sums must take that root.
+    /// the root `Im k_q >= 0` that the series takes, and supported sums must take that
+    /// root. Gain wavenumbers must be rejected.
     #[test]
     fn ewald_sums_take_the_series_root_at_every_split(
         (l, m) in degree_order(0..13),
@@ -99,16 +101,18 @@ proptest! {
 
     /// 1D spherical sums at explicit splits (see `rotated_chain`) match the automatic
     /// split in value and every derivative, on both sides of `w = 2.5`, from which they
-    /// try their spectral series first; their derivatives match central differences (for
-    /// `|Im k| > 1e-3`: the sums jump across real `k`), and each part obeys the Euler
-    /// identity.
+    /// try their spectral series first; their derivatives match central differences
+    /// inside the supported domain, and each part obeys the Euler identity. Gain
+    /// wavenumbers must be rejected.
     #[test]
     fn chain_sums_do_not_depend_on_the_split(sum in rotated_chain()) {
-        check_split(&sum.at(Complex::default()), sum.eta, 1e-10)?;
-        if sum.k.im.abs() > 1e-3 {
+        if sum.k.im < 0.0 {
+            check_rejected_wavenumber(&sum)?;
+        } else {
+            check_split(&sum.at(Complex::default()), sum.eta, 1e-10)?;
             check_ewald_derivative(&sum)?;
+            check_ewald_part_euler(&sum)?;
         }
-        check_ewald_part_euler(&sum)?;
     }
 
     /// 2D spherical and 1D cylindrical sums (see `half_integer_sum`), whose reciprocal
@@ -171,15 +175,13 @@ proptest! {
 
     /// Far off the axis, where 1D spherical sums take their spectral series, they keep the
     /// exact derivative identities, the lattice and point symmetries, their central
-    /// differences (for lossy `k`: the sums jump across real `k`), agreeing forward and jet
+    /// differences inside the supported domain, agreeing forward and jet
     /// paths, and the Euler identity of each Ewald part.
     #[test]
     fn far_off_axis_chains_keep_the_ewald_identities(sum in far_chain()) {
         check_ewald_derivative_identities(&sum)?;
         check_ewald_symmetries(&sum, 0, 0.7, 1.3)?;
-        if sum.k.im > 0.0 {
-            check_ewald_derivative(&sum)?;
-        }
+        check_ewald_derivative(&sum)?;
         check_ewald_forward_paths(&sum)?;
         check_ewald_part_euler(&sum)?;
     }
@@ -301,7 +303,8 @@ proptest! {
     }
 
     /// Sums at a lattice point at every split and for `k` in every quadrant and on both
-    /// axes (see `lattice_point` and `check_lattice_point`).
+    /// axes (see `lattice_point` and `check_lattice_point`); unsupported wavenumbers
+    /// must be rejected.
     #[test]
     fn lattice_point_sums_continue_the_shifted_sums(
         sum in lattice_point(),
@@ -573,11 +576,12 @@ fn recorded_cases_keep_their_properties() {
 
 /// Degree-0 sums at a lattice point on the sheets of `k eta` (see [`check_lattice_point`]):
 /// spherical waves on 1D and 3D and cylindrical waves on 2D rectangular lattices, for `k`
-/// in every quadrant (`Re k < 0` for cylindrical waves only, see [`lattice_point`]), on
+/// in every quadrant, on
 /// both imaginary half-axes and with a zero real or imaginary part of either sign, at the
 /// automatic split, splits of modulus 0.7 rotated off `1 / k` by 0.2 either way and, for
 /// `Re k != 0`, the real split 0.7 or, for imaginary `k`, the imaginary splits with a
-/// zero real part of either sign (spherical ones where `Re(k eta) > 0`).
+/// zero real part of either sign (spherical ones where `Re(k eta) > 0`). Unsupported
+/// wavenumbers must be rejected.
 #[test]
 fn lattice_point_sums_take_the_sheet_of_k_eta() {
     let wavenumbers = [
@@ -598,7 +602,7 @@ fn lattice_point_sums_take_the_sheet_of_k_eta() {
         } else {
             [0.6, 0.8, 0.0]
         };
-        for &k in wavenumbers.iter().filter(|k| !spherical || k.re >= 0.0) {
+        for &k in &wavenumbers {
             let mut splits = vec![Complex::default()];
             splits.extend([0.2, -0.2].map(|angle| explicit_split(k, 0.7, Some(angle))));
             if k.re == 0.0 {

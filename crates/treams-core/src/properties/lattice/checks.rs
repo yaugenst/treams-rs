@@ -21,17 +21,50 @@ use crate::{
 /// bound by factors up to 4.5; the plain Ewald references and the series agree to 1e-11.
 const CHAIN_TOLERANCE: f64 = 2e-11;
 
+/// Unsupported wavenumbers fail as invalid input in every Ewald part and jet, at
+/// both the given and automatic splits (part jets require an explicit split). Keep
+/// these draws in the existing strategies so their regression seeds still replay.
+pub(super) fn check_rejected_wavenumber(sum: &Ewald) -> Result<(), TestCaseError> {
+    let message = if sum.k.im < 0.0 {
+        "Im(k) >= 0"
+    } else {
+        "Re(k) >= 0"
+    };
+    for eta in [sum.eta, Complex::default()] {
+        let sum = sum.at(eta);
+        for part in [SumPart::Full, SumPart::Real, SumPart::Reciprocal] {
+            let jet_eta = if eta == Complex::default() && !matches!(part, SumPart::Full) {
+                c(1.0, 0.0)
+            } else {
+                eta
+            };
+            let jet = derivatives_part(sum.wave, sum.k, &sum.lattice(), sum.r, jet_eta, part);
+            for result in [sum.part(part), jet.map(|d| d.value)] {
+                prop_assert!(
+                    matches!(&result, Err(crate::Error::InvalidInput(error)) if error.contains(message)),
+                    "{sum:?} {part:?}: {result:?}"
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 /// A 1D spherical sum against the plain Ewald sum at a split of modulus
 /// `min(1.5 / (|k| rho), 1.5)` along `direction` (along `1 / k` without one), where that
 /// loses at most `e^(w^2)` and `e^(1 / (2 |eta|^2))`, about 10 and 23 ulps of its terms.
 /// With a `direction`, the spectral series matches it in value and every derivative
 /// within 1e-11 of their scales plus twice its own rounding bound; without, the sum at
 /// the automatic split, from whichever of the two each component comes, within
-/// `CHAIN_TOLERANCE` of them, and its value equals the value-only sum.
+/// `CHAIN_TOLERANCE` of them, and its value equals the value-only sum. Gain
+/// wavenumbers must instead be rejected.
 pub(super) fn check_chain(sum: &Ewald, direction: Option<Complex>) -> Result<(), TestCaseError> {
     let (k, rho) = (sum.k, sum.r[0].hypot(sum.r[1]));
     let size = (1.5 / (k.norm() * rho)).min(1.5);
     let eta = direction.map_or_else(|| size * k.norm() / k, |direction| size * direction);
+    if sum.k.im < 0.0 {
+        return check_rejected_wavenumber(&sum.at(eta));
+    }
     let expected = probes::ewald_only(|| sum.at(eta).try_derivatives()).unwrap();
     let scales = component_scales(&expected, k);
     let lattice::Family::Spherical { l, m } = sum.wave else {
@@ -377,8 +410,12 @@ pub(super) fn check_tiny_normal_shift(
 /// A sum at a lattice point, which excludes the image there, continues the sums shifted
 /// off it (see [`check_lattice_point_limit`]), equals the absolutely convergent image sum
 /// where that is cheap (see [`check_direct_sum`]) and keeps the exact derivative
-/// identities (see [`check_ewald_derivative_identities`]).
+/// identities (see [`check_ewald_derivative_identities`]). Unsupported wavenumbers
+/// must instead be rejected, including when symmetry would make the sum zero.
 pub(super) fn check_lattice_point(sum: &Ewald, direction: [f64; 3]) -> Result<(), TestCaseError> {
+    if sum.k.im < 0.0 || (matches!(sum.wave, lattice::Family::Spherical { .. }) && sum.k.re < 0.0) {
+        return check_rejected_wavenumber(sum);
+    }
     check_lattice_point_limit(sum, direction)?;
     check_direct_sum(sum)?;
     check_ewald_derivative_identities(sum)
@@ -695,13 +732,23 @@ pub(super) fn check_forward_parts(sum: &Ewald) -> Result<(), TestCaseError> {
 
 /// Ewald sums obey the Euler identity of joint position, lattice, wavenumber and
 /// Bloch scaling, and their complete derivative in every parameter matches the
-/// Richardson extrapolation of central differences along a fixed direction.
+/// Richardson extrapolation of central differences along a direction inside the
+/// supported wavenumber domain.
 pub(super) fn check_ewald_derivative(sum: &Ewald) -> Result<(), TestCaseError> {
     let d = sum.derivatives();
     let (lengths, spectral) = euler(sum, &d);
     prop_assert_close!(lengths, spectral, 1e-9 * (1.0 + d.value.norm()));
-    let dk = c(0.1, 0.2);
     let cylindrical = matches!(sum.wave, lattice::Family::Cylindrical { .. });
+    // The outer difference reaches 2h <= 2e-5. Keep each wavenumber component
+    // fixed near its domain boundary: Im(k) = 0, and Re(k) = 0 for spherical sums.
+    let dk = c(
+        if cylindrical || sum.k.re > 2e-6 {
+            0.1
+        } else {
+            0.0
+        },
+        if sum.k.im > 4e-6 { 0.2 } else { 0.0 },
+    );
     // A sum at the origin leaves out the image there; any step in the shift brings it
     // back, so the shift stays fixed.
     let dr = if sum.r.iter().all(|&x| x == 0.0) {

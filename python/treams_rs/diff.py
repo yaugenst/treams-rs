@@ -349,6 +349,8 @@ def lattice_sum(
 
     The Ewald method splits each sum into a real-space and a reciprocal-space
     series; ``eta`` sets where, and 0 picks it automatically.
+    Ewald sums require ``Im k >= 0`` and, for spherical waves, ``Re k >= 0``.
+    Finite direct shells accept every finite nonzero complex wavenumber.
 
     Returns:
         complex128 array with the broadcast batch shape of all inputs.

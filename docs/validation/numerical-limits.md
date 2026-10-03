@@ -53,8 +53,11 @@ to a length and 1 / |k| for derivatives with respect to an inverse length.
       displacement and singular ones are zero.
     - Singular translations over other displacements below about 1e-154 raise the
       Hankel-function overflow.
-    - Spherical field evaluation divides by `r^l` and can return NaN at extreme
-      scales and degrees (singular waves, lmax 40 at 1e-7).
+- **Spherical fields** evaluate their solid harmonics in bounded internal length
+  units, then return their analytic derivatives in the caller's units. Reference,
+  Maxwell and gradient tests cover degrees up to 40 with length units from 1e-150
+  to 1e150. Fields whose dimensionless Bessel values exceed float64 still fail;
+  a change of units cannot make those values representable.
 - **Incomplete gamma functions** Gamma(n, z) are checked against these
   references:
     - 1494 40-digit mpmath values at 1e-13 relative: half-integer degrees in
@@ -120,7 +123,9 @@ A sum that would be inaccurate fails instead. In Python each failure raises
 
 | Message | Cause | Remedy |
 | --- | --- | --- |
-| "Ewald sum did not converge within the shell limit" | The parts need more shells than the limit: at small \|k eta\| d, at splits whose (k eta)^2 lies more than 45 degrees off the real axis, or where far terms peak beyond the limit; also Re k < 0 for spherical sums, or Im k < 0 far off the plane or axis (no workaround). | Use the automatic split (`eta = 0`) where the limit comes from an explicit split. Below every automatic split the message adds "use a larger split (eta = 0 selects one)". |
+| "Ewald sums require Im(k) >= 0; gain media are unsupported" | A wavenumber with Im k < 0. | Use a passive wavenumber; finite direct shells remain available for complex k. |
+| "spherical Ewald sums require Re(k) >= 0" | A spherical wavenumber on the unsupported Kambe branch. | Use a wavenumber in the supported domain; finite direct shells remain available for complex k. |
+| "Ewald sum did not converge within the shell limit" | The parts need more shells than the limit: at small \|k eta\| d, at splits whose (k eta)^2 lies more than 45 degrees off the real axis, or where far terms peak beyond the limit. | Use the automatic split (`eta = 0`) where the limit comes from an explicit split. Below every automatic split the message adds "use a larger split (eta = 0 selects one)". |
 | "Ewald split too small: ...; use a larger split (eta = 0 selects one)" | The parts of an explicit split below every automatic one cancel ([below](#explicit-splits-below-the-automatic-one)). | Use a larger split or `eta = 0`. |
 | "Ewald sum lost its accuracy to cancelling Kambe integrals; reduce the split parameter" | A 1D spherical sum off the axis cancels where its spectral series is not available ([below](#1d-spherical-sums-off-the-axis)). | Reduce the split. |
 | "non-finite Ewald summand" | (k eta)^2 turns 90 degrees or more off the real axis, so the Gaussians of both parts grow. | Change the split or reduce the order. |
@@ -130,24 +135,24 @@ other limits have no workaround.
 
 ### Branches and sheets
 
-- **Re k < 0**: spherical Ewald sums take the root of k^2 with Re k > 0 in their
-  even Kambe integrals. For Re k < 0 they fail to converge or return sums of
-  another function, off the lattice points as well, as treams does. Cylindrical
-  sums hold for Re k < 0.
-- **Im k < 0**: every diffraction order takes the root k_q = sqrt(k^2 - q^2) with
-  Im k_q >= 0 at every split. For Im k < 0 the sums therefore continue from the
-  evanescent orders and jump across real k.
-    - For Im k >= 0 every family gives the sum of the automatic split at every
-      split where its Ewald parts converge.
-    - For Im k < 0, 2D spherical and 1D cylindrical sums keep the principal
-      branches. They depend on the split in the plane or on the axis, and off it
-      within |k s eta| <= 1 for the distance s from it. Farther off they fail.
+- **Supported Ewald wavenumbers** have Im k >= 0, with Re k >= 0 additionally
+  required for spherical waves. Pure positive-imaginary k is supported, as is
+  Re k < 0 for cylindrical waves. The full sum, both Ewald parts and their
+  recorded derivatives reject inputs outside this domain before summation.
+- **Re k < 0 for spherical waves** selects the wrong root of k^2 in the even
+  Kambe integrals. Earlier implementations could return another function or
+  fail to converge; the current implementation raises `ValueError`.
+- **Im k < 0 (gain)** is unsupported for every Ewald family. The reciprocal
+  roots continue from the evanescent orders rather than the outgoing gain
+  branch; some families also depend on the split. These inputs raise
+  `ValueError`. Within the supported domain every family gives the sum of the
+  automatic split at every split where its Ewald parts converge.
+- **Finite direct shells** accept every finite nonzero complex k. This does not
+  assert convergence of the infinite direct sum for gain media.
 - **At a lattice point** the sums exclude the image there. They take their self
   term on the sheet arg v = 2 arg k - pi - arg((k eta)^2) (DLMF 8.2.10), so they
   are the limit of the shifted sums at every split where their Ewald parts
-  converge (for 2D spherical and 1D cylindrical sums, for Im k >= 0). There,
-  1D cylindrical sums for Re k < 0 and Im k < 0 at rotated splits, and 2D
-  spherical sums for Re k < 0, can be 0.9 to 1.6 of max(|S|, 1) off.
+  converge within the supported wavenumber domain.
 
 ### Near thresholds, planes and axes
 

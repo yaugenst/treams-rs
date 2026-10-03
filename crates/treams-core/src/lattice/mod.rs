@@ -59,10 +59,11 @@
 //! `Re(1 / (2 eta^2)) > 16 / pi`: there the two parts grow like `exp(Re(1 / (2 eta^2)))`
 //! and cancel.
 //!
-//! For `Im k >= 0` every sum has the same value at every split where its Ewald parts
-//! converge. Spherical Ewald sums take `Re k > 0`. For `Im k < 0`, 2D spherical and 1D
-//! cylindrical sums keep the principal branches: on or near their plane or axis they
-//! depend on the split, and farther off they fail.
+//! Ewald sums require `Im k >= 0`, and spherical sums additionally require `Re k >= 0`.
+//! Within this domain every sum has the same value at every split where its Ewald parts
+//! converge. Inputs outside it give [`InvalidInput`]: the gain-side continuation is not
+//! supported, and negative-real spherical wavenumbers select the wrong Kambe branch.
+//! Finite direct shells accept every finite nonzero complex wavenumber.
 //!
 //! # Crosswalk
 //!
@@ -159,6 +160,8 @@
 //!
 //! | Message | Error | Cause |
 //! |---|---|---|
+//! | `Ewald sums require Im(k) >= 0; gain media are unsupported` | [`InvalidInput`] | An amplifying wavenumber |
+//! | `spherical Ewald sums require Re(k) >= 0` | [`InvalidInput`] | A spherical wavenumber on the unsupported Kambe branch |
 //! | `Ewald sum did not converge within the shell limit` | [`NotConverged`] | A part needs more shells than its limit |
 //! | ... `; use a larger split (eta = 0 selects one)` | [`NotConverged`] | The same, at a small split |
 //! | ... `, neither at this split nor at the automatic one` | [`NotConverged`] | A settled sum whose check at the automatic split does not converge |
@@ -445,6 +448,18 @@ fn evaluate<const N: usize>(
         ));
     }
     let direct = matches!(evaluation, Evaluation::Part(SumPart::Direct(_)));
+    if !direct {
+        if k.im < 0.0 {
+            return Err(Error::InvalidInput(
+                "Ewald sums require Im(k) >= 0; gain media are unsupported".into(),
+            ));
+        }
+        if matches!(wave, Family::Spherical { .. }) && k.re < 0.0 {
+            return Err(Error::InvalidInput(
+                "spherical Ewald sums require Re(k) >= 0".into(),
+            ));
+        }
+    }
     let variable = !matches!(evaluation, Evaluation::EtaDerivative);
     let inputs = Inputs::new(wave, k, lattice, r, variable, !direct);
     if let Evaluation::Part(SumPart::Direct(shell)) = evaluation {

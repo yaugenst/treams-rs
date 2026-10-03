@@ -10,7 +10,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from numpy.testing import assert_allclose
 
-from treams_rs import lattice
+from treams_rs import diff, lattice
 
 FAMILIES = (
     "sw1d",
@@ -39,6 +39,54 @@ def operands(family, parameter):
         ]
     )
     return (*labels, 2.1 + 0.2j, q, a, r, parameter)
+
+
+@pytest.mark.interface
+@pytest.mark.parametrize(
+    "family,k,match",
+    [
+        (family, k, match)
+        for family in FAMILIES
+        for k, match in [
+            (1.2 - 0.2j, r"Im\(k\) >= 0"),
+            (-1.2 + 0.2j, r"Re\(k\) >= 0"),
+        ]
+        if k.imag < 0 or family.startswith("sw")
+    ],
+)
+@pytest.mark.parametrize("prefix", ["lsum", "realsum", "recsum"])
+def test_ewald_wavenumber_domain_scalar_and_batch(family, k, match, prefix):
+    args = list(operands(family, 0.9))
+    for wavenumbers in (k, np.array([2.1 + 0.2j, k])):
+        args[-5] = wavenumbers
+        with pytest.raises(ValueError, match=match):
+            getattr(lattice, prefix + family)(*args)
+
+
+@pytest.mark.interface
+@pytest.mark.parametrize(
+    "spherical,dim", [(True, 1), (True, 2), (True, 3), (False, 1), (False, 2)]
+)
+@pytest.mark.parametrize("part", ["full", "real", "reciprocal"])
+def test_recorded_ewald_wavenumber_domain(spherical, dim, part):
+    bad = [(1.2 - 0.2j, r"Im\(k\) >= 0")]
+    if spherical:
+        bad.append((-1.2 + 0.2j, r"Re\(k\) >= 0"))
+    for k, match in bad:
+        for wavenumbers in (k, np.array([2.1 + 0.2j, k])):
+            with pytest.raises(ValueError, match=match):
+                diff.lattice_sum(
+                    dim,
+                    2,
+                    -1,
+                    wavenumbers,
+                    np.full(dim, 0.1),
+                    np.eye(dim) * 1.7,
+                    np.full(3 if spherical else 2, 0.2),
+                    0.9,
+                    spherical=spherical,
+                    part=part,
+                )
 
 
 @pytest.mark.reference
@@ -108,17 +156,19 @@ def test_split_identity_including_self_correction(family, eta, shift):
     assert_allclose(full, real + reciprocal, rtol=2e-12, atol=2e-12)
 
 
+@pytest.mark.physics
 @pytest.mark.reference
 @pytest.mark.parametrize(
     "spherical,dim", [(True, 1), (True, 2), (True, 3), (False, 1), (False, 2)]
 )
-def test_direct_shell_against_cartesian_sum(spherical, dim):
+@pytest.mark.parametrize("k", [2.1 + 0.2j, 2.1 - 0.2j, -2.1 + 0.2j, -2.1 - 0.2j])
+def test_direct_shell_against_cartesian_sum(spherical, dim, k):
     a = np.diag(np.linspace(1.5, 1.7, dim))
     q = np.linspace(0.1, 0.2, dim)
     # x-only spherical displacement catches upstream's incorrect 1d axis shortcut.
     r = np.array([0.2, 0.0, 0.0]) if spherical else np.array([0.2, 0.0])
     axes = [2] if spherical and dim == 1 else list(range(dim))
-    shell, k, degree, order = 2, 2.1 + 0.2j, 2, -1
+    shell, degree, order = 2, 2, -1
     expected = 0j
     for point in itertools.product(range(-shell, shell + 1), repeat=dim):
         if max(map(abs, point)) != shell:
@@ -143,6 +193,14 @@ def test_direct_shell_against_cartesian_sum(spherical, dim):
         else lattice.dsumcw(dim, order, k, q, a, r, shell)
     )
     assert_allclose(actual, expected, rtol=2e-12, atol=2e-12)
+    # Finite direct shells also retain the joint length-scaling identity outside
+    # the supported Ewald domain.
+    scaled = (
+        lattice.dsumsw(dim, degree, order, k / 1.7, q / 1.7, a * 1.7, r * 1.7, shell)
+        if spherical
+        else lattice.dsumcw(dim, order, k / 1.7, q / 1.7, a * 1.7, r * 1.7, shell)
+    )
+    assert_allclose(actual, scaled, rtol=2e-12, atol=2e-12)
 
 
 @pytest.mark.physics
