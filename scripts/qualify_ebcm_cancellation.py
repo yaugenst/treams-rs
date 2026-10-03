@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12,<3.14"
-# dependencies = ["numpy", "mpmath", "treams==0.4.5"]
+# dependencies = ["numpy", "mpmath", "treams==0.4.7"]
 # ///
 """Diagnose the degree-6 m=0 EBCM cancellation floor without relaxing benchmarks.
 

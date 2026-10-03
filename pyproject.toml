@@ -1,128 +1,190 @@
 [build-system]
-requires = ["maturin>=1.12,<2"]
+requires = [ "maturin>=1.12,<2" ]
 build-backend = "maturin"
 
 [project]
 name = "treams-rs"
-dynamic = ["version"]
+dynamic = [ "version" ]
 description = "T-matrix scattering with a Rust numerical core and native pullbacks"
 readme = "README.md"
+# treams-rs's own code is MIT. Binary wheels also statically link Rust crates
+# under Apache-2.0 (nalgebra, simba, approx) and BSD-2-Clause (numpy, atomic-wait),
+# the Rust standard library (MIT and Unicode-3.0), and other crates under their
+# MIT option; their texts ship in THIRD_PARTY_LICENSES.txt and RUST_STDLIB_*.
+# maturin writes one expression for the sdist and wheels, so it names the
+# project's license, as numpy does for bundled build-time dependencies.
 license = "MIT"
-license-files = ["LICENSE", "LICENSE.treams", "LICENSE.xsf", "THIRD_PARTY_NOTICES.md"]
-authors = [{ name = "treams-rs contributors" }]
-keywords = ["t-matrix", "electromagnetics", "scattering", "photonics", "autodiff"]
-requires-python = ">=3.12,<3.14"
-dependencies = ["numpy>=2.1,<3"]
-# No license classifier: `license` is an SPDX expression.
+license-files = [
+  "LICENSE",
+  "LICENSE.treams",
+  "THIRD_PARTY_NOTICES.md",
+  "THIRD_PARTY_LICENSES.txt",
+  "RUST_STDLIB_COPYRIGHT.html",
+  "RUST_STDLIB_LICENSE_MIT.txt",
+  "RUST_STDLIB_LICENSE_UNICODE_3_0.txt",
+]
+requires-python = ">=3.12,<3.16"
+authors = [ { name = "Yannick Augenstein" } ]
+keywords = [
+  "t-matrix",
+  "electromagnetic-scattering",
+  "mie-scattering",
+  "multiple-scattering",
+  "nanophotonics",
+  "metasurfaces",
+  "vector-spherical-waves",
+  "automatic-differentiation",
+]
+# NumPy is capped at the newest minor the CI NumPy matrix tests, as in Advect.
+dependencies = [ "numpy>=2.1,<2.6" ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Science/Research",
-    "Operating System :: POSIX :: Linux",
-    "Operating System :: MacOS",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Programming Language :: Rust",
-    "Topic :: Scientific/Engineering :: Physics",
-    "Typing :: Typed",
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Rust",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Typing :: Typed",
 ]
 
 [project.urls]
-Homepage = "https://yaugenst.github.io/treams-rs"
-Repository = "https://github.com/yaugenst/treams-rs"
-Documentation = "https://yaugenst.github.io/treams-rs"
+Documentation = "https://yaugenst.github.io/treams-rs/latest/"
 Issues = "https://github.com/yaugenst/treams-rs/issues"
+Repository = "https://github.com/yaugenst/treams-rs"
 Changelog = "https://github.com/yaugenst/treams-rs/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
-advect = ["advect>=0.2.0,<0.3"]
-jax = ["jax>=0.9,<0.10"]
-torch = ["torch>=2.7,<3"]
+advect = [ "advect>=0.2.0,<0.4" ]
+jax = [ "jax>=0.9,<0.12" ]
+torch = [ "torch>=2.7,<3" ]
+# h5py 3.11 is the first release whose wheels are built for NumPy 2.
 io = [
-    "h5py>=3,<4",
+  "h5py>=3.11,<4",
 ]
 
 [dependency-groups]
 dev = [
-    "advect>=0.2.0,<0.3",
-    "maturin>=1.12,<2",
-    "pre-commit>=4",
-    "pyrefly>=1.1.1",
-    "pytest>=8.3",
-    "hypothesis>=6",
-    "ruff>=0.15.7",
-    "scipy>=1.14,<1.17",
-    "treams==0.4.5",
-    "threadpoolctl>=3.6",
-    "h5py>=3,<4",
-    "matplotlib>=3.9,<4",
-    "mpmath>=1.3,<2",
-    "pyyaml>=6",
+  "advect>=0.2.0,<0.4",
+  "maturin>=1.15,<2",
+  # The benchmark plot tests render scripts/plot_benchmarks.py figures.
+  "matplotlib>=3.9,<4",
+  # Cluster-conditioning references; SymPy 1.14 (a torch dependency) needs < 1.4.
+  "mpmath>=1.3,<1.4",
+  "pre-commit>=4.6,<5",
+  "pyrefly>=1.3.2",
+  "pytest>=9.1",
+  "pytest-cov>=7.1,<8",
+  # Release artifact tests read the release workflows.
+  "pyyaml>=6",
+  "hypothesis>=6.168.3",
+  "ruff>=0.16.10",
+  # The upstream treams oracle supports CPython < 3.14 and caps SciPy below 1.17;
+  # tests/conftest.py skips oracle test modules where it is unavailable.
+  "scipy>=1.16,<1.17; python_version < '3.14'",
+  "scipy>=1.18,<2; python_version >= '3.14'",
+  "treams==0.4.7; python_version < '3.14'",
+  "threadpoolctl>=3.7",
+  # h5py publishes no CPython 3.15 wheels yet.
+  "h5py>=3.11,<4; python_version < '3.15'",
 ]
 docs = [
-    "mkdocs>=1.6,<2",
-    "mkdocs-material>=9.7,<10",
-    "pymdown-extensions>=10,<13",
+  # click 8.3.3 fixes boolean flag defaults such as `mkdocs serve --livereload`.
+  "click>=8.3.3",
+  "mike>=2.2",
+  "mkdocs>=1.6.1,<2",
+  "mkdocs-material>=9.7,<10",
+  "pygments>=2.19",
+  "pymdown-extensions>=11,<13",
 ]
 
 [tool.maturin]
 manifest-path = "crates/treams-py/Cargo.toml"
-features = ["extension-module"]
+features = [ "extension-module" ]
 locked = true
 python-source = "python"
 module-name = "treams_rs._native"
+# Agent routing notes are repository guidance, never distributed package content.
+exclude = [ "**/AGENTS.md" ]
 
 [tool.maturin.sbom]
 # Generated local-package identifiers embed build paths; retain Cargo.lock as provenance.
 rust = false
 
 [tool.uv]
-required-version = "==0.12.3"
+required-version = "==0.12.22"
 
 [tool.ruff]
 target-version = "py312"
 line-length = 88
-extend-exclude = ["benchmarks/results"]
+extend-exclude = [ "reference", "benchmarks/results" ]
 
 [tool.ruff.lint]
-select = ["F", "E", "W", "I", "N", "UP", "B", "A", "PLW1508", "RET504", "S310", "S506", "SIM", "TCH", "RUF", "NPY", "PERF"]
-ignore = ["E501"]
+select = [
+  "F",
+  "E",
+  "W",
+  "I",
+  "N",
+  "UP",
+  "B",
+  "A",
+  "PLW1508",
+  "RET504",
+  "S310",
+  "S506",
+  "SIM",
+  "TCH",
+  "RUF",
+  "NPY",
+  "PERF",
+]
+ignore = [ "E501" ]
 
 [tool.ruff.lint.per-file-ignores]
 # upstream treams names: mixed-case special functions and the degree argument l
-"python/treams_rs/_native.pyi" = ["N802", "N816"]
-"python/treams_rs/coeffs.py" = ["E741"]
-"python/treams_rs/cw.py" = ["E741"]
-"python/treams_rs/lattice.py" = ["E741"]
-"python/treams_rs/pw.py" = ["E741"]
-"python/treams_rs/special.py" = ["N816"]
-"python/treams_rs/sw.py" = ["E741"]
+"python/treams_rs/_native.pyi" = [ "N802", "N816" ]
+"python/treams_rs/coeffs.py" = [ "E741" ]
+"python/treams_rs/cw.py" = [ "E741" ]
+"python/treams_rs/lattice.py" = [ "E741" ]
+"python/treams_rs/pw.py" = [ "E741" ]
+"python/treams_rs/special.py" = [ "N816" ]
+"python/treams_rs/sw.py" = [ "E741" ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["treams_rs"]
+known-first-party = [ "treams_rs" ]
 # tests/ is on sys.path under pytest's default prepend import mode.
-known-local-folder = ["_scripts", "_support"]
+known-local-folder = [ "_scripts", "_support" ]
 
 [tool.pyrefly]
 python-version = "3.12"
-project-includes = ["python"]
-search-path = ["python"]
+project-includes = [
+  "python",
+  "scripts/_support/release_artifacts.py",
+  "scripts/assemble_release_artifacts.py",
+  "scripts/check_source_distribution.py",
+  "scripts/dependency_minimums.py",
+  "scripts/smoke_wheel_install.py",
+  "scripts/wheel_build_paths.py",
+]
+search-path = [ "python", "scripts" ]
 preset = "strict"
 
+[tool.coverage.run]
+# Measure `python -m treams_rs` and the other subprocesses the tests start.
+patch = [ "subprocess" ]
+
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = [ "tests" ]
 addopts = "--strict-config --strict-markers -ra"
-# Warnings fail the suite. The only exceptions are known deprecations raised by
-# the pinned upstream oracle (treams==0.4.5), never by treams_rs itself:
-# - treams._operators calls masked ufuncs with `where=` and then zeroes the
-#   excluded entries explicitly;
-# - upstream special functions call SciPy's deprecated `sph_harm`. treams_rs never
-#   imports SciPy; the compiled upstream ufuncs attribute the warning to the
-#   calling test module, so this entry is scoped by its exact message.
-filterwarnings = [
-    "error",
-    "ignore:'where' used without 'out':UserWarning:treams\\._operators",
-    "ignore:`scipy\\.special\\.sph_harm` is deprecated:DeprecationWarning",
-]
+filterwarnings = [ "error" ]
 xfail_strict = true
 # Markers: tests/conftest.py registers the test categories (CATEGORIES).

@@ -1,17 +1,7 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
 # Keep local build paths out of distributed binaries, including dependency panics.
-export CARGO_ENCODED_RUSTFLAGS := ```
-    python3 - <<'PY'
-    import os
-    from pathlib import Path
-    flags = os.environ.get("CARGO_ENCODED_RUSTFLAGS", "\x1f".join(os.environ.get("RUSTFLAGS", "").split())).split("\x1f")
-    for path in (Path.home(), os.environ.get("CARGO_HOME"), os.environ.get("RUSTUP_HOME"), Path.cwd()):
-        if path:
-            flags.append(f"--remap-path-prefix={Path(path).resolve()}=/build")
-    print("\x1f".join(filter(None, flags)))
-    PY
-    ```
+export CARGO_ENCODED_RUSTFLAGS := `python3 scripts/wheel_build_paths.py rustflags`
 
 build-ext:
     uv run --no-sync maturin develop -m crates/treams-py/Cargo.toml
@@ -45,7 +35,7 @@ dependency-lock-check:
     cargo metadata --locked --format-version 1 --no-deps > /dev/null
 
 file-hygiene:
-    uv run --no-sync pre-commit run --all-files --hook-stage manual
+    uv run --no-sync pre-commit run --all-files --hook-stage manual --show-diff-on-failure
 
 check: file-hygiene dependency-lock-check rust-fmt-check rust-lint py-format-check py-lint py-types docs-check
 
@@ -97,7 +87,25 @@ build-wheel:
     uv run --no-sync maturin build --release --locked --out dist
 
 check-wheel: build-wheel
-    uv run --no-sync python scripts/check_wheel.py
+    #!/usr/bin/env bash
+    set -euo pipefail
+    wheel="$(ls -t dist/treams_rs-*.whl | head -n 1)"
+    uv run --no-sync python scripts/wheel_build_paths.py check "$wheel"
+    environments="$(mktemp -d "${TMPDIR:-/tmp}/treams-wheel-XXXXXX")"
+    trap 'rm -rf "$environments"' EXIT
+    for profile in base advect io; do
+        python="$environments/$profile/bin/python"
+        uv venv --quiet --python .venv/bin/python "$environments/$profile"
+        dependencies=(--only-binary :all: -r pyproject.toml)
+        requirement="$wheel"
+        if [[ "$profile" != "base" ]]; then
+            dependencies+=(--extra "$profile")
+            requirement="$wheel[$profile]"
+        fi
+        uv pip install --quiet --python "$python" "${dependencies[@]}"
+        uv pip install --quiet --python "$python" --no-index "$requirement"
+        "$python" scripts/smoke_wheel_install.py "$profile"
+    done
 
 # Hosted CI CPUs are shared; run on an otherwise idle performance host.
 # Rerun recorded gated reference benchmarks into benchmarks/results/local.
@@ -122,6 +130,18 @@ bench-power: (bench "power")
 # Every recorded gated reference case, sequentially on the same idle CPU set.
 bench-all: (bench "all")
 
-# Compare this checkout's Python sources with those of a git ref, call by call, on one native build.
+# Compare this checkout's Python sources with those of a git ref on one native build.
 bench-compare ref="main" *args: build-ext-release
     uv run --no-sync python scripts/compare_builds.py --baseline-ref "{{ ref }}" {{ args }}
+
+# Regenerate the distribution license bundle after dependencies change.
+licenses:
+    cargo fetch --locked
+    uv run --no-sync python scripts/third_party_licenses.py
+
+licenses-check:
+    cargo fetch --locked
+    uv run --no-sync python scripts/third_party_licenses.py --check
+
+deny:
+    cargo deny --all-features check -W unmaintained

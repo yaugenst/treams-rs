@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["numpy>=2.1", "scipy>=1.14,<1.17", "treams==0.4.5"]
+# dependencies = ["numpy>=2.1", "scipy>=1.16,<1.17", "treams==0.4.7"]
 # ///
 """Recompute author-provided optical spectra with the installed Rust extension.
 

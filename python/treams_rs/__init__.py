@@ -82,6 +82,7 @@ focused help; ``python -m treams_rs --search cross`` lists matching names.
 """
 
 from importlib import import_module as _import_module
+from importlib.metadata import version as _version
 from types import ModuleType as _ModuleType
 
 from . import (
@@ -141,6 +142,8 @@ from ._waves import (
     spherical_wave,
 )
 from .parallel import get_num_threads, set_num_threads, thread_info, threads
+
+__version__ = _version("treams-rs")
 
 __all__ = [
     "BandModes",

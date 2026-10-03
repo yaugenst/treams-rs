@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["numpy", "treams==0.4.5", "threadpoolctl"]
+# dependencies = ["numpy", "treams==0.4.7", "threadpoolctl"]
 # ///
 """Full real-coordinate gradients: upstream centered differences versus native VJPs.
 

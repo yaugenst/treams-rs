@@ -16,7 +16,7 @@ categories.workspace = true
 
 [lib]
 name = "_native"
-crate-type = ["cdylib"]
+crate-type = [ "cdylib" ]
 
 [dependencies]
 faer.workspace = true
@@ -28,7 +28,7 @@ numpy.workspace = true
 pyo3.workspace = true
 
 [features]
-extension-module = ["pyo3/extension-module"]
+extension-module = [ "pyo3/extension-module" ]
 
 [lints]
 workspace = true

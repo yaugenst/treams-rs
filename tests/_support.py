@@ -11,7 +11,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-import treams
 from hypothesis import strategies as st
 from hypothesis.extra import numpy as hnp
 from numpy.testing import assert_allclose
@@ -330,6 +329,8 @@ _TREAMS_CLASS = {
 def to_oracle(basis, modes=None):
     """The upstream basis with the geometry of a native ``basis`` and optionally
     other ``modes``."""
+    import treams
+
     cls = getattr(treams, _TREAMS_CLASS[type(basis).__name__])
     modes = basis.modes if modes is None else modes
     if isinstance(basis, tr.SphericalBasis | tr.CylindricalBasis):

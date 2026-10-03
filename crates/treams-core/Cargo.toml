@@ -16,7 +16,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-faer = { workspace = true, features = ["rayon"] }
+faer = { workspace = true, features = [ "rayon" ] }
 rayon.workspace = true
 complex-bessel.workspace = true
 errorfunctions.workspace = true
@@ -26,7 +26,7 @@ num-complex.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-proptest = { version = "1", default-features = false, features = ["std", "bit-set"] }
+proptest = { version = "1", default-features = false, features = [ "std", "bit-set" ] }
 
 [lints]
 workspace = true

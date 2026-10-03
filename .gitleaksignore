@@ -1,0 +1,2 @@
+# generic-api-key false positive: a Git commit SHA recorded as benchmark provenance.
+357153477cabe98cae9382b1441663dd5eab9814:benchmarks/agent-api/original-api-comparison.json:generic-api-key:4

@@ -816,10 +816,14 @@ def ffield(
     """
     poltype = resolve_poltype(poltype)
     if poltype == "helicity":
-        ks = ad.numpy.asarray(ks)
+        weights = ad.numpy.asarray(ks)
         coefficients = (
-            ad.numpy.asarray(coefficients) * 2 * ks[basis.pol] / ad.numpy.sum(ks)
+            ad.numpy.asarray(coefficients)
+            * 2
+            * weights[basis.pol]
+            / ad.numpy.sum(weights)
         )
+        ks = weights
     return gfield(
         pol,
         coefficients,

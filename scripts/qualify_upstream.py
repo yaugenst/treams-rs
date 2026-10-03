@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["numpy>=2.1", "treams==0.4.5", "threadpoolctl"]
+# dependencies = ["numpy>=2.1", "treams==0.4.7", "threadpoolctl"]
 # ///
 """Record numerical residuals from the existing benchmark's reference check.
 

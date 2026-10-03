@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["numpy", "treams==0.4.5", "threadpoolctl", "mpmath>=1.3"]
+# dependencies = ["numpy", "treams==0.4.7", "threadpoolctl", "mpmath>=1.3"]
 # ///
 """Isolated-process, matched-thread benchmarks of scattering and fields.
 

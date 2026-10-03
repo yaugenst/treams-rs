@@ -9,3 +9,5 @@ __pycache__/
 .ruff_cache/
 .hypothesis/
 /benchmarks/results/local/
+.coverage
+coverage.xml

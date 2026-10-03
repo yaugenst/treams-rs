@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["numpy>=2.1"]
+# ///
 """Native results for callers that flush subnormals, compared with IEEE callers.
 
 XLA flushes subnormals to zero (FTZ/DAZ) on the thread that runs a computation,
@@ -23,7 +27,7 @@ Other array bindings, such as those of T-matrices, fields, EBCM, cylinders,
 illuminations and channels, are not compared here.
 
 ``tests/bindings/test_float_environment.py`` runs the check on the build under test and
-``scripts/check_wheel.py`` on the release wheel; it needs only NumPy and the
+``scripts/smoke_wheel_install.py`` on the release wheel; it needs only NumPy and the
 extension. Operands are built before the flushing call: arithmetic on the
 flushing thread would flush them.
 """
