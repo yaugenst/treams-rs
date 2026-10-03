@@ -11,7 +11,7 @@ description: treams workflows next to their treams-rs equivalents, the concept m
     which treams calls `SMatrix`. `tr.SMatrices` raises an `AttributeError`
     that names `SMatrix`.
 
-treams-rs follows the numerical [conventions](conventions.md) of treams 0.4.5.
+treams-rs follows the numerical [conventions](conventions.md) of treams 0.4.7.
 The Python API offers two ways to work:
 
 - **Numerical namespaces.** `special`, `sw`, `cw`, `pw`, `lattice`, `coeffs`,
@@ -305,7 +305,7 @@ the three Cartesian components of the electric field.
 | `Lattice`, `WaveVector` | `Lattice`, `WaveVector` | Periodic objects carry their lattice and Bloch vector. |
 | `special`, `sw`, `cw`, `pw`, `lattice`, `coeffs`, `misc`, `ebcm`, `io` | the same module names | Same functions and arguments; see [differences](differences.md). |
 | none | `iterative.SphereCluster` | Matrix-free solves for homogeneous nonmagnetic spheres in vacuum; see [large clusters](../guide/large-clusters.md). |
-| none | `diff`, `advect`, `jax`, `torch` | Gradients of the numerical functions and physics objects; see [Differentiation](../differentiation/index.md). |
+| none | the ordinary API with Advect, JAX, PyTorch or HIPS Autograd inputs; `diff` and the `advect`, `jax`, `torch` and `autograd` namespaces for records | Gradients of the numerical functions and physics objects; see [Differentiation](../differentiation/index.md). |
 
 ## Pitfalls
 
@@ -330,6 +330,8 @@ the three Cartesian components of the electric field.
   or 1 of a mode; `polarization` is the convention, `"helicity"` or `"parity"`.
 - **`k0` is required.** Waves and factories need `k0=`; no object takes it from
   another.
-- **treams member names still work.** `xs`, `changepoltype`, `poltype`,
-  `modetype`, `illuminate`, `add` and the other treams names call the treams-rs
-  member. The [name map](names.md) lists each one.
+- **treams member names still work on NumPy objects.** `xs`, `changepoltype`,
+  `poltype`, `modetype`, `illuminate`, `add` and the other treams names call the
+  treams-rs member. The [name map](names.md) lists each one; objects built from
+  framework values lack some of them
+  ([limits](../differentiation/frameworks.md#limits)).

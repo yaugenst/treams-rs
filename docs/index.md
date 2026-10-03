@@ -24,7 +24,7 @@ linear map from the multipole coefficients of an incident wave to those of the
 scattered wave.
 
 treams-rs follows the numerical conventions of
-[treams](https://github.com/tfp-photonics/treams) 0.4.5 and keeps its numerical
+[treams](https://github.com/tfp-photonics/treams) 0.4.7 and keeps its numerical
 modules (`special`, `sw`, `cw`, `pw`, `lattice`, `coeffs`, `misc`, `ebcm`,
 `io`) with the same function names. Its Python interface differs;
 [Coming from treams](coming-from-treams/index.md) shows the corresponding

@@ -21,7 +21,9 @@ The 0.1.0 core wheel targets are:
 | Windows | x86-64 |
 
 Installing a wheel needs no Rust toolchain. NumPy is the only required
-runtime dependency.
+runtime dependency. The treams-rs wheels need glibc 2.17, but NumPy 2.3 and
+newer publish Linux wheels only for glibc 2.27 or newer. With an older glibc,
+use CPython 3.12 or 3.13 and `pip install treams-rs "numpy<2.3"`.
 
 ## Optional packages
 
@@ -45,7 +47,8 @@ If a supported framework is already installed, no extra installation or
 backend-specific treams-rs import is needed. Use `import treams_rs as tr` and
 pass its arrays or traced values to the ordinary API. Python and NumPy values
 keep the NumPy path. See [framework support](../differentiation/frameworks.md)
-for dtypes and supported transforms.
+for dtypes and supported transforms. JAX and PyTorch publish no Intel macOS
+(`x86_64`) wheels; use the `advect` or `autograd` extra there.
 
 For 0.1.0, use CPython 3.12–3.14 with the `torch` or `io` extras. The
 CPython 3.15 release matrix excludes their standard PyPI installs because

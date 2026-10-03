@@ -4,9 +4,9 @@ description: Measured speed and memory against treams 0.4.5, with methods and ca
 
 # Performance
 
-In the recorded Linux reference grid, treams-rs is faster than treams 0.4.5 in
-every case, with a median speedup of 5.12× and a median of 0.66 times the peak
-memory.
+In the recorded Linux broad grid of 527 cases, treams-rs is faster than treams
+0.4.5 in every case, with a median speedup of 5.12× and a median of 0.66 times
+the peak memory.
 The [evidence provenance](evidence.md#evidence-provenance) table gives the
 date, source commit, host and raw files of each set of measurements.
 

@@ -4,12 +4,12 @@ description: Implemented physics, derivatives and limits, compared with treams.
 
 # Capabilities
 
-treams-rs implements the numerical functions of treams 0.4.5 in Rust, at the
+treams-rs implements the numerical functions of treams 0.4.7 in Rust, at the
 treams commit named on the [conventions](../coming-from-treams/conventions.md)
 page. treams-rs never calls treams, SciPy or Cython at run time. Its Python API
 is built around physical objects and does not copy the treams source API.
 [Differences from treams](../coming-from-treams/differences.md) lists the
-results that differ on purpose, including defects of treams 0.4.5.
+results that differ on purpose, including defects of treams 0.4.7.
 
 The treams inventory has 182 public functions and classes across the package and
 its numerical, configuration and I/O modules. Matching those names checks

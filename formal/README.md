@@ -29,6 +29,6 @@ just formal
 Run it from the repository root. It downloads the prebuilt Mathlib cache, checks
 every proof with warnings as errors, and checks that `golden/` matches the models.
 
-The [formal proofs page](https://yaugenst.github.io/treams-rs/design/formal-proofs/)
+The [formal proofs page](https://yaugenst.github.io/treams-rs/latest/design/formal-proofs/)
 lists each Rust item with its Lean file and theorems, the tests that compare the
 Rust code with the models, and what the proofs do not cover.

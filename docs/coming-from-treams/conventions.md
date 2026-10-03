@@ -160,7 +160,7 @@ Bessel and Hankel functions in `special` take any finite order.
 
 ## Reference version
 
-treams-rs follows treams 0.4.5 at commit
+treams-rs follows treams 0.4.7 at commit
 [`1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39`](https://github.com/tfp-photonics/treams/tree/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39)
-(2026-08-24). The tests compare with this version, and the
-[differences page](differences.md) describes it.
+(2026-08-24), one documentation commit after the v0.4.7 tag. The tests compare
+with treams 0.4.7, and the [differences page](differences.md) describes it.

@@ -6,9 +6,10 @@ description: Differentiate the ordinary API with Advect, JAX, PyTorch or HIPS Au
 
 Use `import treams_rs as tr` with Advect, JAX, PyTorch or
 [HIPS Autograd](https://github.com/HIPS/autograd). Framework arrays and traced
-values select their adapter automatically, so the framework differentiates a
-whole objective through the ordinary API. Rust supplies analytic derivatives
-at native boundaries through the records of [Differentiation](index.md);
+values select their adapter automatically, so an objective written with the
+ordinary API differentiates within the [limits](#limits) below. Rust supplies
+analytic derivatives at native boundaries through the records of
+[Differentiation](index.md);
 shared array operations stay in the selected framework. The adapters add no
 finite-difference derivatives. [Advect](https://yaugenst.github.io/advect/) and HIPS
 Autograd differentiate NumPy-style code.
@@ -387,6 +388,15 @@ the adapter converts cotangents and gradients at the native boundary. Its
 - Differentiated numerical calls do not support mutable `out`, masked `where`
   or ufunc methods such as `reduce`. Apply the framework's array operations to
   the returned values instead.
+- With traced inputs, physics objects have only the members listed under
+  [physical objects](#physical-objects) and in the framework references, such
+  as [`treams_rs.torch`](../reference/python/torch.md). These members exist only
+  on NumPy objects: `SMatrix.circular_dichroism`, `transfer_matrix`, `rotate`,
+  `translate`, `permute`, `double`, `block` and the treams names `tr`, `cd`,
+  `illuminate`, `add`, `periodic`, `bands_kz`, `changepoltype`, `poltype` and
+  `material`; `TMatrix.select`, `permute`, `expand`, `expandlattice`,
+  `valid_points` and `modetype`; `Wave.changepoltype` and `expand`;
+  `PlaneWave.basis`, `kvecs` and `expand`.
 
 Cutoffs, discrete labels and topology stay fixed. Eigenvalue crossings,
 diffraction thresholds and the polarization axis have no smooth derivative;

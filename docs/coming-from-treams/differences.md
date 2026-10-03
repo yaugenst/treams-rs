@@ -1,10 +1,10 @@
 ---
-description: Where treams-rs and treams 0.4.5 give different results, why, and the tests that show it.
+description: Where treams-rs and treams 0.4.7 give different results, why, and the tests that show it.
 ---
 
-# Differences from treams 0.4.5
+# Differences from treams 0.4.7
 
-The comparison point is treams 0.4.5 at the
+The comparison point is treams 0.4.7 at the
 [reference commit](conventions.md#reference-version); later treams versions may
 differ. Three entries are also treams issues:
 [skew-cell diffraction orders (#14)](https://github.com/tfp-photonics/treams/issues/14),
@@ -86,7 +86,7 @@ independent reference.
   docstring calls it absorption CD. `SMatrix.circular_dichroism` keeps the
   formula and names the value `outgoing_power`.
 
-## Defects in treams 0.4.5 {#behavioral-defects}
+## Defects in treams 0.4.7 {#behavioral-defects}
 
 | Finding | Evidence and impact | Tests |
 | --- | --- | --- |
@@ -99,8 +99,7 @@ independent reference.
 | Direct spherical 1D axis shortcut | `dsumsw1d_shift` tests y = z = 0 and treats x as an axial displacement, although its lattice runs along z. With l = 2, m = -1, k = 2.1+0.2i, kpar = 0.13, a = 1.7, r = (0.2, 0, 0) and shell 2, treams returns zero instead of -0.00110290923-0.00270676694i. The scalar 1D half-cell branch also discards the sign of negative shifts, which breaks the reflection symmetry. treams-rs pairs equidistant images in half-cell shells and keeps the shift and Bloch phase; at exactly half a cell the grouping changes, so the sum has no derivative there. | [Direct-shell tests](../../tests/lattice/test_lattice_decomposition.py) compare with independent Cartesian shell sums and check the reflection at negative half cells. |
 | HDF5 embedding chirality is lost | `save_hdf5` writes `embedding/chirality` and `load_hdf5` reads `embedding/chirality_parameter`. A medium with kappa = 0.08 reloads with kappa = 0. treams-rs writes hard links to one dataset under both names. | [HDF5 tests](../../tests/api/test_io.py) check chirality round trips and the treams names; see the [reproducer](#hdf5-reproducer). |
 | HDF5 single-matrix save fails | Passing one `TMatrix` to `save_hdf5` raises `IndexError`: it slices a zero-dimensional object array with `[:]`. Passing `[tm]` avoids the error. | In the [reproducer](#hdf5-reproducer), replace `[tm]` with `tm`. `test_hdf5_single_matrix_and_path` checks the single-matrix case in treams-rs. |
-| HDF5 positions and local-mode indices | The treams loader discards positions when it forms the union of the incident and scattered bases: a position (0.7, 0.2, 0.1) reloads as (0, 0, 0). Its writer and reader also disagree on the name of the local-mode index (`pidx` against `position_index`), so files with several positions can fail to load. | [HDF5 tests](../../tests/api/test_io.py) cover several positions, the treams index names, rectangular mode sets and unit conversion. treams reads treams-rs files of global matrices at the origin; its local-basis union fails even with corrected index names. |
-| Multi-direction parity interface | `SMatrices.interface` applies a fixed 2-by-2 polarization mask to an N-by-N matrix. For the transverse directions (0.2, 0.1) and (-0.3, 0.5), k0 = 1.7 and materials [1, 2.5], the parity construction raises `IndexError` (mask axis 2 against matrix axis 4). | `test_slab_reference` in [S-matrix tests](../../tests/smatrix/test_smatrix.py) compares the treams-rs parity construction with the treams helicity construction followed by a polarization change, also for several directions. |
+| HDF5 positions and local-mode indices | The treams loader discards positions when it forms the union of the incident and scattered bases: a position (0.7, 0.2, 0.1) reloads as (0, 0, 0). Its writer and reader also disagree on the name of the local-mode index (`index` against `position_index`), so files with several positions can fail to load. | [HDF5 tests](../../tests/api/test_io.py) cover several positions, the treams index names, rectangular mode sets and unit conversion. treams reads treams-rs files of global matrices at the origin; its local-basis union fails even with corrected index names. |
 | Plane-wave chirality interval | For one propagating vacuum wave with transverse k = (0.2, 0.3) and k0 = 1.3, the positive-helicity coefficient must stay 2 under averaging. treams returns 2 on z = (0, 0), 2.56210 on (0, 1) and 4.83423 on (0, 2): its hyperbolic average uses Re(kz) instead of Im(kz). It also drops the complex up/down interference phase for shifted intervals and ignores the position of a zero-width interval. | `test_chirality_interval_average_is_invariant_unlike_upstream` and the other [chirality-density tests](../../tests/smatrix/test_chirality_density.py) check direct Cartesian E/H quadrature, single-wave invariance, interval additivity and the gradients with respect to k, the normal and the endpoints. |
 | EBCM radial area factor | `ebcm.qmat` uses `sin(theta) * [r, -dr, 0]`; the surface element needs another factor r. For r = 0.3 (1 + 0.23 cos²(theta)), lossless eps = 3.1, kappa = 0.07 and k0 = 1.3, max abs(SᴴS - I) stays about 0.00135 at degrees 2, 4 and 6. With the factor it is 6.39e-6, 2.02e-7 and 1.22e-8. With equal vacuum inside and outside, degree 2 gives a spurious max abs(T) = 5.88e-4; the corrected integral gives 8.41e-18. | [EBCM tests](../../tests/tmatrix/test_ebcm.py) cover sphere/Mie agreement, lossless convergence, Hypothesis checks at zero contrast and both gradients. The default includes r; `radial_area_factor=False` reproduces treams. |
 | Complex plane-wave branch | For k = (0.2+i, 0.1+0.3i, 1.3-0.8i), an extra principal square root in the angular coefficients can disagree with the branch of the Cartesian polarization. Reconstructed fields differ by about 1.25 on the recorded samples; the treams-rs expansion is accurate to about 1e-13. | `test_complex_transverse_branch_reconstruction_and_gradient` in [plane-expansion tests](../../tests/plane/test_plane_expansion.py). |
@@ -287,7 +286,7 @@ each sphere.
 
 ## HDF5 reproducer
 
-Run with treams 0.4.5 and h5py installed. The file stays in memory.
+Run with treams 0.4.7 and h5py installed. The file stays in memory.
 
 ```python no-exec
 import h5py
