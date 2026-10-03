@@ -78,20 +78,25 @@ def _site() -> dict:
     return yaml.safe_load((ROOT / "mkdocs.yml").read_text(encoding="utf-8"))
 
 
-def _front_matter(page: str) -> dict:
-    if not (DOCS / page).is_file():
-        return {}
-    match = FRONT_MATTER.match((DOCS / page).read_text(encoding="utf-8"))
+def _page_source(page: str, generated: dict[Path, str] | None = None) -> str:
+    path = DOCS / page
+    if generated is not None and path in generated:
+        return generated[path]
+    return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+
+def _front_matter(page: str, generated: dict[Path, str] | None = None) -> dict:
+    match = FRONT_MATTER.match(_page_source(page, generated))
     return (yaml.safe_load(match["yaml"]) or {}) if match else {}
 
 
-def _heading(page: str) -> str | None:
-    text = FRONT_MATTER.sub("", (DOCS / page).read_text(encoding="utf-8"), count=1)
+def _heading(page: str, generated: dict[Path, str] | None = None) -> str | None:
+    text = FRONT_MATTER.sub("", _page_source(page, generated), count=1)
     match = re.search(r"^# (.+)$", text, re.M)
     return match[1].strip() if match else None
 
 
-def nav_pages() -> list[tuple[str, str, str]]:
+def nav_pages(generated: dict[Path, str] | None = None) -> list[tuple[str, str, str]]:
     """``(section, title, path)`` of every nav page, in nav order.
 
     The title is the nav label, else the page's first H1. A top-level page
@@ -108,7 +113,7 @@ def nav_pages() -> list[tuple[str, str, str]]:
             if isinstance(value, list):
                 walk(value, section or label)
                 continue
-            heading = _heading(value) if (DOCS / value).is_file() else None
+            heading = _heading(value, generated)
             title = label or heading or value
             pages.append((section or title, title, value))
 
@@ -116,7 +121,7 @@ def nav_pages() -> list[tuple[str, str, str]]:
     return pages
 
 
-def _llms(version: str) -> str:
+def _llms(version: str, generated: dict[Path, str] | None = None) -> str:
     lines = [
         "# treams-rs",
         "",
@@ -135,11 +140,11 @@ def _llms(version: str) -> str:
         "`treams_rs.support_catalog()` never imports optional frameworks.",
     ]
     section = None
-    for name, title, page in nav_pages():
+    for name, title, page in nav_pages(generated):
         if name != section:
             lines += ["", f"## {name}", ""]
             section = name
-        description = _front_matter(page).get("description", "")
+        description = _front_matter(page, generated).get("description", "")
         lines.append(f"- [{title}](docs/{page}): {description}")
     return "\n".join([*lines, ""])
 
@@ -350,7 +355,7 @@ def generated_files() -> dict[Path, str]:
         text = path.read_text(encoding="utf-8")
         if path not in files and REGION.search(text):
             files[path] = fill_regions(text, regions)
-    files[ROOT / "llms.txt"] = _llms(catalog["version"])
+    files[ROOT / "llms.txt"] = _llms(catalog["version"], files)
     return files
 
 

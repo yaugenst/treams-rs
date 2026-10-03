@@ -15,7 +15,7 @@ Use `--format json` or `--format markdown` for the complete source-derived catal
 
 ## Getting started
 
-- [Install](docs/getting-started/install.md): Install treams-rs from GitHub with the Rust toolchain, choose extras for gradients and HDF5, and set the thread count.
+- [Install](docs/getting-started/install.md): Install treams-rs from PyPI, choose extras for gradients and HDF5, build from source, and set the thread count.
 - [Quickstart](docs/getting-started/quickstart.md): Four short runnable examples, a sphere, a cluster, a periodic array and a slab stack, each with a check.
 
 ## Coming from treams
@@ -35,6 +35,7 @@ Use `--format json` or `--format markdown` for the complete source-derived catal
 - [Planar layers and S-matrices](docs/guide/planar.md): Interfaces, slabs and stacks as S-matrices, with named power, scattered waves, blocks and band structures.
 - [Numerical namespaces](docs/guide/numerical-namespaces.md): The numerical namespaces special, sw, cw, pw, lattice, coeffs, misc, ebcm and operators, with one checked example each.
 - [HDF5 and Gmsh](docs/guide/io.md): Save and load T-matrices in HDF5 files of the tmat.h5 format and mesh spheres with Gmsh.
+- [Threads and process pools](docs/guide/threads.md): How many CPU threads treams-rs uses, how to change it, and how it works with process pools, threadpoolctl and other thread pools.
 - [API discovery](docs/guide/api-discovery.md): Find functions, signatures and gradient contexts offline with python -m treams_rs, support_catalog() and llms.txt.
 
 ## Examples
@@ -72,6 +73,7 @@ Use `--format json` or `--format markdown` for the complete source-derived catal
 - [Framework adapters](docs/design/adapters.md): How the Advect, JAX and PyTorch adapters share the physics classes, one native call per operation and static configuration.
 - [Floating-point environment](docs/design/floating-point.md): How native results stay independent of the flush-to-zero modes that JAX and PyTorch set, and how that is tested.
 - [Numerical choices](docs/design/numerics.md): Numerical choices of the Rust core - equilibrated LU, LU worker counts, Wigner 3j, Ewald sums, branches, EBCM and parallel thresholds.
+- [Parallelism](docs/design/parallelism.md): The thread pool that treams-rs owns, why results repeat bit for bit at every thread count, the rules that keep it so, and the open work.
 - [Formal proofs](docs/design/formal-proofs.md): Lean 4 proofs about six treams-core kernels and the tests that tie the Lean models to the Rust code.
 
 ## Validation
@@ -104,6 +106,7 @@ Use `--format json` or `--format markdown` for the complete source-derived catal
 - [`treams_rs.io`](docs/reference/python/io.md): T-matrix files in the tmat.h5 layout, and Gmsh meshes of sphere clusters.
 - [`treams_rs.operators`](docs/reference/python/operators.md): Basis and field operators, as functions and as operator objects.
 - [`treams_rs.iterative`](docs/reference/python/iterative.md): Matrix-free scattering by finite clusters of homogeneous spheres in vacuum.
+- [`treams_rs.parallel`](docs/reference/python/parallel.md): CPU threads of the native numerical work.
 - [`treams_rs.diff`](docs/reference/python/diff.md): Records: functions that return a value and a context for its gradients.
 - [`treams_rs.testing`](docs/reference/python/testing.md): Finite-difference checks of first-order gradients and pullbacks.
 - [`treams_rs.advect`](docs/reference/python/advect.md): Advect adapter: physics objects and records differentiated by Advect, on the CPU and in first-order reverse mode only.
@@ -120,7 +123,7 @@ Use `--format json` or `--format markdown` for the complete source-derived catal
 - [Testing](docs/development/testing.md): Where a Rust or Python test goes, the test domains, markers, Hypothesis profiles and shared helpers, and how to add a test.
 - [Documentation](docs/development/documentation.md): Build and preview the site, add a page, regenerate the API reference, write tested examples and add a gallery example.
 - [Benchmarks](docs/development/benchmarks.md): Run the benchmarks on an idle host, compare two builds and record new measurements next to the archived evidence.
-- [Releasing](docs/development/releasing.md): Set the version, record the changes, check the wheel and turn on the documentation site.
+- [Releasing](docs/development/releasing.md): Prepare a version, test its distributions, publish through TestPyPI and PyPI, and deploy versioned documentation.
 
 ## Changelog
 

@@ -1,5 +1,7 @@
 """The build comparison pairs rounds, checks agreement first and applies its limits."""
 
+import argparse
+import io
 import json
 import subprocess
 
@@ -98,6 +100,48 @@ def test_every_call_name_is_unique_and_framework_calls_are_marked():
         framework = name.split("-")[0]
         if framework in ("advect", "jax", "torch"):
             assert compare.FRAMEWORK[name] == framework
+
+
+def test_worker_failure_reaps_both_processes(monkeypatch):
+    workers = []
+    original = compare.Worker
+
+    def start(*args):
+        worker = original(*args)
+        workers.append(worker)
+        return worker
+
+    monkeypatch.setattr(compare, "Worker", start)
+    arguments = argparse.Namespace(min_sample=0.001, samples=1, threads=2)
+    with pytest.raises(RuntimeError, match="stopped at missing-call"):
+        compare.run_round(
+            {"baseline": ROOT / "python", "candidate": ROOT / "python"},
+            ["missing-call"],
+            arguments,
+            0,
+        )
+    assert len(workers) == 2
+    assert all(worker.process.poll() is not None for worker in workers)
+
+
+def test_worker_keeps_library_prints_out_of_its_protocol(monkeypatch, capsys):
+    def setup(_):
+        print("setup message")
+
+        def call():
+            print("call message")
+            return 2.0
+
+        return call
+
+    monkeypatch.setitem(compare.CALLS, "noisy", setup)
+    monkeypatch.setattr(
+        compare.sys, "stdin", io.StringIO('{"name":"noisy","record":true}\n')
+    )
+    compare.serve(ROOT / "python", 0.0001, 1)
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["values"] == [[2.0, 0.0]]
+    assert "setup message" in captured.err and "call message" in captured.err
 
 
 @pytest.mark.workflows

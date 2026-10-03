@@ -18,6 +18,7 @@ __all__ = [
     "MAX_ORDER",
     "check_k0",
     "check_kind",
+    "check_particle_positions",
     "cos_sin",
     "frozen",
     "one_of",
@@ -66,6 +67,22 @@ def check_kind(kind: str) -> str:
             "'singular' (treams modetype)"
         )
     return kind
+
+
+def check_particle_positions(
+    positions: ArrayLike, *, cylindrical: bool = False
+) -> None:
+    """Particles need distinct centres; infinite cylinders need distinct axes."""
+    points = np.asarray(positions)
+    if cylindrical:
+        points = points[:, :2]
+    if len(np.unique(points, axis=0)) != len(points):
+        message = (
+            "cylinders require distinct transverse positions"
+            if cylindrical
+            else "particle modes must be grouped at distinct positions"
+        )
+        raise ValueError(message)
 
 
 def frozen(value: ArrayLike, dtype: DTypeLike) -> NDArray[Any]:

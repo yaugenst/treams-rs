@@ -5,6 +5,7 @@ import advect
 import advect.numpy as anp
 import numpy as np
 import pytest
+import treams
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from numpy.testing import assert_allclose
@@ -16,6 +17,8 @@ from treams_rs.testing import check_gradient, check_pullback
 from _support import (
     assert_unitary_ports,
     complex_normal,
+    oracle_smatrix_array,
+    to_oracle,
     varying,
 )
 
@@ -27,18 +30,18 @@ from _support import (
 def test_compact_slab_preserves_basis_order_and_partial_semantics(
     alignment, poltype, partial
 ):
-    modes = [(0.2, 0.3, 0), (2.7, -0.1, 1), (0.2, 0.3, 1), (2.7, -0.1, 0)]
-    if partial:
-        modes = modes[:-1]
-    basis = tr.PlaneWavePorts(modes, alignment)
+    full = tr.PlaneWavePorts(
+        [(0.2, 0.3, 0), (2.7, -0.1, 1), (0.2, 0.3, 1), (2.7, -0.1, 0)], alignment
+    )
+    basis = full[:-1] if partial else full
     materials = [1, (2.3 + 0.1j, 1.1, 0.1 if poltype == "helicity" else 0), 1.7, 1.2]
     thickness = [0.4, 0.2]
     actual = tr.SMatrix.slab(thickness, basis, 1.3, materials, poltype)
-    factors = [tr.SMatrix.interface(basis, 1.3, materials[:2], poltype)]
+    factors = [tr.SMatrix.interface(full, 1.3, materials[:2], poltype)]
     for i, d in enumerate(thickness):
         factors += [
-            tr.SMatrix.propagation(d, basis, 1.3, materials[i + 1], poltype),
-            tr.SMatrix.interface(basis, 1.3, materials[i + 1 : i + 3], poltype),
+            tr.SMatrix.propagation(d, full, 1.3, materials[i + 1], poltype),
+            tr.SMatrix.interface(full, 1.3, materials[i + 1 : i + 3], poltype),
         ]
     # Composition is associative: fold the non-commuting factors from the
     # left and from the right.
@@ -47,8 +50,36 @@ def test_compact_slab_preserves_basis_order_and_partial_semantics(
         left = left.add(factor)
     for factor in factors[-2::-1]:
         right = factor.add(right)
-    assert_allclose(actual.array, left.array, rtol=3e-12, atol=3e-12)
-    assert_allclose(actual.array, right.array, rtol=3e-12, atol=3e-12)
+    # Unrepresented external channels can still carry the internal reflections.
+    size = len(basis)
+    assert_allclose(
+        actual.array, left.array[:, :, :size, :size], rtol=3e-12, atol=3e-12
+    )
+    assert_allclose(
+        actual.array, right.array[:, :, :size, :size], rtol=3e-12, atol=3e-12
+    )
+
+
+@pytest.mark.physics
+@pytest.mark.reference
+@pytest.mark.parametrize("poltype", ["helicity", "parity"])
+def test_partial_slab_projects_full_channels_and_retains_only_their_power(poltype):
+    full = tr.PlaneWavePorts.default([[0.6, 0.2]])
+    partial = full[:1]
+    reference = treams.SMatrices.slab(0.4, to_oracle(full), 1.3, [1, 2.3, 1])
+    if poltype == "parity":
+        reference = reference.changepoltype(poltype)
+    slab = tr.SMatrix.slab(0.4, partial, 1.3, [1, 2.3, 1], poltype)
+    expected = oracle_smatrix_array(reference)
+    assert_allclose(slab.array, expected[:, :, :1, :1], rtol=2e-13, atol=2e-13)
+    power = slab.power([1.0])
+    full_power = reference.tr([1.0, 0.0])
+    assert_allclose(sum(full_power), 1.0, atol=2e-13)
+    # Each selected power is a subset of the lossless full-channel power.
+    assert power.transmission <= full_power[0] + 2e-13
+    assert power.reflection <= full_power[1] + 2e-13
+    assert_allclose(power.transmission, abs(expected[0, 0, 0, 0]) ** 2, atol=2e-13)
+    assert_allclose(power.reflection, abs(expected[1, 0, 0, 0]) ** 2, atol=2e-13)
 
 
 @pytest.mark.gradients

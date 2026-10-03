@@ -437,19 +437,7 @@ class SMatrix(UpstreamMembers):
         below, above = (Material(m) for m in materials)
         check_poltype_medium(poltype, below, above)
         groups = _port_groups(basis)
-        if basis.alignment == "xy":
-            # Upstream's closed-form Fresnel blocks, which also fix the branch
-            # of each medium's normal wavenumber for active media.
-            ks = np.array([below.ks(k0), above.ks(k0)])
-            zs = np.array([below.impedance, above.impedance])
-            compact = np.array(
-                [
-                    diff.fresnel(ks, [m.kzs(k0, kx, ky) for m in (below, above)], zs)[0]
-                    for kx, ky in groups
-                ]
-            ).reshape(-1, 2, 2, 2, 2)
-        else:
-            compact = _layer_blocks(groups, k0, (below, above), [], basis.alignment)
+        compact = _layer_blocks(groups, k0, (below, above), [], basis.alignment)
         return cls._adopt(
             _scatter_ports(basis, groups, compact, poltype),
             basis=basis,
@@ -570,10 +558,9 @@ class SMatrix(UpstreamMembers):
                 positive exterior.
             poltype: "helicity" (default) or "parity".
 
-        Ports with both polarizations of each transverse wavevector take their
-        2x2 blocks from one native call. Other bases compose interfaces and
-        propagations as treams does. ``slab`` and ``multilayer_slab`` take
-        keywords instead.
+        Both polarizations propagate inside the stack, including channels absent
+        from the requested ports. The result keeps the selected input and output
+        ports. ``slab`` and ``multilayer_slab`` take keywords instead.
         """
         poltype = resolve_poltype(poltype)
         k0 = check_k0(k0)
@@ -587,26 +574,16 @@ class SMatrix(UpstreamMembers):
                 "slabs require nonnegative thicknesses and two exterior materials"
             )
         groups = _port_groups(basis)
-        if all(len(indices) == 2 for indices in groups.values()):
-            media = [Material(m) for m in materials]
-            check_poltype_medium(poltype, *media)
-            compact = _layer_blocks(groups, k0, media, values, basis.alignment)
-            return cls._adopt(
-                _scatter_ports(basis, groups, compact, poltype),
-                k0=k0,
-                basis=basis,
-                material=(media[-1], media[0]),
-                poltype=poltype,
-            )
-        # Bases missing one polarization of a direction cannot use the
-        # per-wavevector 2x2 blocks; compose interfaces and propagations,
-        # projecting each step onto the available ports (treams behaviour).
-        result = cls.interface(basis, k0, materials[:2], poltype)
-        for d, lower, upper in zip(values, materials[1:-1], materials[2:], strict=True):
-            result = result.cascade(
-                cls.propagation(d, basis, k0, lower, poltype)
-            ).cascade(cls.interface(basis, k0, (lower, upper), poltype))
-        return result
+        media = [Material(m) for m in materials]
+        check_poltype_medium(poltype, *media)
+        compact = _layer_blocks(groups, k0, media, values, basis.alignment)
+        return cls._adopt(
+            _scatter_ports(basis, groups, compact, poltype),
+            k0=k0,
+            basis=basis,
+            material=(media[-1], media[0]),
+            poltype=poltype,
+        )
 
     def double(self, n: int = 1) -> SMatrix:
         """Cascade the network with itself n times, giving 2**n copies.
@@ -827,7 +804,7 @@ class SMatrix(UpstreamMembers):
         return _native.smatrix_tr_value(
             self.array,
             incident,
-            [medium.ks(self.k0).tolist() for medium in self._media],
+            [medium._plane_ks(self.k0).tolist() for medium in self._media],
             [medium.impedance for medium in self._media],
             list(groups),
             modes,
@@ -964,7 +941,7 @@ def _layer_blocks(
     if not groups:
         return np.zeros((0, 2, 2, 2, 2), complex)
     return diff.layer_stack(
-        [m.ks(k0) for m in media],
+        [m._plane_ks(k0) for m in media],
         [m.impedance for m in media],
         list(groups),
         thickness,
@@ -1086,7 +1063,13 @@ def poynting_avg_z(
     material: MaterialLike = 1,
     poltype: str | None = None,
 ) -> tuple[NDArray[np.complex128], NDArray[np.complex128]]:
-    """Same- and opposite-direction time-averaged axial power-flux forms."""
+    """Upstream-compatible axial forms, with treams normalization and branches.
+
+    These retain treams' parity normalization and complex-medium conventions;
+    they are not physical Poynting-flux matrices for arbitrary media. Use
+    ``SMatrix.power`` for transmitted/reflected power or sample E and H for
+    the local physical flux ``0.5 * real(E cross conj(H))``.
+    """
     poltype = resolve_poltype(poltype)
     if basis.alignment != "xy":
         raise ValueError("axial power forms require xy-aligned plane bases")

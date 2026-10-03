@@ -5,7 +5,6 @@ import itertools
 import numpy as np
 import pytest
 import scipy.special as scipy_special
-import treams.lattice as oracle
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from numpy.testing import assert_allclose
@@ -103,6 +102,8 @@ def test_recorded_ewald_wavenumber_domain(spherical, dim, part):
     ],
 )
 def test_components_and_shells_reference(family, prefix, parameter):
+    import treams.lattice as oracle
+
     args = operands(family, parameter)
     assert_allclose(
         getattr(lattice, prefix + family)(*args),
@@ -119,6 +120,8 @@ def test_components_and_shells_reference(family, prefix, parameter):
     "prefix,parameter", [("lsum", 0.9), ("realsum", 0.9), ("recsum", 0.9), ("dsum", 2)]
 )
 def test_broadcast_lattice_geometry_and_strided_outputs(family, prefix, parameter):
+    import treams.lattice as oracle
+
     args = list(operands(family, parameter))
     args[0] = np.array([2, 3, 4])
     args[-5] = np.array([[2.1 + 0.2j], [2.3 + 0.15j]])
@@ -208,6 +211,8 @@ def test_direct_shell_against_cartesian_sum(spherical, dim, k):
 @pytest.mark.parametrize("spherical", [False, True])
 @pytest.mark.parametrize("shell", [0, 1, 3])
 def test_half_cell_shell_pairing_and_reflection(spherical, shell):
+    import treams.lattice as oracle
+
     name = "dsumsw1d" if spherical else "dsumcw1d"
     for order in (0, 1, 2):
         args = (order, 2.1 + 0.2j, 0.13, 1.7, 0.85, shell)
@@ -224,6 +229,8 @@ def test_half_cell_shell_pairing_and_reflection(spherical, shell):
     ["lsumsw1d", "realsumsw1d", "recsumsw1d", "lsumcw1d", "realsumcw1d", "recsumcw1d"],
 )
 def test_axial_scalar_ufunc_mask_does_not_evaluate_invalid_values(name):
+    import treams.lattice as oracle
+
     k = np.array([2.1 + 0.2j, complex(np.nan), 2.3 + 0.1j])
     out = np.full(3, 9 + 3j)
     mask = np.array([True, False, True])
@@ -245,6 +252,8 @@ def test_axial_scalar_ufunc_mask_does_not_evaluate_invalid_values(name):
     q=st.one_of(st.just(0.0), st.floats(-1.0, -0.05), st.floats(0.05, 1.0)),
 )
 def test_axial_reciprocal_recurrence_reference_and_bloch_identity(order, k, eta, q):
+    import treams.lattice as oracle
+
     # The reciprocal part complements the real part to the sum, which upstream gets
     # right at the real split; the difference carries the rounding of the larger of
     # the two. At these splits, rotated to Im(k eta) > 0, upstream's own reciprocal
@@ -266,6 +275,8 @@ def test_axial_reciprocal_recurrence_reference_and_bloch_identity(order, k, eta,
 @pytest.mark.reference
 @pytest.mark.parametrize("order", [0, 1, 2, 5, 12])
 def test_axial_reciprocal_tiny_bloch_has_the_zero_bloch_limit(order):
+    import treams.lattice as oracle
+
     args = (1.7, 0.2, 1.0 + 0.03j)
     value = lattice.recsumcw1d(order, 2.0 + 0.15j, 1e-240, *args)
     limit = lattice.recsumcw1d(order, 2.0 + 0.15j, 0, *args)
@@ -282,6 +293,8 @@ def test_axial_reciprocal_tiny_bloch_has_the_zero_bloch_limit(order):
 def test_direct_cylindrical_scalar_array_and_strided_geometry(
     family, order, shell, scale
 ):
+    import treams.lattice as oracle
+
     args = list(operands(family, shell))
     args[0] = order
     args[1] *= scale

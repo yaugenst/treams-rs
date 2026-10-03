@@ -3008,6 +3008,14 @@ cylindrical_wave(kz: float, m: int, pol: int, *, k0: float, basis: CylindricalBa
 
 One cylindrical mode in a global basis, with fixed real axial label kz.
 
+## `get_num_threads`
+
+```python
+get_num_threads() -> int
+```
+
+Return the worker-thread budget of the next native parallel call.
+
 ## `interface`
 
 ```python
@@ -3107,6 +3115,30 @@ Homogeneous propagation by a normal distance or Cartesian displacement.
 - `k0`: positive vacuum angular wavenumber.
 - `medium`: the homogeneous medium, vacuum by default.
 - `polarization`: "helicity" (default) or "parity".
+
+## `set_num_threads`
+
+```python
+set_num_threads(threads: int | None) -> None
+```
+
+Set the process-wide worker-thread budget; ``None`` restores the default.
+
+``threads`` must be a positive integer. A parallel region that has started
+finishes on its pool; later regions use the new budget. A budget above the
+available CPUs is honored with a ``ThreadingWarning``, issued before the
+budget changes, because oversubscription slows dense linear algebra. Forked
+children inherit the budget and build their own pool of that size.
+
+**Examples**
+
+```pycon
+>>> import treams_rs as tr
+>>> tr.set_num_threads(1)
+>>> tr.get_num_threads()
+1
+>>> tr.set_num_threads(None)
+```
 
 ## `slab`
 
@@ -3251,4 +3283,57 @@ of the numerical hot path.
 1
 >>> catalog["backends"]["cpu"]["compiled"]
 True
+```
+
+## `thread_info`
+
+```python
+thread_info() -> dict[str, Any]
+```
+
+Return the thread budget, where it came from, and the pool state.
+
+Keys:
+
+- ``threads``: the budget of the next parallel call.
+- ``source``: ``"set_num_threads"``, the environment variable that set the
+  budget, or ``"available_parallelism"``.
+- ``available``: the CPUs this process may use.
+- ``pool_threads``: the workers of the current pool, ``None`` before the
+  first parallel call of this process.
+- ``forked``: whether this process was forked after treams-rs was loaded;
+  it then builds a pool of its own.
+- ``diagnostics``: ignored, oversubscribing or limiting settings.
+- ``environment``: the variables consulted, in precedence order.
+
+Never starts the pool.
+
+**Examples**
+
+```pycon
+>>> import treams_rs as tr
+>>> tr.thread_info()["threads"] >= 1
+True
+```
+
+## `threads`
+
+```python
+threads(n: int | None) -> Iterator[None]
+```
+
+Set the process-wide worker-thread budget for the ``with`` block.
+
+Restores the previous budget on exit, like
+``threadpoolctl.threadpool_limits``. The budget is process-wide, not
+thread-local: other Python threads that call treams-rs inside the block use
+it too. Alternating between two budgets reuses their pools.
+
+**Examples**
+
+```pycon
+>>> import treams_rs as tr
+>>> with tr.threads(1):
+...     tr.get_num_threads()
+1
 ```

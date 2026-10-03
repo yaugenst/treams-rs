@@ -11,7 +11,7 @@ from the linked summary files; "not recorded" means the file does not state the
 value. Commits refer to the pre-release history of this repository, and the
 linked files record the build identities (SHA-256 hashes of the native library,
 Python sources and benchmark scripts). Files under `benchmarks/results/` keep
-their recorded measurements; only identifying paths were redacted
+their recorded measurements; identifying data and archive metadata were redacted
 ([redacted paths](#redacted-paths)).
 
 | Measurement set | Date | Source commit | Host | Cases | Outcome | Summary / manifest |
@@ -45,11 +45,13 @@ check their cancellation ([last section](#lattice-sums-at-explicit-small-splits-
 
 ## Redacted paths
 
-Recorded paths in the result files have user and machine identifiers removed.
-The manifest digests of the redacted JSON files match the files as
-distributed. Numerical results, timing samples and the recorded source,
-native-library and benchmark-script fingerprints are unchanged; the redaction
-reran no measurement.
+The distributed evidence has privacy-only redactions documented in
+[`benchmarks/privacy-provenance.json`](../../benchmarks/privacy-provenance.json).
+Numerical values, timings, outcomes and numerical array bytes are unchanged;
+archive owner metadata is normalized and distributed-file checksums are updated.
+Original commit identifiers and measured source/library fingerprints describe
+the historical runs. Sanitized source snapshots report separate content hashes.
+No measurement was rerun for this cleanup.
 
 ## Archived per-kernel measurements
 

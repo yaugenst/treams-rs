@@ -8,6 +8,7 @@ import numpy as np
 
 from . import diff
 from ._tmatrix import CylindricalTMatrix, TMatrix, interaction_coupling, solve_columns
+from ._validation import check_particle_positions
 from ._waves import check_compatible
 
 if TYPE_CHECKING:
@@ -44,6 +45,7 @@ def assemble(
     positions = np.asarray(positions, dtype=np.float64)
     if positions.shape != (len(particles), 3):
         raise ValueError("one Cartesian position required per T-matrix")
+    check_particle_positions(positions, cylindrical=cls is CylindricalTMatrix)
     first = particles[0]
     dimension = sum(len(tm) for tm in particles)
     value = np.zeros((dimension, dimension), dtype=np.complex128)

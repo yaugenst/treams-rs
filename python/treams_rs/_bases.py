@@ -295,7 +295,7 @@ class PlaneWaveBasis(_Basis[tuple[complex, complex, complex, int]]):
         wavenumber k0. The direction fixes the propagation, so ``modetype`` has no
         effect; it is accepted for a signature shared with PlaneWavePorts.kvecs.
         """
-        values = self.directions * Material(material).ks(k0)[self.pol, None]
+        values = self.directions * Material(material)._plane_ks(k0)[self.pol, None]
         return values[:, 0], values[:, 1], values[:, 2]
 
     def rotate(self, phi: float) -> PlaneWaveBasis:
@@ -523,7 +523,9 @@ class PlaneWavePorts(_Basis[tuple[float, float, int]]):
         if modetype not in ("up", "down"):
             raise ValueError("modetype must be up or down")
         k1, k2 = self.components.astype(np.complex128).T
-        normal = Material(material).kzs(k0, k1, k2, self.pol)
+        normal = _native.wave_vector_z(
+            k1, k2, Material(material)._plane_ks(k0)[self.pol]
+        )
         if modetype == "down":
             normal = -normal
         if self.alignment == "yz":

@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["numpy>=2.1,<3"]
+# ///
 """Compare two treams_rs package trees call by call, for speed and agreement.
 
 Run after `just build-ext-release` on an otherwise idle host, normally through
@@ -45,7 +49,7 @@ import sys
 import tarfile
 import tempfile
 import time
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager, redirect_stdout
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -269,7 +273,7 @@ def _gradient(framework: str, namespace: Any, objective: Callable, x0: float):
             x = torch.tensor(x0, dtype=torch.float64, requires_grad=True)
             value = objective(namespace, x)
             (gradient,) = torch.autograd.grad(value, x)
-            return float(value), float(gradient)
+            return float(value.detach()), float(gradient)
 
         return run
     advect = importlib.import_module("advect")
@@ -389,24 +393,26 @@ def serve(tree: Path, min_sample: float, samples: int) -> None:
     """Answer one JSON request per input line: time (and record) the named call."""
     import gc
 
-    tr = importlib.import_module("treams_rs")
+    with redirect_stdout(sys.stderr):
+        tr = importlib.import_module("treams_rs")
     if not Path(tr.__file__).resolve().is_relative_to(tree.resolve()):
         raise RuntimeError(f"treams_rs resolved outside {tree}")
     functions: dict[str, Callable[[], Any]] = {}
     for line in sys.stdin:
         request = json.loads(line)
         name = request["name"]
-        if name not in functions:
-            functions[name] = CALLS[name](tr)
-        function = functions[name]
-        entry: dict[str, Any] = {}
-        if request["record"]:
-            entry["values"] = [[v.real, v.imag] for v in values(function())]
-        gc.disable()
-        try:
-            entry["seconds"] = time_call(function, min_sample, samples)
-        finally:
-            gc.enable()
+        with redirect_stdout(sys.stderr):
+            if name not in functions:
+                functions[name] = CALLS[name](tr)
+            function = functions[name]
+            entry: dict[str, Any] = {}
+            if request["record"]:
+                entry["values"] = [[v.real, v.imag] for v in values(function())]
+            gc.disable()
+            try:
+                entry["seconds"] = time_call(function, min_sample, samples)
+            finally:
+                gc.enable()
         print(json.dumps(entry), flush=True)
 
 
@@ -471,28 +477,30 @@ class Worker:
         return json.loads(line)
 
     def close(self) -> None:
+        if self.process.poll() is None:
+            self.process.terminate()
         for stream in (self.process.stdin, self.process.stdout):
             if stream is not None:
                 stream.close()
-        if self.process.wait():
-            raise RuntimeError(f"worker for {self.tree} failed")
+        self.process.wait()
 
 
 def run_round(
     trees: dict[str, Path], names: list[str], arguments: argparse.Namespace, index: int
 ) -> dict[str, dict]:
     """One worker per tree; each call measured by both, in alternating order."""
-    workers = {label: Worker(tree, arguments) for label, tree in trees.items()}
     measured: dict[str, dict] = {label: {} for label in trees}
-    try:
+    with ExitStack() as cleanup:
+        workers = {}
+        for label, tree in trees.items():
+            worker = Worker(tree, arguments)
+            cleanup.callback(worker.close)
+            workers[label] = worker
         # The order alternates from call to call and flips from round to round.
         orders = list(abba(len(names) + index))[index:]
         for name, order in zip(names, orders, strict=True):
             for label in order:
                 measured[label][name] = workers[label].measure(name, index == 0)
-    finally:
-        for worker in workers.values():
-            worker.close()
     return measured
 
 

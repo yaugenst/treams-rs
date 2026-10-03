@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["mkdocs>=1.6,<2"]
+# dependencies = []
 # ///
 """Check versioned links and the published Markdown without a native build."""
 
@@ -39,7 +39,10 @@ class DocumentationSiteTest(unittest.TestCase):
             ):
                 HOOK["on_pre_build"](config)
                 markdown = HOOK["on_page_markdown"](
-                    "[Source](../../Cargo.toml)\n```python exec\nassert True\n```\n",
+                    "[Source](../../Cargo.toml)\n"
+                    "[Rust](https://yaugenst.github.io/treams-rs/latest/rust/treams_core/index.html#modules)\n"
+                    "`[Literal](https://yaugenst.github.io/treams-rs/latest/)`\n"
+                    "```python exec\nassert True\n```\n",
                     page,
                     config,
                     None,
@@ -57,7 +60,14 @@ class DocumentationSiteTest(unittest.TestCase):
                 self.assertIn('href="../../rust/treams_core/"', html)
                 self.assertIn('href="../../llms.txt"', html)
                 HOOK["on_post_build"](config)
-                self.assertEqual((root / "site/guide/example.md").read_text(), markdown)
+                published = (root / "site/guide/example.md").read_text()
+                self.assertEqual(
+                    published,
+                    markdown.replace(
+                        "](https://yaugenst.github.io/treams-rs/latest/rust/",
+                        "](../rust/",
+                    ),
+                )
                 index = (root / "site/llms.txt").read_text()
                 self.assertIn("this documentation version", index)
                 self.assertIn("](guide/example.md)", index)

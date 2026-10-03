@@ -68,7 +68,8 @@ A pull request is ready for review when:
 - a numerical or performance-critical change shows agreement with the pinned
   treams 0.4.7 oracle or an independent reference, and before/after performance
   measured with a release build on an otherwise idle host;
-- nothing under `benchmarks/results/` changes: it holds archived evidence.
+- archived measurements stay unchanged; privacy-only transformations follow
+  [the evidence policy](benchmarks/README.md#privacy-and-provenance).
 
 ## License of contributions
 

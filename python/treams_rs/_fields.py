@@ -88,13 +88,13 @@ def field(
                 )
     if quantity == "D":
         weights *= (
-            medium.nmp[basis.pol] / medium.impedance
+            medium.epsilon + (2 * basis.pol - 1) * medium.kappa / medium.impedance
             if poltype == "helicity"
             else medium.epsilon
         )
     if quantity == "B":
         weights *= (
-            medium.nmp[basis.pol] * medium.impedance
+            medium.mu + (2 * basis.pol - 1) * medium.kappa * medium.impedance
             if poltype == "helicity"
             else medium.mu
         )

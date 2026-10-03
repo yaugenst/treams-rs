@@ -93,7 +93,13 @@ check-wheel: build-wheel
     uv run --no-sync python scripts/wheel_build_paths.py check "$wheel"
     environments="$(mktemp -d "${TMPDIR:-/tmp}/treams-wheel-XXXXXX")"
     trap 'rm -rf "$environments"' EXIT
-    for profile in base advect io; do
+    profiles=(base advect)
+    if .venv/bin/python -c 'import sys; raise SystemExit(sys.version_info >= (3, 15))'; then
+        profiles+=(io)
+    else
+        echo "Skipping io: h5py publishes no CPython 3.15 wheels"
+    fi
+    for profile in "${profiles[@]}"; do
         python="$environments/$profile/bin/python"
         uv venv --quiet --python .venv/bin/python "$environments/$profile"
         dependencies=(--only-binary :all: -r pyproject.toml)

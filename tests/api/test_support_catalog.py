@@ -283,6 +283,34 @@ def test_generated_documentation_is_source_current(monkeypatch):
     assert generator["orphan_pages"](files) == []
 
 
+def test_agent_index_uses_new_reference_pages_before_they_are_written(
+    tmp_path, monkeypatch
+):
+    generator = runpy.run_path(str(ROOT / "scripts/generate_docs.py"))
+    generate = generator["generated_files"]
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    page = docs / "reference/python/new.md"
+    content = "---\ndescription: A new module.\n---\n# New module\n"
+    (tmp_path / "mkdocs.yml").write_text(
+        "site_url: https://example.test/\nnav:\n  - reference/python/new.md\n",
+        encoding="utf-8",
+    )
+    for name, value in {
+        "ROOT": tmp_path,
+        "DOCS": docs,
+        "support_catalog": lambda: {"version": "0.1.0"},
+        "reference_pages": lambda catalog: {page: content},
+    }.items():
+        monkeypatch.setitem(generate.__globals__, name, value)
+    files = generate()
+    assert (
+        "[New module](docs/reference/python/new.md): A new module."
+        in files[tmp_path / "llms.txt"]
+    )
+    assert not page.exists()
+
+
 def test_offline_discovery_does_not_load_optional_frameworks():
     code = """
 import json, sys, pydoc

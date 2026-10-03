@@ -6,7 +6,7 @@ description: How native results stay independent of the flush-to-zero modes that
 
 Native results do not depend on the caller's floating-point mode. The rustdoc of
 the Rust module
-[`fpenv`](https://yaugenst.github.io/treams-rs/rust/treams_core/fpenv/index.html)
+[`fpenv`](https://yaugenst.github.io/treams-rs/latest/rust/treams_core/fpenv/index.html)
 gives the implementation details.
 
 ## Flushing breaks native results

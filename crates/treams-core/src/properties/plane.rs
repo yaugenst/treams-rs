@@ -84,10 +84,11 @@ proptest! {
     fn plane_wave_maxwell_and_origin_reconstruction(
         transverse in prop_oneof![prop::array::uniform2(-1.0_f64..1.0), Just([0.0; 2])],
         z in prop_oneof![0.5_f64..2.0, -2.0_f64..-0.5],
+        imaginary in -0.2_f64..0.2,
         pol in 0_u8..2,
         helicity in any::<bool>(),
     ) {
-        check_plane_wave_maxwell([transverse[0], transverse[1], z], pol, helicity)?;
+        check_plane_wave_maxwell([transverse[0], transverse[1], z], imaginary, pol, helicity)?;
     }
 
     #[test]
@@ -601,10 +602,11 @@ fn check_spherical_channel_scale(
 /// at the origin, for upward, downward and axial wave vectors.
 fn check_plane_wave_maxwell(
     direction: [f64; 3],
+    imaginary: f64,
     pol: u8,
     helicity: bool,
 ) -> Result<(), TestCaseError> {
-    let vector = direction.map(|v| v * Complex::new(1.0, 0.1));
+    let vector = direction.map(|v| v * Complex::new(1.0, imaginary));
     let k = vector.iter().map(|v| v * v).sum::<Complex>().sqrt();
     let polarization = pw::polarization(vector, pol, helicity).unwrap();
     let transversality: Complex = polarization.iter().zip(vector).map(|(e, k)| e * k).sum();

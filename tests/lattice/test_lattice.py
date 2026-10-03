@@ -14,8 +14,6 @@ import advect.numpy as anp
 import numpy as np
 import pytest
 import scipy.special as scipy_special
-import treams
-import treams.lattice as upstream_lattice
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from numpy.testing import assert_allclose
@@ -77,6 +75,8 @@ def derivatives(spherical, l, m, k, q, a, r, eta):
 
 
 def reference(spherical, dim, l, m, k, q, a, r, eta=0):
+    import treams.lattice as upstream_lattice
+
     if spherical:
         if dim == 1:
             return upstream_lattice.lsumsw1d_shift(l, m, k, q[0], a[0, 0], r, eta)
@@ -548,6 +548,8 @@ def test_threshold_and_invalid_lattice():
     [(1, "helicity"), (1, "parity"), (2, "helicity"), (2, "parity"), (3, "helicity")],
 )
 def test_periodic_spherical_coupling_and_solve(dim, poltype):
+    import treams
+
     positions = np.array([[0, 0, 0], [0.31, 0.12, 0.21]])
     basis = SphericalBasis.default(2, positions=positions)
     ks = (
@@ -607,6 +609,8 @@ def test_periodic_spherical_coupling_and_solve(dim, poltype):
 @pytest.mark.parametrize("dim", [1, 2])
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 def test_periodic_cylindrical_coupling_and_solve(dim, poltype):
+    import treams
+
     positions = np.array([[0, 0, 0], [0.31, 0.12, 0.21]])
     basis = CylindricalBasis.default([0, 0.4], 2, positions=positions)
     ks = [1.9 + 0.08j, 2.1 + 0.09j] if poltype == "helicity" else [2.0 + 0.08j] * 2
@@ -645,6 +649,8 @@ def test_periodic_cylindrical_coupling_and_solve(dim, poltype):
 @pytest.mark.interface
 @pytest.mark.reference
 def test_public_lattice_mode_broadcasting():
+    import treams.lattice as upstream_lattice
+
     l = np.array([1, 2, 3])
     m = np.array([[-1], [0], [1]])
     actual = lattice.lsumsw2d(l, m, 2, [0.1, 0.2], [[1.5, 0], [0.1, 1.6]], [0.1, -0.2])
@@ -856,6 +862,8 @@ def _image_sum(spherical, dim, l, m, k, q, a, cells=13, origin=False):
 @pytest.mark.reference
 @pytest.mark.parametrize("period", [7.2, 12.8])
 def test_large_cylindrical_cell_ewald_split_invariance(period):
+    import treams.lattice as upstream_lattice
+
     # Upstream's automatic split loses 0.00676 at this order/displacement.
     # The converged reference and our automatic split agree independently.
 

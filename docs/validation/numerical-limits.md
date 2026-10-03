@@ -17,9 +17,10 @@ to a length and 1 / |k| for derivatives with respect to an inverse length.
 
 ## Special functions and waves
 
-- **Fractional Legendre** functions are tested for 0 < degree <= 128 and
-  |order| <= degree. Degrees within about 1e-6 of an integer lose accuracy below
-  x = -0.35; the order reflection holds only to about 6e-10 there.
+- **Fractional Legendre** functions support 0 < degree <= 128 and
+  |order| <= degree. Their implementation uses scaled DLMF series and
+  recurrences, retaining the fractional offset of degrees close to an integer.
+  Values or derivatives outside the float64 range raise an error.
     - `lpmv` keeps the zero extension of treams at |order| > degree instead of
       the general Ferrers function.
     - Its real argument returns float64 for Python scalars and arrays alike.
@@ -103,7 +104,7 @@ An Ewald sum splits a slowly converging lattice sum into a real-space part and a
 reciprocal-space part, which both converge fast. The Ewald split parameter `eta`
 sets how the work divides between the two parts; the exact sum does not depend on
 it (see the [glossary](../reference/glossary.md)). The Rust function
-[`lattice::sum`](https://yaugenst.github.io/treams-rs/rust/treams_core/lattice/fn.sum.html)
+[`lattice::sum`](https://yaugenst.github.io/treams-rs/latest/rust/treams_core/lattice/fn.sum.html)
 states the same rules for the Rust code.
 
 ### Convergence and failures
