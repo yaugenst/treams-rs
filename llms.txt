@@ -1,17 +1,17 @@
 # treams-rs
 
-> T-matrix electromagnetic scattering with a Rust numerical core and native analytic first-order pullbacks; typed Python API. Version 0.1.0.
+> A Rust port of treams for electromagnetic T-matrix scattering, with a Python interface and analytic first-order gradients. Version 0.1.0.
 
 The documentation site is https://yaugenst.github.io/treams-rs/.
 The Markdown sources linked below are in this repository, at the same Git revision as this file.
-With only an installed wheel, run `python -m treams_rs` for a runnable quickstart,
+After installing the package, run `python -m treams_rs` for a short example,
 `python -m treams_rs sphere_tmatrix` for one function, or `--search TEXT` to find names.
-Use `--format json` or `--format markdown` for the complete source-derived catalog.
+Use `--format json` or `--format markdown` to list all documented functions and classes.
 `treams_rs.support_catalog()` never imports optional frameworks.
 
 ## Home
 
-- [Home](docs/index.md): T-matrix electromagnetic scattering with a Rust core, a typed Python API and analytic gradients, in the conventions of treams.
+- [Home](docs/index.md): A Rust port of treams with a Python interface and analytic gradients.
 
 ## Getting started
 
@@ -67,19 +67,19 @@ Use `--format json` or `--format markdown` for the complete source-derived catal
 
 ## Design
 
-- [Design](docs/design/index.md): Goals and layers of treams-rs, which layer owns what, the Rust-Python-treams crosswalk and what treams-rs leaves out.
-- [Python API design](docs/design/python-api.md): Why the Python API uses explicit physics objects, one name per class and concept, and treams names as delegations.
-- [Analytic pullbacks](docs/design/pullbacks.md): Why derivatives are analytic first-order pullbacks with one-use contexts, the real pairing and no finite-difference fallback.
-- [Framework adapters](docs/design/adapters.md): How the Advect, JAX and PyTorch adapters share the physics classes, one native call per operation and static configuration.
-- [Floating-point environment](docs/design/floating-point.md): How native results stay independent of the flush-to-zero modes that JAX and PyTorch set, and how that is tested.
+- [Design](docs/design/index.md): The layers of treams-rs, their responsibilities and their treams counterparts.
+- [Python API design](docs/design/python-api.md): Physics objects, names and metadata in the Python API.
+- [Analytic pullbacks](docs/design/pullbacks.md): Analytic first derivatives, one-use gradient contexts and the complex-gradient convention.
+- [Framework adapters](docs/design/adapters.md): Shared physics classes, native calls and gradients in Advect, JAX and PyTorch.
+- [Floating-point environment](docs/design/floating-point.md): How native calculations preserve subnormal numbers when callers flush them to zero.
 - [Numerical choices](docs/design/numerics.md): Numerical choices of the Rust core - equilibrated LU, LU worker counts, Wigner 3j, Ewald sums, branches, EBCM and parallel thresholds.
-- [Parallelism](docs/design/parallelism.md): The thread pool that treams-rs owns, why results repeat bit for bit at every thread count, the rules that keep it so, and the open work.
-- [Formal proofs](docs/design/formal-proofs.md): Lean 4 proofs about six treams-core kernels and the tests that tie the Lean models to the Rust code.
+- [Parallelism](docs/design/parallelism.md): The treams-rs thread pool, reproducible results and remaining work.
+- [Formal proofs](docs/design/formal-proofs.md): Lean 4 proofs of six numerical algorithms, their limits and their checks against Rust.
 
 ## Validation
 
-- [Validation](docs/validation/index.md): The kinds of evidence behind treams-rs results and a summary of what each one checks, with links to the tests.
-- [Capabilities](docs/validation/capabilities.md): What treams-rs implements, area by area, the treams code it covers and what it leaves out.
+- [Validation](docs/validation/index.md): Numerical checks, physical identities and proofs, with links to the tests.
+- [Capabilities](docs/validation/capabilities.md): Implemented physics, derivatives and limits, compared with treams.
 - [Numerical and platform limits](docs/validation/numerical-limits.md): Accuracy limits of special functions, waves and lattice sums, with scale and platform limits.
 - [Published applications](docs/validation/published-applications.md): treams-rs reproductions of published electron-beam spectra, treams paper spectra and thermal radiation results.
 
@@ -88,7 +88,7 @@ Use `--format json` or `--format markdown` for the complete source-derived catal
 - [Performance](docs/performance/index.md): Measured speed and memory against treams 0.4.5, with methods and caveats.
 - [Requested illuminations and larger clusters](docs/performance/large-problems.md): Measured time and memory of requested illuminations for large sphere clusters.
 - [Mac and Linux benchmark comparison](docs/performance/platform-comparison.md): The Mac and Linux benchmark comparison of treams-rs and treams 0.4.5.
-- [Benchmark evidence](docs/performance/evidence.md): Where the benchmark evidence lives, and archived per-kernel measurements.
+- [Benchmark evidence](docs/performance/evidence.md): Benchmark sources, methods and archived measurements of individual operations.
 
 ## Reference
 

@@ -37,16 +37,16 @@ uv pip install --index-url https://download.pytorch.org/whl/cpu "torch==${torch_
 This CPU index covers Python 3.15 in the release dependency set. On macOS,
 add `--extra torch` to the initial `uv sync` command on Python 3.12–3.14;
 that installs PyTorch from PyPI. The standard PyPI `torch` extra on 3.15
-is outside the release qualification.
+is not tested for this release.
 
 Run Python commands as `uv run --no-sync python ...` or
 `uv run --no-sync pytest ...`. `--no-sync` keeps the environment and the
 extension of `just build-ext` as they are.
 
-The development dependency set omits the upstream treams oracle on Python
-3.14–3.15 and h5py on 3.15. Tests that require an unavailable dependency skip
+The development dependency set omits the treams reference implementation on
+Python 3.14–3.15 and h5py on 3.15. Tests that require an unavailable dependency skip
 and appear in the test summary; independent tests still run. On 3.12 and
-3.13, a missing oracle is an error.
+3.13, a missing treams installation is an error.
 
 ## Repository hooks
 
@@ -66,7 +66,7 @@ Git worktrees share these hooks. Their first run downloads the hook tools.
 Review and stage any automatic formatting changes before committing again.
 `just file-hygiene`, part of `just check` and CI, runs the file hooks over the
 whole repository. Commitizen checks messages; it does not manage versions.
-`Cargo.toml` owns the package version ([releasing](releasing.md)). Fix
+`Cargo.toml` sets the package version ([releasing](releasing.md)). Fix
 generated documentation in its source or in
 [`scripts/generate_docs.py`](../../scripts/generate_docs.py), then run
 `just docs`.
@@ -104,19 +104,19 @@ exact source revision, as described in [releasing](releasing.md).
 | Workflow | Runs on | Runs |
 |---|---|---|
 | [CI](../../.github/workflows/ci.yml) | pull requests and pushes to `main` | Python 3.12–3.15, supported dependency bounds, Rust checks, coverage, native wheels, documentation and a history secret scan |
-| [Native Wheels](../../.github/workflows/native-wheels.yml) | called by CI and Release Candidate, or by hand | The [core wheel family](../getting-started/install.md#install-from-pypi), installed-wheel smoke checks and a source-distribution rebuild |
+| [Native Wheels](../../.github/workflows/native-wheels.yml) | called by CI and Release Candidate, or by hand | All [supported wheels](../getting-started/install.md#install-from-pypi), installed-wheel checks and a source-distribution rebuild |
 | [Docs](../../.github/workflows/docs.yml) | called by CI, publication and manual [Deploy docs](../../.github/workflows/deploy-docs.yml) | Strict Material site build and rustdoc; mike maintains `dev`, released versions and the `latest` alias, then the complete site is deployed through a GitHub Pages artifact |
-| [Release Candidate](../../.github/workflows/release-candidate.yml) | called by Publish Release | Eligible source revision and immutable distribution artifacts |
+| [Release Candidate](../../.github/workflows/release-candidate.yml) | called by Publish Release | Verify the source revision and build distribution files that cannot change during publication |
 | [Publish Release](../../.github/workflows/publish-release.yml) | repository dispatch with event type `release` | Build and test the candidate, publish to TestPyPI, wait for the operator's tag and approval, then publish to PyPI and deploy release documentation |
 | [Formal](../../.github/workflows/formal.yml) | pull requests and pushes that change `formal/`, a Rust file with a Lean model, the `justfile` or the workflow | `just formal` |
 
-CI runs the complete oracle suite on Python 3.12 and 3.13 and the available
-tests on 3.14 and 3.15. Separate lanes cover NumPy 2.1–2.5, all declared
+CI runs the complete reference suite on Python 3.12 and 3.13 and the available
+tests on 3.14 and 3.15. Separate jobs cover NumPy 2.1–2.5, all declared
 dependency floors together on 3.12, and current framework releases on 3.13
 and 3.14. Rust checks cover 1.94.0 and stable. The coverage upload and these
-required jobs feed the `CI Success` release gate.
+required jobs must pass for `CI Success`, which is required for release.
 
-When a dependency range changes, update its matrix lane too. A change to a
+When a dependency range changes, update its CI job too. A change to a
 Rust dependency linked into wheels also needs `just licenses` to refresh the
 bundled license texts.
 
@@ -124,8 +124,8 @@ bundled license texts.
 
 `cargo test`, `just rust-test` and `just build-ext` use the dev profile. It
 optimizes at level 1 (dependencies at level 2) and keeps debug assertions and
-overflow checks. Its timings say nothing about performance; measure with a
-release build as described in [benchmarks](benchmarks.md).
+overflow checks. Its timings do not represent release performance; measure
+with a release build as described in [benchmarks](benchmarks.md).
 
 ## Clean wheel
 

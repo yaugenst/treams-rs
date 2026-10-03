@@ -125,18 +125,17 @@ def _llms(version: str, generated: dict[Path, str] | None = None) -> str:
     lines = [
         "# treams-rs",
         "",
-        "> T-matrix electromagnetic scattering with a Rust numerical core and native"
-        f" analytic first-order pullbacks; typed Python API. Version {version}.",
+        "> A Rust port of treams for electromagnetic T-matrix scattering, with a"
+        f" Python interface and analytic first-order gradients. Version {version}.",
         "",
         f"The documentation site is {_site()['site_url']}.",
         "The Markdown sources linked below are in this repository, at the same Git"
         " revision as this file.",
-        "With only an installed wheel, run `python -m treams_rs` for a runnable"
-        " quickstart,",
+        "After installing the package, run `python -m treams_rs` for a short example,",
         "`python -m treams_rs sphere_tmatrix` for one function, or `--search TEXT`"
         " to find names.",
-        "Use `--format json` or `--format markdown` for the complete source-derived"
-        " catalog.",
+        "Use `--format json` or `--format markdown` to list all documented functions"
+        " and classes.",
         "`treams_rs.support_catalog()` never imports optional frameworks.",
     ]
     section = None

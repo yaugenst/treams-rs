@@ -150,6 +150,7 @@ UNBUILT_PAGES = frozenset[str]()
 UNLINKED = {
     ".venv",
     "target",
+    "dist",
     ".git",
     "formal/.lake",
     "benchmarks/results",

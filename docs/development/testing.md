@@ -14,7 +14,7 @@ evidence the tests check.
 
 ### Where a test goes
 
-The Rust tests have two tiers:
+Rust tests cover implementation details and physical properties:
 
 - A module's inline `tests` module checks how that module computes its
   results: fast paths against reference paths, tables and plans, dispatch
@@ -29,7 +29,7 @@ The Rust tests have two tiers:
   inputs; see the [glossary](../reference/glossary.md#records-and-gradients).)
 
 A test of one module's implementation goes inline; a physical, analytic or
-adjoint identity goes into its domain file. Both tiers use crate-private items,
+adjoint identity goes into its domain file. Both groups use crate-private items,
 so the crate has no `tests/` directory. `cargo test -p treams-core` runs both,
 and `cargo test -p treams-core -- properties::waves` runs one domain.
 
@@ -61,7 +61,7 @@ The case budgets are constants of `test_support`:
 | Constant | Cases | Use |
 |---|---|---|
 | `ALGEBRA_CASES` | 256 | closed-form algebraic identities |
-| `DEFAULT_CASES` | 64 | single-kernel physical, scaling and adjoint identities |
+| `DEFAULT_CASES` | 64 | physical, scaling and adjoint identities for one numerical operation |
 | `EXPENSIVE_CASES` | 24 | lattice sums, cluster solves and surface integrals, with their finite differences |
 
 ### Helpers
@@ -97,13 +97,13 @@ holds the shared helpers:
   `crates/treams-core/references/`.
 
 `clippy.toml` allows `unwrap`, `expect`, `panic` and indexing in tests, so a
-failing case panics and proptest shrinks it.
+failing case stops the test and proptest reduces it to a simpler failing input.
 
 ### Generators
 
 - Draw dependent labels together with `prop_flat_map`: `degree_order(1..12)`
   draws `(l, m)` with `|m| <= l`. Reducing a seed modulo `2l + 1` skews the
-  distribution and shrinks poorly.
+  distribution and makes failing inputs harder to simplify.
 - Draw quantities that span decades log-uniformly (`log_uniform`,
   `log_polar`).
 - Use `patterned` only for deterministic fixtures, seeded from a strategy when
@@ -118,7 +118,7 @@ file below `src/`: `properties/lattice/mod.txt` holds the seeds of
 a file for every property of its source file, before the random cases.
 
 - A seed replays only while its strategy keeps its shape. Before changing such
-  a strategy, rewrite each recorded failure as an explicit case with its shrunk
+  a strategy, rewrite each recorded failure as an explicit case with its simplified
   values.
 - When a source file splits, copy every seed line of its regression file into
   the regression file of each new source file.
@@ -225,7 +225,7 @@ Test modules import `treams_rs` as `tr`, its namespaces by name
 2. Mark it: `physics`, `gradients`, `interface`, `workflows` or `reference`.
 3. Keep its cost within the profile budget. Bound an expensive property with
    `@settings(max_examples=...)`.
-4. Pin a failure that Hypothesis found with `@example(...)` and the shrunk
+4. Preserve a failure that Hypothesis found with `@example(...)` and the simplified
    values, so it runs on every profile.
 5. Check derivatives with `treams_rs.testing.check_pullback` for a record, or
    `check_gradient` for a scalar objective

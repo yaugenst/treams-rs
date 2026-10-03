@@ -5,9 +5,9 @@ description: treams-rs reproductions of published electron-beam spectra, treams 
 # Published applications
 
 These checks run published scientific workflows with treams-rs and compare the
-results with the original authors' numerical data. They complement the kernel
-tests; agreement with another implementation alone does not prove accuracy. Every
-comparison names its source, sampling grid, truncation order and tolerance.
+results with the authors' numerical data or fresh runs of their examples. They
+complement tests of individual numerical functions; agreement alone does not prove
+accuracy. Every comparison names its source, sampling grid, truncation order and tolerance.
 Runtimes in these results are diagnostics, not controlled benchmarks.
 
 ![Electron-beam spectra and periodic-array transmission, with author data and treams comparisons](../../benchmarks/papers/qualification.png)
@@ -39,15 +39,14 @@ the authors' stored test values (200 CL/EELS values). These test grids differ fr
 the notebooks. The cylinder notebook's rounded `hbar=6.582e-16 eV s` is preserved
 in its dispersion model; the stored-test calculation uses SciPy constants.
 
-Executing the authors' actual numerical notebook cells exposed a cylinder-source
+Running the authors' notebook calculations exposed a cylinder-source
 error: the notebook omits the conversion from the helicity T-matrix to the parity
 electron-source basis. Its own regression test includes that conversion. The
 check applies that one-line repair explicitly; the unmodified notebook differs by
 as much as 50% in EELS. The unmodified sphere notebook and repaired cylinder
-notebook match treams-rs within `8e-17` absolute. Both original and repaired execution values
+notebook match treams-rs within `8e-17` absolute. Both original and repaired results
 are preserved in [ebeam-notebook-execution.json](../../benchmarks/papers/ebeam-notebook-execution.json).
-The plotted cylinder curve is therefore a **corrected source reproduction**, not
-a claim to reproduce the unmodified notebook's inconsistent polarization pairing.
+The plotted cylinder curve uses the **corrected notebook calculation**.
 
 The independent stored-data tolerance is `atol=1e-8, rtol=0`, matching the precision
 of the rounded source tables. Maximum error is `4.84e-9` for the sphere and
@@ -63,7 +62,7 @@ Sources: [sphere notebook](https://github.com/tfp-photonics/treams_ebeam/blob/9a
 [sphere data](https://github.com/tfp-photonics/treams_ebeam/blob/9aa9974d0e56c60873dc880f11557e622d233ea9/tests/test_cl_eels_sphere.py),
 [cylinder data](https://github.com/tfp-photonics/treams_ebeam/blob/9aa9974d0e56c60873dc880f11557e622d233ea9/tests/test_cl_eels_cylinder.py).
 Only numerical reference values are stored locally, with source hashes and attribution;
-the addon source implementation is not vendored.
+the addon's implementation is not included.
 
 ## CPC treams paper companion spectra
 
@@ -79,7 +78,8 @@ slab. Parameters and grids come from the treams examples at the
 [sphere](https://github.com/tfp-photonics/treams/blob/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples/sphere.py),
 [slab](https://github.com/tfp-photonics/treams/blob/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples/slab.py),
 [periodic array](https://github.com/tfp-photonics/treams/blob/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/docs/examples/array_spheres.py).
-These are companion-code reproductions, not digitized plots from the article.
+These results reproduce the companion examples; they were not read from the
+article's plots.
 
 All checked samples agree with fresh treams values within
 `rtol=2e-9, atol=2e-11`. Passive sphere/slab inequalities hold; the lossless periodic
@@ -94,8 +94,8 @@ and the
 [lattice pole](https://github.com/tfp-photonics/treams/blob/1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/src/treams/lattice/_esum.pyx#L84-L95).
 That finite output is not an independent exact-threshold reference. Four extra
 evaluations at `350*(1±1e-4)` and `350*(1±1e-6)` nm verify agreement away from the
-pole, power conservation, and convergence of the two sides. This does not silently
-replace the author's endpoint or claim an exact endpoint/derivative formulation.
+pole, power conservation, and convergence of the two sides. The original endpoint
+remains excluded, and its value and derivative are not checked.
 
 The article's quasi-BIC Figure 5 is **not reproduced** here. Appendix F supplies
 the algorithm, but `ellipsoid.h5` is absent from the retrieved
@@ -125,11 +125,11 @@ azimuth/helicity symmetry are verified; the maximum symmetry discrepancy is
 `1.56e-14`. A separate 52-point comparison with treams is kept.
 
 Small particles at high orders make the dense interaction system badly scaled.
-Native equilibration removes this sensitivity: at the lowest frequency the stable order-10 value is `1.7544335861e-4 µm²`, while the
-author table gives `1.7464535052e-4 µm²`. The remaining disagreement with those
-author values is therefore documented, not hidden behind a claim of equality with
-treams. The original angular filenames follow another figure numbering; the source
-fixture records their mapping, units, and the save-cell convention of the notebook.
+Scaling the interaction system before solving removes this sensitivity: at the
+lowest frequency the stable order-10 value is `1.7544335861e-4 µm²`, while the
+author table gives `1.7464535052e-4 µm²`. This disagreement remains in the results.
+The original angular filenames use another figure numbering; the source-data
+file records their mapping, units and the notebook's file-saving convention.
 
 Results: [thermal-result.json](../../benchmarks/papers/thermal-result.json),
 [source data and hashes](../../benchmarks/papers/thermal-source.json),
@@ -145,9 +145,9 @@ uv run --no-sync python scripts/papers_thermal.py --samples 300 --convergence \
 
 This command recomputes every native sample and reuses the treams values of the
 committed comparison, which has the same parameters. Omit `--upstream-reference`
-to recompute treams for all 300 frequencies too. Source material is fixed to the cited commit; default operation
-uses the local numerical fixture. This is scientific reproduction of selected
-figures, not replication of every example in the publication.
+to recompute treams for all 300 frequencies too. Source material is fixed to the
+cited commit; the command uses local reference data by default. The checks cover
+only the selected figures.
 
 ## Reproduce and inspect
 
@@ -161,7 +161,7 @@ uv run --no-sync --with matplotlib python scripts/qualify_papers.py --plot \
   --output benchmarks/results/local/qualification.json
 ```
 
-The script takes seconds. It checks full spectra, physical inequalities and
+The script checks full spectra, physical inequalities and
 source-data tolerances, and writes its result to the given `--output` file; with
 `--plot` it also writes PNG and SVG figures next to it. The committed result is
 [qualification.json](../../benchmarks/papers/qualification.json).

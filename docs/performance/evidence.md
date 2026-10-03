@@ -1,5 +1,5 @@
 ---
-description: Where the benchmark evidence lives, and archived per-kernel measurements.
+description: Benchmark sources, methods and archived measurements of individual operations.
 ---
 
 # Benchmark evidence
@@ -7,10 +7,10 @@ description: Where the benchmark evidence lives, and archived per-kernel measure
 ## Evidence provenance
 
 Each row is one set of measurements. Dates, commits, hosts and case counts come
-from the linked summary files; "not recorded" means the file does not state the
-value. Commits refer to the pre-release history of this repository, and the
-linked files record the build identities (SHA-256 hashes of the native library,
-Python sources and benchmark scripts). Files under `benchmarks/results/` keep
+from the linked summary files; "not recorded" means the value is missing.
+Commits refer to this repository's pre-release history. The linked files identify
+each build with SHA-256 hashes of the native library, Python sources and
+benchmark scripts. Files under `benchmarks/results/` keep
 their recorded measurements; identifying data and archive metadata were redacted
 ([redacted paths](#redacted-paths)).
 
@@ -28,18 +28,19 @@ their recorded measurements; identifying data and archive metadata were redacted
 | LU scheduling probe | not recorded | not recorded | AMD Ryzen 9950X, 16 Rayon workers on CPUs 0–15 | 35 configurations | Bounded worker counts 1.99× to 83.9× faster per stage than the full pool, in 7 selected sizes | [`cpu-parallelism.json`](../../benchmarks/results/cpu-parallelism.json), [numerics](../design/numerics.md) |
 | Pre-release speed comparison (not a validation run) | 2026-09-26 to 2026-09-30 | baseline `5dadf1d` | shared 4-CPU cloud VM, one thread | 556 cases of 203 workloads | Geometric-mean time ratio against `5dadf1d`: 0.77 forward and 0.68 reverse without lattice sums, 0.48 and 0.35 for lattice sums; `recsumcw1d` about 4% slower | not archived; workloads in [`benchmark_cluster.py`](../../scripts/benchmark_cluster.py) |
 
-No file records the date of the Mac and Linux comparison.
+The retained report does not record run dates for both platforms in the Mac and
+Linux comparison.
 [`correction-plan.json`](../../benchmarks/correction-plan.json), created on
 2026-09-12, uses it as its baseline, so the comparison ran on or before that day.
 
-The pre-release comparison timed release builds of a later pre-release
-revision against `5dadf1d` with interleaved runs, and rechecked suspected
-slowdowns by CPU time and instruction counts. Among the largest gains (forward
-/ reverse) are field evaluation 17× / 8.6×, EBCM 8.4× / 5.0×, cylindrical
+The pre-release comparison alternated optimized builds of a later revision and
+`5dadf1d`, then rechecked suspected slowdowns by CPU time and instruction counts.
+Among the largest gains (forward / reverse) are field evaluation 17× / 8.6×,
+EBCM 8.4× / 5.0×, cylindrical
 expansion 6.3× / 5.4×, cylindrical periodic arrays 4.4× / 3.2×, Wigner 3j 2.3×
 and `intkambe` pullbacks 1.9×. The single-point 1D cylindrical reciprocal sum
-(`recsumcw1d`) is the only slowdown beyond noise: it does the extra Ewald shell,
-sheet and method bookkeeping of the lattice accuracy checks. Explicit lattice
+(`recsumcw1d`) is the only slowdown beyond noise: the lattice accuracy checks
+require extra Ewald shell, sheet and method tracking. Explicit lattice
 splits below the automatic one can take longer because they sum more shells and
 check their cancellation ([last section](#lattice-sums-at-explicit-small-splits-pre-release-timings)).
 
@@ -55,7 +56,7 @@ No measurement was rerun for this cleanup.
 
 ## Archived per-kernel measurements
 
-These measurements time individual kernels. Each one belongs to the build
+These measurements time individual numerical operations. Each belongs to the build
 named in its result file, which may differ from the current source. Unless a
 section says otherwise, the host is an AMD Ryzen 9 9950X (16 physical cores)
 with Linux x86-64, Python 3.13.1, treams 0.4.5 and an optimized treams-rs
@@ -76,12 +77,12 @@ mu=1.2+0.1i, kappa=0.07 and vacuum outside, the complete singular Q integral is
 compared with treams at rtol=2e-9, atol=1e-12, using the treams surface
 integral, which omits a radial area factor (`radial_area_factor=False`). treams-rs uses 96
 Gauss-Legendre nodes; treams uses adaptive SciPy quadrature. Four threads, seven
-samples after warmup. Reverse covers every sampled radius and slope and all
-complex wavenumbers and impedances; its peak RSS stays at the forward peak.
-Timings include the Python call and residual creation (the data kept for the
+samples after warmup. The reverse pass covers every sampled radius and slope,
+and all complex wavenumbers and impedances; its peak RSS stays at the forward peak.
+Timings include the Python call and saving the residual (the data kept for the
 reverse pass), not shape and basis setup. The timings were not archived. On a
-shared four-CPU host, parallel node waves with shared radial functions and
-solid harmonics bring the degree-4 forward from 5.4 to 0.74 ms and forward plus
+shared four-CPU host, parallel evaluation at quadrature nodes with shared radial
+functions and solid harmonics brings the degree-4 forward from 5.4 to 0.74 ms and forward plus
 reverse from 8.5 to 1.8 ms; the table shows the build without them.
 
 | Degree | Modes | treams ms | Rust ms | Speedup | Rust reverse ms | treams / Rust peak MiB |
@@ -108,10 +109,10 @@ and condition estimates. Workload: `--workload ebcm --particles 1 --lmax 4
 
 Chains of spheres with radii 0.15–0.25, spacing 0.8, relative permittivity
 4+0.1i and vacuum wavenumber 1.3. Timings cover particle coefficients,
-translations and the full dense interacting T-matrix, and treams-rs keeps its
-pullback residual; they exclude imports. Peak RSS includes imports, allocator
-retention and benchmark bookkeeping. Seven samples after warmup, with no CPU
-affinity or frequency isolation. Raw samples: `benchmarks/results/release-*.json`.
+translations and the full dense interacting T-matrix, and treams-rs keeps
+data for the pullback; they exclude imports. Peak RSS includes imports, memory
+retained for reuse and the benchmark's own memory. Seven samples after warmup,
+without fixed CPU placement or frequency. Raw samples: `benchmarks/results/release-*.json`.
 With packed in-place LU and four threads, dimension 240 takes 2.19 ms against
 89.95 ms (41.0x; 46.6 against 75.0 MiB) and dimension 960 takes 35.63 ms
 against 1641.15 ms (46.1x; 100.9 against 159.0 MiB), in
@@ -153,15 +154,15 @@ derivatives between adjacent orders it takes 138.96 ms. On a shared four-core
 machine (16 spheres at order 4, 4,000 samples, one thread), evaluating each
 scaled radial function once per sample, position, wavenumber and order brings
 weighted fields from 4.61 s to 0.26 s forward and from 12.3 s to 1.08 s forward
-plus reverse, with bitwise equal values. Workloads: `--workload field --samples 2048`,
+plus reverse, with values equal bit for bit. Workloads: `--workload field --samples 2048`,
 `--workload field-operator`, `--workload cylindrical-field`.
 
 ### Periodic sphere arrays and adjoints
 
 A square grid of spheres with spacing 0.8, the particle parameters above and
 Bloch vector (0.1, 0.15). Timings cover local coefficients, the 2D Ewald
-coupling and the full interacting response matrix, keeping every pullback
-context; basis setup is outside. The complete reverse pass (dense adjoint
+coupling and the full interacting response matrix, keeping the data for every
+pullback; basis setup is excluded. The complete reverse pass (dense adjoint
 solve, particle pullbacks, positions, wavenumbers, Bloch vector and lattice)
 takes 146.59 and 749.60 ms for four and nine spheres at four threads, peaking at
 43.4 and 60.0 MiB; this build computes the Ewald derivatives per polarization.
@@ -180,7 +181,7 @@ Raw results: `periodic-n4-l3-t1.json`, `periodic-adjoint-n4-l3-t4.json` and
 The `array` workload adds plane-wave incidence and radiation into ten ports
 (the zeroth and four first diffraction orders, both polarizations); the full S
 matrix is compared with treams. Reverse covers the channel and radiation
-pullbacks, the periodic solve and all particle contexts. Sharing Ewald
+pullbacks, the periodic solve and all particle pullbacks. Sharing Ewald
 derivatives between polarizations of equal wavenumber brings the
 four-sphere, four-thread reverse from 141.24 to 71.30 ms, about 4.7 forward
 evaluations, with no mode-by-parameter Jacobian. The nine-sphere case peaks at
@@ -212,21 +213,21 @@ The full 336-by-1,600 matrix takes 3.34 ms against 23.13 ms in treams
 Forward peak RSS is 73.9 MiB for treams and 55.9 MiB for treams-rs. treams-rs
 skips the azimuthal orders that vanish at coincident transverse positions and
 keeps adjacent orders for the position derivatives; without the skip, the
-forward takes 20.48 ms and the reverse 23.63 ms. This covers common positions
+forward takes 20.48 ms and the reverse 23.63 ms. This covers coincident positions
 only. The timings were not archived.
 
 ### Plane fields and direct NumPy buffer transfer
 
 128 plane modes (64 transverse vectors, both polarizations), 4,096 Cartesian
 samples with propagating and evanescent waves at k0=1.3, four threads, seven
-samples. Timings include input conversion, output transfer and residual
-creation; no output Jacobian is kept. Contracting polarization cotangents (the
+samples. Timings include input conversion, output transfer and saving data for
+the pullback; no output Jacobian is kept. Contracting polarization cotangents (the
 gradients with respect to the outputs) over all samples before differentiating
 each mode brings the weighted reverse from 6.10 to 3.58 ms. Handing the Rust
 buffer to NumPy without a copy brings the full operator from 13.32 ms and
-89.4 MiB to the row below; reverse packs the returned strides with one bulk copy
-and accepts any cotangent strides. For multipole field operators (four positions,
-lmax=3, 2,048 points) the same transfer gives 823.02 / 42.83 ms (19.2x), 75.81 ms
+89.4 MiB to the row below. The reverse pass accepts any cotangent memory layout,
+using one copy to make the data contiguous. For multipole field operators (four
+positions, lmax=3, 2,048 points) the same transfer gives 823.02 / 42.83 ms (19.2x), 75.81 ms
 reverse and 97.1 / 53.5 MiB forward peak RSS, against 64.2 MiB for treams-rs
 with a copy. The timings were not archived.
 
@@ -288,7 +289,7 @@ compact `diff.layer_stack` cotangent and cover all medium wavenumbers,
 impedances, transverse components and thicknesses. treams-rs solves each
 channel on its own and composes each layer's reflectionless propagation in
 closed form, as a diagonal phase scaling of the stack below; the forward
-blocks stay bitwise equal to the generic composition. Its solve and residual
+blocks remain equal bit for bit to the general composition. Its solve and residual
 grow linearly with the channel count, while the dense output still costs
 quadratic time and memory. Slab bases with partial polarization use the
 general projected composition. The timings were not archived. Workload:
@@ -318,9 +319,9 @@ reflections scale as 0.1/sqrt(N), with identity transmission plus similar
 perturbations; seed 81. All four fields are compared with treams; building the
 S matrices is outside the timings. Each sample is a batch of at least 20 ms
 that includes freeing the returned fields and residuals. Ordinary illumination
-borrows its input blocks and factors the operator in place in one packed LU
-buffer. Recorded illumination also keeps owned snapshots of the inputs, so the
-pullback survives later changes to the Python arrays; at 1,024 modes this costs
+uses its input blocks without copies and factors the operator in one LU buffer.
+Recorded illumination also copies the inputs, so the pullback survives later
+changes to the Python arrays; at 1,024 modes this costs
 about 332 MiB against 259 MiB for treams' forward-only call. Raw results:
 `benchmarks/results/internal-{forward,adjoint}-l{128,512}-p{1,8}.json`.
 `just bench-performance` reruns these eight cases and the two plane permutation
@@ -363,10 +364,10 @@ reverse and 67.5 against 89.5 MiB forward peak RSS
 Compact exp(i k.r) tables at 4,096 displacements with propagating and
 evanescent wavevectors, against the treams `pw.translate` ufunc; both packages
 receive precomputed vectors. The context keeps only positions and wavevectors,
-and the table goes to NumPy without a copy. Borrowing contiguous cotangents
-brings the large forward-plus-reverse peak from 235.1 to 172.3 MiB and reverse
-from 79.33 to 64.42 ms; strided inputs are packed. This covers the phase kernel
-only. The timings were not archived. Workload: `--workload plane-phases
+and the table goes to NumPy without a copy. Reading contiguous cotangents without
+copying brings the large forward-plus-reverse peak from 235.1 to 172.3 MiB and
+reverse from 79.33 to 64.42 ms; noncontiguous inputs are copied. This covers only
+the phase calculation. The timings were not archived. Workload: `--workload plane-phases
 --particles 16 --lmax 32 --samples 4096 --threads 4` (plane modes =
 2·particles·lmax; the smaller case uses 8 and 8).
 
@@ -397,8 +398,8 @@ residual keeps only the input geometry. Raw results:
 Spheres with alternating cutoffs 3 and 4, radii 0.15–0.25, permittivity
 4+0.1j, vacuum wavenumber 1.3 and spacing 0.8; local particle construction is
 outside the timings, and both packages return the complete interacting matrix.
-The native block path takes the local arrays separately and keeps their block
-structure. Its reverse returns only the local diagonal-block gradients plus
+The Rust calculation takes the local arrays separately and keeps their block
+structure. Its reverse pass returns only the local diagonal-block gradients plus
 every position and both embedding-wavenumber cotangents; the 624-mode process
 peaks at 107.1 MiB through reverse. For homogeneous clusters with lmax=3, 240
 modes take 2.48 ms against 90.32 ms (36.42x), 2.34 ms reverse and 46.1/50.9 MiB;
@@ -419,9 +420,9 @@ or `--workload particle-cluster-public` with `--particles 16 --lmax 3 --threads 
 Cylindrical Hankel H1 of order 3 at 128 or 4,096 complex arguments with real
 part 0.6–8.0 and imaginary part 0.2; values and first derivatives are compared
 with `treams.special`. Four threads, seven batched samples including cleanup.
-Parallel evaluation starts at 64 values, and ordinary forward calls borrow
-their inputs without creating a residual; a 128-value run without these fails
-the runtime check (65.59 against 61.08 us). treams-rs peaks at 39.8–41.0 MiB
+Parallel evaluation starts at 64 values. Ordinary forward calls use their inputs
+without copying and save no pullback data; a 128-value run without these changes
+fails the runtime check (65.59 against 61.08 us). treams-rs peaks at 39.8–41.0 MiB
 against 64.9–65.4 MiB. Small differences between recorded and ordinary forward
 times come from run-to-run scheduling. The ufunc table in the next section
 measures a later build of the same functions. Raw results:
@@ -467,7 +468,7 @@ is 3. The complex Hankel derivative gets its adjacent orders from one sequence
 evaluation, using the [Bessel derivative recurrence](https://dlmf.nist.gov/10.6.ii).
 All twelve cases pass their correctness, runtime and forward-RSS checks;
 treams-rs peaks at 39.2–41.3 MiB against 64.2–65.2 MiB. The recorded scalar
-value wins by only 1.06x, so recheck it on the target host. Raw files:
+value is faster by only 1.06x, so recheck it on the target host. Raw files:
 `benchmarks/results/ufunc-bessel{,-derivative}{,-forward}-n{1,128,4096}.json`;
 `just bench-performance` reruns all twelve into `benchmarks/results/local/`.
 
@@ -492,8 +493,8 @@ Integer-degree Legendre, pi and tau functions at degree 6 and order 2, with a
 scalar argument 0.3+0.1j and arrays over [-0.8,0.8]+0.1j; four threads. They
 use NumPy loops, a direct scalar path and the same factored recurrences forward
 and in reverse; tau shares one sine-power factor between adjacent Legendre
-orders. Recording includes creating the owned residual and freeing the result;
-each reverse consumes a fresh residual. All 50 runtime checks of this
+orders. Recording includes saving the pullback data and freeing the result;
+each reverse pass uses a fresh record. All 50 runtime checks of this
 `just bench-performance` run pass, and the ordinary forward and recorded
 special-function and particle paths pass their peak-RSS checks. treams-rs peaks
 at 40.3–41.7 MiB against 64.1–65.2 MiB. The 18 `angular-*.json` files in
@@ -611,7 +612,7 @@ and apply factored rotations without temporary matrices. The run passes 128
 performance checks, 48 of them coordinate comparisons at 1, 128 and 65,536
 points; each requires a forward speedup ≥ 1 and no higher forward peak RSS.
 The forward-only helpers of both packages return the result directly and free
-it inside the timing; recorded operations return their real contexts, and the
+it inside the timing; recorded operations also return data for the pullback, and the
 JSON field `forward_records_adjoint` says which. Sub-microsecond scalar
 differences are sensitive to machine noise. Raw samples, RSS and binary
 identities: `coordinate-*-n*.json`.

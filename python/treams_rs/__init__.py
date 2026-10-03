@@ -68,7 +68,7 @@ Sensitivity and optimization use an explicit framework namespace. With the
 
 Construct changing geometry/materials inside the objective and keep traced
 values as framework arrays (``advect.numpy``); convert to float/NumPy only after
-differentiation. Rust computes exact gradients with respect to continuous
+differentiation. Rust computes analytic gradients with respect to continuous
 geometry, material and frequency; mode cutoffs, integer labels and topology stay
 fixed. CPU, first-order reverse mode only. JAX and PyTorch have explicit
 optional namespaces. The root NumPy namespace does not trace; ``diff`` returns

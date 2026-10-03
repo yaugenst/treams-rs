@@ -11,17 +11,17 @@ description: treams workflows next to their treams-rs equivalents, the concept m
     which treams calls `SMatrix`. `tr.SMatrices` raises an `AttributeError`
     that names `SMatrix`.
 
-treams-rs computes the numbers of treams 0.4.5 in the same
-[conventions](conventions.md). Two layers sit on the native core:
+treams-rs follows the numerical [conventions](conventions.md) of treams 0.4.5.
+The Python API offers two ways to work:
 
 - **Numerical namespaces.** `special`, `sw`, `cw`, `pw`, `lattice`, `coeffs`,
   `misc`, `ebcm` and `io` keep the treams function names and argument names.
   `operators` holds the treams operators and `PhysicsArray`. A call such as
   `treams.sw.translate(...)` runs as `treams_rs.sw.translate(...)`; the
   [differences page](differences.md) lists where results differ.
-- **Physics objects.** `TMatrix`, `Wave`, `Cluster`, `SMatrix` and their
-  factories take keyword arguments and keep their metadata as attributes. They
-  replace the annotated arrays of treams.
+- **Physics objects.** `TMatrix`, `Wave`, `Cluster`, `SMatrix` and functions
+  such as `sphere_tmatrix` take keyword arguments and store physical properties
+  as attributes. They replace the annotated arrays of treams.
 
 ## Workflow translations
 
@@ -92,7 +92,7 @@ which treams returns as `xs_sca_avg` and `xs_ext_avg`.
 <!-- fmt: on -->
 
 `scatter` expands the incident wave into the basis of the T-matrix and returns
-a `Wave`. The wave knows its basis, `k0` and medium, and evaluates fields.
+a `Wave`. The wave stores its basis, `k0` and medium, and evaluates fields.
 
 ### Clusters
 
@@ -312,14 +312,14 @@ the three Cartesian components of the electric field.
 - **One material, one medium.** `sphere_tmatrix(material=4, medium=1.33)`
   replaces the list `[Material(4), Material(1.33)]`. Multilayer factories take
   `materials` from the inside out and a separate `medium`.
-- **No annotation propagation.** `.array` is a read-only NumPy array without
-  basis or `k0`. Array arithmetic returns plain arrays; wrap a result again with
-  `TMatrix(array, k0=..., basis=...)`.
+- **Arrays have no physical metadata.** `.array` is a read-only NumPy array
+  without basis or `k0`. Array arithmetic returns plain arrays; wrap a result
+  again with `TMatrix(array, k0=..., basis=...)`.
 - **`scatter()`, not `@`.** `tm @ incident` returns bare coefficients;
   `tm.scatter(incident)` returns a `Wave` that evaluates fields.
 - **Named results.** `cross_sections`, `power` and
-  `SMatrix.circular_dichroism` return named tuples. They unpack in the treams order, and `.extinction` or
-  `.transmission` reads one value.
+  `SMatrix.circular_dichroism` return named tuples. They unpack in the treams
+  order; use `.extinction` or `.transmission` to read one value.
 - **No global `POLTYPE`.** `tr.config` raises an `AttributeError`. Pass
   `polarization="parity"` to the factory or call `with_polarization`.
 - **`kind` is `"regular"` or `"singular"`.** Singular waves are outgoing: their

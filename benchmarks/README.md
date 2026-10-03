@@ -30,6 +30,12 @@ digests. The runs themselves used `2470fbe`, the `source.commit` of
 archives, updates the correctness record and the documentation to match, and
 changes no source file other than the report renderer `plot_benchmarks.py`.
 
+These commit identifiers describe the original runs. After the publication
+history rewrite, resolve a historical identifier through the `commits` mapping
+in [`history-provenance.json`](history-provenance.json), then check out the
+mapped sanitized revision. The mapping changes no numerical result or
+as-run build fingerprint.
+
 ## Root files
 
 | File | Kind | Contents |
@@ -68,9 +74,10 @@ electron-beam, CPC periodic-array and thermal-emission comparisons.
 
 ## results/: immutable raw evidence
 
-Everything under `results/` is raw evidence that the manifests, summaries,
-documentation and audits cite by path and digest. Never edit, rename or delete
-anything there. Write new runs to `results/local/`, which git ignores, by
+Everything under `results/` is recorded evidence that the manifests, summaries,
+documentation and audits cite by path and digest. Do not change numerical data
+or rename or delete cited files. Privacy-only changes follow the rules below.
+Write new runs to `results/local/`, which git ignores, by
 passing a directory under it as `--output`; `just bench*` puts its results
 there.
 
@@ -100,11 +107,25 @@ these extracted directories; delete them when you are done and keep the
 archives. Archive digests and file counts are in the two `linux-core-*.json`
 records.
 
-Recorded paths in the results have user and machine identifiers removed, and
-the manifest digests of the redacted JSON files match the files as
-distributed. Numerical results, timing samples and the recorded source,
-native-library and benchmark-script fingerprints are unchanged; the redaction
-reran no measurement.
+## Privacy and provenance
+
+Numerical measurements are immutable. Before publication, incidental personal
+paths, account and session identifiers, private hostnames and archive owner
+metadata may be removed from distribution copies. Preserve the original evidence
+privately, preserve authorship, citations, license attribution and functional
+project links, and record the original and sanitized archive digests in
+[`privacy-provenance.json`](privacy-provenance.json).
+
+Such a change must preserve numerical JSON values, timing samples, outcomes and
+binary numerical arrays exactly, and update the checksums of distributed files,
+manifests and archives. Original measurement revisions and source, native-library,
+package and benchmark-script fingerprints remain as-run facts. A sanitized source
+snapshot records its content hashes separately as `sanitized_sha256`; these do not
+replace its original `sha256` fingerprints. Sanitization reruns no measurement.
+
+Archive owner/group fields and timestamps are normalized independently of the
+scientific run dates inside the evidence. The provenance record states the
+checks performed; it is not a new numerical qualification.
 
 ## agent-api/ and agent-usability/
 

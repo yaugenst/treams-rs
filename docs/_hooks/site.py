@@ -50,6 +50,9 @@ _SITE_LINK = re.compile(
 _MARKDOWN_SITE_LINK = re.compile(
     r"(?P<open>\]\()" + re.escape(SITE) + r"latest/(?P<path>[^)\s]*)"
 )
+_MARKDOWN_SITE_AUTOLINK = re.compile(
+    r"<" + re.escape(SITE) + r"latest/(?P<path>[^>\s]*)>"
+)
 
 
 def _relative_site_link(path, source):
@@ -57,6 +60,13 @@ def _relative_site_link(path, source):
     relative = posixpath.relpath(path or ".", posixpath.dirname(source))
     slash = "/" if not path or path.endswith("/") else ""
     return f"{relative}{slash}{marker}{anchor}"
+
+
+def _local_html_links(output, source):
+    return _SITE_LINK.sub(
+        lambda match: f'{match["open"]}{_relative_site_link(match["path"], source)}"',
+        output,
+    )
 
 
 def on_pre_build(config):
@@ -101,6 +111,9 @@ def on_page_markdown(markdown, page, config, files):
     def published_link(match):
         return match["open"] + _relative_site_link(match["path"], source)
 
+    def published_autolink(match):
+        return f"[{match[0][1:-1]}]({_relative_site_link(match['path'], source)})"
+
     lines, published, fence = [], [], None
     for line in markdown.splitlines(keepends=True):
         published_line = None
@@ -116,6 +129,9 @@ def on_page_markdown(markdown, page, config, files):
         else:
             line = rewrite_links(line, _PARENT_LINK, repository_link)
             published_line = rewrite_links(line, _MARKDOWN_SITE_LINK, published_link)
+            published_line = rewrite_links(
+                published_line, _MARKDOWN_SITE_AUTOLINK, published_autolink
+            )
         lines.append(line)
         published.append(line if published_line is None else published_line)
     result = "".join(lines)
@@ -126,21 +142,23 @@ def on_page_markdown(markdown, page, config, files):
 def on_post_page(output, page, config):
     """Keep links to this project's latest docs inside the displayed version."""
 
-    def site_link(match):
-        return f'{match["open"]}{_relative_site_link(match["path"], page.file.url)}"'
-
     revision = os.environ.get("TREAMS_RS_DOCS_SOURCE_REF") or "main"
     index = posixpath.relpath("llms.txt", posixpath.dirname(page.file.url))
     output = output.replace(
         f'href="{REPOSITORY}/blob/{revision}/llms.txt"', f'href="{index}"'
     )
-    return _SITE_LINK.sub(site_link, output)
+    return _local_html_links(output, page.file.url)
 
 
 def on_post_build(config):
     """Publish the Markdown and agent index beside this version's HTML."""
     site = Path(config["site_dir"])
     root = Path(config["config_file_path"]).resolve().parent
+    for path in (site / "rust").rglob("*.html"):
+        original = path.read_text(encoding="utf-8")
+        rewritten = _local_html_links(original, path.relative_to(site).as_posix())
+        if rewritten != original:
+            path.write_text(rewritten, encoding="utf-8")
     for source, markdown in _page_sources.items():
         target = site / source
         target.parent.mkdir(parents=True, exist_ok=True)

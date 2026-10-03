@@ -4,10 +4,9 @@ description: The physics objects of treams-rs, their metadata and read-only arra
 
 # User guide
 
-## Objects carry their physics
+## Objects and physical properties
 
-treams-rs describes a computation with objects that keep their physical
-metadata as attributes:
+treams-rs objects store their physical properties as attributes:
 
 | Object | Holds | Made by |
 | --- | --- | --- |
@@ -17,8 +16,8 @@ metadata as attributes:
 | `PeriodicResponse`, `PeriodicWave` | the response of a lattice and its waves | `solve_periodic`, `PeriodicResponse.scatter` |
 | `SMatrix` | a planar two-port network | `interface`, `slab`, `propagation`, `stack`, `PeriodicResponse.to_smatrix` |
 
-Each object knows its basis, `k0`, surrounding `medium` and polarization
-convention. Operations check that these agree and return objects again:
+Each object stores its basis, `k0`, surrounding `medium` and polarization
+convention. Operations check that these agree and return named results:
 `scatter` returns a `Wave`, `power` returns named `transmission` and
 `reflection`, `cross_sections` returns named `scattering` and `extinction`.
 
@@ -38,9 +37,8 @@ np.testing.assert_allclose(
 ```
 
 `.array` and `.coefficients` give read-only NumPy arrays. NumPy arithmetic on
-them returns plain arrays without metadata. The polarization convention is an
-argument of each factory, with `"helicity"` as the default, never a global
-setting.
+them returns plain arrays without metadata. Set the polarization convention
+when creating each object; the default is `"helicity"`.
 
 Units are up to you: lengths and `1 / k0` share one unit. Numbers passed as a
 material are relative permittivities; `Material(epsilon, mu, kappa)` adds

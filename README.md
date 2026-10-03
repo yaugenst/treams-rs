@@ -1,30 +1,33 @@
 # treams-rs
 
-[![CI](https://github.com/yaugenst/treams-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/yaugenst/treams-rs/actions/workflows/ci.yml)
-[![Docs](https://github.com/yaugenst/treams-rs/actions/workflows/docs.yml/badge.svg)](https://yaugenst.github.io/treams-rs/latest/)
+[![CI](https://github.com/yaugenst/treams-rs/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/yaugenst/treams-rs/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-read-blue.svg)](https://yaugenst.github.io/treams-rs/latest/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/yaugenst/treams-rs/blob/main/LICENSE)
 [![Python 3.12–3.15](https://img.shields.io/badge/python-3.12%E2%80%933.15-blue.svg)](https://yaugenst.github.io/treams-rs/latest/getting-started/install/)
+
+treams-rs is a Rust port of [treams](https://github.com/tfp-photonics/treams)
+with a Python interface and analytic gradients.
+
+**All credit for treams belongs to the original treams contributors.**
+Their work is described in the
+[treams paper](https://doi.org/10.1016/j.cpc.2023.109076); please cite it when
+using this port.
 
 treams-rs computes electromagnetic scattering with T-matrices: spheres,
 cylinders and layered or chiral particles, finite clusters, periodic arrays and
 planar stacks, with their fields, cross sections and power. A T-matrix is the
 linear map from the multipole coefficients of an incident wave to those of the
-scattered wave. A Rust core does the numerical work and a typed Python API
-describes the physics. The operations have analytic gradients, which Advect, JAX
-and PyTorch use directly.
+scattered wave. Advect, JAX and PyTorch use its analytic gradients directly.
 
 ## Relationship to treams
-
-treams-rs follows [treams](https://github.com/tfp-photonics/treams) by Dominik
-Beutel and coworkers:
 
 - **Same conventions.** treams-rs uses treams' units, polarization, mode
   ordering and normalization. Reference tests use treams 0.4.7; historical
   comparisons and benchmarks identify their original treams version.
-- **Same numerical namespaces.** `special`, `sw`, `cw`, `pw`, `lattice`,
+- **Same numerical modules.** `special`, `sw`, `cw`, `pw`, `lattice`,
   `coeffs`, `misc`, `ebcm` and `io` keep the treams function and argument
   names.
-- **Its own physics API.** Objects such as `TMatrix`, `Cluster`, `Wave` and
+- **Its own Python interface.** Objects such as `TMatrix`, `Cluster`, `Wave` and
   `SMatrix` carry their basis, wavenumber and media as attributes, in place of
   annotated arrays.
 - **A Rust core.** At run time it needs only NumPy: no treams, SciPy or Cython.
@@ -89,14 +92,14 @@ print(grad(scattering)(0.2))
 
 ## Documentation
 
-The documentation lives at <https://yaugenst.github.io/treams-rs/latest/>:
+The [documentation](https://yaugenst.github.io/treams-rs/latest/) covers:
 
 - [Getting started](https://yaugenst.github.io/treams-rs/latest/getting-started/quickstart/):
   four short examples.
 - [Coming from treams](https://yaugenst.github.io/treams-rs/latest/coming-from-treams/):
   workflows, names and conventions side by side.
 - [User guide](https://yaugenst.github.io/treams-rs/latest/guide/): particles, clusters,
-  periodic arrays, planar stacks and the numerical namespaces.
+  periodic arrays, planar stacks and numerical functions.
 - [Differentiation](https://yaugenst.github.io/treams-rs/latest/differentiation/):
   gradients through Advect, JAX, PyTorch and the `diff` module.
 - [Examples](https://yaugenst.github.io/treams-rs/latest/examples/): the treams gallery
@@ -104,7 +107,7 @@ The documentation lives at <https://yaugenst.github.io/treams-rs/latest/>:
 - [Validation](https://yaugenst.github.io/treams-rs/latest/validation/): tests against
   treams, analytic results and published spectra.
 - [Performance](https://yaugenst.github.io/treams-rs/latest/performance/): CPU timings
-  against treams 0.4.5.
+  against treams 0.4.5, with the measured builds and limitations recorded.
 - [Reference](https://yaugenst.github.io/treams-rs/latest/reference/): every public
   function and class.
 - [Development](https://yaugenst.github.io/treams-rs/latest/development/): building

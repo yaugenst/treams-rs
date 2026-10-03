@@ -1,12 +1,11 @@
 ---
-description: The thread pool that treams-rs owns, why results repeat bit for bit at every thread count, the rules that keep it so, and the open work.
+description: The treams-rs thread pool, reproducible results and remaining work.
 ---
 
 # Parallelism
 
 Every parallel step of treams-rs runs on one pool of worker threads that the
-crate owns (`treams_core::threads`), sized by one budget. Below are the design,
-the rules that keep it, and what is still open.
+crate owns (`treams_core::threads`), sized by one budget.
 [Threads and process pools](../guide/threads.md) shows how to use it.
 
 ## Why treams-rs owns its pool
@@ -29,9 +28,9 @@ Python library:
 - **Decision points.** A kernel decides whether a step runs in parallel; only
   then does it hand the step to the pool through `threads::install` (or
   `threads::join`, `threads::dense` and `threads::product` for faer). Steps that
-  stay serial never touch the pool, so small calls pay no hand-off. With a
-  one-thread budget the helpers of `numerics::parallel` run everything on the
-  calling thread. A step already on a worker runs in place.
+  stay serial never touch the pool, so small calls avoid scheduling overhead.
+  With a one-thread budget the helpers of `numerics::parallel` run everything
+  on the calling thread. A step already on a worker runs in place.
 - **Budget.** `threads::set_num_threads`, then `TREAMS_RS_NUM_THREADS`,
   `RAYON_NUM_THREADS` and `OMP_NUM_THREADS`, then
   `std::thread::available_parallelism`. Environment values are read once and
@@ -106,9 +105,9 @@ from the system.
 ## Audit and open work
 
 An audit of the previous baseline (`5dadf1d`) covered controls, process hazards,
-scheduling, determinism, the bindings, hardware, validation and memory,
-with probes on a shared 4-vCPU Linux host. Behavioral findings are firm; timings
-are indicative. Done since:
+scheduling, reproducibility, the bindings, hardware, validation and memory
+on a shared 4-vCPU Linux host. The shared host limits the timing evidence.
+The following changes address the audit's findings:
 
 - the owned, fork-safe pool and the controls of `treams_rs.parallel`;
 - results that repeat bit for bit at every thread count (above);
@@ -121,14 +120,17 @@ are indicative. Done since:
 - `MemoryError` for refused dense output matrices, decomposition vectors and
   LU, SVD and eigenvalue workspaces. Input copies, matrix products, gradient
   buffers and other allocations can still abort when refused;
-- free-threaded CPython keeps the GIL until the module is audited for it.
+- the module keeps the GIL; free-threaded CPython is outside the release scope.
 
-### Open work
+### Further work
+
+The timings and estimates below belong to that earlier audit. These follow-up
+investigations are outside the 0.1.0 release scope.
 
 | Item | Evidence | Estimate |
 |---|---|---|
 | Parallel singular-value decompositions from n ≈ 384 whose splits do not follow the budget, for example a fixed worker count by size. | At n = 768, 403 ms on four workers against 693 ms on one; the bits changed with the worker count. | 2–3 d |
-| A cost model for parallel cutoffs: items times cost per item instead of fixed element counts. Regions without a cutoff also hand their work to a pool of one worker at a one-thread budget. | 32 regions had no size cutoff; a two-point field call cost 24–75 µs against 9 µs for one point. | 3–4 d |
+| A cost model for parallel cutoffs: items times cost per item instead of fixed element counts. One-thread helpers now execute serially on the calling thread. | The audit found 32 regions without a size cutoff; a two-point field call cost 24–75 µs against 9 µs for one point. | 3–4 d |
 | Calibrate the LU worker cap on more machines, at both ends. | Pools of four or fewer use every worker from 64 rows; larger pools keep 768 rows serial. Tuned on one Ryzen 9950X. | 1–2 d + machines |
 | Ufunc parallel path without the collect-then-store copy, and parallel strided inputs. | Peak RSS 153 MiB at one thread against 306 MiB at four. | 1.5–2 d |
 | Parallel cluster assembly and pullbacks in `basis`, and the EBCM forward. | The assembly behind `Cluster.solve` did not scale from one to four threads. | 1.5–2.5 d |
@@ -136,5 +138,5 @@ are indicative. Done since:
 | Conversions that hold the GIL. | An N = 4000 conversion held the GIL 0.2–0.56 s. | 2 d |
 | Native panics as a typed Python error instead of `PanicException`, a `BaseException`. | | 1 d |
 | Interruptible long calls (Ctrl-C waits for the native call to return). | SIGINT took effect 2–24 s later. | 2–3 d |
-| CI jobs on macOS and ARM, and a scaling benchmark that leaves the budget unset. | CI runs on x86-64 Linux; most of 1300 benchmark cases ran at four threads. | 3–5 d + machines |
-| Audit free-threaded CPython (3.13t is admitted) before declaring `gil_used = false`. | | 1–2 d |
+| Measure scaling on macOS, ARM and Windows, including the default thread budget. | The configured wheel checks cover Linux x86-64 and ARM, macOS and Windows; the audit measurements came from Linux, with most of 1300 cases at four threads. | 3–5 d + machines |
+| Audit free-threaded CPython before declaring `gil_used = false`. | Free-threaded interpreters are outside the 0.1.0 support matrix. | 1–2 d |

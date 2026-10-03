@@ -4,9 +4,9 @@ description: Find functions, signatures and gradient contexts offline with pytho
 
 # API discovery
 
-The installed package describes itself without network access and without
-importing JAX, PyTorch or Advect. Three entry points give the same
-information at different depths.
+The installed package lists its functions and classes without network access
+or imports of JAX, PyTorch or Advect. Use the command line, catalog or
+documentation index below.
 
 ## The command line
 
@@ -27,8 +27,8 @@ ufuncs of `special` and `lattice` show their positional arguments in `help()`;
 
 `treams_rs.support_catalog()` returns the same data as `--format json`: every
 public function and class with its signature, docstring and source location,
-the contexts that its records return, the treams names, and the installed
-versions of the optional packages. The
+the gradient contexts returned by its records, the treams names, and installed
+versions of optional packages. The
 [Python reference](../reference/python/index.md) is generated from it.
 
 ```python exec
@@ -45,7 +45,7 @@ assert rows["treams_rs.diff.solve"]["pullbacks"][0]["context"] == "SolveContext"
 ```
 
 A record such as `diff.sphere_cluster` returns a value and a context;
-`context.pullback(g)` turns the gradient `g` with respect to the value into
+`context.pullback(g)` converts the gradient `g` with respect to the value into
 gradients with respect to the inputs. The catalog row lists the context class
 and the signature of its pullback. [Differentiation](../differentiation/index.md)
 explains records and contexts.
@@ -64,7 +64,7 @@ for name, text in rules.items():
 ## llms.txt
 
 [`llms.txt`](../../llms.txt) at the repository root lists every documentation
-page with a one-line summary, in the order of the site navigation. It suits
+page with a one-line summary, in the order of the site navigation. It is for
 programs and language models that read the documentation as Markdown.
 
 ## Two things to know
@@ -73,8 +73,8 @@ programs and language models that read the documentation as Markdown.
   relative permittivities. See [Conventions](../coming-from-treams/conventions.md).
 - The native `diff` records for spheres, `diff.sphere` and `diff.mie`, take
   their materials as arrays ordered from the innermost layer outwards, followed
-  by the surrounding medium. The physics factories take the particle
-  `material` and the surrounding `medium` as separate arguments instead.
+  by the surrounding medium. Functions such as `multilayer_sphere_tmatrix`
+  take the particle `material` and surrounding `medium` as separate arguments.
 
 ```python exec
 import numpy as np

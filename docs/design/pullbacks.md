@@ -1,10 +1,10 @@
 ---
-description: Why derivatives are analytic first-order pullbacks with one-use contexts, the real pairing and no finite-difference fallback.
+description: Analytic first derivatives, one-use gradient contexts and the complex-gradient convention.
 ---
 
 # Analytic pullbacks
 
-Every differentiable operation of treams-rs is a record:
+Every differentiable operation of treams-rs has a record:
 
 > A record is a function that returns a value and a context. The context stores what is needed to compute gradients later and can be used once: `context.pullback(g)` takes the gradient `g` of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.
 
@@ -26,13 +26,13 @@ with pytest.raises(ValueError, match="consumed"):
 
 ## Why analytic
 
-- **Accuracy.** A finite difference balances truncation against rounding and
-  keeps about 8 of the 16 digits (one-sided) or 10 to 11 (central). An analytic
-  pullback is accurate to rounding, also where the forward is badly conditioned.
+- **Accuracy.** Analytic pullbacks avoid the step-size choice and subtraction
+  error of finite differences. Their accuracy still depends on the conditioning
+  of the forward and adjoint problems and on floating-point rounding.
 - **Cost.** A pullback costs about one forward call, whatever the number of
   inputs. A central difference costs two forward calls per real input: 2 × 3N for
   the positions of N spheres.
-- **Reuse.** A pullback reuses the work of its forward. The pullback of
+- **Reuse.** A pullback reuses work from the forward call. The pullback of
   `diff.solve` solves the adjoint system with the LU factors of the forward
   solve. The requested-illumination records of one cluster share one factor of
   `I - T C`.
@@ -56,7 +56,7 @@ A framework that needs a second reverse pass records the forward again (see
 
 ## Why the real pairing
 
-The loss is real and most inputs are complex. With the pairing of the definition,
+The loss is real and most inputs are complex. With the pairing defined above,
 the gradient of a complex input `x` is one complex number: its real part is the
 derivative with respect to `Re x` and its imaginary part the derivative with
 respect to `Im x`. For a real input it is the ordinary real gradient. Advect and

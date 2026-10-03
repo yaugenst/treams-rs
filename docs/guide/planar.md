@@ -19,7 +19,7 @@ named after the z axis of the ports' basis:
 
 ## Building a network
 
-| Factory | Builds |
+| Function | Builds |
 | --- | --- |
 | `interface(basis=, k0=, negative_medium=, positive_medium=)` | one flat interface |
 | `slab(basis=, k0=, thickness=, material=)` | one homogeneous layer |
@@ -59,7 +59,7 @@ np.testing.assert_allclose(two.array, tr.stack(layers).array, atol=1e-15)
 | `power(incident)` | `PowerBalance(transmission, reflection)` as fractions of the incident power |
 | `scatter(negative=..., positive=...)` | `ScatteredPorts(negative, positive)`: the waves leaving each side |
 | `block("positive", "negative")` | one `ScatteringBlock`: the waves leaving the first side for waves arriving from the second; this one is the transmission upwards |
-| `circular_dichroism(incident)` | the contrasts of transmission and of total leaving power between the two helicities |
+| `circular_dichroism(incident)` | the contrasts of transmission and total outgoing power between the two helicities |
 | `bands(period=...)` | `BandModes(wavenumbers, eigenvectors)` of the network repeated along z |
 | `transfer_matrix()` | the transfer matrix of one period |
 

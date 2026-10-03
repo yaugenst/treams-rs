@@ -70,10 +70,10 @@ impl<'py> FromPyObject<'_, 'py> for Cotangent<'py> {
 /// A cotangent of a real output, of any real or complex dtype, dimension and
 /// memory layout.
 ///
-/// A float64 array of any layout is borrowed. Anything else converts as a whole,
-/// as [`Cotangent`] does, with `numpy.asarray(numpy.real(cotangent), float64)`:
-/// the pairing `Re sum(conj(g) * dx)` of a real output `dx` reads only the real
-/// part of `g`.
+/// A float64 array of any layout is borrowed, as is the real view of a complex128
+/// array. Anything else converts as a whole, as [`Cotangent`] does, with
+/// `numpy.asarray(numpy.real(cotangent), float64)`: the pairing
+/// `Re sum(conj(g) * dx)` of a real output `dx` reads only the real part of `g`.
 #[derive(Debug)]
 pub(crate) struct RealCotangent<'py>(PyReadonlyArrayDyn<'py, f64>);
 
@@ -92,6 +92,10 @@ impl<'py> FromPyObject<'_, 'py> for RealCotangent<'py> {
         let py = cotangent.py();
         let array = if let Ok(array) = cotangent.cast::<PyArrayDyn<f64>>() {
             array.to_owned()
+        } else if let Ok(array) = cotangent.cast::<PyArrayDyn<Complex>>() {
+            array
+                .getattr(intern!(py, "real"))?
+                .cast_into::<PyArrayDyn<f64>>()?
         } else {
             let numpy = py.import(intern!(py, "numpy"))?;
             let real = numpy.call_method1(intern!(py, "real"), (cotangent,))?;

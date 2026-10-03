@@ -1,5 +1,5 @@
 ---
-description: How the Advect, JAX and PyTorch adapters share the physics classes, one native call per operation and static configuration.
+description: Shared physics classes, native calls and gradients in Advect, JAX and PyTorch.
 ---
 
 # Framework adapters
@@ -21,18 +21,18 @@ and a context, and checks the declared output shape and dtype. Its pullback
 returns one gradient per value, in order. Bases, mode labels and conventions
 never appear in `values`: the record captures them.
 
-Each adapter module supplies three things and binds the shared code to them:
+Each adapter module supplies:
 
 - its array namespace (`advect.numpy`, `jax.numpy`, `torch`);
-- the hook `_operation(record, *values, shape=..., real=...)`, which turns one
+- the function `_operation(record, *values, shape=..., real=...)`, which turns one
   record into one framework operation;
 - optional `asarray` (PyTorch tensor conversion) and `validate` (JAX precision and
-  device checks) hooks.
+  device checks) functions.
 
 The adapter then binds the shared constructors, `_framework.Constructors`, and
 the shared expert operations, `_framework.Operations`: `solve`, `interaction`,
 `illuminate`, `sphere` and `bessel`. These operations and Advect's array
-functions call the hook directly, without the check of `Backend.apply`. Each
+functions call `_operation` directly, without the check of `Backend.apply`. Each
 expert operation declares its output shape, which JAX needs to build its
 callback; Advect and PyTorch read the output from the native forward.
 
@@ -40,10 +40,10 @@ callback; Advect and PyTorch read the output from the native forward.
 
 Some checks compare metadata of two objects, such as the `k0` and medium of a
 T-matrix and its illumination. Under `jax.jit` these values are traced, and their
-numbers exist only inside the native callback. So the check runs inside a record,
-`Backend.guard`: it passes the value through, raises on a mismatch and gives the
-compared metadata zero gradients. The `Backend.apply` docstring lists every
-guard.
+numbers are available only inside the native callback. The check runs inside
+a record, `Backend.guard`: it passes the value through, raises on a mismatch
+and gives the compared metadata zero gradients. The `Backend.apply` docstring
+lists every guard.
 
 ## How long a context lives
 
@@ -54,10 +54,11 @@ guard.
 | PyTorch | Records once, keeps the context and snapshots of the inputs | The first backward consumes the context; a repeated backward records again from the snapshots |
 
 JAX may skip or repeat a `pure_callback`, and the values it saves for the reverse
-pass must be arrays. A native context fits neither rule, so the JAX adapter keeps only the
-inputs and pays one extra native forward per reverse pass. PyTorch keeps the
-context because a single backward is the common case; the snapshots make
-`retain_graph=True` work without a context that can be used twice.
+pass must be arrays. A native context cannot meet these requirements, so the JAX
+adapter saves the inputs and repeats the native forward call for each reverse
+pass. PyTorch keeps the context because a single backward is the common case;
+the snapshots make `retain_graph=True` work without a context that can be used
+twice.
 
 ## Static configuration
 

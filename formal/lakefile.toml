@@ -1,10 +1,10 @@
 name = "formal"
 version = "0.1.0"
-keywords = ["math"]
-defaultTargets = ["Formal"]
+keywords = [ "math" ]
+defaultTargets = [ "Formal" ]
 
 [leanOptions]
-pp.unicode.fun = true # pretty-prints `fun a ↦ b`
+pp.unicode.fun = true       # pretty-prints `fun a ↦ b`
 relaxedAutoImplicit = false
 maxSynthPendingDepth = 3
 

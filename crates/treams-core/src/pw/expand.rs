@@ -5,13 +5,15 @@
 #![allow(clippy::indexing_slicing)] // Validated bases, label slots and matrix shapes.
 
 use nalgebra::DMatrix;
-use rayon::prelude::*;
 
 use super::{field::phase, polarization::Direction};
 use crate::{
     Complex, Error, Result,
     basis::{ModeLabel, MultipoleBasis},
-    numerics::{Jet, finite, parallel::try_fold_ordered},
+    numerics::{
+        Jet, finite,
+        parallel::{try_fill_chunks, try_fold_ordered},
+    },
     special::{check_pol, polarized_angular},
     sw::Mode,
 };
@@ -324,26 +326,25 @@ pub fn expansion(
     }
     let labels = AngularLabels::of(&basis);
     let mut value = DMatrix::zeros(basis.len(), vectors.len());
-    crate::threads::install(|| {
-        value
-            .as_mut_slice()
-            .par_chunks_mut(basis.len())
-            .enumerate()
-            .try_for_each(|(j, column)| -> Result<()> {
-                let direction = Direction::<0>::new(vectors[j])?;
-                let angular =
-                    labels.evaluate(&basis, vectors[j], &direction, polarizations[j], helicity);
-                let phases: Vec<_> = basis
-                    .positions()
-                    .iter()
-                    .map(|&p| phase(vectors[j], p))
-                    .collect();
-                for (i, (out, &slot)) in column.iter_mut().zip(&labels.slot).enumerate() {
-                    *out = angular[slot].value * phases[basis.position_pol(i).0];
-                }
-                Ok(())
-            })
-    })?;
+    try_fill_chunks(
+        value.as_mut_slice(),
+        basis.len(),
+        vectors.len() > 1,
+        |j, column| -> Result<()> {
+            let direction = Direction::<0>::new(vectors[j])?;
+            let angular =
+                labels.evaluate(&basis, vectors[j], &direction, polarizations[j], helicity);
+            let phases: Vec<_> = basis
+                .positions()
+                .iter()
+                .map(|&p| phase(vectors[j], p))
+                .collect();
+            for (i, (out, &slot)) in column.iter_mut().zip(&labels.slot).enumerate() {
+                *out = angular[slot].value * phases[basis.position_pol(i).0];
+            }
+            Ok(())
+        },
+    )?;
     Ok((
         value,
         ExpansionResidual {

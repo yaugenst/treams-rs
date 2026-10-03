@@ -43,7 +43,7 @@ Advect has no public ``wrap``. Run a custom record through
 ``treams_rs.jax.wrap`` or ``treams_rs.torch.wrap``, or compose the expert
 functions of ``treams_rs.advect``.
 
-Framework adapters guide: https://yaugenst.github.io/treams-rs/differentiation/frameworks/
+Framework adapters guide: https://yaugenst.github.io/treams-rs/latest/differentiation/frameworks/
 
 ## `BandModes`
 

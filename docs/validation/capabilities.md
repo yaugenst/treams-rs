@@ -1,5 +1,5 @@
 ---
-description: What treams-rs implements, area by area, the treams code it covers and what it leaves out.
+description: Implemented physics, derivatives and limits, compared with treams.
 ---
 
 # Capabilities
@@ -12,8 +12,8 @@ is built around physical objects and does not copy the treams source API.
 results that differ on purpose, including defects of treams 0.4.5.
 
 The treams inventory has 182 public functions and classes across the package and
-its numerical, configuration and I/O modules. A matching export only checks
-coverage; the tests also compare complete workflows and independent physical laws
+its numerical, configuration and I/O modules. Matching those names checks
+coverage; tests also compare complete workflows and independent physical laws
 ([validation](index.md)).
 
 ## Numerical and workflow coverage
@@ -59,7 +59,7 @@ chiral materials, translation and rotation algebra, periodic Ewald sums in
 several dimensions, S-matrix composition, fields, EBCM, observables and basis
 metadata.
 
-The hard parts are numerical conventions and conditioning: complex square-root
+Accuracy depends on numerical conventions and conditioning: complex square-root
 branches, helicity ordering, normalization, small-argument limits, multipole
 cancellation and lattice convergence. Each needs its own tests. The
 Python API passes explicit arrays and objects, so physical metadata never travels
@@ -72,8 +72,8 @@ silently through NumPy operations ([Python API design](../design/python-api.md))
   numerical solve; the framework adapters for Advect, JAX and PyTorch compose them
   with a user's objective. A native pullback gives no higher-order derivatives,
   batching or accelerator support.
-- **No annotation engine.** The ndarray annotation engine of treams is not
-  reproduced; physics objects carry their metadata explicitly.
+- **Explicit physical metadata.** Physics objects carry their own basis and
+  material information. treams-rs does not copy treams' array annotation system.
 - **HDF5 files.** Layout compatibility is not certification against every
   external T-matrix database.
 - **CPython 3.12–3.15.** The release targets these Python versions; optional

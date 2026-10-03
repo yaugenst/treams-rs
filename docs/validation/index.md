@@ -1,14 +1,14 @@
 ---
-description: The kinds of evidence behind treams-rs results and a summary of what each one checks, with links to the tests.
+description: Numerical checks, physical identities and proofs, with links to the tests.
 ---
 
 # Validation
 
-Rust tests are the main numerical check, and they run without Python. They use
-proptest for bounded physical domains, algebraic identities and adjoint checks.
-Hypothesis tests exercise the installed Python package and native extension:
-broadcasting and strides, parameter validation, one-use derivative contexts and
-complete user workflows.
+Rust tests are the main numerical check and run without Python. They use
+proptest to sample bounded physical domains and check algebraic and adjoint
+identities. Hypothesis tests exercise the installed Python package: array shapes
+and memory layouts, input validation, derivative contexts that can be used once,
+and complete user workflows.
 
 ## Kinds of evidence
 
@@ -23,25 +23,25 @@ complete user workflows.
   and primitive-basis independence of Ewald sums, and matrix residual equations.
 - **Differentiation**: arbitrary cotangents (gradients with respect to an output)
   and parameter directions, complex real-pairing adjoint identities, directional
-  finite-difference convergence and residual consumption. Symmetries give exact
-  identities of complete pullbacks without finite differences: Euler scaling of
+  finite-difference convergence and one-use derivative contexts. Symmetries give
+  exact identities of complete pullbacks without finite differences: Euler scaling of
   lengths against wavenumbers, and similarity or unitary orbits of spectra.
   Framework adapters reproduce the native pullback exactly
   (`tests/autodiff/test_adjoint_identities.py`,
   `tests/autodiff/test_adapter_bridges.py`).
-- **Independent oracles**: pinned treams, SciPy and mpmath references. Agreement
-  with an oracle is additional evidence, not the definition of correctness.
+- **Independent references**: fixed versions of treams, SciPy and mpmath.
+  Agreement adds evidence but does not define correctness.
 
-Property tests draw from finite bounded domains that match the assumptions of
-each property, keep shrinking enabled and save regressions. Polar-axis, origin and
-small-argument points are added explicitly. No numerical tolerance is loosened to
+Property tests sample finite domains that match each property's assumptions,
+reduce failing inputs to simpler examples and save them for future tests.
+Polar-axis, origin and small-argument points are added explicitly. No numerical tolerance is loosened to
 make an implementation pass. Benchmarks run only on optimized builds, separately
 from correctness checks.
 
 ## Rust properties and proofs
 
 Hosted CI checks Rust on the minimum and stable toolchains and Python on
-CPython 3.12–3.15. The complete oracle suite runs on 3.12 and 3.13; later
+CPython 3.12–3.15. The complete reference suite runs on 3.12 and 3.13; later
 versions omit tests whose reference dependencies are unavailable
 ([development](../development/index.md)). Native proptest
 properties, mostly in `crates/treams-core/src/properties/`, check:
@@ -59,7 +59,7 @@ properties, mostly in `crates/treams-core/src/properties/`, check:
 - implicit-adjoint closed forms of the solves against an independent LU;
 - composition, reciprocity, unitarity and layer-split invariance of planar stacks.
 
-Finite differences are test oracles, never pullbacks.
+Finite differences are used only as test references, never to compute pullbacks.
 
 [Lean proofs](../design/formal-proofs.md) establish, over exact arithmetic, that:
 
@@ -82,7 +82,7 @@ Errors are relative unless stated otherwise. The workflow comparisons and the
 9950X, Python 3.13.1); the [performance](../performance/index.md) page lists
 its build.
 
-The active development oracle is treams 0.4.7. Archived workflow and gallery
+Development tests compare against treams 0.4.7. Archived workflow and gallery
 measurements retain their recorded treams 0.4.5 identity. The results below
 belong to those measurements, not automatically to a later release build.
 

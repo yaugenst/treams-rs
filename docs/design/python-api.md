@@ -1,11 +1,10 @@
 ---
-description: Why the Python API uses explicit physics objects, one name per class and concept, and treams names as delegations.
+description: Physics objects, names and metadata in the Python API.
 ---
 
 # Python API design
 
-treams-rs keeps the numbers of treams and gives them a different Python
-interface: explicit physics objects instead of annotated arrays. The
+treams-rs uses physics objects where treams uses annotated arrays. The
 [user guide](../guide/index.md) shows the objects at work; the
 [name map](../coming-from-treams/names.md) lists every treams name.
 
@@ -43,7 +42,7 @@ assert cross.extinction > cross.scattering > 0
 
 ## One name per class and concept
 
-Each class is defined under the name it is exported as, so `type(x).__name__` is
+Each class is defined under its public name, so `type(x).__name__` is
 the name to import. Where treams uses another name, `treams_rs._upstream` records
 the replacement, and accessing the treams name raises an `AttributeError` that names
 it:
@@ -57,7 +56,7 @@ with pytest.raises(AttributeError, match="SMatrix"):
 ```
 
 `_upstream` holds one table that drives both these errors and the
-[name map](../coming-from-treams/names.md). The `SMatrix` swap matters most:
+[name map](../coming-from-treams/names.md). For example,
 treams-rs `SMatrix` is the full two-port network (treams `SMatrices`), and
 `ScatteringBlock` is one block (treams `SMatrix`).
 
@@ -66,9 +65,9 @@ treams-rs `SMatrix` is the full two-port network (treams `SMatrices`), and
 Physics classes use physics names: `cross_sections`, `circular_dichroism`,
 `with_polarization`, `kind`, `polarization`, `scatter`, `cascade`. The treams names
 (`xs`, `cd`, `changepoltype`, `modetype`, `poltype`, `illuminate`, `add`, ...) remain
-as one-line delegations. Each class groups them at its end under the comment
-`# treams-compatible names`. Each delegation is one line that returns the physics
-member, so it adds no behaviour of its own. The upstream-mirroring modules
+as one-line methods or properties that call the corresponding physics member.
+Each class groups them at its end under the comment `# treams-compatible names`.
+They add no behaviour of their own. The modules
 `special`, `sw`, `cw`, `pw`, `lattice`, `coeffs`, `misc`, `ebcm` and `io` keep the
 treams function and argument names unchanged.
 

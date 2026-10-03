@@ -338,6 +338,57 @@ def test_planar_material_branch_check_follows_framework_values(engine):
         engine.value_and_grad(reflection, 1.5)
 
 
+@scenario(0.4, name="partial_parity_hfield", field="hfield")
+@scenario(0.4, name="partial_parity_dfield", field="dfield")
+@scenario(0.4, name="partial_parity_bfield", field="bfield")
+@scenario(0.4, name="partial_parity_gfield", field="gfield")
+@scenario(0.4, name="partial_parity_ffield", field="ffield")
+def partial_parity_fields(tr, thickness, *, field):
+    ports = core.PlaneWavePorts.default([[0.6, 0.2]])[:1]
+    sm = tr.slab(
+        basis=ports, k0=1.3, thickness=thickness, material=2.3, polarization="parity"
+    )
+    wave = sm.scatter(negative=[1.0]).positive
+    arguments = ([0.1, 0.2, 0.3],) if field in FIELDS[:4] else (1, [0.1, 0.2, 0.3])
+    return (abs(getattr(wave, field)(*arguments)) ** 2).sum()
+
+
+@scenario(0.4)
+def partial_parity_plane_incidence(tr, thickness):
+    sm = tr.slab(
+        basis=core.PlaneWavePorts.default([[0, 0]])[:1],
+        k0=1.3,
+        thickness=thickness,
+        material=2.3,
+        polarization="parity",
+    )
+    incident = tr.plane_wave([0, 0, 1], [np.sqrt(0.5), np.sqrt(0.5)], k0=1.3)
+    # NumPy requires explicit convention agreement; frameworks convert incident waves.
+    if tr is core:
+        incident = incident.with_polarization("parity")
+    return sm.power(incident).transmission
+
+
+@pytest.mark.physics
+def test_partial_helicity_port_wave_can_illuminate_parity_network(engine):
+    tr = engine.tr
+    full = core.PlaneWavePorts.default([[0.2, 0.3]])
+    source = (
+        tr.propagation(basis=full[:1], k0=1.3, distance=0.2)
+        .scatter(negative=[1.0])
+        .positive
+    )
+    target = tr.propagation(basis=full, k0=1.3, distance=0.4, polarization="parity")
+    actual = target.scatter(negative=source).positive.efield([0.1, 0.2, 0.3])
+    amplitude = Engine.numpy(source.coefficients)[0] * np.sqrt(0.5)
+    expected = target.scatter(negative=[amplitude, amplitude]).positive.efield(
+        [0.1, 0.2, 0.3]
+    )
+    assert_allclose(
+        Engine.numpy(actual), Engine.numpy(expected), rtol=2e-13, atol=2e-13
+    )
+
+
 @scenario(0.4, name="partial_parity_propagation")
 def partial_parity_propagation(tr, distance):
     sm = tr.propagation(

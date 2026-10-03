@@ -4,7 +4,7 @@ description: Solve a periodic array once, convert it to an S-matrix, count diffr
 
 # Periodic arrays
 
-`solve_periodic` couples a unit cell to all its copies in a lattice, once, at a
+`solve_periodic` couples a unit cell to all its copies in a lattice at a
 fixed Bloch wavevector `kpar` (the wavevector component in the lattice plane;
 `[0, 0]` at normal incidence). The result is a `PeriodicResponse`. Convert it
 to the output you need without solving again:
@@ -82,9 +82,9 @@ np.testing.assert_allclose(power.transmission + power.reflection, 1, rtol=1e-12)
 
 ## Fields of the whole array
 
-A `PeriodicWave` stands for the waves of every cell. The coefficients of the
-reference cell alone give the wrong field, so expand the wave with `in_basis`
-first:
+A `PeriodicWave` describes the scattered waves of every cell. The reference
+cell's coefficients alone give the wrong field, so expand the wave with
+`in_basis` first:
 
 - `in_basis(ports, kind="up")` or `kind="down"`: plane waves above or below
   the array.

@@ -36,7 +36,7 @@ a fresh solve. The matrix-free physical pullback, the reverse pass that gives
 gradients with respect to radii, positions, wavenumber and incident
 amplitudes, uses **30× less peak memory** than the full-T path and 18.9× less
 than the selected-LU path. On the Mac, the full-T reduction is 34.7×. These are
-process high-water marks, including the Python runtime, not matrix storage.
+peaks for the whole process, including the Python runtime and matrix storage.
 
 For 1,024 spheres and 6,144 channels, forward and adjoint GMRES both converge
 in six iterations:
@@ -75,14 +75,14 @@ configurations, not arbitrary high-order or resonant clusters.
 
 ## Method
 
-Every backend and every forward or adjoint phase runs in a fresh process with
-limited BLAS and Rayon workers: one warmup and three timed samples. Each result
+Each method runs its forward and adjoint measurements in fresh processes with
+limited BLAS and Rayon threads: one warmup and three timed samples. Each result
 records SHA-256 hashes of the native library, Python sources and benchmark
-script. Setup (geometry, assembly, factorization), a fresh end-to-end solve, a
+script. Setup (geometry, assembly, factorization), a complete fresh solve, a
 solve that reuses geometry or factors, and the complete physical pullback are
 timed separately. Building the plane-wave coefficients is timed on its own and
 left out of the solver comparisons. Peak RSS includes imports, inputs, warmup
-and the recorded run; the finite-difference check runs after the RSS capture.
+and the recorded run; the finite-difference check runs after memory is measured.
 
 All methods use the same geometry, multipole cutoff and requested plane-wave
 columns. The full-cluster API of treams-rs gives the full-T reference, and small

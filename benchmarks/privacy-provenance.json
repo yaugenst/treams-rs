@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "kind": "Privacy-only sanitization of previously recorded evidence",
+  "original_distribution_revision": "1f8b6077f89304d2546fe392484b5af14319aff8",
+  "measurements_rerun": false,
+  "preserved": [
+    "Numerical JSON values, timing samples, outcomes and tolerances",
+    "Binary numerical arrays and scientific figures",
+    "Original measurement revision identifiers and as-run source, native-library and package fingerprints",
+    "Authorship, citations, license attribution and functional public project coordinates"
+  ],
+  "removed": [
+    "Incidental personal filesystem paths, account and session identifiers, and private hostnames",
+    "Tar owner/group names and IDs; filesystem timestamps and gzip filename metadata"
+  ],
+  "distributed_checksums": "Checksums identify the sanitized distributed files. Original as-run fingerprints remain separately identifiable; frozen source snapshots add sanitized_sha256.",
+  "verification": {
+    "json_primitive_payloads_checked": 12793,
+    "npz_payloads_byte_identical": 102,
+    "archive_members_with_neutral_owner_metadata": 15200,
+    "original_archive_member_order_and_paths_preserved": true,
+    "python_non_string_ast_comparisons": 1440,
+    "json_primitive_comparisons": 14485,
+    "binary_byte_preservation_comparisons": 1102,
+    "archived_png_figures_with_matching_pdf_exports": 331,
+    "unique_pdf_rendered_text_checks": 332,
+    "unique_svg_text_checks": 331,
+    "figure_text_check": "Paired PNG/PDF/SVG exports use the same figure; extracted PDF text and SVG source contain no configured incidental identifiers.",
+    "comparison_scope": "Counts include historical, current-tree and archived representations; they are comparisons, not unique-file counts."
+  },
+  "artifacts": [
+    {
+      "path": "benchmarks/agent-api/harness-before-style.json",
+      "original_sha256": "cddbec520f82e3596bbb7ba1d7bd5c84eb19ddf2abce3483feea7ab5e47027ba",
+      "sanitized_sha256": "0f3b728c45d4ace8f7a880dff1ba0a691753110f873eea41f3515c62e4f437ff"
+    },
+    {
+      "path": "benchmarks/linux-core-performance.json",
+      "original_sha256": "cb81aa4e9fec32c3034c46a47bad31fdddc9b4acbf80228582a516ef4294d898",
+      "sanitized_sha256": "63959a23b6f141f7bacfe09f51bede0a4876e31e1a713d03e370fb3e887ae50f"
+    },
+    {
+      "path": "benchmarks/linux-core-qualification.json",
+      "original_sha256": "e830731007d845d356eee033f4878481f372612d5b66ddb5cfc1ff0b166d9d92",
+      "sanitized_sha256": "e8aa023c721caba983540529462bbbe7e2c51f5aff6763c9252a0650c8364f5f"
+    },
+    {
+      "path": "benchmarks/results/agent-api-20260920/evidence.tar.gz",
+      "original_sha256": "f8e6a93a8ccf227207396f908cb842f2be4eb97d5296afc6af715f2102e3dc93",
+      "sanitized_sha256": "5104a3f98e235d98ba5b113964a95f0017709ed97321582cba64bfa25c49caa2"
+    },
+    {
+      "path": "benchmarks/results/agent-api-20260920/provenance.json",
+      "original_sha256": "b90702434d775528f2866c7c41b7b9e803fbd55a6ff3cec751e9014473572018",
+      "sanitized_sha256": "f5bf0531909cb395d0464c52bd4dfa38b0a1b06fdf633d584e1562f497f63143"
+    },
+    {
+      "path": "benchmarks/results/agent-api-20260920/review-evidence.tar.gz",
+      "original_sha256": "0c3ee6ec2b6da5efa2ffcc578e46e66e2150ab45a8d72368dced4bbec8ebbd60",
+      "sanitized_sha256": "96665f0f9a31ebdd24b77b20276540b48a50fdebdc8fbe91c625b48b6690d8f9"
+    },
+    {
+      "path": "benchmarks/results/agent-api-20260920/review-verification.json",
+      "original_sha256": "09ce9d6baedd0ad5c3b39df6f053b2cff2f504ce1eef5a2158cc09344574523e",
+      "sanitized_sha256": "b14ca7586063eb0cc837d3320a4415c62a1efdad4262fffec052f3e6e3557415"
+    },
+    {
+      "path": "benchmarks/results/linux-core-performance-20260919.tar.gz",
+      "original_sha256": "e9cc33c1c30ee977b176eb7e7489b09ea721b2041d2cbc76207141f0ada4d792",
+      "sanitized_sha256": "13076c8208690f840e5c1aa3e7661193d18bf6a5068c02a0b012273330069fb2"
+    },
+    {
+      "path": "benchmarks/results/linux-core-qualification-20260919.tar.gz",
+      "original_sha256": "29910bc08e9608051ebd417f12f08ac3a6c52c251c0ed8be5f4444979c4e04e0",
+      "sanitized_sha256": "d5404e3b55916858a0ef68b41e3c74e4d0195da6c42887e9d0b52006a562204f"
+    },
+    {
+      "path": "benchmarks/results/linux-qualification-report-20260920.tar.gz.part-00",
+      "original_sha256": "e38079c67d5d24d1d2c0537c7452e46be965fa5188e356774ce05b9a667a09f8",
+      "sanitized_sha256": "eea3eff5195a7173c6162fa00da318a0b252a7b2f5385084107d5d6b20e9697c"
+    },
+    {
+      "path": "benchmarks/results/linux-qualification-report-20260920.tar.gz.part-01",
+      "original_sha256": "f5cf5ff6b84ab252e39ad2b52a92a3c2295a1b20300cff6f096e21c949797266",
+      "sanitized_sha256": "87d4e8f22ee81aa5d98bd4fd9863d4c91abf884a9e94c728af67d13fa62ce331"
+    }
+  ],
+  "history_mapping": "benchmarks/history-provenance.json"
+}

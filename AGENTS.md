@@ -14,7 +14,7 @@ Rules ([details](docs/development/architecture.md#rules)):
 - A numerical change comes with a reference test, a physical identity and a gradient test;
   never loosen a tolerance or weaken a property to make a test pass.
 - Generated files (`docs/reference/python/`, generated regions, `llms.txt`) come from `just docs`.
-- Nothing under `benchmarks/results/` changes.
+- Follow the [benchmark evidence rules](benchmarks/README.md#privacy-and-provenance).
 - A public rename gets a `CHANGELOG.md` bullet, and a treams name an `_upstream.py` entry.
 
 Check: `just ci`, and `just check-wheel` after packaging changes.

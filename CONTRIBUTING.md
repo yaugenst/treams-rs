@@ -66,17 +66,16 @@ A pull request is ready for review when:
 - `CHANGELOG.md` has a bullet under "Unreleased", and a public name that differs
   from its treams counterpart is listed in `python/treams_rs/_upstream.py`;
 - a numerical or performance-critical change shows agreement with the pinned
-  treams 0.4.7 oracle or an independent reference, and before/after performance
-  measured with a release build on an otherwise idle host;
+  treams 0.4.7 reference implementation or an independent reference, and
+  before/after performance measured with a release build on an otherwise idle host;
 - archived measurements stay unchanged; privacy-only transformations follow
   [the evidence policy](benchmarks/README.md#privacy-and-provenance).
 
 ## License of contributions
 
-treams-rs is released under the [MIT license](LICENSE). Contributions are
-accepted under the same license (inbound = outbound): by opening a pull request
-you license your contribution under the MIT license. Code ported from treams
-keeps its attribution in [LICENSE.treams](LICENSE.treams) and
+treams-rs is released under the [MIT license](LICENSE). By opening a pull
+request, you license your contribution under the same license. Code ported from
+treams keeps its attribution in [LICENSE.treams](LICENSE.treams) and
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Add the source and license
 attribution when you port further code.
 

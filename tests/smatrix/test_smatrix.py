@@ -708,3 +708,18 @@ def test_unsupported_plane_material_branch_is_rejected(medium):
     for attempt in attempts:
         with pytest.raises(ValueError, match="material branch"):
             attempt()
+
+
+@pytest.mark.reference
+def test_legacy_poynting_keeps_strong_chirality_material_branch():
+    basis = PlaneWavePorts.default([[0.0, 0.0]])
+    medium = Material(1, 1, 1.5)
+    expected = treams.poynting_avg_z(
+        treams.PlaneWaveBasisByComp.default([[0.0, 0.0]]),
+        1.3,
+        treams.Material(1, 1, 1.5),
+    )
+    assert np.isfinite(expected).all()
+    assert_allclose(
+        poynting_avg_z(basis, 1.3, medium), expected, rtol=2e-13, atol=2e-13
+    )

@@ -103,6 +103,13 @@ class SMatrix(HasPorts):
                 )
             transverse = incident._vectors()[:, [(axis + 1) % 3, (axis + 2) % 3]]
             pols = np.array((0, 1))
+            coefficients = b.change_port_polarization(
+                incident.coefficients,
+                ((0, 0), (0, 1)),
+                incident.polarization,
+                self.polarization,
+                (0,),
+            )
         else:
             if (
                 incident.positive != (side == "negative")
@@ -111,8 +118,13 @@ class SMatrix(HasPorts):
                 raise ValueError(
                     "port wave propagates away from the selected incident side"
                 )
+            if incident.polarization != self.polarization:
+                incident = incident._complete_polarizations().with_polarization(
+                    self.polarization
+                )
             transverse = incident.ports.transverse_wavevectors[incident.ports.groups]
             pols = incident.ports.pols
+            coefficients = incident.coefficients
 
         groups = self.ports.groups
         matching = self.ports.pols[:, None] == pols
@@ -140,20 +152,15 @@ class SMatrix(HasPorts):
                 lambda g: (selection.T @ g,), vectors, ports, left, right
             )
 
-        value = b.apply(
+        return b.apply(
             record,
             (len(self.ports.modes),),
-            incident.coefficients,
+            coefficients,
             transverse,
             self.ports.transverse_wavevectors,
             b.medium_key(medium, self.k0),
             b.medium_key(incident.medium, incident.k0),
         )
-        if incident.polarization != self.polarization:
-            value = b.change_port_polarization(
-                value, self.ports.modes, incident.polarization, self.polarization, (0,)
-            )
-        return value
 
     def scatter(
         self, *, negative: Any = None, positive: Any = None

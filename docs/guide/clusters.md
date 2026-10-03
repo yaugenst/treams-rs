@@ -4,14 +4,14 @@ description: Solve a finite cluster for its full response, scatter requested ill
 
 # Clusters
 
-A `Cluster` holds particles and their positions. It is not solved yet: each
-method solves the multiple scattering between the particles for what you ask.
+A `Cluster` stores particles and their positions. Choose how to solve their
+multiple scattering by the response you need:
 
-| Method | Solves for | Returns |
+| Method | Computes | Returns |
 | --- | --- | --- |
-| `cluster.scatter(incident)` | the incident waves passed | the scattered `Wave` |
-| `cluster.solve()` | every incident mode | the `TMatrix` of the cluster |
-| `cluster.factor()` | nothing yet; keeps the LU factorization | a `ScatteringFactor` with `scatter` |
+| `cluster.scatter(incident)` | the response to the given incident waves | the scattered `Wave` |
+| `cluster.solve()` | the response to every incident mode | the `TMatrix` of the cluster |
+| `cluster.factor()` | an LU factorization for later illuminations | a `ScatteringFactor` with `scatter` |
 
 ```python exec
 import numpy as np
@@ -69,7 +69,7 @@ The global expansion converges with its `lmax`: 4, 6 and 8 give relative
 errors of 1e-4, 2e-7 and 1e-10 here. The radius of the smallest sphere that
 encloses all particles sets how large `lmax` must be.
 
-## The physics after a solve
+## Using a solved T-matrix
 
 The solved `TMatrix` keeps its metadata. `select(basis)`, `in_basis(basis)`,
 `rotate(...)` and `with_polarization(...)` return physical objects;

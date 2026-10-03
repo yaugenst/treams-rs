@@ -29,9 +29,9 @@ np.testing.assert_allclose(loaded.k0, sphere.k0, rtol=1e-15)
 ```
 
 `lunit` names the length unit of the positions and of `1 / k0`, here nm. A
-loaded T-matrix supports `scatter`, the field methods and the cross sections
-like any other. `load_hdf5` also reads the older treams names of the
-embedding chirality and the particle indices.
+loaded T-matrix supports `scatter` and `cross_sections` like any other;
+evaluate fields on the scattered wave. `load_hdf5` also reads the older treams
+names of the embedding chirality and particle indices.
 
 ## Meshes
 

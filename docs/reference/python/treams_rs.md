@@ -27,7 +27,7 @@ Terms used throughout:
   plane-wave ports, ``"up"`` or ``"down"``.
 
 The glossary defines every term:
-https://yaugenst.github.io/treams-rs/reference/glossary/
+https://yaugenst.github.io/treams-rs/latest/reference/glossary/
 
 A complete particle calculation:
 
@@ -81,7 +81,7 @@ value, derivative = ad.value_and_grad(objective)(0.2)
 
 Construct changing geometry/materials inside the objective and keep traced
 values as framework arrays (``advect.numpy``); convert to float/NumPy only after
-differentiation. Rust computes exact gradients with respect to continuous
+differentiation. Rust computes analytic gradients with respect to continuous
 geometry, material and frequency; mode cutoffs, integer labels and topology stay
 fixed. CPU, first-order reverse mode only. JAX and PyTorch have explicit
 optional namespaces. The root NumPy namespace does not trace; ``diff`` returns
@@ -1929,10 +1929,9 @@ Planar layers between two exterior media.
 - `materials`: len(thickness) + 2 media from the negative to the positive side: the negative exterior, each layer, then the positive exterior.
 - `poltype`: "helicity" (default) or "parity".
 
-Ports with both polarizations of each transverse wavevector take their
-2x2 blocks from one native call. Other bases compose interfaces and
-propagations as treams does. ``slab`` and ``multilayer_slab`` take
-keywords instead.
+Both polarizations propagate inside the stack, including channels absent
+from the requested ports. The result keeps the selected input and output
+ports. ``slab`` and ``multilayer_slab`` take keywords instead.
 
 ### `SMatrix.double`
 
@@ -3098,7 +3097,12 @@ Takes the same pol, medium and polarization keywords as plane_wave.
 poynting_avg_z(basis: PlaneWavePorts, k0: float, material: MaterialLike=1, poltype: str | None=None) -> tuple[NDArray[np.complex128], NDArray[np.complex128]]
 ```
 
-Same- and opposite-direction time-averaged axial power-flux forms.
+Upstream-compatible axial forms, with treams normalization and branches.
+
+These retain treams' parity normalization and complex-medium conventions;
+they are not physical Poynting-flux matrices for arbitrary media. Use
+``SMatrix.power`` for transmitted/reflected power or sample E and H for
+the local physical flux ``0.5 * real(E cross conj(H))``.
 
 ## `propagation`
 

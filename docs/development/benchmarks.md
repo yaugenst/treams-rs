@@ -63,8 +63,9 @@ instead: `--baseline <dir>` names the directory that holds the other build's
 
 Everything under `benchmarks/results/` is archived evidence. Manifests,
 summaries, documentation and the audit cite these files by path and by SHA-256
-digest, so never edit, rename or delete them. Write new runs to
-`benchmarks/results/local/`.
+digest. Preserve numerical measurements and cited paths; privacy-only changes
+follow the [privacy and provenance rules](../../benchmarks/README.md#privacy-and-provenance).
+Write new runs to `benchmarks/results/local/`.
 
 The summaries and manifests record where each result came from: the source
 commit, the host, the thread counts, the arguments and the SHA-256 digests of
