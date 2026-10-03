@@ -7,9 +7,10 @@ from typing import Any
 import numpy as np
 
 from . import diff
-from ._bases import ALIGNMENT_AXIS, PlaneWavePorts
+from ._bases import ALIGNMENT_AXIS
 from ._framework_backend import Backend, Material, Recorded, with_zero_metadata
 from ._framework_waves import HasPorts, PlaneWave, PortSet, PortWave, Wave
+from ._promotion import promote
 from ._results import BandModes, PowerBalance, ScatteredPorts
 
 __all__ = ["SMatrix", "stack"]
@@ -33,11 +34,6 @@ class SMatrix(HasPorts):
     """Polarization convention, "helicity" or "parity"."""
     ports: PortSet
     """Plane-wave ports of both sides."""
-
-    @property
-    def basis(self) -> PlaneWavePorts | None:
-        """Static port basis; ``None`` for diffraction-order ports."""
-        return self.ports.basis
 
     @property
     def negative_medium(self) -> Material:
@@ -83,6 +79,7 @@ class SMatrix(HasPorts):
 
     def _incident(self, incident: Any, side: str) -> Any:
         b = self._backend
+        incident = promote(incident, b)
         if not isinstance(incident, (PlaneWave, PortWave)):
             if isinstance(incident, Wave):
                 raise ValueError(
@@ -95,13 +92,20 @@ class SMatrix(HasPorts):
         medium = self.media[1 if side == "negative" else 0]  # (positive, negative)
         axis = ALIGNMENT_AXIS[self.ports.alignment]
         if isinstance(incident, PlaneWave):
-            if (incident.direction[axis] > 0) != (
-                side == "negative"
-            ) or incident.direction[axis] == 0:
-                raise ValueError(
-                    "plane wave propagates away from the selected incident side"
-                )
+
+            def check_direction(_: Any, direction: Any) -> None:
+                if (direction[axis] > 0) != (side == "negative") or direction[
+                    axis
+                ] == 0:
+                    raise ValueError(
+                        "plane wave propagates away from the selected incident side"
+                    )
+
+            if incident._fixed_direction:
+                check_direction(None, incident.direction)
             transverse = incident._vectors()[:, [(axis + 1) % 3, (axis + 2) % 3]]
+            if not incident._fixed_direction:
+                transverse = b.guard(check_direction, transverse, incident.direction)
             pols = np.array((0, 1))
             coefficients = b.change_port_polarization(
                 incident.coefficients,
@@ -187,7 +191,12 @@ class SMatrix(HasPorts):
 
     def power(self, incident: Any, *, side: str | None = None) -> PowerBalance[Any]:
         """Transmission/reflection for port amplitudes; fixed port wavevectors."""
+        incident = promote(incident, self._backend)
         if side is None:
+            if isinstance(incident, PlaneWave) and not incident._fixed_direction:
+                raise ValueError(
+                    "supply side when the incident direction is differentiable"
+                )
             axis = ALIGNMENT_AXIS[self.ports.alignment]
             side = (
                 ("negative" if incident.direction[axis] > 0 else "positive")
@@ -233,8 +242,9 @@ class SMatrix(HasPorts):
         )
         return PowerBalance(b.xp.squeeze(power[0]), b.xp.squeeze(power[1]))
 
-    def cascade(self, upper: SMatrix) -> SMatrix:
+    def cascade(self, next_layer: SMatrix) -> SMatrix:
         """Compose this lower system with the adjacent upper system."""
+        upper = promote(next_layer, self._backend)
         if (
             self.ports.modes != upper.ports.modes
             or self.ports.alignment != upper.ports.alignment
@@ -326,6 +336,11 @@ def stack(layers: Any) -> SMatrix:
     """Cascade layers from the negative to positive side of the port normal."""
     if not layers:
         raise ValueError("stack requires at least one layer")
+    from ._dispatch import backend_for
+
+    backend = backend_for(layers)
+    if backend is not None:
+        layers = [promote(layer, backend) for layer in layers]
     result = layers[0]
     for layer in layers[1:]:
         result = result.cascade(layer)

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import cmath
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from . import _native
+from ._dispatch import backend_for
 from ._upstream import UpstreamMembers
 
 if TYPE_CHECKING:
@@ -31,25 +32,31 @@ class Material(UpstreamMembers):
     in that order.
     """
 
-    epsilon: complex
+    epsilon: Any
     """Relative permittivity."""
-    mu: complex
+    mu: Any
     """Relative permeability."""
-    kappa: complex
+    kappa: Any
     """Chirality parameter, dimensionless."""
 
-    def __init__(self, epsilon: MaterialLike = 1, mu: complex = 1, kappa: complex = 0):
+    def __init__(self, epsilon: Any = 1, mu: Any = 1, kappa: Any = 0):
         if isinstance(epsilon, Material):
             epsilon, mu, kappa = epsilon()
-        elif isinstance(epsilon, (tuple, list)) or (
-            isinstance(epsilon, np.ndarray) and epsilon.ndim > 0
-        ):
-            if len(epsilon) > 3:
-                raise ValueError("invalid material definition")
-            epsilon, mu, kappa = tuple(epsilon) + (1, 1, 0)[len(epsilon) :]
-        object.__setattr__(self, "epsilon", complex(epsilon))
-        object.__setattr__(self, "mu", complex(mu))
-        object.__setattr__(self, "kappa", complex(kappa))
+        else:
+            if (backend := backend_for(epsilon)) is not None:
+                # Framework array conversion retains traced sequence components.
+                epsilon = backend.asarray(epsilon, dtype=None)
+            if isinstance(epsilon, (tuple, list)) or getattr(epsilon, "ndim", 0) > 0:
+                if len(epsilon) > 3:
+                    raise ValueError("invalid material definition")
+                epsilon, mu, kappa = tuple(epsilon) + (1, 1, 0)[len(epsilon) :]
+        backend = backend_for(epsilon, mu, kappa)
+        for name, value in (("epsilon", epsilon), ("mu", mu), ("kappa", kappa)):
+            if backend is None:
+                value = complex(value)
+            elif getattr(value, "ndim", 0) != 0:
+                raise ValueError("material parameters must be scalars")
+            object.__setattr__(self, name, value)
 
     def __call__(self) -> tuple[complex, complex, complex]:
         """The parameters as a tuple ``(epsilon, mu, kappa)``."""
@@ -84,6 +91,10 @@ class Material(UpstreamMembers):
     @property
     def n(self) -> complex:
         """Square root of epsilon*mu, with sign chosen for nonnegative imaginary part."""
+        if (backend := backend_for(self)) is not None:
+            return backend.upper_half(
+                backend.xp.sqrt(backend.array(self.epsilon * self.mu, complex_=True))
+            )
         value = cmath.sqrt(self.epsilon * self.mu)
         return -value if value.imag < 0 else value
 
@@ -95,16 +106,24 @@ class Material(UpstreamMembers):
         then choose each sign for a nonnegative imaginary part. Array order is
         negative/positive helicity; default mode bases instead list label 1 first.
         """
+        if (backend := backend_for(self)) is not None:
+            return backend.ks(self, 1.0)
         return _native.refractive_indices(self.epsilon, self.mu, self.kappa)
 
     @property
     def impedance(self) -> complex:
         """Principal square root of mu/epsilon, relative to vacuum impedance."""
+        if (backend := backend_for(self)) is not None:
+            return backend.impedance(self)
         return cmath.sqrt(self.mu / self.epsilon)
 
     @property
     def isreal(self) -> bool:
         """Whether epsilon, mu and kappa are all real, as for a lossless medium."""
+        if (backend := backend_for(self)) is not None:
+            return backend.xp.all(
+                backend.xp.imag(backend.array(tuple(self), complex_=True)) == 0
+            )
         return all(value.imag == 0 for value in self)
 
     @property
@@ -118,18 +137,31 @@ class Material(UpstreamMembers):
         The vacuum angular wavenumber k0 is 2*pi/wavelength, in inverse units
         of the lengths used elsewhere in the simulation.
         """
+        if (backend := backend_for(self, k0)) is not None:
+            return backend.ks(self, k0)
         return k0 * self.nmp
 
     def kzs(
         self, k0: float, kx: ArrayLike, ky: ArrayLike, pol: ArrayLike = (0, 1)
     ) -> NDArray[np.complex128]:
         """Axial wavevectors on the outgoing branch (nonnegative imaginary part)."""
+        if (backend := backend_for(self, k0, kx, ky)) is not None:
+            ks = backend.ks(self, k0)[np.asarray(pol, dtype=np.int64)]
+            return backend.upper_half(
+                backend.xp.sqrt(
+                    ks**2
+                    - backend.array(kx, complex_=True) ** 2
+                    - backend.array(ky, complex_=True) ** 2
+                )
+            )
         return _native.wave_vector_z(
             kx, ky, self.ks(k0)[np.asarray(pol, dtype=np.int64)]
         )
 
     def _plane_ks(self, k0: float) -> NDArray[np.complex128]:
         """Wavenumbers after checking the plane-wave polarization convention."""
+        if (backend := backend_for(self, k0)) is not None:
+            return backend.plane_ks(self, k0)
         _check_plane_material(self.epsilon, self.mu, self.kappa)
         return self.ks(k0)
 

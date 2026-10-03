@@ -10,6 +10,7 @@ import numpy as np
 from . import _operator_objects as op
 from . import diff
 from ._bases import CylindricalBasis, SphericalBasis
+from ._dispatch import autodiff_method, backend_for, namespace
 from ._material import Material, MaterialLike
 from ._operator_objects import Operator
 from ._operators import expandlattice, translate
@@ -56,6 +57,39 @@ class _TMatrix[B: (SphericalBasis, CylindricalBasis)](UpstreamMembers):
     """Exterior propagation medium."""
     polarization: str
     """Polarization channel convention."""
+
+    def __new__(cls, arr: Any = None, **kwargs: Any) -> Any:
+        backend = backend_for(arr, kwargs)
+        if backend is None:
+            return super().__new__(cls)
+        medium = one_of(
+            "medium",
+            kwargs.pop("medium", None),
+            "material",
+            kwargs.pop("material", None),
+            1,
+        )
+        polarization = resolve_poltype(
+            one_of(
+                "polarization",
+                kwargs.pop("polarization", None),
+                "poltype",
+                kwargs.pop("poltype", None),
+                None,
+            )
+        )
+        basis = kwargs.pop("basis", None)
+        if basis is None:
+            basis = (
+                CylindricalBasis.default([0], CylindricalBasis.defaultmmax(len(arr)))
+                if cls._basis_type is CylindricalBasis
+                else SphericalBasis.default(SphericalBasis.defaultlmax(len(arr)))
+            )
+        if not isinstance(basis, cls._basis_type):
+            raise ValueError("basis wave family does not match T-matrix type")
+        return namespace(backend).tmatrix(
+            arr, basis=basis, medium=medium, polarization=polarization, **kwargs
+        )
 
     def __init__(
         self,
@@ -177,6 +211,7 @@ class _TMatrix[B: (SphericalBasis, CylindricalBasis)](UpstreamMembers):
     def __len__(self) -> int:
         return len(self.array)
 
+    @autodiff_method
     def scatter(self, incident: ArrayLike | PlaneWave | Wave) -> Wave:
         """Apply this solved response and retain outgoing-wave metadata.
 
@@ -287,6 +322,7 @@ class _TMatrix[B: (SphericalBasis, CylindricalBasis)](UpstreamMembers):
     ) -> NDArray[np.generic]:
         return np.asarray(self.array, dtype=dtype, copy=copy)
 
+    @autodiff_method
     def __matmul__(
         self, other: ArrayLike | PlaneWave | Wave | Operator
     ) -> NDArray[np.complex128]:
@@ -305,6 +341,7 @@ class _TMatrix[B: (SphericalBasis, CylindricalBasis)](UpstreamMembers):
             return value._expanded(self.basis)
         return np.asarray(value, dtype=np.complex128)
 
+    @autodiff_method
     def rotate(self, phi: float, theta: float = 0, psi: float = 0) -> Self:
         """Rotate the local multipole channels about their fixed positions.
 
@@ -321,6 +358,7 @@ class _TMatrix[B: (SphericalBasis, CylindricalBasis)](UpstreamMembers):
             poltype=self.polarization,
         )
 
+    @autodiff_method
     def translate(self, r: ArrayLike) -> Self:
         """Represent the same response about expansion positions shifted by r.
 
@@ -532,6 +570,11 @@ class _Interaction[M: _TMatrix[Any]]:
         scattered coefficients with the same vector/batch rank. A fresh factor
         is built per call; use ``factor().solve`` for repeated right-hand sides.
         """
+        backend = backend_for(incident)
+        if backend is not None:
+            from ._promotion import promote
+
+            return promote(self.matrix, backend).interaction.illuminate(incident)
         return solve_columns(self.factor(), self.matrix._incident(incident))
 
 
@@ -539,6 +582,7 @@ class _PeriodicInteraction[M: _TMatrix[Any]]:
     def __init__(self, matrix: M):
         self.matrix = matrix
 
+    @autodiff_method
     def coupling(
         self, lattice: ArrayLike, kpar: ArrayLike, *, eta: complex = 0
     ) -> NDArray[np.complex128]:
@@ -555,6 +599,7 @@ class _PeriodicInteraction[M: _TMatrix[Any]]:
             tm.basis, tm.basis, tm.ks, kpar, lattice, poltype=tm.polarization, eta=eta
         )[0]
 
+    @autodiff_method
     def __call__(
         self, lattice: ArrayLike, kpar: ArrayLike, *, eta: complex = 0
     ) -> NDArray[np.complex128]:
@@ -562,6 +607,7 @@ class _PeriodicInteraction[M: _TMatrix[Any]]:
             len(self.matrix), dtype=np.complex128
         ) - self.matrix.array @ self.coupling(lattice, kpar, eta=eta)
 
+    @autodiff_method
     def solve(
         self, lattice: ArrayLike, kpar: ArrayLike, *, eta: complex = 0
     ) -> NDArray[np.complex128]:
@@ -574,6 +620,7 @@ class _PeriodicInteraction[M: _TMatrix[Any]]:
             self.matrix.array, self.coupling(lattice, kpar, eta=eta)
         )[0]
 
+    @autodiff_method
     def factor(
         self, lattice: ArrayLike, kpar: ArrayLike, *, eta: complex = 0
     ) -> _native.InteractionFactor:
@@ -582,6 +629,7 @@ class _PeriodicInteraction[M: _TMatrix[Any]]:
             self.matrix.array, self.coupling(lattice, kpar, eta=eta)
         )
 
+    @autodiff_method
     def illuminate(
         self,
         incident: ArrayLike | PlaneWave | Wave,
@@ -603,8 +651,8 @@ class TMatrix(_TMatrix[SphericalBasis]):
     ``sphere_tmatrix``, ``multilayer_sphere_tmatrix`` or ``Cluster.solve``, or
     from a square array. Rows and columns follow ``basis``, a SphericalBasis.
     ``scatter(incident)`` returns the scattered Wave; ``array`` and ``@`` give
-    the coefficients. For gradients use ``treams_rs.advect``, ``jax`` or
-    ``torch``.
+    the coefficients. Framework-valued inputs select their differentiation
+    adapter automatically.
 
     The treams-rs names come first. The treams names (``xs``, ``cd``,
     ``poltype``, ``changepoltype``, ...) follow at the end of the class and
@@ -616,6 +664,7 @@ class TMatrix(_TMatrix[SphericalBasis]):
 
     _basis_type = SphericalBasis
 
+    @autodiff_method
     def cross_sections(
         self, incident: ArrayLike | PlaneWave | Wave, *, flux: float = 0.5
     ) -> CrossSections[float]:
@@ -684,7 +733,8 @@ class TMatrix(_TMatrix[SphericalBasis]):
 
     def xs(self, illu: ArrayLike | PlaneWave, flux: float = 0.5) -> tuple[float, float]:
         """treams name of ``cross_sections``, returning (scattering, extinction)."""
-        return self._cross_sections(illu, flux, 2, 0.5)
+        result = self.cross_sections(illu, flux=flux)
+        return result.scattering, result.extinction
 
     @property
     def xs_ext_avg(self) -> float:
@@ -724,6 +774,20 @@ class TMatrix(_TMatrix[SphericalBasis]):
         ``sphere_tmatrix`` and ``multilayer_sphere_tmatrix`` take keywords instead.
         """
         poltype = resolve_poltype(poltype)
+        backend = backend_for(k0, radii, materials)
+        if backend is not None:
+            if not materials:
+                raise ValueError(
+                    "sphere requires layer materials and an embedding medium"
+                )
+            return namespace(backend).multilayer_sphere_tmatrix(
+                k0=k0,
+                lmax=lmax,
+                radii=radii,
+                materials=materials[:-1],
+                medium=materials[-1],
+                polarization=poltype,
+            )
         layers = [Material(m) for m in materials]
         if not layers:
             raise ValueError("sphere requires layer materials and an embedding medium")
@@ -746,8 +810,8 @@ class CylindricalTMatrix(_TMatrix[CylindricalBasis]):
     ``basis``, a CylindricalBasis with fixed real axial wavenumbers kz. Use
     ``cylinder_tmatrix`` for concentric infinite cylinders and ``Cluster`` for
     parallel cylinders. Cross widths have length units. ``scatter(incident)``
-    returns the scattered Wave; ``array`` and ``@`` give the coefficients. For
-    gradients use ``treams_rs.advect``, ``jax`` or ``torch``.
+    returns the scattered Wave; ``array`` and ``@`` give the coefficients.
+    Framework-valued inputs select their differentiation adapter automatically.
 
     The treams-rs names come first. The treams names (``xw``, ``poltype``,
     ``changepoltype``, ...) follow at the end of the class and call them.
@@ -808,6 +872,7 @@ class CylindricalTMatrix(_TMatrix[CylindricalBasis]):
         """Per-mode radial wavenumbers, shape (modes,), with nonnegative imaginary part."""
         return self.medium.krhos(self.k0, self.basis.kz, self.basis.pol)
 
+    @autodiff_method
     def cross_widths(
         self, incident: ArrayLike | PlaneWave | Wave, *, flux: float = 0.5
     ) -> CrossSections[float]:
@@ -819,6 +884,7 @@ class CylindricalTMatrix(_TMatrix[CylindricalBasis]):
         """
         return CrossSections(*self._cross_sections(incident, flux, 1, 2.0))
 
+    @autodiff_method
     def cross_sections(
         self, incident: ArrayLike | PlaneWave | Wave, *, flux: float = 0.5
     ) -> CrossSections[float]:
@@ -854,7 +920,8 @@ class CylindricalTMatrix(_TMatrix[CylindricalBasis]):
 
     def xw(self, illu: ArrayLike | PlaneWave, flux: float = 0.5) -> tuple[float, float]:
         """treams name of ``cross_widths``, returning (scattering, extinction)."""
-        return self._cross_sections(illu, flux, 1, 2.0)
+        result = self.cross_widths(illu, flux=flux)
+        return result.scattering, result.extinction
 
     @property
     def xw_ext_avg(self) -> float:
@@ -893,6 +960,21 @@ class CylindricalTMatrix(_TMatrix[CylindricalBasis]):
         ``multilayer_cylinder_tmatrix`` take keywords instead.
         """
         poltype = resolve_poltype(poltype)
+        backend = backend_for(k0, radii, materials, kzs)
+        if backend is not None:
+            if not materials:
+                raise ValueError(
+                    "cylinder requires layer materials and an embedding medium"
+                )
+            return namespace(backend).multilayer_cylinder_tmatrix(
+                k0=k0,
+                kz=kzs,
+                mmax=mmax,
+                radii=radii,
+                materials=materials[:-1],
+                medium=materials[-1],
+                polarization=poltype,
+            )
         layers = [Material(m) for m in materials]
         if not layers:
             raise ValueError(
@@ -935,7 +1017,7 @@ def sphere_tmatrix(
     Use ``response.cross_sections(plane_wave(...))`` for named scattering,
     extinction and absorption areas, ``response.average_cross_sections`` for
     rotational/polarization averages, or ``response.scatter(wave).efield(xyz)``
-    for scattered fields. Use treams_rs.advect/jax/torch for traced parameters.
+    for scattered fields. Framework-valued parameters retain their gradients.
     """
     return TMatrix.sphere(lmax, k0, radius, [material, medium], polarization)
 

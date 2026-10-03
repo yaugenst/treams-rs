@@ -119,6 +119,6 @@ newest release. It does not change the package files or release tag.
 
 `just check-wheel` builds an optimized wheel, checks it for local build paths,
 and runs [`smoke_wheel_install.py`](../../scripts/smoke_wheel_install.py) in
-clean environments with NumPy only, Advect and HDF5. CI runs the same smoke
+clean environments with NumPy only, Advect, HIPS Autograd and HDF5. CI runs the same smoke
 checks for every configured wheel and for a wheel rebuilt from the source
 distribution. Local success does not replace those platform checks.

@@ -1,4 +1,4 @@
-"""Framework array operations and the framework Material.
+"""Framework array operations and the shared physical Material.
 
 Arrays and continuous metadata stay in their framework. Discrete bases stay in
 Python; native callbacks rebuild them with the moving positions at execution time.
@@ -10,7 +10,6 @@ class with explicit keywords: a shared replace helper measured 3-18% slower for
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
@@ -22,6 +21,7 @@ import numpy as np
 
 from . import _material, diff
 from ._bases import CylindricalBasis, PlaneWavePorts, SphericalBasis
+from ._material import Material, as_material
 from ._polarization import pol_partners
 
 __all__ = [
@@ -40,29 +40,6 @@ type Basis = SphericalBasis | CylindricalBasis
 # What a record returns: its output and a context with ``pullback``, or the
 # pullback itself (one gradient per dynamic input).
 type Recorded = tuple[Any, Any]
-
-
-@dataclass(frozen=True)
-class Material:
-    """Relative permittivity, permeability and chirality, retaining framework values."""
-
-    epsilon: Any = 1.0
-    mu: Any = 1.0
-    kappa: Any = 0.0
-
-
-def as_material(value: Any) -> Material:
-    """Material from a Material, an (epsilon, mu, kappa) tuple, or epsilon alone.
-
-    A root ``treams_rs.Material`` contributes its three values.
-    """
-    if isinstance(value, Material):
-        return value
-    if isinstance(value, _material.Material):
-        return Material(value.epsilon, value.mu, value.kappa)
-    if isinstance(value, tuple):
-        return Material(*value)
-    return Material(value)
 
 
 def material_defaults(epsilon: Any, mu: Any, kappa: Any) -> tuple[Any, Any]:
@@ -168,6 +145,11 @@ class Backend:
         )
 
     def array(self, value: Any, *, complex_: bool = False) -> Any:
+        from ._dispatch import backend_for
+
+        owner = backend_for(value)
+        if owner is not None and owner is not self:
+            raise TypeError("cannot mix autodiff backends in one treams-rs operation")
         if self.validate is not None:
             self.validate(value)
         dtype = self.xp.complex128 if complex_ else self.xp.float64
@@ -189,7 +171,7 @@ class Backend:
 
     def upper_half(self, value: Any) -> Any:
         """Select the root with nonnegative imaginary part (decaying branch)."""
-        return self.xp.where(value.imag < 0, -value, value)
+        return self.xp.where(self.xp.imag(value) < 0, -value, value)
 
     def ks(self, medium: Material, k0: Any) -> Any:
         n = self.xp.sqrt(
@@ -325,7 +307,7 @@ class Backend:
         reverse pass.
 
         ``shape`` is the output shape and ``real`` selects a float64 output (and
-        a real cotangent) instead of complex128. All three frameworks check both,
+        a real cotangent) instead of complex128. The adapters check both,
         so a wrong declaration fails everywhere, not only in JAX, which builds
         its callback's output description from them.
 
@@ -378,7 +360,13 @@ class Backend:
             check(array, *compared)
             return array, with_zero_metadata(lambda g: (g,), *compared)
 
-        return self.apply(record, tuple(value.shape), value, *metadata)
+        return self.apply(
+            record,
+            tuple(value.shape),
+            value,
+            *metadata,
+            real=value.dtype in (self.xp.float32, self.xp.float64),
+        )
 
     def require_same(self, other: Backend, message: str) -> None:
         """Raise ``TypeError(message)`` unless ``other`` is this backend."""

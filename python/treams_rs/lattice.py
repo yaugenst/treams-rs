@@ -117,12 +117,20 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from . import _native
+from ._autodiff_functions import require_no_out as _require_no_out
+from ._autodiff_functions import transparent_function as _transparent_function
+from ._lattice import Lattice as _Lattice
+from ._lattice import WaveVector as _WaveVector
+from ._lattice import periodic_alignment as _periodic_alignment
 from ._lattice import sum_cell as _sum_cell
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from typing import Any, Literal
 
     from numpy.typing import ArrayLike, NDArray
+
+    from ._framework_backend import Backend
 
 __all__ = [
     "SumResult",
@@ -914,3 +922,143 @@ def diffr_orders_circle(b: ArrayLike, rmax: float) -> NDArray[np.int64]:
         one-dimensional array.
     """
     return _native.diffraction_orders(np.asarray(b, dtype=np.float64), rmax)
+
+
+def _framework_sum(
+    backend: Backend,
+    spherical: bool,
+    dim: int | None,
+    part: str,
+    shift: bool,
+    *args: Any,
+    **kwargs: Any,
+) -> Any:
+    """Adapt the public sum signatures to the one native lattice-sum record."""
+    from . import diff
+
+    labels = ("l", "m") if spherical else ("m",)
+    if spherical and dim == 1 and not shift:
+        labels = ("l",)
+    parameter = "i" if part == "direct" else "eta"
+    names = (
+        (() if dim is not None else ("dim",))
+        + labels
+        + ("k", "kpar", "a", "r", parameter, "out")
+    )
+    if len(args) > len(names):
+        raise TypeError("too many positional arguments for lattice sum")
+    values = dict(zip(names, args, strict=False))
+    for name, value in kwargs.items():
+        if name not in (*names, "where"):
+            raise TypeError(f"unsupported autodiff lattice-sum keyword: {name}")
+        if name in values:
+            raise TypeError(f"multiple values for argument {name!r}")
+        values[name] = value
+    _require_no_out(values.pop("out", None), values.pop("where", True))
+    if part != "direct":
+        values.setdefault("eta", 0)
+    for name in names[:-1]:
+        if name not in values:
+            raise TypeError(f"missing required argument: {name!r}")
+    dim = values.pop("dim") if dim is None else dim
+    if not 1 <= dim <= (3 if spherical else 2):
+        raise ValueError("invalid lattice dimension")
+    degree, order = np.asarray(values.get("l", 0)), np.asarray(values.get("m", 0))
+    shell = np.asarray(values["i"] if part == "direct" else 0)
+
+    # Resolve static metadata without converting a moving period or Bloch vector.
+    a, kpar = values["a"], values["kpar"]
+    alignment = _periodic_alignment(dim, spherical)
+    if isinstance(a, _Lattice):
+        a = np.asarray(_Lattice(a, alignment))
+    if isinstance(kpar, _WaveVector):
+        kpar = tuple(kpar["xyz".index(axis)] for axis in alignment)
+    k = backend.array(values["k"], complex_=True)
+    kpar, a, r = (backend.array(value) for value in (kpar, a, values["r"]))
+    eta = backend.array(values.get("eta", 0), complex_=True)
+    if dim == 1:
+        if kpar.shape[-1:] != (1,):
+            kpar = kpar[..., None]
+        if a.shape[-2:] != (1, 1):
+            a = a[..., None, None]
+    elif a.shape == (dim,):
+        a = a[:, None] * backend.array(np.eye(dim))
+    if not shift:
+        if dim == 1:
+            zero = r * 0
+            r = backend.stack((zero, zero, r) if spherical else (r, zero), axis=-1)
+        elif spherical and dim == 2:
+            r = backend.concat((r, r[..., :1] * 0), axis=-1)
+    shape = np.broadcast_shapes(
+        degree.shape,
+        order.shape,
+        shell.shape,
+        k.shape,
+        kpar.shape[:-1],
+        a.shape[:-2],
+        r.shape[:-1],
+        eta.shape,
+    )
+
+    def record(
+        k: ArrayLike,
+        kpar: ArrayLike,
+        a: ArrayLike,
+        r: ArrayLike,
+        eta: ArrayLike,
+    ) -> tuple[NDArray[np.complex128], _native.LatticeSumContext]:
+        return diff.lattice_sum(
+            dim,
+            degree,
+            order,
+            k,
+            kpar,
+            a,
+            r,
+            eta,
+            spherical=spherical,
+            part=part,
+            shell=shell,
+        )
+
+    return backend.apply(record, shape, k, kpar, a, r, eta)
+
+
+def _differentiable_sum(
+    function: Callable[..., Any],
+    spherical: bool,
+    dim: int | None,
+    part: str,
+    shift: bool,
+) -> Callable[..., Any]:
+    def call(backend: Backend, *args: Any, **kwargs: Any) -> Any:
+        return _framework_sum(backend, spherical, dim, part, shift, *args, **kwargs)
+
+    return _transparent_function(function, call, module=__name__)
+
+
+# Every public sum uses the same record. The wrapped NumPy implementations keep
+# their scalar fast paths, broadcasting, ufunc attributes and output arguments.
+def _install_sum_dispatch() -> None:
+    for prefix, part in (
+        ("lsum", "full"),
+        ("realsum", "real"),
+        ("recsum", "reciprocal"),
+        ("dsum", "direct"),
+    ):
+        for family, spherical in (("sw", True), ("cw", False)):
+            name = prefix + family
+            globals()[name] = _differentiable_sum(
+                globals()[name], spherical, None, part, True
+            )
+            for dim in range(1, 4 if spherical else 3):
+                for shift in (
+                    (False, True) if dim == 1 or (spherical and dim == 2) else (False,)
+                ):
+                    name = f"{prefix}{family}{dim}d" + ("_shift" if shift else "")
+                    globals()[name] = _differentiable_sum(
+                        globals()[name], spherical, dim, part, shift
+                    )
+
+
+_install_sum_dispatch()

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self
 
 import numpy as np
 
 from . import _native, diff
 from ._array import PhysicsArray
 from ._bases import PlaneWavePorts
+from ._dispatch import autodiff_method, backend_for, namespace
 from ._material import Material, MaterialLike
 from ._operators import periodic_channels
 from ._polarization import (
@@ -136,6 +137,41 @@ class SMatrix(UpstreamMembers):
 
     polarization: str
     """Polarization channel convention."""
+
+    def __new__(cls, smats: Any = None, **kwargs: Any) -> Any:
+        backend = backend_for(smats, kwargs)
+        if backend is None:
+            return super().__new__(cls)
+        material = kwargs.pop("material", None)
+        positive = kwargs.pop("positive_medium", None)
+        negative = kwargs.pop("negative_medium", None)
+        if material is not None:
+            if positive is not None or negative is not None:
+                raise ValueError(
+                    "specify positive_medium and negative_medium or material, not both"
+                )
+            if isinstance(material, tuple):
+                if len(material) != 2:
+                    raise ValueError(
+                        "material requires two media: (positive side, negative side)"
+                    )
+                positive, negative = material
+            else:
+                positive = negative = material
+        polarization = one_of(
+            "polarization",
+            kwargs.pop("polarization", None),
+            "poltype",
+            kwargs.pop("poltype", None),
+            None,
+        )
+        return namespace(backend).smatrix(
+            smats,
+            positive_medium=1 if positive is None else positive,
+            negative_medium=1 if negative is None else negative,
+            polarization=resolve_poltype(polarization),
+            **kwargs,
+        )
 
     def __init__(
         self,
@@ -291,6 +327,7 @@ class SMatrix(UpstreamMembers):
         """Exterior medium on the negative side of the basis normal."""
         return self._media[1]
 
+    @autodiff_method
     def cascade(self, next_layer: SMatrix) -> SMatrix:
         """Place the next layer on the positive side and compose all reflections.
 
@@ -328,6 +365,7 @@ class SMatrix(UpstreamMembers):
             raise ValueError("periodic repetition requires matching outer media")
         return diff.smatrix_periodic(self.array)[0]
 
+    @autodiff_method
     def bands(self, *, period: float) -> BandModes[NDArray[np.complex128]]:
         """Bloch wavenumbers and eigenvectors of the repeated cell along the basis normal.
 
@@ -337,6 +375,7 @@ class SMatrix(UpstreamMembers):
         """
         return BandModes(*self._bands(period))
 
+    @autodiff_method
     def power(
         self,
         incident: ArrayLike | PlaneWave | Wave,
@@ -370,6 +409,7 @@ class SMatrix(UpstreamMembers):
             *self._circular_dichroism(incident, _side_direction(side))
         )
 
+    @autodiff_method
     def scatter(
         self,
         *,
@@ -430,6 +470,19 @@ class SMatrix(UpstreamMembers):
         ``interface(negative_medium=..., positive_medium=...)`` takes keywords
         instead.
         """
+        backend = backend_for(k0, materials)
+        if backend is not None:
+            if len(materials) != 2:
+                raise ValueError(
+                    "an interface requires two materials, below then above"
+                )
+            return namespace(backend).interface(
+                basis=basis,
+                k0=k0,
+                negative_medium=materials[0],
+                positive_medium=materials[1],
+                polarization=resolve_poltype(poltype),
+            )
         poltype = resolve_poltype(poltype)
         k0 = check_k0(k0)
         if len(materials) != 2:
@@ -494,6 +547,15 @@ class SMatrix(UpstreamMembers):
 
         ``propagation(distance=..., medium=...)`` takes keywords instead.
         """
+        backend = backend_for(r, k0, material)
+        if backend is not None:
+            return namespace(backend).propagation(
+                distance=r,
+                basis=basis,
+                k0=k0,
+                medium=material,
+                polarization=resolve_poltype(poltype),
+            )
         poltype = resolve_poltype(poltype)
         k0 = check_k0(k0)
         axis = basis.normal_axis
@@ -530,6 +592,9 @@ class SMatrix(UpstreamMembers):
             items: at least one SMatrix; each sits on the positive side of the
                 one before, as in ``cascade``.
         """
+        backend = backend_for(items)
+        if backend is not None:
+            return namespace(backend).stack(items)
         if not items:
             raise ValueError("stack requires at least one S matrix")
         result = items[0]
@@ -562,6 +627,19 @@ class SMatrix(UpstreamMembers):
         from the requested ports. The result keeps the selected input and output
         ports. ``slab`` and ``multilayer_slab`` take keywords instead.
         """
+        backend = backend_for(thickness, k0, materials)
+        if backend is not None:
+            if len(materials) < 2:
+                raise ValueError("slabs require two exterior materials")
+            return namespace(backend).multilayer_slab(
+                thicknesses=thickness,
+                basis=basis,
+                k0=k0,
+                negative_medium=materials[0],
+                positive_medium=materials[-1],
+                materials=materials[1:-1],
+                polarization=resolve_poltype(poltype),
+            )
         poltype = resolve_poltype(poltype)
         k0 = check_k0(k0)
         values = np.atleast_1d(np.asarray(thickness, dtype=np.float64))
@@ -1137,7 +1215,8 @@ def slab(
     Exterior media default to vacuum. Pass a physical plane wave to
     ``network.power(incident)`` for named transmission, reflection and absorption
     fractions; its direction selects the illuminated side. For derivatives use
-    ``treams_rs.advect.slab`` inside ``advect.value_and_grad``.
+    this same function inside your autodiff framework's gradient calculation;
+    the thickness, frequency or material selects its adapter automatically.
 
     A lossy chiral layer distinguishes the two helicities::
 

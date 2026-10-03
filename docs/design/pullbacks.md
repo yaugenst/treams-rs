@@ -60,8 +60,9 @@ The loss is real and most inputs are complex. With the pairing defined above,
 the gradient of a complex input `x` is one complex number: its real part is the
 derivative with respect to `Re x` and its imaginary part the derivative with
 respect to `Im x`. For a real input it is the ordinary real gradient. Advect and
-PyTorch use the same rule. JAX pairs complex numbers without the conjugate, so the
-JAX adapter conjugates the cotangent and the gradients around every pullback.
+PyTorch use the same rule. JAX and HIPS Autograd pair complex numbers without the
+conjugate, so their adapters conjugate the cotangent and the gradients around
+every pullback.
 
 ## Inputs, labels and order
 

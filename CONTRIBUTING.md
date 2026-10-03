@@ -32,7 +32,7 @@ just ci
 
 `just build-ext` builds the development extension; run Python with
 `uv run --no-sync`. The [development setup](https://yaugenst.github.io/treams-rs/latest/development/#setup)
-adds JAX and the CPU build of PyTorch for the optional adapter tests.
+adds JAX, HIPS Autograd and the CPU build of PyTorch for the optional adapter tests.
 `just ci` runs the local Rust and Python checks. Hosted CI also checks native
 wheels, dependency bounds and the supported Python versions; use
 `HYPOTHESIS_PROFILE=ci` for its 100 examples per property.

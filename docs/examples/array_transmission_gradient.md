@@ -31,15 +31,16 @@ treams version.
 
 ## How it works
 
-- `treams_rs.jax` provides the same constructors as `treams_rs`, but its
-  objects keep JAX arrays, so `jax.grad` differentiates the whole chain: the
+- `treams_rs` selects JAX from the traced parameters, so `jax.grad`
+  differentiates the whole chain: the
   sphere T-matrix, the lattice sum, the slab, the propagation between them and
   the transmitted power. [Framework adapters](../differentiation/frameworks.md)
-  lists what JAX, PyTorch and Advect support.
+  lists what each framework supports.
 - The radius enters twice: through the sphere T-matrix and through the gap
   between the slab and the plane of sphere centers.
-- JAX must run in double precision: `jax_enable_x64` must be on, because
-  treams-rs computes in float64 and complex128.
+- This example enables `jax_enable_x64` to retain double precision when
+  comparing small finite differences. JAX's default single precision also
+  works, with lower-precision outputs and gradients.
 - The lattice, the Bloch vector `kpar`, the ports and `lmax` stay fixed.
   To differentiate with respect to the lattice, convert with integer
   diffraction orders, as described in

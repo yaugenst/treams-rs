@@ -128,7 +128,7 @@ def test_catalog_schema_and_documented_contracts(catalog):
         assert adapter["summary"] == " ".join(doc.partition("\n\n")[0].split())
         assert adapter["summary"]
         assert adapter["extra"] == name
-    assert set(catalog["adapters"]) == {"advect", "jax", "torch"}
+    assert set(catalog["adapters"]) == {"advect", "jax", "torch", "autograd"}
     assert set(catalog["optional_dependencies"]) == set(OPTIONAL.values())
     assert set(catalog["backends"]) == {"cpu"}
     assert not any(path.startswith("treams_rs.cuda") for path in paths)
@@ -166,9 +166,9 @@ def test_framework_namespaces_share_one_vocabulary(catalog):
             for row in catalog["api"]
             if row["path"].startswith(f"treams_rs.{engine}.")
         }
-        for engine in ("advect", "jax", "torch")
+        for engine in ("advect", "jax", "torch", "autograd")
     }
-    assert names["jax"] == names["torch"]
+    assert names["jax"] == names["torch"] == names["autograd"]
     # Advect composes Python functions directly and needs no wrap.
     assert names["jax"] - {"wrap"} <= names["advect"]
     entries = {row["path"]: row for row in catalog["api"]}

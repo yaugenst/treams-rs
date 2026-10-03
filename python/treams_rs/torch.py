@@ -1,16 +1,17 @@
 """PyTorch adapter: physics objects and records as autograd operations on the
 CPU, in first-order reverse mode only. The first backward uses the Rust context
 saved by the forward; a repeated backward (``retain_graph=True``) reruns the
-Rust forward from copies of the inputs. Tensors must be CPU float64 or
-complex128 (TypeError for other dtypes, ValueError for other devices); outputs
-are float64 or complex128.
+Rust forward from copies of the inputs. Tensors must be CPU float32, float64,
+complex64 or complex128 (TypeError for other dtypes, ValueError for other
+devices). Native computation and outputs use float64/complex128; gradients
+retain each input's dtype.
 
 Differentiate a scattering cross section::
 
     import torch
-    import treams_rs.torch as tr
+    import treams_rs as tr
 
-    radius = torch.tensor(0.2, dtype=torch.float64, requires_grad=True)
+    radius = torch.tensor(0.2, requires_grad=True)
     sphere = tr.sphere_tmatrix(k0=2.0, lmax=2, radius=radius, material=3.0)
     wave = tr.plane_wave([0, 0, 1], "positive_helicity", k0=2.0)
     sphere.cross_sections(wave).scattering.backward()
@@ -40,7 +41,7 @@ from ._framework_smatrix import SMatrix, stack
 from ._framework_tmatrix import Cluster, PeriodicResponse, TMatrix, solve_periodic
 from ._framework_waves import PlaneWave, PortWave, Wave
 from ._lattice import Lattice
-from ._records import apply_pullback, input_array, require_float64, run_record
+from ._records import apply_pullback, native_array, require_inexact, run_record
 from ._results import BandModes, CrossSections, PowerBalance, ScatteredPorts
 
 if TYPE_CHECKING:
@@ -65,7 +66,7 @@ class _Execute(torch.autograd.Function):
         ctx: Any, record: Record, *values: torch.Tensor
     ) -> tuple[torch.Tensor, ...]:
         snapshots = tuple(v.detach().clone() for v in values)
-        primals = tuple(_numpy(v) for v in snapshots)
+        primals = tuple(native_array(_numpy(v)) for v in snapshots)
         outputs, pullback, _ = run_record(record, primals)
         ctx.record = record
         ctx.pullback = pullback
@@ -90,9 +91,14 @@ class _Execute(torch.autograd.Function):
         pullback = ctx.pullback
         ctx.pullback = cast("Pullback | None", None)
         if pullback is None:
-            _, pullback, _ = run_record(ctx.record, values)
+            _, pullback, _ = run_record(
+                ctx.record, tuple(native_array(v) for v in values)
+            )
         result = apply_pullback(
-            pullback, tuple(_numpy(g) for g in cotangents), values, conjugate=False
+            pullback,
+            tuple(native_array(_numpy(g)) for g in cotangents),
+            values,
+            conjugate=False,
         )
         return (None, *(torch.from_numpy(np.array(g, copy=True)) for g in result))
 
@@ -100,10 +106,8 @@ class _Execute(torch.autograd.Function):
 def _check_tensor(value: torch.Tensor) -> torch.Tensor:
     if value.device.type != "cpu":
         raise ValueError("treams-rs PyTorch adapters require CPU tensors")
-    if value.dtype not in (torch.float64, torch.complex128):
-        # Torch names the dtypes NumPy has as NumPy does, and also names those
-        # NumPy lacks (bfloat16, float8), so every dtype gets the shared message.
-        require_float64(str(value.dtype).removeprefix("torch."))
+    # Check Torch's name before NumPy conversion, including dtypes NumPy lacks.
+    require_inexact(str(value.dtype).removeprefix("torch."))
     return value
 
 
@@ -111,7 +115,7 @@ def _tensor(value: ArrayLike) -> torch.Tensor:
     # Torch warns on read-only NumPy memory (broadcast views, cached constants)
     # and rejects negative strides (reversed views); only those inputs are
     # copied, and forward snapshots its inputs anyway.
-    array = input_array(value)
+    array = native_array(value)
     if not array.flags.writeable or any(s < 0 for s in array.strides):
         array = array.copy()
     return torch.from_numpy(array)

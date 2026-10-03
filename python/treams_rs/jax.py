@@ -1,15 +1,15 @@
 """JAX adapter: physics objects and records as JAX operations on the CPU, in
 first-order reverse mode only, with jit and sequential vmap. JAX stores only
 the inputs; each gradient pass reruns the Rust forward and uses its pullback
-once. Inputs must be float64 or complex128 (TypeError otherwise), so enable
-``jax_enable_x64``; outputs are float64 or complex128.
+once. Inputs may be float32, float64, complex64 or complex128. Native work
+uses double precision; outputs are float32/complex64 with JAX's default
+configuration, or float64/complex128 with ``jax_enable_x64`` enabled. Input
+gradients retain their input dtype. This adapter does not change JAX settings.
 
 Differentiate a scattering cross section::
 
     import jax
-    import treams_rs.jax as tr
-
-    jax.config.update("jax_enable_x64", True)
+    import treams_rs as tr
 
     def objective(radius):
         sphere = tr.sphere_tmatrix(k0=2.0, lmax=2, radius=radius, material=3.0)
@@ -43,7 +43,7 @@ from ._framework_smatrix import SMatrix, stack
 from ._framework_tmatrix import Cluster, PeriodicResponse, TMatrix, solve_periodic
 from ._framework_waves import PlaneWave, PortWave, Wave
 from ._lattice import Lattice
-from ._records import apply_pullback, input_array, require_float64, run_record
+from ._records import apply_pullback, native_array, require_inexact, run_record
 from ._results import BandModes, CrossSections, PowerBalance, ScatteredPorts
 
 if TYPE_CHECKING:
@@ -56,18 +56,12 @@ if TYPE_CHECKING:
 type Output = jax.Array | tuple[jax.Array, ...]
 
 
-def _require_x64() -> None:
-    if not bool(jax.config.read("jax_enable_x64")):
-        raise ValueError("treams-rs JAX adapters require jax_enable_x64=True")
-
-
 def _inputs(values: tuple[ArrayLike, ...]) -> tuple[jax.Array, ...]:
-    _require_x64()
     if jax.default_backend() != "cpu":
         raise ValueError("treams-rs JAX adapters require the CPU backend")
     arrays = tuple(jnp.asarray(value) for value in values)
     for array in arrays:
-        require_float64(np.dtype(array.dtype))
+        require_inexact(np.dtype(array.dtype))
         if not isinstance(array, jax.core.Tracer) and any(
             device.platform != "cpu" for device in array.devices()
         ):
@@ -82,11 +76,14 @@ def _primitive(
 
     def forward_callback(*values: Array) -> tuple[Array, ...]:
         outputs, _, is_multiple = run_record(
-            record, tuple(np.asarray(v) for v in values)
+            record, tuple(native_array(v) for v in values)
         )
         if is_multiple != multiple or len(outputs) != len(specs):
             raise ValueError("native operation changed its output structure")
-        return outputs
+        return tuple(
+            np.asarray(value, dtype=spec.dtype)
+            for value, spec in zip(outputs, specs, strict=True)
+        )
 
     @jax.custom_vjp
     def primitive(*values: jax.Array) -> tuple[jax.Array, ...]:
@@ -106,11 +103,11 @@ def _primitive(
 
         def callback(*packed: Array) -> tuple[Array, ...]:
             values = tuple(np.asarray(v) for v in packed[: len(primals)])
-            _, pullback, _ = run_record(record, values)
+            _, pullback, _ = run_record(record, tuple(native_array(v) for v in values))
             # JAX uses the bilinear complex convention; Rust uses Re(vdot(g, dx)).
             return apply_pullback(
                 pullback,
-                tuple(np.asarray(v) for v in packed[len(primals) :]),
+                tuple(native_array(v) for v in packed[len(primals) :]),
                 values,
                 conjugate=True,
             )
@@ -144,20 +141,25 @@ def wrap(record: Record, *example_values: ArrayLike) -> Callable[..., Output]:
             in argument order. Bind labels and options with a closure or
             ``functools.partial``. The record must be deterministic: JAX may
             skip or repeat its calls.
-        example_values: valid float64 or complex128 inputs.
+        example_values: valid float32/64 or complex64/128 inputs.
 
     Returns:
         A function of the dynamic inputs that returns JAX arrays, a tuple for
         several outputs. It works under ``jax.jit``, ``jax.grad`` and
         ``jax.vmap``.
     """
-    _inputs(example_values)
-    examples = tuple(input_array(value) for value in example_values)
+    arrays = _inputs(example_values)
+    examples = tuple(native_array(value) for value in arrays)
     outputs, _, multiple = run_record(record, examples)
     operation = _primitive(
-        record, tuple(jax.ShapeDtypeStruct(v.shape, v.dtype) for v in outputs), multiple
+        record,
+        tuple(
+            jax.ShapeDtypeStruct(v.shape, jax.dtypes.canonicalize_dtype(v.dtype))
+            for v in outputs
+        ),
+        multiple,
     )
-    signatures = tuple((v.shape, v.dtype) for v in examples)
+    signatures = tuple((v.shape, v.dtype) for v in arrays)
 
     def call(*values: ArrayLike) -> Output:
         arrays = _inputs(values)
@@ -171,19 +173,30 @@ def wrap(record: Record, *example_values: ArrayLike) -> Callable[..., Output]:
 def _operation(
     record: Record, *values: ArrayLike, shape: tuple[int, ...], real: bool = False
 ) -> jax.Array:
-    spec = jax.ShapeDtypeStruct(shape, np.float64 if real else np.complex128)
+    spec = jax.ShapeDtypeStruct(
+        shape, jax.dtypes.canonicalize_dtype(np.float64 if real else np.complex128)
+    )
     return cast("jax.Array", _primitive(record, (spec,), False)(*values))
 
 
 def _physics_validate(value: Any) -> None:
     if isinstance(value, (jax.Array, jax.core.Tracer)):
         _inputs((value,))
-    else:
-        # Without x64, jnp.asarray would truncate Python and NumPy values to 32 bits.
-        _require_x64()
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _physics_validate(item)
 
 
-_backend = _framework_backend.Backend(jnp, _operation, validate=_physics_validate)
+def _physics_array(value: Any, *, dtype: Any) -> jax.Array:
+    # Canonicalize explicitly so default JAX precision produces no truncation warning.
+    return jnp.asarray(
+        value, dtype=None if dtype is None else jax.dtypes.canonicalize_dtype(dtype)
+    )
+
+
+_backend = _framework_backend.Backend(
+    jnp, _operation, asarray=_physics_array, validate=_physics_validate
+)
 
 
 # One shared implementation of the physical constructors, bound to this backend.

@@ -6,7 +6,7 @@ fields with the weighted native kernels.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, Any, override
 
 import numpy as np
 
@@ -17,6 +17,7 @@ from ._bases import (
     PlaneWavePorts,
     SphericalBasis,
 )
+from ._dispatch import backend_for, namespace
 from ._fields import WaveFields
 from ._material import Material, MaterialLike
 from ._operators import expand
@@ -73,9 +74,9 @@ class Wave(WaveFields, UpstreamMembers):
     and the other wave functions return. ``kind`` is the radial kind of
     multipoles (regular or singular) or the direction of plane-wave ports (up
     or down). Fields use weighted Rust kernels and never form the full
-    sample-by-mode operator. Use ``coefficients`` for numerical work and the
-    framework namespaces for gradients. A batch keeps one illumination per
-    column.
+    sample-by-mode operator. Use ``coefficients`` for numerical work;
+    framework-valued inputs retain their gradients. A batch keeps one
+    illumination per column.
 
     The treams-rs names come first. The treams names (``material``,
     ``poltype``, ``modetype``, ``expand``, ...) follow at the end of the class
@@ -93,6 +94,61 @@ class Wave(WaveFields, UpstreamMembers):
     """Polarization convention: helicity or parity."""
     kind: str
     """Radial kind (regular or singular) of multipoles, or port direction (up or down)."""
+
+    def __new__(cls, coefficients: Any = None, **kwargs: Any) -> Any:
+        backend = backend_for(coefficients, kwargs)
+        if backend is None:
+            return super().__new__(cls)
+        medium = one_of(
+            "medium",
+            kwargs.pop("medium", None),
+            "material",
+            kwargs.pop("material", None),
+            1,
+        )
+        kind = check_kind(
+            one_of(
+                "kind",
+                kwargs.pop("kind", None),
+                "modetype",
+                kwargs.pop("modetype", None),
+                "regular",
+            )
+        )
+        polarization = resolve_poltype(
+            one_of(
+                "polarization",
+                kwargs.pop("polarization", None),
+                "poltype",
+                kwargs.pop("poltype", None),
+                None,
+            )
+        )
+        basis = kwargs["basis"]
+        if isinstance(basis, PlaneWavePorts):
+            from ._framework_waves import PortWave
+
+            if kind not in ("up", "down"):
+                raise ValueError("plane-port wave kind must be 'up' or 'down'")
+            return PortWave._from_basis(
+                coefficients,
+                backend=backend,
+                medium=medium,
+                positive=kind == "up",
+                polarization=polarization,
+                **kwargs,
+            )
+        if not isinstance(basis, (SphericalBasis, CylindricalBasis)):
+            raise NotImplementedError(
+                "autodiff Wave construction requires a multipole basis or PlaneWavePorts"
+            )
+        return namespace(backend).wave(
+            coefficients,
+            medium=medium,
+            kind=kind,
+            polarization=polarization,
+            **kwargs,
+        )
 
     def __init__(
         self,
@@ -326,6 +382,34 @@ class PlaneWave(WaveFields, UpstreamMembers):
     """Polarization basis convention: helicity or parity."""
     kind = "up"
     """Always "up": the basis lists the wave's own direction."""
+
+    def __new__(cls, kvec: Any = None, pol: Any = None, **kwargs: Any) -> Any:
+        backend = backend_for(kvec, pol, kwargs)
+        if backend is None:
+            return super().__new__(cls)
+        medium = one_of(
+            "medium",
+            kwargs.pop("medium", None),
+            "material",
+            kwargs.pop("material", None),
+            1,
+        )
+        polarization = resolve_poltype(
+            one_of(
+                "polarization",
+                kwargs.pop("polarization", None),
+                "poltype",
+                kwargs.pop("poltype", None),
+                None,
+            )
+        )
+        return namespace(backend).plane_wave(
+            kvec,
+            pol,
+            medium=medium,
+            polarization=polarization,
+            **kwargs,
+        )
 
     def __init__(
         self,
@@ -585,8 +669,10 @@ def plane_wave_angle(
     """
     material = one_of("medium", medium, "material", material, 1)
     poltype = one_of("polarization", polarization, "poltype", poltype, None)
+    backend = backend_for(theta, phi, pol, k0, material)
+    xp = np if backend is None else backend.xp
     return plane_wave(
-        [np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)],
+        [xp.sin(theta) * xp.cos(phi), xp.sin(theta) * xp.sin(phi), xp.cos(theta)],
         pol,
         k0=k0,
         material=material,

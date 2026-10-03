@@ -62,9 +62,9 @@ check_gradient(energy, gradient, np.array([0.3 + 0.2j, -0.1j]))
 ```
 
 Complex gradients follow the [pairing](index.md#rules) of the records, also
-for real objectives of complex inputs such as squared norms. JAX pairs complex
-numbers without the conjugate: pass the conjugate of a raw JAX gradient. The
-gradient function runs once per check. For several inputs, return a tuple with
+for real objectives of complex inputs such as squared norms. JAX and HIPS
+Autograd pair complex numbers without the conjugate: pass the conjugate of
+their raw gradient. The gradient function runs once per check. For several inputs, return a tuple with
 one gradient per input; a list counts as one array gradient.
 
 ## Explicit probes and errors

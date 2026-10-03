@@ -20,9 +20,19 @@ This entry describes the release being prepared; it is not a publication notice.
 - The numerical modules `special`, `sw`, `cw`, `pw`, `lattice`, `coeffs`,
   `misc` and `ebcm` follow treams function names and conventions. The physics
   objects carry their basis, wavenumber and media explicitly.
-- Analytic derivatives in `treams_rs.diff`, with optional Advect, JAX and
-  PyTorch support for differentiating complete calculations. Gradient checks are
-  available through `treams_rs.testing`.
+- Analytic derivatives in `treams_rs.diff`, with optional Advect, JAX, PyTorch
+  and HIPS Autograd support through the ordinary API. Constructors, physics
+  methods and differentiable numerical functions select the adapter from their
+  inputs and load it when needed. Python and NumPy inputs retain NumPy behavior;
+  constants compose with framework objects, and mixed frameworks raise before
+  conversion. `treams_rs.testing` provides gradient checks.
+- JAX and PyTorch accept their default float32/complex64 arrays, preserving
+  input gradient dtypes. Native work remains double precision; JAX outputs
+  follow its `jax_enable_x64` setting without changing it globally.
+- Differentiable numerical functions wrap their native NumPy implementations.
+  NumPy ufunc attributes, methods and `out`/`where` behavior remain available on
+  NumPy calls, but these public callables need not be instances of `numpy.ufunc`.
+  Differentiated calls do not support mutable `out` or masked `where` outputs.
 - Optional HDF5 T-matrix input/output through `treams_rs.io`, including matrix
   sweeps and physical metadata.
 - An owned CPU worker pool with `set_num_threads`, `get_num_threads`,

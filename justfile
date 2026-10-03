@@ -93,7 +93,7 @@ check-wheel: build-wheel
     uv run --no-sync python scripts/wheel_build_paths.py check "$wheel"
     environments="$(mktemp -d "${TMPDIR:-/tmp}/treams-wheel-XXXXXX")"
     trap 'rm -rf "$environments"' EXIT
-    profiles=(base advect)
+    profiles=(base advect autograd)
     if .venv/bin/python -c 'import sys; raise SystemExit(sys.version_info >= (3, 15))'; then
         profiles+=(io)
     else

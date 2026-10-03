@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
 from ._bases import CylindricalBasis, PlaneWaveBasis, PlaneWavePorts, SphericalBasis
 from ._cluster import Cluster, DelegatesToLocal
+from ._dispatch import autodiff_method, backend_for, namespace
 from ._lattice import on_diffraction_orders, periodic_alignment, periodic_geometry
 from ._operators import expandlattice
 from ._smatrix import SMatrix
 from ._tmatrix import CylindricalTMatrix, TMatrix, axis_mask
-from ._validation import check_kind, frozen
+from ._validation import check_kind, frozen, one_of
 from ._waves import PlaneWave, Wave
 
 if TYPE_CHECKING:
@@ -27,6 +28,17 @@ class PeriodicWave(DelegatesToLocal[Wave]):
     Local coefficients alone are not a finite radiating wave. Choose a plane-port
     or cylindrical representation with in_basis before evaluating fields.
     """
+
+    def __new__(cls, local: Any = None, lattice: Any = None, kpar: Any = None) -> Any:
+        backend = backend_for(local, lattice, kpar)
+        if backend is None:
+            return super().__new__(cls)
+        from ._framework_tmatrix import PeriodicWave as FrameworkPeriodicWave
+        from ._promotion import promote
+
+        return FrameworkPeriodicWave(
+            promote(local, backend), backend.array(lattice), backend.array(kpar)
+        )
 
     def __init__(self, local: Wave, lattice: ArrayLike, kpar: ArrayLike):
         self._local = local
@@ -89,6 +101,25 @@ class PeriodicResponse(DelegatesToLocal[TMatrix | CylindricalTMatrix]):
     Isolated-particle cross-section formulas do not apply to this response.
     """
 
+    def __new__(cls, local: Any = None, array: Any = None, **kwargs: Any) -> Any:
+        backend = backend_for(local, array, kwargs)
+        if backend is None:
+            return super().__new__(cls)
+        from ._framework_tmatrix import PeriodicResponse as FrameworkPeriodicResponse
+        from ._promotion import promote
+
+        response = promote(local, backend)
+        values = backend.array(array, complex_=True)
+        if values.shape != response.shape:
+            raise ValueError(
+                "periodic response must match the local finite matrix shape"
+            )
+        return FrameworkPeriodicResponse(
+            response._with_array(values),
+            backend.array(kwargs["lattice"]),
+            backend.array(kwargs["kpar"]),
+        )
+
     def __init__(
         self,
         local: TMatrix | CylindricalTMatrix,
@@ -106,6 +137,7 @@ class PeriodicResponse(DelegatesToLocal[TMatrix | CylindricalTMatrix]):
         self.lattice = frozen(lattice, np.float64)
         self.kpar = frozen(kpar, np.float64)
 
+    @autodiff_method
     def scatter(self, incident: ArrayLike | PlaneWave | Wave) -> PeriodicWave:
         """Apply this solved response to reference-cell incident coefficients.
 
@@ -138,8 +170,56 @@ class PeriodicResponse(DelegatesToLocal[TMatrix | CylindricalTMatrix]):
         local = self._local._outgoing(self.array @ self._local._incident(incident))
         return PeriodicWave(local, self.lattice, self.kpar)
 
-    def to_smatrix(self, basis: PlaneWavePorts) -> SMatrix:
-        """Convert the solved response to matching up/down diffraction ports."""
+    def to_smatrix(
+        self,
+        basis: PlaneWavePorts | None = None,
+        *,
+        diffraction_orders: ArrayLike | None = None,
+        orders: ArrayLike | None = None,
+    ) -> SMatrix:
+        """Convert to a fixed plane basis or explicit integer diffraction orders.
+
+        Spherical arrays take orders with shape (groups, 2), cylindrical arrays
+        a vector of orders within one axial sector. Each order includes both
+        helicities. ``orders`` is an alias of ``diffraction_orders``.
+        """
+        orders = one_of(
+            "diffraction_orders", diffraction_orders, "orders", orders, None
+        )
+        if (basis is None) == (orders is None):
+            raise ValueError("provide a plane basis or integer diffraction orders")
+        if orders is not None:
+            labels = np.asarray(orders)
+            if not np.all(np.isfinite(labels)) or not np.all(
+                labels == np.round(labels)
+            ):
+                raise ValueError("diffraction orders must be finite integers")
+            spherical = isinstance(self.basis, SphericalBasis)
+            if spherical:
+                if labels.ndim != 2 or labels.shape[1] != 2:
+                    raise ValueError("spherical orders require shape (groups,2)")
+                if self.lattice.shape != (2, 2) or self.kpar.shape != (2,):
+                    raise ValueError("spherical plane ports require a 2D xy lattice")
+                q = self.kpar + 2 * np.pi * labels @ np.linalg.inv(self.lattice).T
+            else:
+                if labels.ndim != 1:
+                    raise ValueError("cylindrical orders require a vector")
+                axial = np.unique(cast("CylindricalBasis", self.basis).kz)
+                if len(axial) != 1:
+                    raise NotImplementedError(
+                        "order ports require one cylindrical axial sector"
+                    )
+                if self.lattice.shape != (1, 1) or self.kpar.shape != (1,):
+                    raise ValueError("cylindrical plane ports require a 1D x lattice")
+                transverse = self.kpar[0] + 2 * np.pi * labels / self.lattice[0, 0]
+                q = np.column_stack((np.full_like(transverse, axial[0]), transverse))
+            if len(labels) == 0 or len(np.unique(labels, axis=0)) != len(labels):
+                raise ValueError("diffraction orders must be nonempty and distinct")
+            basis = PlaneWavePorts(
+                [(*vector, pol) for vector in q for pol in (1, 0)],
+                alignment="xy" if spherical else "zx",
+            )
+        assert basis is not None
         return SMatrix._from_response(
             self._local, basis, self.lattice, self.kpar, lambda: self.array
         )
@@ -192,6 +272,11 @@ def solve_periodic(
     periods; ``PlaneWavePorts.diffr_orders`` constructs those mode channels.
     The propagation distance ends at the array's particle-center plane.
     """
+    backend = backend_for(unit_cell, lattice, kpar, eta)
+    if backend is not None:
+        return namespace(backend).solve_periodic(
+            unit_cell, lattice=lattice, kpar=kpar, eta=eta
+        )
     if not isinstance(unit_cell, Cluster) and not unit_cell.isglobal:
         raise ValueError(
             "periodic cells require an unsolved Cluster or a response at one position; "

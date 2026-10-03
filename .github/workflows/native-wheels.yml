@@ -40,19 +40,19 @@ jobs:
         python:
           - version: "3.12"
             artifact: py312
-            profiles: base advect io
+            profiles: base advect autograd io
             skipped: ""
           - version: "3.13"
             artifact: py313
-            profiles: base advect io
+            profiles: base advect autograd io
             skipped: ""
           - version: "3.14"
             artifact: py314
-            profiles: base advect io
+            profiles: base advect autograd io
             skipped: ""
           - version: "3.15"
             artifact: py315
-            profiles: base advect
+            profiles: base advect autograd
             # Remove the skip once h5py publishes CPython 3.15 wheels.
             skipped: "io: h5py publishes no CPython 3.15 wheels"
         platform:
@@ -181,7 +181,7 @@ jobs:
         run: |
           # The declared floors of every runtime and smoke-profile requirement,
           # read from pyproject.toml and installed together.
-          minimum_list="$(uv run --script scripts/dependency_minimums.py advect io)"
+          minimum_list="$(uv run --script scripts/dependency_minimums.py advect autograd io)"
           mapfile -t minimums <<< "$minimum_list"
           echo "Declared floors: ${minimums[*]}"
           uv venv .wheel-minimum-smoke --python "$PYTHON_VERSION"
@@ -194,9 +194,9 @@ jobs:
             --no-cache \
             --no-index \
             --find-links dist/wheelhouse \
-            'treams-rs[advect,io]'
+            'treams-rs[advect,autograd,io]'
           uv pip check --python .wheel-minimum-smoke/bin/python
-          .wheel-minimum-smoke/bin/python scripts/smoke_wheel_install.py advect io
+          .wheel-minimum-smoke/bin/python scripts/smoke_wheel_install.py advect autograd io
 
       - name: Upload wheel
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from copy import copy
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, override
@@ -18,6 +19,7 @@ import numpy as np
 from . import diff
 from ._bases import ALIGNMENT_AXIS, CylindricalBasis, PlaneWavePorts, SphericalBasis
 from ._framework_backend import Backend, Basis, Material, as_material, port_modes
+from ._validation import check_kind, one_of
 
 __all__ = ["HasPorts", "PlaneWave", "PortSet", "PortWave", "Wave"]
 
@@ -25,6 +27,24 @@ __all__ = ["HasPorts", "PlaneWave", "PortSet", "PortWave", "Wave"]
 def _select_gradient(context: Any, index: int) -> Callable[[Any], Any]:
     """Pullback of ``context`` that keeps only the gradient of argument ``index``."""
     return lambda g: context.pullback(g)[index]
+
+
+def _direction_is_dynamic(value: Any) -> bool:
+    """Concrete framework direction constants need no angular derivative."""
+    from ._dispatch import backend_for
+
+    if isinstance(value, (list, tuple)):
+        return any(_direction_is_dynamic(item) for item in value)
+    torch = sys.modules.get("torch")
+    if torch is not None and isinstance(value, torch.Tensor):
+        return value.requires_grad
+    jax = sys.modules.get("jax")
+    if jax is not None:
+        if isinstance(value, jax.core.Tracer):
+            return True
+        if isinstance(value, jax.Array):
+            return False
+    return backend_for(value) is not None
 
 
 class _Fields:
@@ -39,8 +59,24 @@ class _Fields:
     polarization: str
     """Polarization convention, "helicity" or "parity"."""
     _backend: Backend
+    coefficients: Any
 
-    def efield(self, points: Any) -> Any:
+    @property
+    def array(self) -> Any:
+        """The framework-valued wave coefficients."""
+        return self.coefficients
+
+    @property
+    def material(self) -> Material:
+        """treams name of ``medium``."""
+        return self.medium
+
+    @property
+    def poltype(self) -> str:
+        """treams name of ``polarization``."""
+        return self.polarization
+
+    def efield(self, points: Any = None, *, r: Any = None) -> Any:
         raise NotImplementedError
 
     def _combined(self, electric: Any, magnetic: Any, points: Any) -> Any:
@@ -53,20 +89,24 @@ class _Fields:
         b = self._backend
         return electric + magnetic * (-1j * b.array(signs) / b.impedance(self.medium))
 
-    def hfield(self, points: Any) -> Any:
+    def hfield(self, points: Any = None, *, r: Any = None) -> Any:
         """Magnetic field in relative vacuum impedance units."""
+        points = one_of("points", points, "r", r, None)
         return self._combined(0.0, 1.0, points)
 
-    def dfield(self, points: Any) -> Any:
+    def dfield(self, points: Any = None, *, r: Any = None) -> Any:
         """Electric displacement divided by vacuum permittivity."""
+        points = one_of("points", points, "r", r, None)
         return self._combined(self.medium.epsilon, 1j * self.medium.kappa, points)
 
-    def bfield(self, points: Any) -> Any:
+    def bfield(self, points: Any = None, *, r: Any = None) -> Any:
         """Magnetic flux density times vacuum light speed."""
+        points = one_of("points", points, "r", r, None)
         return self._combined(-1j * self.medium.kappa, self.medium.mu, points)
 
-    def gfield(self, pol: int, points: Any) -> Any:
+    def gfield(self, pol: int, points: Any = None, *, r: Any = None) -> Any:
         """Helicity-resolved G field, normalized as in treams for this wave family."""
+        points = one_of("points", points, "r", r, None)
         if pol not in (0, 1):
             raise ValueError("helicity label must be 0 or 1")
         # PlaneWave and PortWave have no multipole basis.
@@ -79,8 +119,9 @@ class _Fields:
             1.0, (2 * pol - 1) * 1j * impedance, points
         )
 
-    def ffield(self, pol: int, points: Any) -> Any:
+    def ffield(self, pol: int, points: Any = None, *, r: Any = None) -> Any:
         """G field with the chiral index weighting in the helicity convention."""
+        points = one_of("points", points, "r", r, None)
         value = self.gfield(pol, points)
         if self.polarization == "parity":
             return value
@@ -112,6 +153,11 @@ class Wave(_Fields):
         """Radial kind: "regular" (incident) or "singular" (outgoing)."""
         return "singular" if self.singular else "regular"
 
+    @property
+    def modetype(self) -> str:
+        """treams name of ``kind``."""
+        return self.kind
+
     def __init__(
         self,
         coefficients: Any,
@@ -132,12 +178,35 @@ class Wave(_Fields):
         self.positions = backend.positions(basis, positions)
 
     @override
-    def efield(self, points: Any) -> Any:
+    def efield(self, points: Any = None, *, r: Any = None) -> Any:
         """Electric field at points (..., 3), differentiable in points and wave values."""
+        points = one_of("points", points, "r", r, None)
         b = self._backend
         points = b.array(points)
         shape = tuple(points.shape)
         basis = self.basis
+
+        if self.coefficients.ndim == 2:
+
+            def record_operator(p: Any, o: Any, ks: Any) -> Any:
+                return diff.field_operator(
+                    p,
+                    type(basis)(basis.modes, o),
+                    ks,
+                    poltype=self.polarization,
+                    singular=self.singular,
+                )
+
+            operator = b.apply(
+                record_operator,
+                (int(np.prod(shape[:-1])), 3, len(basis)),
+                points.reshape(-1, 3),
+                self.positions,
+                b.ks(self.medium, self.k0),
+            )
+            return (operator @ self.coefficients).reshape(
+                (*shape, self.coefficients.shape[1])
+            )
 
         def record(c: Any, p: Any, o: Any, ks: Any) -> Any:
             return diff.field(
@@ -165,6 +234,8 @@ class Wave(_Fields):
                 electric, magnetic, points
             )
         weights = self._weights(electric, magnetic, 2 * self.basis.pol - 1)
+        if self.coefficients.ndim == 2:
+            weights = weights[:, None]
         return Wave(
             self.coefficients * weights,
             basis=self.basis,
@@ -176,10 +247,30 @@ class Wave(_Fields):
         ).efield(points)
 
     def in_basis(
-        self, basis: Basis, *, positions: Any = None, singular: bool | None = None
+        self,
+        basis: Basis,
+        *,
+        positions: Any = None,
+        singular: bool | None = None,
+        kind: str | None = None,
     ) -> Wave:
         """Re-expand into another multipole basis; the field stays the same."""
-        target_singular = self.singular if singular is None else singular
+        target_kind = one_of(
+            "kind",
+            kind,
+            "singular",
+            None if singular is None else ("singular" if singular else "regular"),
+            self.kind,
+        )
+        if check_kind(target_kind) not in ("regular", "singular"):
+            raise ValueError("multipole waves require regular or singular kind")
+        target_singular = target_kind == "singular"
+        if (
+            basis is self.basis
+            and target_singular == self.singular
+            and (positions is None or positions is self.positions)
+        ):
+            return self
         if target_singular and not self.singular:
             raise ValueError("a regular wave cannot be converted to singular waves")
         b = self._backend
@@ -221,14 +312,17 @@ class Wave(_Fields):
 
 
 class PlaneWave(_Fields):
-    """Plane wave with a fixed direction and two helicity amplitudes.
+    """Plane wave with real direction and helicity or parity amplitudes.
 
-    The constructor ``plane_wave`` of advect, jax and torch builds it. The
-    direction is fixed; the amplitudes, k0 and the medium may carry
-    gradients. The direction fixes the angular factors and the phases carry
-    the k0 and position derivatives, so incidence along an axis has gradients
-    too.
+    Direction, amplitudes, k0 and medium may carry gradients. Fixed directions
+    support incidence along a polarization axis; direction derivatives require
+    off-axis incidence, where the native polarization gauge is differentiable.
     """
+
+    kind = "up"
+    """Directional plane-wave kind in the treams convention."""
+    modetype = kind
+    """treams name of ``kind``."""
 
     def __init__(
         self,
@@ -238,29 +332,101 @@ class PlaneWave(_Fields):
         k0: Any,
         medium: Any,
         backend: Backend,
+        polarization: str = "helicity",
     ):
-        direction = np.asarray(direction, dtype=float)
-        norm = np.linalg.norm(direction) if direction.shape == (3,) else 0.0
-        if not np.isfinite(norm) or norm == 0:
-            raise ValueError("direction must be a finite nonzero Cartesian vector")
-        self.direction = direction / norm
+        from ._dispatch import backend_for
+
+        direction_backend = backend_for(direction)
+        if direction_backend is not None:
+            backend.require_same(
+                direction_backend, "direction must use the same autodiff backend"
+            )
+        self._fixed_direction = not _direction_is_dynamic(direction)
+        if self._fixed_direction:
+            direction = np.asarray(direction)
+            if np.iscomplexobj(direction):
+                if np.any(direction.imag != 0):
+                    raise ValueError("autodiff plane waves require a real direction")
+                direction = direction.real
+            norm = np.linalg.norm(direction) if direction.shape == (3,) else 0.0
+            if not np.isfinite(norm) or norm == 0:
+                raise ValueError("direction must be a finite nonzero Cartesian vector")
+            self.direction = direction / norm
+        else:
+            direction = backend.array(direction, complex_=True)
+            if direction.shape != (3,):
+                raise ValueError("direction must be a finite nonzero Cartesian vector")
+
+            def check_direction(vector: Any) -> None:
+                if np.any(vector.imag != 0):
+                    raise ValueError("autodiff plane waves require a real direction")
+                if not np.all(np.isfinite(vector)) or np.linalg.norm(vector) == 0:
+                    raise ValueError(
+                        "direction must be a finite nonzero Cartesian vector"
+                    )
+
+            direction = backend.xp.real(backend.guard(check_direction, direction))
+            self.direction = direction / backend.xp.sqrt(backend.xp.sum(direction**2))
+        if polarization not in ("helicity", "parity"):
+            raise ValueError("polarization must be helicity or parity")
+        self.k0, self.medium = backend.array(k0), as_material(medium)
+        self._backend, self.polarization = backend, polarization
         choices = {"positive_helicity": (0.0, 1.0), "negative_helicity": (1.0, 0.0)}
         if isinstance(pol, str):
             if pol not in choices:
                 raise ValueError(
                     "named pol must be positive_helicity or negative_helicity"
                 )
-            pol = choices[pol]
-        elif isinstance(pol, (int, np.integer)):
-            if pol not in (0, 1):
+            pol = backend.change_port_polarization(
+                backend.array(choices[pol], complex_=True),
+                ((0, 0), (0, 1)),
+                "helicity",
+                polarization,
+                (0,),
+            )
+        elif backend_for(pol) is None and np.ndim(pol) == 0:
+            label = complex(np.asarray(pol).item())
+            if label not in (-1, 0, 1):
                 raise ValueError("helicity label must be 0 or 1")
-            pol = (1.0, 0.0) if pol == 0 else (0.0, 1.0)
+            pol = (1.0, 0.0) if label in (-1, 0) else (0.0, 1.0)
         self.coefficients = backend.array(pol, complex_=True)
+        if self.coefficients.shape == (3,):
+            helicity = polarization == "helicity"
+
+            def record(vectors: Any) -> Any:
+                value, context = diff.plane_field(
+                    None,
+                    np.zeros((1, 3)),
+                    vectors,
+                    [1, 0] if helicity else [0, 1],
+                    poltype=polarization,
+                    fixed_vectors=self._fixed_direction,
+                )
+                return value, _select_gradient(context, 2)
+
+            projection = backend.apply(record, (1, 3, 2), self._vectors())[0]
+            self.coefficients = projection.T @ self.coefficients
+            if not helicity:
+                self.coefficients = self.coefficients * backend.array([-1.0, 1.0])
         if self.coefficients.shape != (2,):
-            raise ValueError("pol requires two helicity amplitudes or a helicity name")
-        self.k0, self.medium = backend.array(k0), as_material(medium)
-        self._backend = backend
-        self.polarization = "helicity"
+            raise ValueError(
+                "pol requires two amplitudes, three electric components or a helicity name"
+            )
+        if polarization == "parity":
+            self.coefficients = backend.require_achiral(self.coefficients, self.medium)
+
+    def with_polarization(self, polarization: str) -> PlaneWave:
+        """Represent the same plane wave with helicity or parity amplitudes."""
+        wave = copy(self)
+        wave.coefficients = self._backend.change_port_polarization(
+            self.coefficients, ((0, 0), (0, 1)), self.polarization, polarization, (0,)
+        )
+        if polarization == "parity":
+            wave.coefficients = self._backend.require_achiral(
+                wave.coefficients, self.medium
+            )
+        wave.polarization = polarization
+        return wave
 
     def in_basis(
         self, basis: Basis, *, positions: Any = None, singular: bool | None = None
@@ -277,17 +443,27 @@ class PlaneWave(_Fields):
         vectors = self._vectors()
         # Fixed-direction angular coefficients and dynamic translation phases
         # separate the axis gauge from physical frequency/position derivatives.
-        if isinstance(basis, CylindricalBasis) and (
-            np.any(basis.kz != 0) or self.direction[2] != 0
-        ):
-            raise NotImplementedError(
-                "cylindrical plane illumination requires kz=0 and transverse incidence; treams_rs.advect.plane_expansion handles fixed axial sectors"
-            )
+        if isinstance(basis, CylindricalBasis):
+
+            def check_axial(_: Any, direction: Any) -> None:
+                if np.any(basis.kz != 0) or direction[2] != 0:
+                    raise NotImplementedError(
+                        "cylindrical plane illumination requires kz=0 and transverse incidence"
+                    )
+
+            if self._fixed_direction:
+                check_axial(None, self.direction)
+            else:
+                vectors = b.guard(check_axial, vectors, self.direction)
         zero_basis = type(basis)(basis.modes, np.zeros_like(basis.positions))
 
         def record_angular(vectors: Any) -> Any:
             value, context = diff.plane_expansion(
-                zero_basis, vectors, [0, 1], fixed_vectors=True
+                zero_basis,
+                vectors,
+                [0, 1],
+                poltype=self.polarization,
+                fixed_vectors=self._fixed_direction,
             )
             return value, _select_gradient(context, 1)
 
@@ -301,6 +477,7 @@ class PlaneWave(_Fields):
             medium=self.medium,
             backend=b,
             positions=positions,
+            polarization=self.polarization,
         )
 
     def _vectors(self) -> Any:
@@ -311,20 +488,21 @@ class PlaneWave(_Fields):
         )
 
     @override
-    def efield(self, points: Any) -> Any:
+    def efield(self, points: Any = None, *, r: Any = None) -> Any:
         """Electric field at points (..., 3), differentiable in points and wave values."""
-        return _plane_efield(self, points, [0, 1], lambda _: True)
+        points = one_of("points", points, "r", r, None)
+        return _plane_efield(self, points, [0, 1], lambda _: self._fixed_direction)
 
     @override
     def _combined(self, electric: Any, magnetic: Any, points: Any) -> Any:
+        if self.polarization != "helicity":
+            return self.with_polarization("helicity")._combined(
+                electric, magnetic, points
+            )
         weights = self._weights(electric, magnetic, [-1.0, 1.0])
-        return PlaneWave(
-            self.direction,
-            self.coefficients * weights,
-            k0=self.k0,
-            medium=self.medium,
-            backend=self._backend,
-        ).efield(points)
+        wave = copy(self)
+        wave.coefficients = self.coefficients * weights
+        return wave.efield(points)
 
 
 @dataclass(frozen=True, slots=True)
@@ -373,6 +551,11 @@ class HasPorts:
     ports: PortSet
 
     @property
+    def basis(self) -> PlaneWavePorts | None:
+        """Fixed port basis, or None for ports following diffraction orders."""
+        return self.ports.basis
+
+    @property
     def modes(self) -> tuple[tuple[int, int], ...]:
         """(group, pol) label of each port."""
         return self.ports.modes
@@ -410,6 +593,44 @@ class PortWave(HasPorts, _Fields):
         self.ports = system.ports
         self.positive = positive
 
+    @classmethod
+    def _from_basis(
+        cls,
+        coefficients: Any,
+        *,
+        basis: PlaneWavePorts,
+        k0: Any,
+        medium: Any,
+        backend: Backend,
+        positive: bool,
+        polarization: str = "helicity",
+    ) -> PortWave:
+        """Construct a wave on fixed plane ports without a scattering system."""
+        wave = cls.__new__(cls)
+        wave.coefficients = backend.array(coefficients, complex_=True)
+        if wave.coefficients.ndim not in (1, 2) or wave.coefficients.shape[0] != len(
+            basis
+        ):
+            raise ValueError(
+                "plane-port coefficients require shape (modes,) or (modes, illuminations)"
+            )
+        wave.k0, wave.medium = backend.array(k0), as_material(medium)
+        wave._backend, wave.polarization = backend, polarization
+        wave.ports, wave.positive = PortSet.from_basis(basis, backend), positive
+        if polarization == "parity":
+            wave.coefficients = backend.require_achiral(wave.coefficients, wave.medium)
+        return wave
+
+    @property
+    def kind(self) -> str:
+        """Propagation direction along the port normal."""
+        return "up" if self.positive else "down"
+
+    @property
+    def modetype(self) -> str:
+        """treams name of ``kind``."""
+        return self.kind
+
     def _vectors(self) -> Any:
         """Wavevector of each port, one row each."""
         b = self._backend
@@ -422,18 +643,62 @@ class PortWave(HasPorts, _Fields):
         order = np.argsort([(axis + 1) % 3, (axis + 2) % 3, axis])
         return local[:, order]
 
-    @override
-    def efield(self, points: Any) -> Any:
-        """Electric field at points (..., 3), differentiable in points and wave values."""
+    def _fixed_vectors(self, vectors: Any) -> bool:
         axis = ALIGNMENT_AXIS[self.ports.alignment]
+        return bool(
+            self.ports.fixed_q
+            and np.all(vectors[:, [i for i in range(3) if i != axis]] == 0)
+        )
 
-        def fixed(v: Any) -> bool:
-            return bool(
-                self.ports.fixed_q
-                and np.all(v[:, [i for i in range(3) if i != axis]] == 0)
+    def in_basis(
+        self,
+        basis: Basis,
+        *,
+        positions: Any = None,
+        singular: bool | None = None,
+        kind: str | None = None,
+    ) -> Wave:
+        """Expand port amplitudes into regular multipoles, retaining their phases."""
+        if singular or kind not in (None, "regular"):
+            raise ValueError("plane illumination expands to regular multipoles")
+        b = self._backend
+        positions = b.positions(basis, positions)
+        vectors = self._vectors()
+        zero_basis = type(basis)(basis.modes, np.zeros_like(basis.positions))
+
+        def record(v: Any) -> Any:
+            value, context = diff.plane_expansion(
+                zero_basis,
+                v,
+                self.ports.pols,
+                poltype=self.polarization,
+                fixed_vectors=self._fixed_vectors(v),
             )
+            return value, _select_gradient(context, 1)
 
-        return _plane_efield(self, points, self.ports.pols, fixed)
+        angular = b.apply(record, (len(basis), len(self.ports.modes)), vectors)
+        phases = b.apply(
+            diff.plane_phases,
+            (positions.shape[0], len(self.ports.modes)),
+            positions,
+            vectors,
+        )
+        operator = angular * phases[basis.pidx.copy()]
+        return Wave(
+            operator @ self.coefficients,
+            basis=basis,
+            k0=self.k0,
+            medium=self.medium,
+            backend=b,
+            positions=positions,
+            polarization=self.polarization,
+        )
+
+    @override
+    def efield(self, points: Any = None, *, r: Any = None) -> Any:
+        """Electric field at points (..., 3), differentiable in points and wave values."""
+        points = one_of("points", points, "r", r, None)
+        return _plane_efield(self, points, self.ports.pols, self._fixed_vectors)
 
     @override
     def _combined(self, electric: Any, magnetic: Any, points: Any) -> Any:
@@ -446,7 +711,10 @@ class PortWave(HasPorts, _Fields):
         signs = 2 * self.ports.pols - 1
         # Derived port waves copy themselves: the constructor reads an SMatrix.
         wave = copy(self)
-        wave.coefficients = self.coefficients * self._weights(electric, magnetic, signs)
+        weights = self._weights(electric, magnetic, signs)
+        wave.coefficients = self.coefficients * (
+            weights[:, None] if self.coefficients.ndim == 2 else weights
+        )
         return wave.efield(points)
 
     def _complete_polarizations(self) -> PortWave:
@@ -469,7 +737,8 @@ class PortWave(HasPorts, _Fields):
                 self.ports.transverse_wavevectors,
                 self.ports.fixed_q,
             )
-            padded = b.concat((self.coefficients, b.array([0], complex_=True)))
+            zero = np.zeros((1, *self.coefficients.shape[1:]))
+            padded = b.concat((self.coefficients, b.array(zero, complex_=True)))
             wave.coefficients = padded[
                 np.array([indices.get(mode, len(indices)) for mode in modes])
             ]
@@ -523,4 +792,9 @@ def _plane_efield(
         points.reshape(-1, 3),
         vectors,
     )
+    if wave.coefficients.ndim == 2:
+        operator = phases[:, None, :] * electric[None, :, :]
+        return (operator @ wave.coefficients).reshape(
+            (*shape, wave.coefficients.shape[1])
+        )
     return ((phases * wave.coefficients) @ electric.T).reshape(shape)

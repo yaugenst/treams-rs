@@ -28,10 +28,10 @@ Four goals shape the code:
 | 1. Rust core | `crates/treams-core` | Numerical kernels and their analytic pullbacks |
 | 2. Bindings | `crates/treams-py`, imported as `treams_rs._native` | Array conversion, input checks, the global interpreter lock (GIL), the floating-point guard and pullback contexts |
 | 3. Python package | `treams_rs` | Physics objects (`TMatrix`, `Cluster`, `SMatrix`, waves), the treams-style numerical namespaces (`special`, `sw`, `cw`, `pw`, `lattice`, `coeffs`, `misc`, `ebcm`, `io`) and the records of `treams_rs.diff` |
-| 4. Framework adapters | `treams_rs.advect`, `treams_rs.jax`, `treams_rs.torch` | Physics objects that hold framework arrays, and native records as framework operations |
+| 4. Framework adapters | `treams_rs.advect`, `treams_rs.jax`, `treams_rs.torch`, `treams_rs.autograd` | Physics objects that hold framework arrays, and native records as framework operations |
 
-Each layer calls only the layer directly below it. The core never sees a Python
-object. The adapters reach native code only through the records of
+The Python API selects optional adapters from its inputs. The core never sees a
+Python object. The adapters reach native code only through the records of
 `treams_rs.diff`. Inside the core, modules form six levels: numerical support
 (`linalg`, `fpenv`, `numerics`), special functions, lattice sums, wave families,
 scattering (`coeffs`, `tmatrix`, `ebcm`, `cluster`) and planar S-matrices
@@ -81,7 +81,7 @@ marks a module without a counterpart.
 - **Python package:** bases, `k0`, media, polarization conventions, lattices,
   Bloch vectors, named results and the numerical calls behind physics methods.
 - **Framework adapters:** composition only. They wrap native records as Advect,
-  JAX or PyTorch operations and add no numerical code (see
+  JAX, PyTorch or HIPS Autograd operations and add no numerical code (see
   [framework adapters](adapters.md)).
 
 The bindings keep the GIL for scalar calls of microsecond-scale functions, such as

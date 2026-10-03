@@ -14,12 +14,12 @@ every optimization step. Inputs may be float64, complex128, float32 or
 complex64; the Rust code computes in double precision, outputs are float64 or
 complex128, and each gradient has the dtype of its input.
 
-Build every object of a differentiated objective from this namespace:
+Framework inputs select Advect through the ordinary API:
 
 ```python
 import advect as ad
 import advect.numpy as np
-import treams_rs.advect as tr
+import treams_rs as tr
 
 def objective(radius):
     sphere = tr.sphere_tmatrix(k0=2.0, lmax=2, radius=radius, material=3.0)
@@ -36,12 +36,14 @@ inputs. ``treams_rs.diff`` defines records, contexts and pullbacks.
 Install ``treams-rs[advect]``. Forward mode, higher derivatives, staging and
 checkpointing are not available. Mode cutoffs, integer labels and topology are
 static. Pass inputs as arrays (scalars as ``np.asarray(x)``) and keep traced
-values inside Advect: converting them to float or NumPy, or building objects
-from the NumPy-only root ``treams_rs`` namespace, loses derivatives.
+values inside Advect: converting them to float or NumPy loses derivatives.
+Plain Python and NumPy inputs retain NumPy behavior; constant physics objects
+are promoted when combined with Advect values. Use this explicit namespace
+when constants alone should produce Advect objects, or for its record helpers.
 
 Advect has no public ``wrap``. Run a custom record through
-``treams_rs.jax.wrap`` or ``treams_rs.torch.wrap``, or compose the expert
-functions of ``treams_rs.advect``.
+``treams_rs.jax.wrap``, ``treams_rs.torch.wrap`` or
+``treams_rs.autograd.wrap``, or compose the expert functions here.
 
 Framework adapters guide: https://yaugenst.github.io/treams-rs/latest/differentiation/frameworks/
 
@@ -93,6 +95,17 @@ Cluster.scatter(incident: PlaneWave | Wave) -> Wave
 ```
 
 The scattered wave of one illumination, without the full coupled T-matrix.
+
+### `Cluster.factor`
+
+```python
+Cluster.factor() -> _ClusterFactor
+```
+
+Prepare coupling and particle blocks for repeated illumination solves.
+
+Framework inputs retain their derivatives. Each scatter call records
+its native factorization; only constant NumPy clusters retain LU factors.
 
 ## `CrossSections`
 
@@ -428,25 +441,137 @@ Cartesian axes of the rows, for example ``"xy"``.
 
 ## `Material`
 
-Relative permittivity, permeability and chirality, retaining framework values.
+Isotropic reciprocal material with relative epsilon, mu and chirality kappa.
+
+Mirrors ``treams.Material``. All three parameters are dimensionless complex
+scalars. A single scalar specifies epsilon with mu=1 and kappa=0; a
+tuple/list specifies ``(epsilon, mu, kappa)``, with omitted trailing values
+taking those defaults. Passing another Material copies its three values.
+Instances are immutable. Call or iterate the object to get the parameters
+in that order.
+
+### `Material.__init__`
+
+```python
+Material(epsilon: Any=1, mu: Any=1, kappa: Any=0)
+```
+
+### `Material.from_refractive_index`
+
+```python
+Material.from_refractive_index(n: complex=1, impedance: complex | None=None, kappa: complex=0) -> Material
+```
+
+Construct epsilon=n/impedance and mu=n*impedance.
+
+``n`` is the mean refractive index and impedance is relative to vacuum.
+Omitting impedance uses 1/n, giving mu=1. Kappa stays dimensionless.
+
+### `Material.from_helicity_indices`
+
+```python
+Material.from_helicity_indices(ns: tuple[complex, complex]=(1, 1), impedance: complex | None=None) -> Material
+```
+
+Construct from negative/positive-helicity indices ``(n_minus, n_plus)``.
+
+Their mean gives n and half their difference gives kappa. Omitting
+impedance uses the same nonmagnetic convention as ``from_refractive_index``.
+
+### `Material.n`
+
+```python
+Material.n: complex
+```
+
+Square root of epsilon*mu, with sign chosen for nonnegative imaginary part.
+
+### `Material.nmp`
+
+```python
+Material.nmp: NDArray[np.complex128]
+```
+
+Shape-(2,) complex128 refractive indices for the labels pol 0 and 1.
+
+Start from the principal square root of epsilon*mu minus/plus kappa,
+then choose each sign for a nonnegative imaginary part. Array order is
+negative/positive helicity; default mode bases instead list label 1 first.
+
+### `Material.impedance`
+
+```python
+Material.impedance: complex
+```
+
+Principal square root of mu/epsilon, relative to vacuum impedance.
+
+### `Material.isreal`
+
+```python
+Material.isreal: bool
+```
+
+Whether epsilon, mu and kappa are all real, as for a lossless medium.
+
+### `Material.ischiral`
+
+```python
+Material.ischiral: bool
+```
+
+Whether the chirality kappa is nonzero; parity channels need it zero.
+
+### `Material.ks`
+
+```python
+Material.ks(k0: float) -> NDArray[np.complex128]
+```
+
+Return ``k0 * nmp`` in negative/positive-helicity order, shape (2,).
+
+The vacuum angular wavenumber k0 is 2*pi/wavelength, in inverse units
+of the lengths used elsewhere in the simulation.
+
+### `Material.kzs`
+
+```python
+Material.kzs(k0: float, kx: ArrayLike, ky: ArrayLike, pol: ArrayLike=(0, 1)) -> NDArray[np.complex128]
+```
+
+Axial wavevectors on the outgoing branch (nonnegative imaginary part).
+
+### `Material.krhos`
+
+```python
+Material.krhos(k0: float, kz: ArrayLike, pol: ArrayLike=(0, 1)) -> NDArray[np.complex128]
+```
+
+Radial wavevectors on the same outgoing branch as kzs.
 
 ### `Material.epsilon`
 
 ```python
-Material.epsilon: Any = 1.0
+Material.epsilon: Any
 ```
+
+Relative permittivity.
 
 ### `Material.mu`
 
 ```python
-Material.mu: Any = 1.0
+Material.mu: Any
 ```
+
+Relative permeability.
 
 ### `Material.kappa`
 
 ```python
-Material.kappa: Any = 0.0
+Material.kappa: Any
 ```
+
+Chirality parameter, dimensionless.
 
 ## `PeriodicResponse`
 
@@ -455,6 +580,62 @@ Solved response of a periodic array, ready for conversion to plane-wave ports.
 ``solve_periodic`` returns it. ``response`` is the TMatrix of one unit
 cell with the lattice interaction solved; ``lattice`` and ``kpar`` are
 framework arrays and carry gradients.
+
+### `PeriodicResponse.array`
+
+```python
+PeriodicResponse.array: Any
+```
+
+Solved response in local multipole channels.
+
+### `PeriodicResponse.basis`
+
+```python
+PeriodicResponse.basis: Basis
+```
+
+Local multipole labels of the periodic response.
+
+### `PeriodicResponse.k0`
+
+```python
+PeriodicResponse.k0: Any
+```
+
+Vacuum wavenumber.
+
+### `PeriodicResponse.medium`
+
+```python
+PeriodicResponse.medium: Material
+```
+
+Embedding material.
+
+### `PeriodicResponse.polarization`
+
+```python
+PeriodicResponse.polarization: str
+```
+
+Polarization convention.
+
+### `PeriodicResponse.scatter`
+
+```python
+PeriodicResponse.scatter(incident: Any) -> PeriodicWave
+```
+
+Scatter an illumination whose plane-wave orders match this Bloch vector.
+
+### `PeriodicResponse.to_cylindrical`
+
+```python
+PeriodicResponse.to_cylindrical(basis: CylindricalBasis) -> TMatrix
+```
+
+Represent a spherical z-periodic response in outgoing cylindrical modes.
 
 ### `PeriodicResponse.to_smatrix`
 
@@ -471,18 +652,40 @@ The returned transverse_wavevectors retain framework derivatives.
 
 ## `PlaneWave`
 
-Plane wave with a fixed direction and two helicity amplitudes.
+Plane wave with real direction and helicity or parity amplitudes.
 
-The constructor ``plane_wave`` of advect, jax and torch builds it. The
-direction is fixed; the amplitudes, k0 and the medium may carry
-gradients. The direction fixes the angular factors and the phases carry
-the k0 and position derivatives, so incidence along an axis has gradients
-too.
+Direction, amplitudes, k0 and medium may carry gradients. Fixed directions
+support incidence along a polarization axis; direction derivatives require
+off-axis incidence, where the native polarization gauge is differentiable.
+
+### `PlaneWave.array`
+
+```python
+PlaneWave.array: Any
+```
+
+The framework-valued wave coefficients.
+
+### `PlaneWave.material`
+
+```python
+PlaneWave.material: Material
+```
+
+treams name of ``medium``.
+
+### `PlaneWave.poltype`
+
+```python
+PlaneWave.poltype: str
+```
+
+treams name of ``polarization``.
 
 ### `PlaneWave.efield`
 
 ```python
-PlaneWave.efield(points: Any) -> Any
+PlaneWave.efield(points: Any=None, *, r: Any=None) -> Any
 ```
 
 Electric field at points (..., 3), differentiable in points and wave values.
@@ -490,7 +693,7 @@ Electric field at points (..., 3), differentiable in points and wave values.
 ### `PlaneWave.hfield`
 
 ```python
-PlaneWave.hfield(points: Any) -> Any
+PlaneWave.hfield(points: Any=None, *, r: Any=None) -> Any
 ```
 
 Magnetic field in relative vacuum impedance units.
@@ -498,7 +701,7 @@ Magnetic field in relative vacuum impedance units.
 ### `PlaneWave.dfield`
 
 ```python
-PlaneWave.dfield(points: Any) -> Any
+PlaneWave.dfield(points: Any=None, *, r: Any=None) -> Any
 ```
 
 Electric displacement divided by vacuum permittivity.
@@ -506,7 +709,7 @@ Electric displacement divided by vacuum permittivity.
 ### `PlaneWave.bfield`
 
 ```python
-PlaneWave.bfield(points: Any) -> Any
+PlaneWave.bfield(points: Any=None, *, r: Any=None) -> Any
 ```
 
 Magnetic flux density times vacuum light speed.
@@ -514,7 +717,7 @@ Magnetic flux density times vacuum light speed.
 ### `PlaneWave.gfield`
 
 ```python
-PlaneWave.gfield(pol: int, points: Any) -> Any
+PlaneWave.gfield(pol: int, points: Any=None, *, r: Any=None) -> Any
 ```
 
 Helicity-resolved G field, normalized as in treams for this wave family.
@@ -522,7 +725,7 @@ Helicity-resolved G field, normalized as in treams for this wave family.
 ### `PlaneWave.ffield`
 
 ```python
-PlaneWave.ffield(pol: int, points: Any) -> Any
+PlaneWave.ffield(pol: int, points: Any=None, *, r: Any=None) -> Any
 ```
 
 G field with the chiral index weighting in the helicity convention.
@@ -543,6 +746,20 @@ PlaneWave.polarization: str
 
 Polarization convention, "helicity" or "parity".
 
+### `PlaneWave.coefficients`
+
+```python
+PlaneWave.coefficients: Any
+```
+
+### `PlaneWave.with_polarization`
+
+```python
+PlaneWave.with_polarization(polarization: str) -> PlaneWave
+```
+
+Represent the same plane wave with helicity or parity amplitudes.
+
 ### `PlaneWave.in_basis`
 
 ```python
@@ -553,6 +770,24 @@ Expand into regular multipole waves of ``basis`` at ``positions``.
 
 ``positions`` defaults to ``basis.positions``; ``singular=True``
 raises ValueError.
+
+### `PlaneWave.kind`
+
+```python
+PlaneWave.kind = 'up'
+```
+
+Directional plane-wave kind in the treams convention.
+
+### `PlaneWave.modetype`
+
+```python
+PlaneWave.modetype = 'up'
+```
+
+Same as `PlaneWave.kind`.
+
+Directional plane-wave kind in the treams convention.
 
 ## `PlaneWaveBasis`
 
@@ -911,6 +1146,14 @@ for the wave on the positive side, which travels along the positive
 normal. The amplitudes, k0, the exterior medium and the transverse
 wavevectors of diffraction-order ports may carry gradients.
 
+### `PortWave.basis`
+
+```python
+PortWave.basis: PlaneWavePorts | None
+```
+
+Fixed port basis, or None for ports following diffraction orders.
+
 ### `PortWave.modes`
 
 ```python
@@ -935,10 +1178,34 @@ PortWave.ports: PortSet
 
 Plane-wave ports, shared with the S-matrix.
 
+### `PortWave.array`
+
+```python
+PortWave.array: Any
+```
+
+The framework-valued wave coefficients.
+
+### `PortWave.material`
+
+```python
+PortWave.material: Material
+```
+
+treams name of ``medium``.
+
+### `PortWave.poltype`
+
+```python
+PortWave.poltype: str
+```
+
+treams name of ``polarization``.
+
 ### `PortWave.efield`
 
 ```python
-PortWave.efield(points: Any) -> Any
+PortWave.efield(points: Any=None, *, r: Any=None) -> Any
 ```
 
 Electric field at points (..., 3), differentiable in points and wave values.
@@ -946,7 +1213,7 @@ Electric field at points (..., 3), differentiable in points and wave values.
 ### `PortWave.hfield`
 
 ```python
-PortWave.hfield(points: Any) -> Any
+PortWave.hfield(points: Any=None, *, r: Any=None) -> Any
 ```
 
 Magnetic field in relative vacuum impedance units.
@@ -954,7 +1221,7 @@ Magnetic field in relative vacuum impedance units.
 ### `PortWave.dfield`
 
 ```python
-PortWave.dfield(points: Any) -> Any
+PortWave.dfield(points: Any=None, *, r: Any=None) -> Any
 ```
 
 Electric displacement divided by vacuum permittivity.
@@ -962,7 +1229,7 @@ Electric displacement divided by vacuum permittivity.
 ### `PortWave.bfield`
 
 ```python
-PortWave.bfield(points: Any) -> Any
+PortWave.bfield(points: Any=None, *, r: Any=None) -> Any
 ```
 
 Magnetic flux density times vacuum light speed.
@@ -970,7 +1237,7 @@ Magnetic flux density times vacuum light speed.
 ### `PortWave.gfield`
 
 ```python
-PortWave.gfield(pol: int, points: Any) -> Any
+PortWave.gfield(pol: int, points: Any=None, *, r: Any=None) -> Any
 ```
 
 Helicity-resolved G field, normalized as in treams for this wave family.
@@ -978,7 +1245,7 @@ Helicity-resolved G field, normalized as in treams for this wave family.
 ### `PortWave.ffield`
 
 ```python
-PortWave.ffield(pol: int, points: Any) -> Any
+PortWave.ffield(pol: int, points: Any=None, *, r: Any=None) -> Any
 ```
 
 G field with the chiral index weighting in the helicity convention.
@@ -999,14 +1266,6 @@ PortWave.polarization: str
 
 Polarization convention, "helicity" or "parity".
 
-### `PortWave.with_polarization`
-
-```python
-PortWave.with_polarization(polarization: str) -> PortWave
-```
-
-Change the polarization convention with a fixed basis matrix.
-
 ### `PortWave.coefficients`
 
 ```python
@@ -1014,6 +1273,38 @@ PortWave.coefficients: Any
 ```
 
 One amplitude per port, a framework array.
+
+### `PortWave.kind`
+
+```python
+PortWave.kind: str
+```
+
+Propagation direction along the port normal.
+
+### `PortWave.modetype`
+
+```python
+PortWave.modetype: str
+```
+
+treams name of ``kind``.
+
+### `PortWave.in_basis`
+
+```python
+PortWave.in_basis(basis: Basis, *, positions: Any=None, singular: bool | None=None, kind: str | None=None) -> Wave
+```
+
+Expand port amplitudes into regular multipoles, retaining their phases.
+
+### `PortWave.with_polarization`
+
+```python
+PortWave.with_polarization(polarization: str) -> PortWave
+```
+
+Change the polarization convention with a fixed basis matrix.
 
 ### `PortWave.k0`
 
@@ -1069,6 +1360,14 @@ The constructors ``smatrix``, ``interface``, ``slab``, ``multilayer_slab``,
 the polarization convention are fixed; the blocks, k0 and the media may
 carry gradients.
 
+### `SMatrix.basis`
+
+```python
+SMatrix.basis: PlaneWavePorts | None
+```
+
+Fixed port basis, or None for ports following diffraction orders.
+
 ### `SMatrix.modes`
 
 ```python
@@ -1092,14 +1391,6 @@ SMatrix.ports: PortSet
 ```
 
 Plane-wave ports of both sides.
-
-### `SMatrix.basis`
-
-```python
-SMatrix.basis: PlaneWavePorts | None
-```
-
-Static port basis; ``None`` for diffraction-order ports.
 
 ### `SMatrix.negative_medium`
 
@@ -1144,7 +1435,7 @@ Transmission/reflection for port amplitudes; fixed port wavevectors.
 ### `SMatrix.cascade`
 
 ```python
-SMatrix.cascade(upper: SMatrix) -> SMatrix
+SMatrix.cascade(next_layer: SMatrix) -> SMatrix
 ```
 
 Compose this lower system with the adjacent upper system.
@@ -1372,7 +1663,7 @@ T-matrix of framework arrays: regular incident to singular scattered waves.
 
 Singular waves are the outgoing ones. The constructors ``tmatrix``,
 ``sphere_tmatrix``, ``multilayer_sphere_tmatrix``, ``cylinder_tmatrix`` and
-``multilayer_cylinder_tmatrix`` of advect, jax and torch build it, and
+``multilayer_cylinder_tmatrix`` of the adapters build it, and
 ``Cluster.solve`` returns one; ``PeriodicResponse.response`` holds the
 solved unit cell of ``solve_periodic``. The basis labels are
 fixed; the matrix, k0, the medium and the positions may carry gradients.
@@ -1413,6 +1704,182 @@ TMatrix.with_polarization(polarization: str) -> TMatrix
 ```
 
 Convert the response convention with a fixed analytic basis transform.
+
+### `TMatrix.shape`
+
+```python
+TMatrix.shape: tuple[int, ...]
+```
+
+Shape of the response matrix.
+
+### `TMatrix.isglobal`
+
+```python
+TMatrix.isglobal: bool
+```
+
+Whether the response has one expansion centre.
+
+### `TMatrix.ks`
+
+```python
+TMatrix.ks: Any
+```
+
+Embedding wavenumbers of the two helicities.
+
+### `TMatrix.interaction`
+
+```python
+TMatrix.interaction: _Interaction
+```
+
+Finite multiple scattering within the local multipole basis.
+
+### `TMatrix.latticeinteraction`
+
+```python
+TMatrix.latticeinteraction: _PeriodicInteraction
+```
+
+Periodic coupling, solve, factor and illuminate methods.
+
+### `TMatrix.rotate`
+
+```python
+TMatrix.rotate(phi: Any, theta: Any=0, psi: Any=0) -> TMatrix
+```
+
+Rotate local multipole channels by differentiable z-y-z Euler angles.
+
+### `TMatrix.translate`
+
+```python
+TMatrix.translate(r: Any) -> TMatrix
+```
+
+Represent the response about expansion centres shifted by r.
+
+### `TMatrix.in_basis`
+
+```python
+TMatrix.in_basis(basis: Basis) -> TMatrix
+```
+
+Represent this response in another fixed multipole basis.
+
+### `TMatrix.average_cross_sections`
+
+```python
+TMatrix.average_cross_sections: CrossSections[Any]
+```
+
+Rotationally and polarization-averaged spherical cross sections.
+
+### `TMatrix.average_cross_widths`
+
+```python
+TMatrix.average_cross_widths: CrossSections[Any]
+```
+
+Cylindrical mean over azimuth and propagating axial/polarization channels.
+
+### `TMatrix.circular_dichroism`
+
+```python
+TMatrix.circular_dichroism: Any
+```
+
+Absorption contrast between the two helicities.
+
+### `TMatrix.duality_breaking`
+
+```python
+TMatrix.duality_breaking: Any
+```
+
+Fraction of the scattering norm that changes helicity.
+
+### `TMatrix.electromagnetic_chirality`
+
+```python
+TMatrix.electromagnetic_chirality: Any
+```
+
+Normalized electromagnetic chirality from helicity-block singular values.
+
+### `TMatrix.material`
+
+```python
+TMatrix.material: Material
+```
+
+Upstream name of the embedding medium.
+
+### `TMatrix.poltype`
+
+```python
+TMatrix.poltype: str
+```
+
+Upstream name of the polarization convention.
+
+### `TMatrix.xs_ext_avg`
+
+```python
+TMatrix.xs_ext_avg: Any
+```
+
+Upstream name of the mean extinction cross section.
+
+### `TMatrix.xs_sca_avg`
+
+```python
+TMatrix.xs_sca_avg: Any
+```
+
+Upstream name of the mean scattering cross section.
+
+### `TMatrix.xw_ext_avg`
+
+```python
+TMatrix.xw_ext_avg: Any
+```
+
+Upstream name of the mean extinction cross width.
+
+### `TMatrix.xw_sca_avg`
+
+```python
+TMatrix.xw_sca_avg: Any
+```
+
+Upstream name of the mean scattering cross width.
+
+### `TMatrix.xs`
+
+```python
+TMatrix.xs(illu: Any, flux: Any=0.5) -> tuple[Any, Any]
+```
+
+Upstream cross sections as (scattering, extinction).
+
+### `TMatrix.xw`
+
+```python
+TMatrix.xw(illu: Any, flux: Any=0.5) -> tuple[Any, Any]
+```
+
+Upstream cross widths as (scattering, extinction).
+
+### `TMatrix.changepoltype`
+
+```python
+TMatrix.changepoltype(poltype: str | None=None) -> TMatrix
+```
+
+Change polarization convention, defaulting to the other convention.
 
 ### `TMatrix.array`
 
@@ -1462,6 +1929,36 @@ TMatrix.positions: Any
 
 Expansion centres, shape (positions, 3), a framework array.
 
+### `TMatrix.cd`
+
+```python
+TMatrix.cd() -> Any
+```
+
+Same as `TMatrix.circular_dichroism`.
+
+Absorption contrast between the two helicities.
+
+### `TMatrix.db`
+
+```python
+TMatrix.db() -> Any
+```
+
+Same as `TMatrix.duality_breaking`.
+
+Fraction of the scattering norm that changes helicity.
+
+### `TMatrix.chi`
+
+```python
+TMatrix.chi() -> Any
+```
+
+Same as `TMatrix.electromagnetic_chirality`.
+
+Normalized electromagnetic chirality from helicity-block singular values.
+
 ## `Wave`
 
 Multipole wave of framework arrays: coefficients with basis, medium and kind.
@@ -1472,10 +1969,34 @@ basis labels and the kind are fixed; the coefficients, k0, the medium and
 the positions may carry gradients. Every method uses ``positions`` and
 ignores ``basis.positions``.
 
+### `Wave.array`
+
+```python
+Wave.array: Any
+```
+
+The framework-valued wave coefficients.
+
+### `Wave.material`
+
+```python
+Wave.material: Material
+```
+
+treams name of ``medium``.
+
+### `Wave.poltype`
+
+```python
+Wave.poltype: str
+```
+
+treams name of ``polarization``.
+
 ### `Wave.efield`
 
 ```python
-Wave.efield(points: Any) -> Any
+Wave.efield(points: Any=None, *, r: Any=None) -> Any
 ```
 
 Electric field at points (..., 3), differentiable in points and wave values.
@@ -1483,7 +2004,7 @@ Electric field at points (..., 3), differentiable in points and wave values.
 ### `Wave.hfield`
 
 ```python
-Wave.hfield(points: Any) -> Any
+Wave.hfield(points: Any=None, *, r: Any=None) -> Any
 ```
 
 Magnetic field in relative vacuum impedance units.
@@ -1491,7 +2012,7 @@ Magnetic field in relative vacuum impedance units.
 ### `Wave.dfield`
 
 ```python
-Wave.dfield(points: Any) -> Any
+Wave.dfield(points: Any=None, *, r: Any=None) -> Any
 ```
 
 Electric displacement divided by vacuum permittivity.
@@ -1499,7 +2020,7 @@ Electric displacement divided by vacuum permittivity.
 ### `Wave.bfield`
 
 ```python
-Wave.bfield(points: Any) -> Any
+Wave.bfield(points: Any=None, *, r: Any=None) -> Any
 ```
 
 Magnetic flux density times vacuum light speed.
@@ -1507,7 +2028,7 @@ Magnetic flux density times vacuum light speed.
 ### `Wave.gfield`
 
 ```python
-Wave.gfield(pol: int, points: Any) -> Any
+Wave.gfield(pol: int, points: Any=None, *, r: Any=None) -> Any
 ```
 
 Helicity-resolved G field, normalized as in treams for this wave family.
@@ -1515,7 +2036,7 @@ Helicity-resolved G field, normalized as in treams for this wave family.
 ### `Wave.ffield`
 
 ```python
-Wave.ffield(pol: int, points: Any) -> Any
+Wave.ffield(pol: int, points: Any=None, *, r: Any=None) -> Any
 ```
 
 G field with the chiral index weighting in the helicity convention.
@@ -1536,6 +2057,14 @@ Wave.polarization: str
 
 Polarization convention, "helicity" or "parity".
 
+### `Wave.coefficients`
+
+```python
+Wave.coefficients: Any
+```
+
+One coefficient per basis mode, a framework array.
+
 ### `Wave.kind`
 
 ```python
@@ -1544,10 +2073,18 @@ Wave.kind: str
 
 Radial kind: "regular" (incident) or "singular" (outgoing).
 
+### `Wave.modetype`
+
+```python
+Wave.modetype: str
+```
+
+treams name of ``kind``.
+
 ### `Wave.in_basis`
 
 ```python
-Wave.in_basis(basis: Basis, *, positions: Any=None, singular: bool | None=None) -> Wave
+Wave.in_basis(basis: Basis, *, positions: Any=None, singular: bool | None=None, kind: str | None=None) -> Wave
 ```
 
 Re-expand into another multipole basis; the field stays the same.
@@ -1559,14 +2096,6 @@ Wave.with_polarization(polarization: str) -> Wave
 ```
 
 Change the static multipole polarization convention.
-
-### `Wave.coefficients`
-
-```python
-Wave.coefficients: Any
-```
-
-One coefficient per basis mode, a framework array.
 
 ### `Wave.basis`
 
@@ -1981,10 +2510,10 @@ Plane-wave translation phases, differentiable in the points and wavevectors.
 ## `plane_wave`
 
 ```python
-plane_wave(direction: Any, pol: Any, *, k0: Any, medium: Any=1.0) -> PlaneWave
+plane_wave(direction: Any, pol: Any, *, k0: Any, medium: Any=1.0, polarization: str='helicity') -> PlaneWave
 ```
 
-Fixed-direction plane wave with dynamic frequency, medium and amplitudes.
+Plane wave with dynamic real direction, frequency, medium and amplitudes.
 
 ## `propagation`
 
@@ -2229,7 +2758,7 @@ Vector waves and harmonics, differentiable in every continuous argument.
 wave(coefficients: Any, *, basis: SphericalBasis | CylindricalBasis, k0: Any, medium: Any=1.0, kind: str='regular', polarization: str='helicity', positions: Any=None) -> Wave
 ```
 
-Multipole wave with one coefficient per basis mode, shape (modes,).
+Multipole coefficients of shape (modes,) or (modes, illuminations).
 
 ## `wignerd`
 

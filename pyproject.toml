@@ -64,6 +64,7 @@ Changelog = "https://github.com/yaugenst/treams-rs/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 advect = [ "advect>=0.2.0,<0.4" ]
+autograd = [ "autograd>=1.8,<2" ]
 jax = [ "jax>=0.9,<0.12" ]
 torch = [ "torch>=2.7,<3" ]
 # h5py 3.11 is the first release whose wheels are built for NumPy 2.

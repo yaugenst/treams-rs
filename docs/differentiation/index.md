@@ -84,13 +84,14 @@ with pytest.raises(ValueError, match="consumed"):
 
 ## Frameworks
 
-Advect, JAX and PyTorch differentiate whole objectives built from physics
-objects. `treams_rs.advect`, `treams_rs.jax` and `treams_rs.torch` offer the
-constructors of `treams_rs` and call these records underneath. Objects from the
-root `treams_rs` namespace hold NumPy arrays and carry no framework gradients.
+Advect, JAX, PyTorch and HIPS Autograd differentiate whole objectives built
+from physics objects. Use the ordinary `treams_rs` API: framework inputs select
+their adapter before conversion, and the adapter calls these records underneath.
+Plain Python and NumPy inputs retain NumPy behavior. Explicit adapter namespaces
+remain available for expert operations and custom records.
 [Framework adapters](frameworks.md) shows each framework, and
-[custom records](custom-records.md) shows how to wrap a record for JAX or
-PyTorch.
+[custom records](custom-records.md) shows how to wrap a record for JAX, PyTorch or
+HIPS Autograd.
 
 ## Points without a gradient
 

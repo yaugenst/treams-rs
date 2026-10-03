@@ -1,19 +1,21 @@
 ---
-description: Differentiate physics objects with Advect, JAX or PyTorch, with their transforms, dtypes and limits.
+description: Differentiate the ordinary API with Advect, JAX, PyTorch or HIPS Autograd, with their transforms, dtypes and limits.
 ---
 
 # Framework adapters
 
-`treams_rs.advect`, `treams_rs.jax` and `treams_rs.torch` build the physics
-objects of `treams_rs` from framework arrays, so the framework differentiates a
-whole objective. Rust computes every derivative through the records of
-[Differentiation](index.md); the adapters add no numerical derivatives in
-Python. [Advect](https://yaugenst.github.io/advect/) is a reverse-mode
-automatic differentiation library for NumPy code.
+Use `import treams_rs as tr` with Advect, JAX, PyTorch or
+[HIPS Autograd](https://github.com/HIPS/autograd). Framework arrays and traced
+values select their adapter automatically, so the framework differentiates a
+whole objective through the ordinary API. Rust supplies analytic derivatives
+at native boundaries through the records of [Differentiation](index.md);
+shared array operations stay in the selected framework. The adapters add no
+finite-difference derivatives. [Advect](https://yaugenst.github.io/advect/) and HIPS
+Autograd differentiate NumPy-style code.
 
 ```python exec
 import advect
-import treams_rs.advect as tr
+import treams_rs as tr
 
 
 def scattering(radius):
@@ -30,9 +32,7 @@ The same objective in JAX:
 
 ```python exec jax
 import jax
-import treams_rs.jax as tr
-
-jax.config.update("jax_enable_x64", True)
+import treams_rs as tr
 
 
 def scattering(radius):
@@ -49,9 +49,9 @@ And in PyTorch:
 
 ```python exec torch
 import torch
-import treams_rs.torch as tr
+import treams_rs as tr
 
-radius = torch.tensor(0.2, dtype=torch.float64, requires_grad=True)
+radius = torch.tensor(0.2, requires_grad=True)
 sphere = tr.sphere_tmatrix(k0=1.3, lmax=2, radius=radius, material=3)
 incident = tr.plane_wave([0, 0, 1], "positive_helicity", k0=1.3)
 scattering = sphere.cross_sections(incident).scattering
@@ -59,51 +59,104 @@ scattering.backward()
 assert radius.grad > 0
 ```
 
+And in HIPS Autograd:
+
+```python exec autograd
+from autograd import value_and_grad
+import treams_rs as tr
+
+
+def scattering(radius):
+    sphere = tr.sphere_tmatrix(k0=1.3, lmax=2, radius=radius, material=3)
+    incident = tr.plane_wave([0, 0, 1], "positive_helicity", k0=1.3)
+    return sphere.cross_sections(incident).scattering
+
+
+value, gradient = value_and_grad(scattering)(0.2)
+assert gradient > 0
+```
+
 ## Frameworks compared
 
-| | Advect | JAX | PyTorch |
-|---|---|---|---|
-| Import | `import treams_rs.advect as tr` | `import treams_rs.jax as tr` | `import treams_rs.torch as tr` |
-| Extra | `treams-rs[advect]` | `treams-rs[jax]` | `treams-rs[torch]` |
-| Context lifetime | One use: each reverse pass consumes the context of its forward | Recorded again for every reverse pass | Kept for the first backward, recorded again for each further backward |
-| Dtypes | float32, float64, complex64 and complex128 inputs; float64 or complex128 outputs; each gradient in its input's dtype | float64 and complex128 only (`TypeError` otherwise); `jax_enable_x64` must be on (`ValueError` otherwise) | float64 and complex128 tensors only (`TypeError` otherwise); Python numbers and float64 or complex128 NumPy arrays also work as constants |
-| Transforms | `grad`, `value_and_grad` | `grad`, `value_and_grad`, `vjp`, `jit`, `checkpoint`, sequential `vmap` | `backward`, `torch.autograd.grad`, repeated backward with `retain_graph=True` |
-| Devices | CPU | CPU; GPU arrays and a GPU default backend raise `ValueError` | CPU; CUDA and MPS tensors raise `ValueError` |
-| Higher order | No | No | No |
+| | Advect | JAX | PyTorch | HIPS Autograd |
+|---|---|---|---|---|
+| Import | `import treams_rs as tr` | `import treams_rs as tr` | `import treams_rs as tr` | `import treams_rs as tr` |
+| Extra | `treams-rs[advect]` | `treams-rs[jax]` | `treams-rs[torch]` | `treams-rs[autograd]` |
+| Context lifetime | One use: each reverse pass consumes the context of its forward | Recorded again for every reverse pass | Kept for the first backward, recorded again for each further backward | Kept for the first reverse pass, recorded again for each further pass |
+| Dtypes | float32/64 and complex64/128 inputs; double-precision outputs | float32/64 and complex64/128 inputs; single-precision outputs by default, double with `jax_enable_x64` | float32/64 and complex64/128 inputs; double-precision outputs | float64 and complex128; Python numbers work as constants |
+| Transforms | `grad`, `value_and_grad` | `grad`, `value_and_grad`, `vjp`, `jit`, `checkpoint`, sequential `vmap` | `backward`, `torch.autograd.grad`, repeated backward with `retain_graph=True` | `grad`, `value_and_grad`, `make_vjp` |
+| Devices | CPU | CPU; GPU arrays and a GPU default backend raise `ValueError` | CPU; CUDA and MPS tensors raise `ValueError` | CPU |
+| Higher order | No | No | No | No |
+
+Native calculations use double precision. Gradients retain their input dtype;
+no adapter changes a framework's global precision settings. For JAX, enable
+`jax_enable_x64` when the objective needs double-precision arrays and gradients.
 
 Unsupported transforms raise: `jvp`, nested `grad`, `stage` and `checkpoint` in
 Advect, `jvp` in JAX and `create_graph=True` in PyTorch. `torch.func` and
-`torch.compile` are not supported.
+`torch.compile` are not supported. HIPS Autograd supports first-order reverse
+mode only; nested gradients and forward-mode transforms are unsupported.
 [How long a context lives](../design/adapters.md#how-long-a-context-lives) gives
-the reasons for the three context lifetimes.
+the reasons for these context lifetimes.
+
+## Automatic selection and constants
+
+The ordinary API examines inputs before converting arrays. An Advect tracer,
+JAX array or tracer, PyTorch tensor, or HIPS Autograd box selects that framework.
+Lists, tuples, dictionaries and material components are inspected too. Numeric
+constants and compatible NumPy physics objects, such as a fixed incident wave,
+are promoted when they meet framework values. Mixing frameworks in one
+operation raises `TypeError` rather than detaching gradients.
+
+Python numbers and NumPy arrays alone keep their existing NumPy return types,
+even if optional frameworks are installed or a surrounding objective is being
+differentiated. No global backend setting is needed, and the package imports
+only the selected adapter. If you need framework outputs from constants alone,
+use a framework array as an input or the explicit `tr.advect`, `tr.jax`,
+`tr.torch` or `tr.autograd` namespace. These namespaces also retain expert
+record helpers such as `wrap`.
+
+Keep changing values as framework values in your own code. A prior `float(...)`,
+`complex(...)` or NumPy conversion can lose a trace before treams-rs sees it;
+use the framework's array operations for your objective's arithmetic.
+Direct calls to differentiable numerical functions also select the adapter.
+Their NumPy ufunc attributes and methods remain available for NumPy use, but
+public wrappers need not be `numpy.ufunc` instances. Differentiated calls do
+not support `out` or masked `where`: apply your framework's `where` to the
+returned value instead. Ufunc methods such as `reduce` remain NumPy operations.
 
 ## Physical objects
 
-All three adapters offer the same constructors: `Material`, `sphere_tmatrix`,
+All four adapters offer the same constructors: `Material`, `sphere_tmatrix`,
 `multilayer_sphere_tmatrix`, `cylinder_tmatrix`, `multilayer_cylinder_tmatrix`,
 `plane_wave`, `wave`, `tmatrix`, `smatrix`, `Cluster`, `interface`, `slab`,
 `multilayer_slab`, `propagation`, `stack` and `solve_periodic`. They return the
 shared classes `TMatrix`, `Wave`, `PlaneWave`, `SMatrix`, `Cluster` and
 `PeriodicResponse`:
 
-- a T-matrix scatters a wave and gives cross sections (`scatter`,
-  `cross_sections`);
+- a T-matrix scatters waves, gives cross sections and response metrics, and
+  supports `rotate`, `translate` and `in_basis`;
 - a wave gives its fields at points (`efield`, `hfield`, `dfield`, `bfield`,
   `gfield`, `ffield`) and converts with `in_basis`;
 - a `Cluster` separates assembly from `solve()`, and its `scatter()` solves only
   for the requested illumination;
 - an `SMatrix` gives `cascade`, `scatter`, `power` and `bands`;
 - `solve_periodic(...)` returns a `PeriodicResponse`, whose `to_smatrix()`
-  converts without a second interaction solve.
+  converts without a second interaction solve. `to_cylindrical()` converts
+  a spherical chain along z to cylindrical modes.
 
-Build every object inside the differentiated function from the adapter
-namespace. Objects of the root `treams_rs` namespace hold NumPy arrays: a traced
-value passed to them loses its gradient. Under `jax.jit`, return arrays, not
+T-matrix properties include `average_cross_sections`, `average_cross_widths`,
+`circular_dichroism`, `duality_breaking` and `electromagnetic_chirality`. Averages
+require a global basis and a nonabsorbing propagating medium; response metrics
+require a global helicity basis.
+
+Build changing geometry and materials inside the differentiated function.
+Constants may be created outside it. Under `jax.jit`, return arrays, not
 physics objects; the objects are not JAX pytrees.
 
 ```python exec jax
 import jax
-import treams_rs.jax as tr
+import treams_rs as tr
 
 jax.config.update("jax_enable_x64", True)
 
@@ -122,14 +175,19 @@ value, gradient = jax.jit(jax.value_and_grad(intensity))(0.2)
 
 ## Fixed and differentiable inputs
 
-Frequency, amplitudes, materials, radii, positions, lattice vectors and the
-Bloch vector are framework arrays and carry gradients. These inputs stay fixed:
+Frequency, amplitudes, materials, radii, positions, lattice vectors, the
+Bloch vector and real plane-wave directions can carry gradients. These inputs
+stay fixed:
 
 - bases, mode labels, cutoffs such as `lmax`, and polarization conventions;
-- the direction of a plane wave;
 - plane-wave ports built from a `PlaneWavePorts` basis;
 - the axial wavenumbers of a cylindrical basis in the physics objects. A plane
   wave illuminates a cylinder only with `kz = 0` and transverse incidence.
+
+Plane-wave direction derivatives are defined away from the polarization axis.
+For `SMatrix.power`, supply `side="negative"` or `side="positive"` when the
+incident direction is differentiated; fixed directions retain automatic side
+selection.
 
 Axial wavenumbers use two keywords. `kz` holds one value per mode, like
 `basis.kz` in treams; `kzs` holds the sorted distinct values, like
@@ -148,7 +206,7 @@ orders instead:
 import advect
 import advect.numpy as anp
 import numpy as np
-import treams_rs.advect as tr
+import treams_rs as tr
 
 k0 = 2 * np.pi / 400  # vacuum wavelength 400 nm
 kpar = [0.0, 0.3 * k0]
@@ -186,7 +244,9 @@ outer medium and frequency.
 
 ## Requested illuminations
 
-`tr.illuminate(local, coupling, incident)` solves
+For physics objects, use `Cluster.scatter(incident)`. Expert array code can use
+`illuminate(local, coupling, incident)` from `tr.advect`, `tr.jax`, `tr.torch`
+or `tr.autograd`. It solves
 `(I - local @ coupling) @ scattered = local @ incident` for the columns of
 `incident`, shaped `(channels, illuminations)`. It never forms the full
 interacting T-matrix and differentiates `local`, `coupling` and `incident`. Use
@@ -194,6 +254,12 @@ it when an objective needs a few incident fields. `diff.factor_interaction`
 reuses one LU factor across many forward calls with fixed matrices;
 `illuminate` records a fresh solve, so changed geometry and materials receive
 their gradients.
+
+`Cluster.factor()`, `TMatrix.interaction.factor()` and
+`TMatrix.latticeinteraction.factor(...)` prepare coupling for repeated
+illuminations. With framework inputs, each solve records its own native
+factorization; these helpers do not retain LU factors across differentiated
+calls. NumPy factors can reuse them when geometry and materials stay fixed.
 
 ## Advect
 
@@ -222,8 +288,9 @@ gradient = advect.grad(size)(anp.asarray(0.3))
 
 ## JAX
 
-Enable `jax_enable_x64` before calling the adapter. On a machine whose default
-JAX backend is a GPU, set `JAX_PLATFORMS=cpu` before importing JAX. Native calls
+JAX works with its default single-precision arrays. Enable `jax_enable_x64`
+when you need double-precision outputs and gradients, as below. On a machine
+whose default JAX backend is a GPU, set `JAX_PLATFORMS=cpu` before importing JAX. Native calls
 run in `jax.pure_callback` on the CPU; `vmap` calls them once per batch element.
 
 ```python exec jax
@@ -270,19 +337,60 @@ backward, as for any PyTorch operation. Noncontiguous and conjugated CPU views
 work, and outputs own their memory. `tr.wrap` makes any `diff` record a PyTorch
 function; see [custom records](custom-records.md).
 
+## HIPS Autograd
+
+Use `autograd.numpy` for arithmetic around the treams-rs calls. Traced scalar,
+array and nested material inputs select the adapter automatically:
+
+```python exec autograd
+import autograd.numpy as anp
+from autograd import grad
+import treams_rs as tr
+
+
+def scattering(parameters):
+    radius, epsilon = parameters
+    sphere = tr.sphere_tmatrix(k0=1.3, lmax=2, radius=radius, material=epsilon)
+    incident = tr.plane_wave([0, 0, 1], "positive_helicity", k0=1.3)
+    return sphere.cross_sections(incident).scattering
+
+
+gradient = grad(scattering)(anp.array([0.2, 3.0]))
+assert gradient.shape == (2,)
+assert anp.all(anp.isfinite(gradient))
+```
+
+The adapter uses Autograd primitives and the shared native pullback contract.
+It keeps a native context for the first reverse pass and records again for a
+repeated VJP. Like JAX, HIPS Autograd uses the unconjugated complex pairing;
+the adapter converts cotangents and gradients at the native boundary. Its
+`tr.autograd.wrap(record)` also accepts custom records without example inputs.
+
 ## Limits
 
-- Gradients are first order and reverse mode, on the CPU.
-- The physics objects cover scattering, fields, cross sections, port power,
-  periodic responses and planar stacks. Mie coefficients, EBCM, lattice sums,
-  custom lattice tables, the conversion from spheres to a cylindrical lattice,
-  chirality and response metrics, reusable factors and the matrix-free solver
-  have records but no physics-object method, as do the building blocks for
-  rotations, special functions, coordinates and linear algebra;
-  [custom records](custom-records.md#records-by-family) lists them.
-- Cutoffs, labels and topology never carry gradients. Eigenvalue crossings,
-  diffraction thresholds and the polarization axis have no gradient; see
-  [points without a gradient](index.md#points-without-a-gradient).
+- Gradients are first order and reverse mode, on the CPU. Forward mode, higher
+  derivatives, `torch.func` and `torch.compile` are unsupported. Under `jax.jit`,
+  return arrays rather than physics objects. The
+  [comparison above](#frameworks-compared) lists supported transforms and dtypes.
+- Cylindrical physics objects keep their basis axial wavenumbers fixed;
+  `cw.to_sw` also cannot differentiate its `kz` label. Framework plane waves
+  require real directions. See [fixed and differentiable inputs](#fixed-and-differentiable-inputs)
+  for the lower-level axial-gradient interfaces.
+- `sw.periodic_to_pw` and `cw.periodic_to_pw` do not support independent
+  wavevector derivatives. Use `PeriodicResponse.to_smatrix()` with
+  [diffraction orders](#periodic-geometry) to differentiate physical ports with
+  respect to lattice geometry and the Bloch vector.
+- EBCM, custom lattice tables, chirality densities and the matrix-free cluster
+  solver are outside the shared framework physics objects.
+  [Custom records](custom-records.md#records-by-family) lists their array and
+  explicit-gradient interfaces.
+- Differentiated numerical calls do not support mutable `out`, masked `where`
+  or ufunc methods such as `reduce`. Apply the framework's array operations to
+  the returned values instead.
+
+Cutoffs, discrete labels and topology stay fixed. Eigenvalue crossings,
+diffraction thresholds and the polarization axis have no smooth derivative;
+see [points without a gradient](index.md#points-without-a-gradient).
 
 ## Known framework issues
 

@@ -1,8 +1,13 @@
 """Special functions of multipole waves, with NumPy broadcasting.
 
 Mirrors ``treams.special``. Every function broadcasts its arguments as a NumPy
-ufunc does. The ufuncs and the Python functions accept ``out`` and ``where``;
+ufunc does. With NumPy inputs the functions accept ``out`` and ``where``;
 the coordinate transforms and ``vpw_*`` accept ``out`` only.
+
+Advect, JAX, PyTorch and Autograd inputs select their differentiation adapter
+automatically for continuous arguments. Degrees, orders and polarization labels
+stay fixed. Differentiable calls do not accept ``out`` or ``where``; use the
+framework's array operations to combine or mask results.
 
 - Bessel and Hankel functions: ``jv``, ``yv``, ``hankel1``, ``hankel2``, the
   spherical ``spherical_jn``, ``spherical_yn``, ``spherical_hankel1``,
@@ -28,6 +33,10 @@ functions and spherical waves take degrees l from 0 to 128.
 gradients with respect to the argument.
 
 Differences from treams:
+    - Native ufuncs are exposed through dispatching callables, so they are not
+      instances of ``numpy.ufunc``. NumPy calls, ufunc attributes and methods
+      such as ``outer`` still delegate to the original ufunc, available as
+      ``__wrapped__``. Ufunc methods themselves are NumPy-only.
     - ValueError instead of NaN or infinity: ``hankel1(0, 0.0)`` raises,
       treams returns ``nan+nanj``. ``incgamma`` and ``intkambe`` return
       infinity at their poles, as treams does.
@@ -55,9 +64,14 @@ Example::
 
 from __future__ import annotations
 
+from functools import partial as _partial
 from typing import TYPE_CHECKING
 
 from . import _native
+from . import _special_functions as _ad
+from ._autodiff_functions import transparent_function as _function
+
+_transparent_function = _partial(_function, module=__name__)
 
 if TYPE_CHECKING:
     import numpy as np
@@ -697,3 +711,127 @@ def tl_vcw_r(
     ):
         return _native.tl_vcw_scalar(kz, mu, qz, m, krr, phi, z, False)
     return _native.tl_vcw_r(kz, mu, qz, m, krr, phi, z, *args, **kwargs)
+
+
+# NumPy still runs the original callable, including ufunc methods and out/where.
+# Framework inputs select the same analytic records used by the explicit adapters.
+jv = _transparent_function(jv, _partial(_ad.bessel, function="j"))
+yv = _transparent_function(yv, _partial(_ad.bessel, function="y"))
+hankel1 = _transparent_function(hankel1, _partial(_ad.bessel, function="h1"))
+hankel2 = _transparent_function(hankel2, _partial(_ad.bessel, function="h2"))
+jv_d = _transparent_function(jv_d, _partial(_ad.bessel, function="j", derivative=True))
+yv_d = _transparent_function(yv_d, _partial(_ad.bessel, function="y", derivative=True))
+hankel1_d = _transparent_function(
+    hankel1_d, _partial(_ad.bessel, function="h1", derivative=True)
+)
+hankel2_d = _transparent_function(
+    hankel2_d, _partial(_ad.bessel, function="h2", derivative=True)
+)
+spherical_jn = _transparent_function(
+    spherical_jn, _partial(_ad.spherical_bessel, function="j")
+)
+spherical_yn = _transparent_function(
+    spherical_yn, _partial(_ad.spherical_bessel, function="y")
+)
+spherical_hankel1 = _transparent_function(
+    spherical_hankel1, _partial(_ad.bessel, function="h1", spherical=True)
+)
+spherical_hankel2 = _transparent_function(
+    spherical_hankel2, _partial(_ad.bessel, function="h2", spherical=True)
+)
+spherical_jn_d = _transparent_function(
+    spherical_jn_d, _partial(_ad.bessel, function="j", spherical=True, derivative=True)
+)
+spherical_yn_d = _transparent_function(
+    spherical_yn_d, _partial(_ad.bessel, function="y", spherical=True, derivative=True)
+)
+spherical_hankel1_d = _transparent_function(
+    spherical_hankel1_d,
+    _partial(_ad.bessel, function="h1", spherical=True, derivative=True),
+)
+spherical_hankel2_d = _transparent_function(
+    spherical_hankel2_d,
+    _partial(_ad.bessel, function="h2", spherical=True, derivative=True),
+)
+lpmv = _transparent_function(lpmv, _ad.lpmv)
+pi_fun = _transparent_function(pi_fun, _partial(_ad.angular, function="pi"))
+tau_fun = _transparent_function(tau_fun, _partial(_ad.angular, function="tau"))
+incgamma = _transparent_function(incgamma, _ad.incgamma)
+intkambe = _transparent_function(intkambe, _ad.intkambe)
+wignerd = _transparent_function(wignerd, _ad.wignerd)
+wignersmalld = _transparent_function(wignersmalld, _ad.wignersmalld)
+car2cyl = _transparent_function(car2cyl, _partial(_ad.coordinates, function="car2cyl"))
+car2sph = _transparent_function(car2sph, _partial(_ad.coordinates, function="car2sph"))
+cyl2car = _transparent_function(cyl2car, _partial(_ad.coordinates, function="cyl2car"))
+cyl2sph = _transparent_function(cyl2sph, _partial(_ad.coordinates, function="cyl2sph"))
+sph2car = _transparent_function(sph2car, _partial(_ad.coordinates, function="sph2car"))
+sph2cyl = _transparent_function(sph2cyl, _partial(_ad.coordinates, function="sph2cyl"))
+car2pol = _transparent_function(car2pol, _partial(_ad.coordinates, function="car2pol"))
+pol2car = _transparent_function(pol2car, _partial(_ad.coordinates, function="pol2car"))
+vcar2cyl = _transparent_function(
+    vcar2cyl, _partial(_ad.vector_coordinates, function="car2cyl")
+)
+vcar2sph = _transparent_function(
+    vcar2sph, _partial(_ad.vector_coordinates, function="car2sph")
+)
+vcyl2car = _transparent_function(
+    vcyl2car, _partial(_ad.vector_coordinates, function="cyl2car")
+)
+vcyl2sph = _transparent_function(
+    vcyl2sph, _partial(_ad.vector_coordinates, function="cyl2sph")
+)
+vsph2car = _transparent_function(
+    vsph2car, _partial(_ad.vector_coordinates, function="sph2car")
+)
+vsph2cyl = _transparent_function(
+    vsph2cyl, _partial(_ad.vector_coordinates, function="sph2cyl")
+)
+vcar2pol = _transparent_function(
+    vcar2pol, _partial(_ad.vector_coordinates, function="car2pol")
+)
+vpol2car = _transparent_function(
+    vpol2car, _partial(_ad.vector_coordinates, function="pol2car")
+)
+sph_harm = _transparent_function(sph_harm, _ad.sph_harm)
+vsh_X = _transparent_function(vsh_X, _partial(_ad.spherical_wave, function="vsh_X"))
+vsh_Y = _transparent_function(vsh_Y, _partial(_ad.spherical_wave, function="vsh_Y"))
+vsh_Z = _transparent_function(vsh_Z, _partial(_ad.spherical_wave, function="vsh_Z"))
+vsw_M = _transparent_function(vsw_M, _partial(_ad.spherical_wave, function="vsw_M"))
+vsw_N = _transparent_function(vsw_N, _partial(_ad.spherical_wave, function="vsw_N"))
+vsw_A = _transparent_function(vsw_A, _partial(_ad.spherical_wave, function="vsw_A"))
+vsw_rM = _transparent_function(vsw_rM, _partial(_ad.spherical_wave, function="vsw_rM"))
+vsw_rN = _transparent_function(vsw_rN, _partial(_ad.spherical_wave, function="vsw_rN"))
+vsw_rA = _transparent_function(vsw_rA, _partial(_ad.spherical_wave, function="vsw_rA"))
+vcw_M = _transparent_function(vcw_M, _partial(_ad.cylindrical_wave, function="vcw_M"))
+vcw_N = _transparent_function(vcw_N, _partial(_ad.cylindrical_wave, function="vcw_N"))
+vcw_A = _transparent_function(vcw_A, _partial(_ad.cylindrical_wave, function="vcw_A"))
+vcw_rM = _transparent_function(
+    vcw_rM, _partial(_ad.cylindrical_wave, function="vcw_rM")
+)
+vcw_rN = _transparent_function(
+    vcw_rN, _partial(_ad.cylindrical_wave, function="vcw_rN")
+)
+vcw_rA = _transparent_function(
+    vcw_rA, _partial(_ad.cylindrical_wave, function="vcw_rA")
+)
+vpw_M = _transparent_function(vpw_M, _partial(_ad.plane_wave, function="vpw_M"))
+vpw_N = _transparent_function(vpw_N, _partial(_ad.plane_wave, function="vpw_N"))
+vpw_A = _transparent_function(vpw_A, _partial(_ad.plane_wave, function="vpw_A"))
+tl_vsw_A = _transparent_function(
+    tl_vsw_A, _partial(_ad.spherical_translation, singular=True, cross=False)
+)
+tl_vsw_B = _transparent_function(
+    tl_vsw_B, _partial(_ad.spherical_translation, singular=True, cross=True)
+)
+tl_vsw_rA = _transparent_function(
+    tl_vsw_rA, _partial(_ad.spherical_translation, singular=False, cross=False)
+)
+tl_vsw_rB = _transparent_function(
+    tl_vsw_rB, _partial(_ad.spherical_translation, singular=False, cross=True)
+)
+tl_vcw = _transparent_function(
+    tl_vcw, _partial(_ad.cylindrical_translation, singular=True)
+)
+tl_vcw_r = _transparent_function(
+    tl_vcw_r, _partial(_ad.cylindrical_translation, singular=False)
+)

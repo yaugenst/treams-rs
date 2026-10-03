@@ -4,9 +4,9 @@
 import jax
 import numpy as np
 
-import treams_rs.jax as tr
+import treams_rs as tr
 
-# The adapter computes in double precision and requires JAX to accept it.
+# Keep double precision for the comparison with small finite differences.
 jax.config.update("jax_enable_x64", True)
 
 # The array of the array_spheres example, at a vacuum wavelength of 400 nm.

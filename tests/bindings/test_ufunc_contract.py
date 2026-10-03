@@ -619,7 +619,10 @@ def _exposed(value: object) -> set[str]:
         export
         for namespace in (cw, lattice, misc, pw, special, sw)
         for export in namespace.__all__
-        if getattr(namespace, export) is value
+        if getattr(
+            getattr(namespace, export), "__wrapped__", getattr(namespace, export)
+        )
+        is value
     }
 
 
@@ -662,8 +665,12 @@ def test_registered_loops_match_the_golden_registry(name):
     native = getattr(_native, name)
     assert function.__name__ == native.__name__ in (_exposed(native) or {name})
     if name in HIDDEN:
-        # pickle finds a wrapper through its __module__ and __name__.
-        assert pickle.loads(pickle.dumps(native)) is native
+        # Public callables pickle through their module and name. The native
+        # implementation under a dispatched callable is an internal detail.
+        public = getattr(
+            __import__(native.__module__, fromlist=[native.__name__]), native.__name__
+        )
+        assert pickle.loads(pickle.dumps(public)) is public
     assert (function.nin, function.nout) == (len(types[0].split("->")[0]), 1)
     assert tuple(function.types) == types
     assert function.signature == signature

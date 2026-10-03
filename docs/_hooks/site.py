@@ -22,7 +22,13 @@ import posixpath
 import re
 from pathlib import Path
 
-FENCE_MODES = (("exec",), ("exec", "jax"), ("exec", "torch"), ("no-exec",))
+FENCE_MODES = (
+    ("exec",),
+    ("exec", "jax"),
+    ("exec", "torch"),
+    ("exec", "autograd"),
+    ("no-exec",),
+)
 REPOSITORY = "https://github.com/yaugenst/treams-rs"
 SITE = "https://yaugenst.github.io/treams-rs/"
 _page_sources = {}

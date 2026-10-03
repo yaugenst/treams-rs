@@ -154,7 +154,7 @@ evidence.
 | `tests/tmatrix/` | Mie coefficients, sphere and cylinder T-matrices, EBCM, metrics, clusters | `properties/tmatrix.rs` |
 | `tests/api/` | the physics objects, operators, bases, namespaces, the API catalog, I/O, documentation and gallery examples | Python layer |
 | `tests/bindings/` | the native module: the stub, contexts, ufuncs, the floating-point guard | bindings (`treams-py`) |
-| `tests/autodiff/` | `treams_rs.testing`, adjoint identities, the Advect, JAX and PyTorch adapters | Python layer |
+| `tests/autodiff/` | `treams_rs.testing`, adjoint identities, automatic dispatch and the four optional framework adapters | Python layer |
 | `tests/scripts/` | the benchmark, validation and repository scripts under `scripts/` | none |
 
 `tests/test_suite_rules.py` checks the rules of the suite itself and the

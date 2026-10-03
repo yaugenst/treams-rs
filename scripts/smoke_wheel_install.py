@@ -9,10 +9,11 @@ oracle nor SciPy may be installed:
 
 * ``base``: ``treams-rs`` with NumPy only;
 * ``advect``: ``treams-rs[advect]``, adding complete Advect objectives;
+* ``autograd``: ``treams-rs[autograd]``, adding HIPS Autograd objectives;
 * ``io``: ``treams-rs[io]``, adding the HDF5 interchange round trip.
 
-``advect`` and ``io`` may be combined when both extras are installed together,
-for example ``smoke_wheel_install.py advect io``; ``base`` stands alone.
+Optional profiles may be combined when their extras are installed together,
+for example ``smoke_wheel_install.py advect autograd io``; ``base`` stands alone.
 """
 
 from __future__ import annotations
@@ -40,9 +41,9 @@ if TYPE_CHECKING:
     from numpy.typing import ArrayLike
 
 # Profile name -> the module its optional dependency provides.
-_PROFILE_MODULES = {"advect": "advect", "io": "h5py"}
+_PROFILE_MODULES = {"advect": "advect", "autograd": "autograd", "io": "h5py"}
 # Development oracles and optional frameworks outside every smoke profile.
-_ABSENT_MODULES = ("treams", "scipy", "autograd", "jax", "torch")
+_ABSENT_MODULES = ("treams", "scipy", "jax", "torch")
 _STEP = 1e-5
 # Machines whose native guard manages the flushing bits (x86-64 and AArch64).
 _FLUSHING_MACHINES = {"x86_64", "amd64", "aarch64", "arm64"}
@@ -156,7 +157,9 @@ def _check_numpy_workflows() -> None:
         _close(
             tr.cw.rotate(0.2, orders, 1, 0.2, orders, 1, 0.3), np.exp(-0.3j * orders)
         )
-        volumes = tr.lattice.volume(np.array([[[2**30, 0], [0, 8]]], dtype=dtype))
+        volumes = np.asarray(
+            tr.lattice.volume(np.array([[[2**30, 0], [0, 8]]], dtype=dtype))
+        )
         _require(
             condition=isinstance(volumes, np.ndarray)
             and volumes.dtype == np.dtype("int64"),
@@ -545,8 +548,8 @@ def _check_advect_workflows() -> None:
         )
 
     def physical_loss(radius: Any) -> Any:
-        sphere = ad.sphere_tmatrix(k0=1.3, lmax=2, radius=radius, material=3)
-        incoming = ad.plane_wave([0, 0, 1], "positive_helicity", k0=1.3)
+        sphere = tr.sphere_tmatrix(k0=1.3, lmax=2, radius=radius, material=3)
+        incoming = tr.plane_wave([0, 0, 1], "positive_helicity", k0=1.3)
         return sphere.cross_sections(incoming).scattering
 
     _require(
@@ -867,6 +870,47 @@ def _check_advect_workflows() -> None:
     print("Clean wheel: native power adjoint passed")
 
 
+def _check_autograd_workflows() -> None:
+    autograd = importlib.import_module("autograd")
+    anp = cast("Any", importlib.import_module("autograd.numpy"))
+    grad = cast("Callable[..., Callable[..., Any]]", autograd.grad)
+
+    def scattering(parameters: Any) -> Any:
+        radius, epsilon = parameters
+        sphere = tr.sphere_tmatrix(k0=1.3, lmax=2, radius=radius, material=epsilon)
+        incident = tr.plane_wave([0, 0, 1], "positive_helicity", k0=1.3)
+        return sphere.cross_sections(incident).scattering
+
+    parameters = np.array([0.2, 3.0])
+    gradient = grad(scattering)(parameters)
+    for index in range(len(parameters)):
+        delta = np.zeros_like(parameters)
+        delta[index] = _STEP
+        _close(
+            gradient[index],
+            (scattering(parameters + delta) - scattering(parameters - delta))
+            / (2 * _STEP),
+            rtol=1e-7,
+        )
+
+    def bessel_norm(argument: Any) -> Any:
+        return anp.abs(tr.special.jv(1, argument)) ** 2
+
+    argument = 0.8 + 0.2j
+    gradient = grad(bessel_norm)(argument)
+    for direction in (1.0, 1.0j):
+        _close(
+            np.real(gradient * direction),
+            (
+                bessel_norm(argument + _STEP * direction)
+                - bessel_norm(argument - _STEP * direction)
+            )
+            / (2 * _STEP),
+            rtol=1e-7,
+        )
+    print("Clean wheel: automatic HIPS Autograd physics and complex gradients passed")
+
+
 def _check_io_workflows() -> None:
     h5py = cast("Any", importlib.import_module("h5py"))
     from treams_rs import io
@@ -897,6 +941,8 @@ def main(argv: list[str] | None = None) -> int:
     _check_numpy_workflows()
     if "advect" in profiles:
         _check_advect_workflows()
+    if "autograd" in profiles:
+        _check_autograd_workflows()
     if "io" in profiles:
         _check_io_workflows()
     print(f"Clean wheel: smoke profiles {', '.join(sorted(profiles))} passed")

@@ -64,7 +64,7 @@ jobs:
       # project as well.
       - name: Install dependencies
         run: |
-          uv sync --locked --no-install-project --group dev --extra jax \
+          uv sync --locked --no-install-project --group dev --extra jax --extra autograd \
             --python "$PYTHON_VERSION"
           torch_version="$(
             uv export --locked --extra torch --no-emit-project --no-hashes \
@@ -183,7 +183,7 @@ jobs:
 
       - name: Install locked environment
         run: |
-          uv sync --locked --no-install-project --group dev --extra jax --python 3.12
+          uv sync --locked --no-install-project --group dev --extra jax --extra autograd --python 3.12
           torch_version="$(
             uv export --locked --extra torch --no-emit-project --no-hashes \
               --no-header --no-annotate | sed -n 's/^torch==\([^ ;]*\).*/\1/p'
@@ -234,6 +234,7 @@ jobs:
             python-version: "3.12"
             numpy-requirement: numpy==2.1.*
             advect-requirement: advect==0.2.0
+            autograd-requirement: autograd==1.8.0
             jax-requirement: jax==0.9.0
             h5py-requirement: h5py==3.11.0
             torch-requirement: torch==2.7.0
@@ -243,6 +244,7 @@ jobs:
             python-version: "3.13"
             numpy-requirement: numpy>=2.1,<2.6
             advect-requirement: advect>=0.2.0,<0.4
+            autograd-requirement: autograd>=1.8,<2
             jax-requirement: jax>=0.9,<0.12
             h5py-requirement: h5py>=3.11,<4
             torch-requirement: torch>=2.7,<3
@@ -251,6 +253,7 @@ jobs:
             python-version: "3.14"
             numpy-requirement: numpy>=2.1,<2.6
             advect-requirement: advect>=0.2.0,<0.4
+            autograd-requirement: autograd>=1.8,<2
             jax-requirement: jax>=0.9,<0.12
             h5py-requirement: h5py>=3.11,<4
             torch-requirement: torch>=2.7,<3
@@ -278,12 +281,13 @@ jobs:
 
       - name: Install locked environment
         run: >-
-          uv sync --locked --no-install-project --group dev --extra jax
+          uv sync --locked --no-install-project --group dev --extra jax --extra autograd
           --python "$PYTHON_VERSION"
 
       - name: Select optional frameworks
         env:
           ADVECT_REQUIREMENT: ${{ matrix.advect-requirement }}
+          AUTOGRAD_REQUIREMENT: ${{ matrix.autograd-requirement }}
           H5PY_REQUIREMENT: ${{ matrix.h5py-requirement }}
           JAX_REQUIREMENT: ${{ matrix.jax-requirement }}
           NUMPY_REQUIREMENT: ${{ matrix.numpy-requirement }}
@@ -294,6 +298,7 @@ jobs:
             --upgrade \
             "$NUMPY_REQUIREMENT" \
             "$ADVECT_REQUIREMENT" \
+            "$AUTOGRAD_REQUIREMENT" \
             "$JAX_REQUIREMENT" \
             "$H5PY_REQUIREMENT" \
             "scipy>=1.16,<1.17; python_version < '3.14'" \
