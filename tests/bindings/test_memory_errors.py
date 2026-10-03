@@ -4,8 +4,8 @@ Rust aborts the process when an allocation fails, which takes the interpreter an
 Jupyter kernel with it. treams-core reserves its large outputs and workspaces
 fallibly, and the bindings raise the refusal (``Error::OutOfMemory``) as
 ``MemoryError``. Each request runs in a subprocess whose address space
-``RLIMIT_AS`` caps, so the system refuses the request at once instead of granting
-it and leaving the outcome to the out-of-memory killer. tests/lattice checks the
+``RLIMIT_AS`` caps, so the system refuses large requests or stops growing outputs
+within a small memory allowance. tests/lattice checks the
 same error for ``lattice.cube`` without a limit.
 """
 
@@ -18,11 +18,10 @@ import pytest
 
 pytestmark = pytest.mark.interface
 
-#: Address space of the subprocess: room for the interpreter, NumPy and two pool
-#: threads, but not for the dense output of any request below.
-LIMIT = 8 << 30
+#: Additional address space after imports; also bounds incrementally grown outputs.
+HEADROOM = 64 << 20
 
-#: Calls whose dense output exceeds ``LIMIT``, by native function.
+#: Calls whose dense output exceeds the memory allowance, by native function.
 REQUESTS = {
     # 200 spheres at lmax 10 have 48000 modes: a 37 GB complex coupling matrix.
     "sphere_cluster": """
@@ -44,6 +43,7 @@ REQUESTS = {
 #: Imports first, then the limit: only the request has to fit under it.
 SCRIPT = """
 import resource
+import os
 
 import numpy as np
 
@@ -51,7 +51,10 @@ import treams_rs as tr
 from treams_rs import diff
 
 _, hard = resource.getrlimit(resource.RLIMIT_AS)
-limit = {limit} if hard == resource.RLIM_INFINITY else min({limit}, hard)
+with open("/proc/self/statm") as status:
+    current = int(status.read().split()[0]) * os.sysconf("SC_PAGE_SIZE")
+limit = current + {headroom}
+limit = limit if hard == resource.RLIM_INFINITY else min(limit, hard)
 resource.setrlimit(resource.RLIMIT_AS, (limit, hard))
 try:
 {request}
@@ -67,7 +70,7 @@ except MemoryError as error:
 def test_request_beyond_the_address_space_raises_memory_error(name):
     request = textwrap.indent(textwrap.dedent(REQUESTS[name]).strip(), "    ")
     result = subprocess.run(
-        [sys.executable, "-c", SCRIPT.format(limit=LIMIT, request=request)],
+        [sys.executable, "-c", SCRIPT.format(headroom=HEADROOM, request=request)],
         env={**os.environ, "TREAMS_RS_NUM_THREADS": "2"},
         capture_output=True,
         text=True,
