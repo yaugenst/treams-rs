@@ -118,6 +118,23 @@ jobs:
           printf '%s\n' "${flags//$'\x1f'/ }"
           printf 'CARGO_ENCODED_RUSTFLAGS=%s\n' "$flags" >> "$GITHUB_ENV"
 
+      # CI builds of the macOS wheels, the slowest tier, restore compiled Rust
+      # dependencies; treams-core and treams-py always rebuild. Release
+      # candidates pass source_revision and build everything from scratch.
+      # rust-cache reads the toolchain into its key, so install it first.
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+        if: runner.os == 'macOS' && inputs.source_revision == ''
+        with:
+          toolchain: 1.94.0
+
+      # One cache per platform, written by the 3.12 job; the other versions
+      # rebuild only the crates that depend on the interpreter.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: runner.os == 'macOS' && inputs.source_revision == ''
+        with:
+          shared-key: wheel-${{ matrix.platform.artifact }}
+          save-if: ${{ matrix.python.version == '3.12' }}
+
       - name: Build portable wheel
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
