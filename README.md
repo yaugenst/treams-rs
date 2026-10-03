@@ -1,6 +1,12 @@
-# treams-rs
-
 <!-- markdownlint-disable MD033 -->
+<!-- PyPI drops <source> and shows the light wordmark on its light pages. -->
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/yaugenst/treams-rs/main/docs/assets/wordmark-dark.svg">
+    <img src="https://raw.githubusercontent.com/yaugenst/treams-rs/main/docs/assets/wordmark.svg" alt="treams-rs">
+  </picture>
+</h1>
+
 <p align="center">
   <a href="https://github.com/yaugenst/treams-rs/actions/workflows/ci.yml"><img src="https://github.com/yaugenst/treams-rs/actions/workflows/ci.yml/badge.svg?branch=main&amp;event=push" alt="CI"></a>
   <a href="https://app.codecov.io/gh/yaugenst/treams-rs"><img src="https://codecov.io/gh/yaugenst/treams-rs/branch/main/graph/badge.svg" alt="Coverage"></a>
@@ -46,13 +52,17 @@ maps treams workflows and names to treams-rs.
 pip install treams-rs
 ```
 
-The 0.1.0 core wheel targets are CPython 3.12–3.15 on Linux (glibc 2.17 or
-newer, x86-64 and arm64), macOS (Intel and Apple silicon), and Windows
-(x86-64). Installing a wheel needs no Rust toolchain.
+Gradient frameworks and HDF5 files are optional extras:
 
-Extras add optional packages: `[advect]`, `[jax]`, `[torch]` and `[autograd]` for gradients,
-and `[io]` for HDF5 files. Standard PyPI installs of the `torch` and `io`
-extras on CPython 3.15 are outside the 0.1.0 release qualification. See
+```sh
+pip install "treams-rs[advect]"   # or [jax], [torch], [autograd]
+pip install "treams-rs[io]"       # HDF5 T-matrix files
+```
+
+Wheels cover CPython 3.12–3.15 on Linux (glibc 2.17 or newer, x86-64 and
+arm64), macOS (Intel and Apple silicon) and Windows (x86-64), and need no Rust
+toolchain. Standard PyPI installs of the `torch` and `io` extras on CPython
+3.15 are outside the 0.1.0 release qualification. See
 [Install](https://yaugenst.github.io/treams-rs/latest/getting-started/install/)
 for optional dependencies and source builds.
 

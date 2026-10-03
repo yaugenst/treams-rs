@@ -30,6 +30,11 @@ config:
   MD029:
     style: ordered  # Use 1. 2. 3. etc.
 
+  # MD033/no-inline-html - Inline HTML
+  # Material grid cards wrap a Markdown list in <div class="grid cards" markdown>.
+  MD033:
+    allowed_elements: [div]
+
   # MD046/code-block-style - Code block style
   # Disabled - the generated API reference keeps docstrings' indented literal blocks
   MD046: false
