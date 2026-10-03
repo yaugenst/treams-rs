@@ -71,8 +71,7 @@ median paired time ratio.
 The raw rounds and source snapshots are retained privately. Earlier benchmark
 results above remain unchanged.
 
-<details>
-<summary>Measured source and library identities</summary>
+### Measured source and library identities
 
 The baseline was `e3e759f1bc46d1df35bb1dbb6d9c99a91fb691be`; the candidate
 was the automatic-dispatch source snapshot, including its traversal
@@ -84,8 +83,6 @@ Baseline Python: 5fbd9d6ef41fbc04633607ab473ed5f1753d1759e1013f42a611c684fb9e0c0
 Candidate Python: 839a44d639e7c3aa01004915066df57c9cc6a84e34938c766197e30c6781d596
 Shared native: 9e8a39cb2fc8459b5069a65ffc349c9eee71024ced6464524e55f52f9b8ed3c5
 ```
-
-</details>
 
 ## Redacted paths
 
