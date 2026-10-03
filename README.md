@@ -1,9 +1,13 @@
 # treams-rs
 
-[![CI](https://github.com/yaugenst/treams-rs/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/yaugenst/treams-rs/actions/workflows/ci.yml)
-[![Docs](https://img.shields.io/badge/docs-read-blue.svg)](https://yaugenst.github.io/treams-rs/latest/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/yaugenst/treams-rs/blob/main/LICENSE)
-[![Python 3.12–3.15](https://img.shields.io/badge/python-3.12%E2%80%933.15-blue.svg)](https://yaugenst.github.io/treams-rs/latest/getting-started/install/)
+<!-- markdownlint-disable MD033 -->
+<p align="center">
+  <a href="https://github.com/yaugenst/treams-rs/actions/workflows/ci.yml"><img src="https://github.com/yaugenst/treams-rs/actions/workflows/ci.yml/badge.svg?branch=main&amp;event=push" alt="CI"></a>
+  <a href="https://app.codecov.io/gh/yaugenst/treams-rs"><img src="https://codecov.io/gh/yaugenst/treams-rs/branch/main/graph/badge.svg" alt="Coverage"></a>
+  <a href="https://pypi.org/project/treams-rs/"><img src="https://img.shields.io/pypi/v/treams-rs.svg" alt="PyPI"></a>
+  <a href="https://pypi.org/project/treams-rs/"><img src="https://img.shields.io/pypi/pyversions/treams-rs.svg" alt="Python versions"></a>
+</p>
+<!-- markdownlint-enable MD033 -->
 
 treams-rs is a Rust port of [treams](https://github.com/tfp-photonics/treams)
 with a Python interface and analytic gradients.
