@@ -14,7 +14,7 @@ use crate::{
     Complex, Error, MAX_DEGREE, Result,
     basis::ModeLabel,
     cw,
-    numerics::{finite, label_bits},
+    numerics::{self, finite, label_bits},
     special::{index, ladder, pol_index, wigner_d, wigner_small_d_matrix},
     sw,
 };
@@ -99,7 +99,7 @@ pub fn sw_rotation(
             columns.iter().map(|&m| phase(m, angles[2])).collect(),
         ],
     };
-    let mut value = DMatrix::zeros(rows.len(), columns.len());
+    let mut value = numerics::zeros(rows.len(), columns.len())?;
     for &(i, j) in &entries {
         let l = spherical.degrees[i];
         let d = spherical.tables[&l][(index(l, rows[i]), index(l, columns[j]))];
@@ -140,7 +140,7 @@ pub fn cw_rotation(
     let entries = coupled(&key(destination), &key(source));
     let orders = |basis: &cw::Basis| -> Vec<_> { basis.modes.iter().map(|(_, m)| m.m).collect() };
     let (rows, columns) = (orders(destination), orders(source));
-    let mut value = DMatrix::zeros(rows.len(), columns.len());
+    let mut value = numerics::zeros(rows.len(), columns.len())?;
     for &(i, j) in &entries {
         value[(i, j)] = (-Complex::i() * f64::from(rows[i]) * (angles[0] + angles[2])).exp();
     }

@@ -32,7 +32,7 @@ use rayon::prelude::*;
 use crate::{
     Complex, Error, Result,
     basis::ModeLabel,
-    numerics::{Jet, finite},
+    numerics::{Jet, finite, parallel::try_fold_ordered},
     special::polarized_angular,
     sw::{Basis, Mode},
 };
@@ -200,10 +200,10 @@ pub fn sw_periodic_to_pw(
 /// The pullback recomputes each channel with its derivatives with respect to the
 /// position, the wavenumber, the transverse wavevector and the area.
 ///
-/// The pullback adds the per-column position, wavenumber and area gradients with Rayon's
-/// `try_fold` and `try_reduce`, so their last bits can change with the thread count and
-/// from run to run. Each transverse-wavevector gradient belongs to one column and does
-/// not.
+/// The pullback adds the per-column position, wavenumber and area gradients in chunks of
+/// consecutive columns fixed by the column count, and the chunk sums in chunk order
+/// (`numerics::parallel::try_fold_ordered`), so the thread count does not change them.
+/// Each transverse-wavevector gradient belongs to one column, which writes it in place.
 #[derive(Clone, Debug)]
 pub struct SphericalChannelsResidual {
     basis: Basis,
@@ -267,27 +267,30 @@ pub fn spherical_channels(
     // (N = 0), so `fixed_q` has no effect here.
     let d = basis.modes.len();
     let mut value = DMatrix::zeros(4 * d, q.len());
-    value
-        .as_mut_slice()
-        .par_chunks_mut(4 * d)
-        .enumerate()
-        .try_for_each(|(j, column)| -> Result<()> {
-            for side in 0..2 {
-                let channel = SphericalChannel::<0>::new(
-                    ks[usize::from(polarizations[j])],
-                    q[j],
-                    side,
-                    area,
-                    true,
-                )?;
-                for (i, &(p, mode)) in basis.modes.iter().enumerate() {
-                    let pair = channel.entry(mode, polarizations[j], basis.positions[p], helicity);
-                    column[side * d + i] = pair[0].value;
-                    column[(2 + side) * d + i] = pair[1].value;
+    crate::threads::install(|| {
+        value
+            .as_mut_slice()
+            .par_chunks_mut(4 * d)
+            .enumerate()
+            .try_for_each(|(j, column)| -> Result<()> {
+                for side in 0..2 {
+                    let channel = SphericalChannel::<0>::new(
+                        ks[usize::from(polarizations[j])],
+                        q[j],
+                        side,
+                        area,
+                        true,
+                    )?;
+                    for (i, &(p, mode)) in basis.modes.iter().enumerate() {
+                        let pair =
+                            channel.entry(mode, polarizations[j], basis.positions[p], helicity);
+                        column[side * d + i] = pair[0].value;
+                        column[(2 + side) * d + i] = pair[1].value;
+                    }
                 }
-            }
-            Ok(())
-        })?;
+                Ok(())
+            })
+    })?;
     if value.iter().any(|&v| !finite(v)) {
         return Err(Error::NonFinite("non-finite plane-wave channel".into()));
     }
@@ -361,11 +364,15 @@ impl SphericalChannelsResidual {
         }
         let fixed_q = self.fixed_q;
         let d = self.basis.modes.len();
-        let zero = || ChannelGradient::zeros(self.basis.positions.len(), self.q.len());
-        self.q
-            .par_iter()
-            .enumerate()
-            .try_fold(zero, |mut result, (j, &q)| -> Result<_> {
+        // Each column writes its own `q` gradient in place; the partial sums carry only
+        // the gradients that all columns share.
+        let mut q_gradients = vec![[0.0; 2]; self.q.len()];
+        let columns: Vec<_> = self.q.iter().zip(&mut q_gradients).collect();
+        let mut result = try_fold_ordered(
+            columns,
+            true,
+            || ChannelGradient::zeros(self.basis.positions.len(), 0),
+            |mut result, j, (&q, q_gradient)| -> Result<_> {
                 let pol = self.polarizations[j];
                 for side in 0..2 {
                     let channel = SphericalChannel::<SPHERICAL_SLOTS>::new(
@@ -396,7 +403,7 @@ impl SphericalChannelsResidual {
                         }
                         result.ks[usize::from(pol)] += gradient[K];
                         if !fixed_q {
-                            for (a, g) in result.q[j].iter_mut().zip(&gradient[Q..Q + 2]) {
+                            for (a, g) in q_gradient.iter_mut().zip(&gradient[Q..Q + 2]) {
                                 *a += g.re;
                             }
                         }
@@ -404,11 +411,14 @@ impl SphericalChannelsResidual {
                     }
                 }
                 Ok(result)
-            })
-            .try_reduce(zero, |mut a, b| {
-                a.add(b);
-                Ok(a)
-            })
+            },
+            |mut total, partial| {
+                total.add(partial);
+                total
+            },
+        )?;
+        result.q = q_gradients;
+        Ok(result)
     }
 }
 
@@ -555,9 +565,9 @@ pub fn cw_periodic_to_pw(
 /// The pullback recomputes each channel with its derivatives with respect to the
 /// position, the wavenumber, `kx` and the period.
 ///
-/// The pullback adds the per-column position, wavenumber and period gradients with
-/// Rayon's `try_fold` and `try_reduce`, so their last bits can change with the thread
-/// count and from run to run. Each `kx` gradient belongs to one column and does not.
+/// The pullback adds the per-column position, wavenumber and period gradients as
+/// [`SphericalChannelsResidual`] adds its shared gradients, so the thread count does not
+/// change them. Each `kx` gradient belongs to one column, which writes it in place.
 #[derive(Clone, Debug)]
 pub struct CylindricalChannelsResidual {
     basis: crate::cw::Basis,
@@ -595,23 +605,30 @@ pub fn cylindrical_channels(
     // (N = 0), so `fixed_q` has no effect here.
     let d = basis.modes.len();
     let mut value = DMatrix::zeros(4 * d, q.len());
-    value
-        .as_mut_slice()
-        .par_chunks_mut(4 * d)
-        .enumerate()
-        .try_for_each(|(j, column)| -> Result<()> {
-            let pol = polarizations[j];
-            for side in 0..2 {
-                let channel =
-                    CylindricalChannel::<0>::new(ks[usize::from(pol)], q[j], side, period, true)?;
-                for (i, &(p, mode)) in basis.modes.iter().enumerate() {
-                    let [incident, outgoing] = channel.entry(mode, pol, basis.positions[p]);
-                    column[side * d + i] = incident.value;
-                    column[(2 + side) * d + i] = outgoing.value;
+    crate::threads::install(|| {
+        value
+            .as_mut_slice()
+            .par_chunks_mut(4 * d)
+            .enumerate()
+            .try_for_each(|(j, column)| -> Result<()> {
+                let pol = polarizations[j];
+                for side in 0..2 {
+                    let channel = CylindricalChannel::<0>::new(
+                        ks[usize::from(pol)],
+                        q[j],
+                        side,
+                        period,
+                        true,
+                    )?;
+                    for (i, &(p, mode)) in basis.modes.iter().enumerate() {
+                        let [incident, outgoing] = channel.entry(mode, pol, basis.positions[p]);
+                        column[side * d + i] = incident.value;
+                        column[(2 + side) * d + i] = outgoing.value;
+                    }
                 }
-            }
-            Ok(())
-        })?;
+                Ok(())
+            })
+    })?;
     if value.iter().any(|&v| !finite(v)) {
         return Err(Error::NonFinite(
             "non-finite cylindrical plane-wave channel".into(),
@@ -649,11 +666,14 @@ impl CylindricalChannelsResidual {
         }
         let fixed_q = self.fixed_q;
         let d = self.basis.modes.len();
-        let zero = || ChannelGradient::zeros(self.basis.positions.len(), self.q.len());
-        self.q
-            .par_iter()
-            .enumerate()
-            .try_fold(zero, |mut result, (j, &q)| -> Result<_> {
+        // As in the spherical pullback, each column writes its own `q` gradient.
+        let mut q_gradients = vec![[0.0; 2]; self.q.len()];
+        let columns: Vec<_> = self.q.iter().zip(&mut q_gradients).collect();
+        let mut result = try_fold_ordered(
+            columns,
+            true,
+            || ChannelGradient::zeros(self.basis.positions.len(), 0),
+            |mut result, j, (&q, q_gradient)| -> Result<_> {
                 let pol = self.polarizations[j];
                 for side in 0..2 {
                     let channel = CylindricalChannel::<CYLINDRICAL_SLOTS>::new(
@@ -683,23 +703,26 @@ impl CylindricalChannelsResidual {
                             *g += v.re;
                         }
                         result.ks[usize::from(pol)] += gradient[K];
-                        result.q[j][1] += gradient[Q].re;
+                        q_gradient[1] += gradient[Q].re;
                         result.measure += gradient[CYLINDRICAL_MEASURE].re;
                     }
                 }
                 Ok(result)
-            })
-            .try_reduce(zero, |mut a, b| {
-                a.add(b);
-                Ok(a)
-            })
+            },
+            |mut total, partial| {
+                total.add(partial);
+                total
+            },
+        )?;
+        result.q = q_gradients;
+        Ok(result)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::cylindrical_basis;
+    use crate::test_support::{assert_same_bits_on_pools, bits, cylindrical_basis, patterned};
 
     /// A strongly evanescent order overflows the phase of a position far from the
     /// array axis; both families reject the non-finite channel instead of returning it.
@@ -713,5 +736,70 @@ mod tests {
         let spheres = crate::test_support::spherical_basis(1, [0.0, 0.0, 20.0]);
         let result = spherical_channels(spheres, k, vec![[50.0, 0.0]], vec![1], 2.0, true, false);
         assert!(matches!(result, Err(Error::NonFinite(_))), "{result:?}");
+    }
+
+    /// Both families add their shared gradients in chunks fixed by the column count:
+    /// with more columns than chunks, every gradient repeats bit for bit on every pool
+    /// size.
+    #[test]
+    fn pullbacks_do_not_depend_on_the_thread_count() {
+        let ks = [Complex::new(1.2, 0.05), Complex::new(1.4, 0.03)];
+        let columns = 150_u32;
+        let q: Vec<[f64; 2]> = (0..columns)
+            .map(|j| {
+                let t = f64::from(j);
+                [0.9 * (0.7 * t).sin(), 0.8 * (1.3 * t).cos()]
+            })
+            .collect();
+        let polarizations: Vec<u8> = (0..columns).map(|j| u8::from(j % 3 != 0)).collect();
+        let positions = vec![[0.1, -0.2, 0.05], [-0.15, 0.1, -0.1]];
+        let modes = crate::sw::modes(2).unwrap();
+        let spheres = Basis {
+            modes: (0..2)
+                .flat_map(|p| modes.iter().map(move |&mode| (p, mode)))
+                .collect(),
+            positions: positions.clone(),
+        };
+        let g = patterned(4 * spheres.modes.len(), q.len(), 0.3);
+        assert_same_bits_on_pools(|| {
+            let (_, residual) = spherical_channels(
+                spheres.clone(),
+                ks,
+                q.clone(),
+                polarizations.clone(),
+                2.0,
+                true,
+                false,
+            )
+            .unwrap();
+            let g = residual.pullback(&g).unwrap();
+            bits(&[&g.positions, &g.ks, &g.q, &g.measure])
+        });
+        let cylinders = crate::cw::Basis {
+            modes: (0..2)
+                .flat_map(|p| {
+                    (-3..=3).flat_map(move |m| {
+                        [1, 0].map(|pol| (p, crate::cw::Mode { kz: 0.2, m, pol }))
+                    })
+                })
+                .collect(),
+            positions,
+        };
+        let q: Vec<_> = q.iter().map(|&[kx, _]| [0.2, kx]).collect();
+        let g = patterned(4 * cylinders.modes.len(), q.len(), 0.6);
+        assert_same_bits_on_pools(|| {
+            let (_, residual) = cylindrical_channels(
+                cylinders.clone(),
+                ks,
+                q.clone(),
+                polarizations.clone(),
+                2.0,
+                true,
+                false,
+            )
+            .unwrap();
+            let g = residual.pullback(&g).unwrap();
+            bits(&[&g.positions, &g.ks, &g.q, &g.measure])
+        });
     }
 }

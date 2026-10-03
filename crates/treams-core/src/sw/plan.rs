@@ -15,6 +15,7 @@ use super::{
 use crate::{
     Complex, Error, Result,
     basis::ModeLabel,
+    numerics::parallel::try_fold_ordered,
     special::{
         Radial, RadialJet, SolidTable, Wigner3jRow, direction, spherical_radial,
         spherical_radial_sequence, tangent,
@@ -82,24 +83,28 @@ impl TranslationPlan {
                 .collect()
         };
         let (source_index, destination_index) = (index(&sources), index(&destinations));
-        let zeros: HashMap<_, _> = sources
-            .iter()
-            .flat_map(|&(l, _)| destinations.iter().map(move |&(lambda, _)| (l, lambda)))
-            .collect::<HashSet<_>>()
-            .into_par_iter()
-            .map(|(l, lambda)| ((l, lambda), Wigner3jRow::new(l, lambda, 0, 0)))
-            .collect();
-        let couplings: Vec<Vec<_>> = sources
-            .par_iter()
-            .map(|&(l, m)| {
-                destinations
-                    .iter()
-                    .map(|&(lambda, mu)| {
-                        Coupling::new((l, m), (lambda, mu), &zeros[&(l, lambda)], Kinds::BOTH)
-                    })
-                    .collect()
-            })
-            .collect();
+        let zeros: HashMap<_, _> = crate::threads::install(|| {
+            sources
+                .iter()
+                .flat_map(|&(l, _)| destinations.iter().map(move |&(lambda, _)| (l, lambda)))
+                .collect::<HashSet<_>>()
+                .into_par_iter()
+                .map(|(l, lambda)| ((l, lambda), Wigner3jRow::new(l, lambda, 0, 0)))
+                .collect()
+        });
+        let couplings: Vec<Vec<_>> = crate::threads::install(|| {
+            sources
+                .par_iter()
+                .map(|&(l, m)| {
+                    destinations
+                        .iter()
+                        .map(|&(lambda, mu)| {
+                            Coupling::new((l, m), (lambda, mu), &zeros[&(l, lambda)], Kinds::BOTH)
+                        })
+                        .collect()
+                })
+                .collect()
+        });
         let mut terms = Vec::new();
         let mut starts = Vec::with_capacity(destination.len() * source.len() + 1);
         starts.push(0);
@@ -239,25 +244,27 @@ impl TranslationPlan {
         eta: Complex,
     ) -> Result<Vec<Complex>> {
         let modes: Vec<_> = harmonics(self.lmax).collect();
-        let table = modes
-            .par_iter()
-            .map(|&(l, m)| {
-                Ok(crate::lattice::sum(
-                    crate::lattice::Family::Spherical { l, m },
-                    k,
-                    lattice,
-                    position.map(|x| -x),
-                    eta,
-                )? / crate::special::harmonic_normalization(l, m))
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let table = crate::threads::install(|| {
+            modes
+                .par_iter()
+                .map(|&(l, m)| {
+                    Ok(crate::lattice::sum(
+                        crate::lattice::Family::Spherical { l, m },
+                        k,
+                        lattice,
+                        position.map(|x| -x),
+                        eta,
+                    )? / crate::special::harmonic_normalization(l, m))
+                })
+                .collect::<Result<Vec<_>>>()
+        })?;
         Ok(self.evaluate_table(&table))
     }
 
     /// The lattice-sum gradients of the block cotangents of both polarizations.
     ///
-    /// Rayon adds the gradients of the harmonics along its work splits, so their last bits
-    /// can change with the thread count and from run to run.
+    /// The harmonics run in chunks fixed by their count, and their gradients, collected
+    /// in harmonic order, add in that order, so the thread count does not change them.
     pub(crate) fn pullback_periodic(
         &self,
         ks: [Complex; 2],
@@ -273,10 +280,11 @@ impl TranslationPlan {
             table
         });
         let g: Vec<_> = first.into_iter().zip(second).map(<[_; 2]>::from).collect();
-        modes
-            .par_iter()
-            .zip(g)
-            .map(|(&(l, m), g)| {
+        let gradients = try_fold_ordered(
+            modes.into_iter().zip(g).collect(),
+            true,
+            Vec::new,
+            |mut gradients, _, ((l, m), g): ((i32, i32), [Complex; 2])| {
                 let mut result = [crate::lattice::SumGradient::default(); 2];
                 let mut shared = None;
                 for pol in 0..2 {
@@ -301,17 +309,23 @@ impl TranslationPlan {
                     result[pol] = d.pullback(g[pol] / crate::special::harmonic_normalization(l, m));
                     result[pol].shift = result[pol].shift.map(|g| -g);
                 }
-                Ok(result)
-            })
-            .try_reduce(
-                || [crate::lattice::SumGradient::default(); 2],
-                |mut a, b| {
-                    for (a, b) in a.iter_mut().zip(b) {
-                        a.add(b);
-                    }
-                    Ok(a)
-                },
-            )
+                gradients.push(result);
+                Ok(gradients)
+            },
+            |mut gradients, partial| {
+                gradients.extend(partial);
+                gradients
+            },
+        )?;
+        Ok(gradients.into_iter().fold(
+            [crate::lattice::SumGradient::default(); 2],
+            |mut total, gradient| {
+                for (total, gradient) in total.iter_mut().zip(gradient) {
+                    total.add(gradient);
+                }
+                total
+            },
+        ))
     }
 
     /// Pull a block cotangent of [`evaluate`](Self::evaluate) back to the real displacement
@@ -353,7 +367,10 @@ mod tests {
         Complex,
         special::Radial,
         sw::{self, Mode},
-        test_support::{DEFAULT_CASES, patterned, prop_assert_close, radial, table},
+        test_support::{
+            DEFAULT_CASES, assert_same_bits_on_pools, bits, patterned, prop_assert_close, radial,
+            spherical_basis, table,
+        },
     };
 
     /// Displacements on both polar half-axes and in general directions.
@@ -622,5 +639,40 @@ mod tests {
                 assert_eq!(usize::try_from(p * p + p + m).unwrap(), index);
             }
         }
+    }
+
+    /// The lattice-sum gradients of the harmonics add in harmonic order: with more
+    /// harmonics (81 up to degree 8) than chunks, the pullback of a lattice expansion,
+    /// which runs [`TranslationPlan::pullback_periodic`], repeats bit for bit on every
+    /// pool size.
+    #[test]
+    fn periodic_pullback_does_not_depend_on_the_thread_count() {
+        let destination = spherical_basis(4, [0.0; 3]);
+        let source = spherical_basis(4, [0.2, -0.1, 0.3]);
+        let lattice =
+            crate::lattice::BlochLattice::new(&[vec![1.0, 0.0], vec![0.0, 1.0]], &[0.3, 0.1])
+                .unwrap();
+        let ks = [Complex::new(1.1, 0.01); 2];
+        let g = patterned(destination.modes.len(), source.modes.len(), 0.6);
+        assert_same_bits_on_pools(|| {
+            let (_, residual) = sw::lattice_expansion(
+                destination.clone(),
+                source.clone(),
+                ks,
+                true,
+                lattice.clone(),
+                Complex::default(),
+            )
+            .unwrap();
+            let g = residual.pullback(&g).unwrap();
+            let expansion = &g.expansion;
+            bits(&[
+                &expansion.destination,
+                &expansion.source,
+                &expansion.ks,
+                &g.kpar,
+                &g.vectors,
+            ])
+        });
     }
 }

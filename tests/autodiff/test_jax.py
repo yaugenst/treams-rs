@@ -117,10 +117,10 @@ def test_slab_cascade_with_unit_scale_pivot(thickness, k0, epsilon, kappa):
     assert_allclose(actual.array, expected.array, atol=1e-13)
 
 
-# The first native call that uses Rayon, such as a solve, creates the global pool.
-# Made through treams_rs.jax, it starts every worker inside a callback, where the
-# workers inherit XLA's mode; they must keep subnormals for every later parallel
-# native computation, in NumPy, Advect and PyTorch too. This needs a fresh process.
+# The first parallel native call, such as a solve, starts the treams-rs pool.
+# Made through treams_rs.jax, it starts every worker inside a callback, in XLA's
+# mode; the workers must keep subnormals for every later parallel native
+# computation, in NumPy, Advect and PyTorch too. This needs a fresh process.
 JAX_FIRST_SLAB = """
 import sys
 

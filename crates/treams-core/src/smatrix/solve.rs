@@ -168,7 +168,7 @@ impl InternalSolve {
     /// Factor the operator and solve for `rhs` in place.
     fn lu(operator: DMatrix<Complex>, mut rhs: DMatrix<Complex>) -> Result<Self> {
         let lu = Lu::new(operator)?;
-        lu.solve_in_place(view_mut(&mut rhs));
+        lu.solve_in_place(view_mut(&mut rhs))?;
         if rhs.iter().any(|&z| !finite(z)) {
             return Err(Error::Singular);
         }
@@ -192,7 +192,7 @@ impl InternalSolve {
                 Lu::new(operator)?
             }
         };
-        lu.solve_adjoint_in_place(view_mut(&mut rhs));
+        lu.solve_adjoint_in_place(view_mut(&mut rhs))?;
         if rhs.iter().any(|&z| !finite(z)) {
             return Err(Error::Singular);
         }

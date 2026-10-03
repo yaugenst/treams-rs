@@ -86,14 +86,17 @@ fn accumulate_product(
     left: MatRef<'_, Complex>,
     right: MatRef<'_, Complex>,
 ) {
-    faer::linalg::matmul::matmul(
-        view_mut(target),
-        faer::Accum::Add,
-        left,
-        right,
-        Complex::new(1.0, 0.0),
-        faer::get_global_parallelism(),
-    );
+    let (m, n, k) = (target.nrows(), target.ncols(), left.ncols());
+    crate::threads::product(m, n, k, |par| {
+        faer::linalg::matmul::matmul(
+            view_mut(target),
+            faer::Accum::Add,
+            left,
+            right,
+            Complex::new(1.0, 0.0),
+            par,
+        );
+    });
 }
 
 /// Cotangents of the inputs of [`add`], in the order of its arguments.

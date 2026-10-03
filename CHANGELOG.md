@@ -287,6 +287,26 @@ names that differ from treams also appear in the
   `PeriodicResponse.to_smatrix(orders=)` → `diffraction_orders=` in advect, jax
   and torch. The keywords match `treams_rs.diff`. The old names keep working;
   giving a keyword under both names raises `ValueError`.
+- The framework `Cluster.solve` of `treams_rs.advect`, `treams_rs.jax` and
+  `treams_rs.torch` uses the native block-local particle cluster, as the
+  NumPy `Cluster.solve` does, instead of a dense block-diagonal local matrix and
+  a separate coupling matrix; values agree to rounding and the gradients reach
+  the particle matrices, positions and wavenumbers through its pullback.
+- Framework polarization changes (`with_polarization` of `TMatrix`, `Wave`,
+  `SMatrix` and port waves, and parity layer constructors) pair each mode with
+  its partner instead of multiplying by the dense change matrix, so their cost
+  grows with the matrix size instead of its cube.
+- New module `treams_rs.parallel` (treams-rs extension), re-exported at the
+  package root: `set_num_threads`, `get_num_threads`, the context manager
+  `threads`, `thread_info` and `ThreadingWarning`. The thread budget defaults
+  to the first positive integer of `TREAMS_RS_NUM_THREADS`, `RAYON_NUM_THREADS`
+  and `OMP_NUM_THREADS`, otherwise the CPUs this process may use. With
+  threadpoolctl installed, `threadpool_limits` also limits treams-rs. See
+  [threads and process pools](https://yaugenst.github.io/treams-rs/guide/threads/).
+- Every value and gradient repeats bit for bit at any number of threads. Matrix
+  products, LU factorizations and solves split their work so that the worker
+  count does not change it; eigen- and singular-value decompositions and
+  matrix-vector products run on one thread.
 
 ### Native bindings
 
@@ -311,6 +331,8 @@ names that differ from treams also appear in the
 - Every pullback takes a cotangent of any real or complex dtype and memory layout, or a nested list. The contexts of `bessel_record`, `vector_wave_record` and the other broadcast records raised TypeError for a float64 array. A pullback of a real output (`CoordinatesContext`, `SvdvalsContext`, `SMatrixTrContext`, `TMatrixMetricContext`) reads the real part of a complex cotangent.
 - Every native class reports `__module__ == 'treams_rs._native'` (was `'builtins'`), so reprs and pickling errors show `treams_rs._native.SphereContext`.
 - Every native function, solver method and ufunc has its own docstring; the ufuncs shared "Rust special function with NumPy broadcasting and output arrays.". A native function names the treams-core function it calls. A ufunc docstring opens with its call under the treams argument names, `jv(v, z, /, out=None, *, where=True)`, then gives the formula, the treams function it mirrors and the differences from it. The crate doc of `treams-py` describes the native module for maintainers: the record and gradient terms, the conventions, the naming rules and how to add a binding.
+- New `thread_info`, `set_num_threads` and `after_fork` in `threads.rs` (`treams_core::threads`), and the test hook `rayon_global_pool_unused`. The extension exports the C symbol `treams_rs_num_threads`, by which the threadpoolctl controller of `treams_rs.parallel` recognizes it, and declares `gil_used = true`, so free-threaded CPython keeps the GIL while treams-rs is loaded.
+- Every parallel ufunc loop, conversion and kernel runs on the treams-rs pool. A ufunc loop runs serially when an input overlaps the output other than element for element, as in `reduce` and `accumulate`.
 
 ### Rust core
 
@@ -382,9 +404,11 @@ names that differ from treams also appear in the
 - Error messages: `singular scattering system` → `singular linear system`, because LU solves, 2 x 2 Mie inverses and S-matrix solves raise `Error::Singular`; `special-function evaluation failed: nonfinite real-degree Legendre result or derivative` → `special-function evaluation failed: non-finite real-degree Legendre result or derivative` (Ferrers). Every error message spells `non-finite`.
 - One type holds the LU of `I - T C`: the crate-internal `cluster::interaction::Factorization` merges into `cluster::InteractionFactor`, which moves with `IlluminateResidual` and `IlluminateGradient` from `cluster/illumination.rs` into `cluster/interaction.rs`. The public methods `new`, `from_blocks`, `dimension`, `solve` and `record` keep their signatures; `InteractionFactor` gains `Clone`. `IterativeSphereCluster::record` borrows `self: &Arc<Self>`, as `InteractionFactor::record` does. Crate-internal: `interaction::local_dense` / `local_blocks` → `LocalMatrix::from_dense` / `from_blocks`, `LocalMatrix::dense` → `to_dense`. Unit test: `cluster::illumination::tests` → `cluster::interaction::tests`.
 - The pullback argument follows the other residuals: `tmatrix::MetricResidual::pullback(weight)` → `pullback(cotangent)`. `coeffs::MaterialTangent` is visible only inside `coeffs`.
-- The `coeffs`, `tmatrix` and `cluster` docs map each item to its treams counterpart with its differences, list the four cluster solvers and when to use each, and state for each pullback whether its sums run in a fixed order. The position and `k0` gradients of `IterativeSphereCluster` add with a Rayon `try_reduce`, so with more than one thread their last bits depend on the thread count.
+- The `coeffs`, `tmatrix` and `cluster` docs map each item to its treams counterpart with its differences, list the four cluster solvers and when to use each, and state for each pullback whether its sums run in a fixed order. The position and `k0` gradients of `IterativeSphereCluster` add fixed partial sums in order, independently of the thread count.
 - Crate-internal names in `sw` and `cw`: `TranslationPlan::normalize_lattice` → `weights_for_normalized_harmonics` (it divides the plan weights by the harmonic normalization, so that the plan reads tables of orthonormal-harmonic lattice sums); the degree bound of `TranslationPlan` and its harmonic table `order` → `lmax`, and `orders` → `degree_orders`; `sw::coupling::Coupling` takes a `Kinds { same, cross }` instead of `[bool; 2]`; the 5-tuple key of the cylindrical couplings → the struct `CouplingKey`; the private `translate` of `sw::expansion` → `expansion_block`. `cw::transverse`, `cw::transverse_wavenumber` and `cw::polar_translation_pullback` are private. Public pullbacks name their argument `cotangent`. Values are unchanged.
 - Error messages: `lattice table contraction overflow` → `lattice table sum overflows` (`sw::lattice_expansion_from_table`, which `diff.lattice_expansion_from_table` calls).
+- New L0 module `threads` (treams-rs extension): the thread pool that the crate owns, with `install`, `join`, `current_num_threads`, `num_threads`, `set_num_threads`, `budget`, `info` and `after_fork`. Every Rayon region and every faer call runs on it with an explicit `Par`; faer's global parallelism is never read. Pools live in per-process slots, so a forked child builds its own pool. Workers keep subnormals (`fpenv`) from their start.
+- `linalg`: `lu_threads` keeps solves with fewer than 32 right-hand sides on one worker; factorizations and solves with fewer than 64 rows and at most 64 right-hand sides, eigen- and singular-value decompositions, and matrix-vector products run on the calling thread.
 
 ### Documentation
 
@@ -600,8 +624,19 @@ names that differ from treams also appear in the
   `direction`, `smatrix_tr`, `sphere_cluster`, `lattice_expansion`, the
   `*_record` functions, ...), and the name map notes members that keep their
   treams name with "treams-rs keeps the treams name".
+- New pages [threads and process pools](https://yaugenst.github.io/treams-rs/guide/threads/)
+  and [parallelism](https://yaugenst.github.io/treams-rs/design/parallelism/):
+  the thread budget and its controls, process pools, threadpoolctl, why results
+  do not depend on the thread count, the rules for new parallel code and the
+  open work. The install guide, the architecture page and the floating-point
+  and numerics design pages describe the pool that treams-rs owns.
 
 ### Tooling
+- `just bench-compare [ref]` (`scripts/compare_builds.py`) times the Python
+  sources of a git ref against the working tree on one release extension, call
+  by call in alternating worker processes, after requiring their values to
+  agree; a call fails when its median paired ratio exceeds 1.05 (1.10 below one
+  millisecond).
 - tests/conftest.py registers the pytest category markers from one `CATEGORIES`
   table of names and descriptions; pyproject.toml no longer lists them.
 - The default Hypothesis profile of the test suite is renamed `treams` → `dev`
@@ -720,8 +755,26 @@ names that differ from treams also appear in the
   That error is a fixed example of the error-summary test.
 - Dependabot opens one grouped pull request per week each for the Cargo
   dependencies, the Python dependencies in `uv.lock` and the GitHub Actions.
+- The test session fails if any test starts Rayon's global pool, and
+  `tests/bindings/test_thread_pool.py` rejects parallel code in `crates/` that
+  does not run on the treams-rs pool. `scripts/_harness.py` records
+  `TREAMS_RS_NUM_THREADS` with the other thread variables.
+- Hosted CI runs the Python tests of Python 3.12 on one thread
+  (`TREAMS_RS_NUM_THREADS=1`) and those of Python 3.13 on every CPU. Subprocess
+  tests set `TREAMS_RS_NUM_THREADS` instead of `RAYON_NUM_THREADS`.
 
 ### Fixed
+- The framework `Cluster.solve` and `Cluster.scatter` of `treams_rs.advect`,
+  `treams_rs.jax` and `treams_rs.torch` returned finite results for two
+  particles at one position; they raise "particle modes must be grouped at
+  distinct positions", as the NumPy `Cluster` does.
+- Framework T-matrices, waves and S-matrices accepted parity channels in a
+  chiral medium. They raise "parity polarization requires an achiral embedding
+  medium", as the NumPy API does; parity layer constructors check every layer,
+  and a chirality that carries gradients is checked when it is evaluated.
+- Framework `PeriodicResponse.to_smatrix` failed with a matrix-shape error for a
+  response solved on a 3x3 lattice; it names the planar lattice and Bloch
+  vector that plane ports need.
 - `PeriodicResponse.to_cylindrical` and `PeriodicWave.in_basis` gave wrong
   results for a cylindrical basis with several axes, because they counted
   every sphere once per axis. In the treams chain example with two spheres
@@ -739,3 +792,31 @@ names that differ from treams also appear in the
   gives up, so every sum that converged stops at the same shell with the same
   value. 1D sums of spherical waves keep the old limit: where it fails they take
   their spectral series, which is more accurate there.
+- A process forked after a parallel call hung on its first parallel call, for
+  example a `multiprocessing` pool on Linux before Python 3.14, a
+  `ProcessPoolExecutor` or PyTorch `DataLoader` workers after
+  `Cluster.solve()`. The child inherited Rayon's global pool without its worker
+  threads. treams-rs owns its pool now, and a forked child builds its own.
+- `reduce` and `accumulate` of two-input ufuncs, such as
+  `misc.firstbrillouin1d.accumulate`, gave wrong results with more than one
+  thread from 1024 elements on: the parallel loop read every input before it
+  stored the first result, which the next element reads.
+- `RAYON_NUM_THREADS` values such as `two` or `-1` silently meant every CPU, and
+  `OMP_NUM_THREADS` was ignored. Unparsable values are ignored with a
+  `treams_rs.parallel.ThreadingWarning`, and `OMP_NUM_THREADS` sets the budget
+  when the other variables are unset.
+- `diff.eig` returned eigenvalues in an order that depended on the thread count:
+  at n = 512, 410 of 512 eigenvalues moved between one and four threads.
+  Single right-hand-side adjoint LU solves, and the gradients that use them,
+  changed in the last bits at two to four threads. Both are the same at every
+  thread count now.
+- Selected dense outputs and workspaces raise `MemoryError`
+  (`Error::OutOfMemory` in the Rust core) when the system refuses an allocation.
+  These include the coupling of `diff.sphere_cluster`,
+  the matrix of `diff.field_operator`, expansion, rotation, T-matrix and
+  Q-matrix matrices, decomposition vectors, LU/SVD/eigenvalue workspaces and
+  the C-order copies of returned matrices. `lattice.cube` now raises
+  `MemoryError` instead of `ValueError` for refused memory. Input copies,
+  matrix products, gradient buffers and other allocations can still abort.
+  On Linux, overcommit can grant a reservation before the out-of-memory killer
+  later ends the process as its pages are written.

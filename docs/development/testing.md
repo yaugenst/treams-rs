@@ -87,6 +87,12 @@ holds the shared helpers:
 - **Fixtures.** `patterned` (a deterministic matrix), `rotate` (a point rotated
   by Euler angles), `spherical_basis`, `cylindrical_basis` and
   `gauss_legendre` (quadrature nodes).
+- **Thread counts.** `assert_same_bits_on_pools(run)` runs a computation on
+  Rayon pools of one to four threads, where the crate's parallel regions run in
+  place, and asserts that it returns the same `bits` (the bit patterns of the
+  floats of a result) on each. A pullback that adds over many items checks with it
+  that the thread count does not change the order of its additions; give it more
+  items than `numerics::parallel::REDUCTION_CHUNKS`.
 - **Tables.** `table` reads the `key: values` rows of `formal/golden/` and
   `crates/treams-core/references/`.
 

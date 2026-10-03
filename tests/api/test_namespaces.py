@@ -49,6 +49,7 @@ NAMESPACES = (
     "treams_rs",
     *(f"treams_rs.{name}" for name in (*UPSTREAM_MIRRORS, "iterative")),
     "treams_rs.operators",
+    "treams_rs.parallel",
     "treams_rs.testing",
 )
 #: treams-rs names exported by an upstream-mirroring namespace besides the treams ones.

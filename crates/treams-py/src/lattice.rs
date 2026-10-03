@@ -104,8 +104,8 @@ fn finish_periodic<'py>(
     py: Python<'py>,
     value: &nalgebra::DMatrix<Complex>,
     residual: Periodic,
-) -> (C2<'py>, LatticeExpansionContext) {
-    (matrix(py, value), LatticeExpansionContext::new(residual))
+) -> PyResult<(C2<'py>, LatticeExpansionContext)> {
+    Ok((matrix(py, value)?, LatticeExpansionContext::new(residual)))
 }
 
 /// Record the lattice expansion between two spherical bases: `sw::lattice_expansion`.
@@ -129,7 +129,7 @@ pub(crate) fn lattice_expansion(
         let (value, residual) = detached(py, move || {
             treams_core::sw::lattice_expansion(destination, source, ks, helicity, lattice, eta)
         })?;
-        Ok(finish_periodic(py, &value, Periodic::Spherical(residual)))
+        finish_periodic(py, &value, Periodic::Spherical(residual))
     })
 }
 
@@ -153,7 +153,7 @@ pub(crate) fn cylindrical_lattice_expansion(
         let (value, residual) = detached(py, move || {
             treams_core::cw::lattice_expansion(destination, source, ks, lattice, eta)
         })?;
-        Ok(finish_periodic(py, &value, Periodic::Cylindrical(residual)))
+        finish_periodic(py, &value, Periodic::Cylindrical(residual))
     })
 }
 

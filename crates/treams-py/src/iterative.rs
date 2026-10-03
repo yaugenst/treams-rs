@@ -115,7 +115,7 @@ impl IterativeSphereCluster {
             let convergence = convergence_tuples(&residual.solution().convergence);
             // A C-ordered copy: the residual keeps the solution for the pullback.
             Ok((
-                matrix(py, &residual.solution().value),
+                matrix(py, &residual.solution().value)?,
                 IterativeContext::new(residual),
                 convergence,
             ))

@@ -33,7 +33,8 @@ just ci
 `uv run --no-sync`. Add `--extra jax --extra torch` to the sync to run the
 framework adapter tests. `just ci` runs the Rust and Python checks of hosted
 CI. Hosted CI also runs `just check-wheel` and 100 Hypothesis examples per
-property (`HYPOTHESIS_PROFILE=ci`).
+property (`HYPOTHESIS_PROFILE=ci`), and runs the Python tests of Python 3.12 on
+one thread (`TREAMS_RS_NUM_THREADS=1`).
 
 The development pages on the site cover the rest:
 

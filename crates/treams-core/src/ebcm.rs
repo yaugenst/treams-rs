@@ -21,7 +21,7 @@ use crate::{
     Complex, Error, Result,
     basis::{ModeLabel, MultipoleBasis},
     fields::{SPATIAL_AND_K, VALUES, VectorWave, WaveSet},
-    numerics::finite,
+    numerics::{self, finite},
     special::Radial,
     sw::Mode,
 };
@@ -194,48 +194,52 @@ pub fn qmat(
     };
     // The wave evaluations dominate; each node is independent.
     let [destination, source] = residual.wave_sets()?;
-    let samples = (0..n)
-        .into_par_iter()
-        .map(|node| -> Result<Sample> {
-            let [point, normal, _, _] = node_geometry(&residual.surface, node);
-            let values = |waves: Vec<VectorWave>| waves.into_iter().map(|w| w.value).collect();
-            Ok(Sample {
-                weight: residual.weight(node),
-                normal,
-                destination: values(evaluate_waves::<VALUES>(
-                    &destination,
-                    residual.destination.len(),
-                    point,
-                )?),
-                source: values(evaluate_waves::<VALUES>(
-                    &source,
-                    residual.source.len(),
-                    point,
-                )?),
+    let samples = crate::threads::install(|| {
+        (0..n)
+            .into_par_iter()
+            .map(|node| -> Result<Sample> {
+                let [point, normal, _, _] = node_geometry(&residual.surface, node);
+                let values = |waves: Vec<VectorWave>| waves.into_iter().map(|w| w.value).collect();
+                Ok(Sample {
+                    weight: residual.weight(node),
+                    normal,
+                    destination: values(evaluate_waves::<VALUES>(
+                        &destination,
+                        residual.destination.len(),
+                        point,
+                    )?),
+                    source: values(evaluate_waves::<VALUES>(
+                        &source,
+                        residual.source.len(),
+                        point,
+                    )?),
+                })
             })
-        })
-        .collect::<Result<Vec<_>>>()?;
+            .collect::<Result<Vec<_>>>()
+    })?;
     let rows = residual.rows_by_order();
     let factors = residual.factors();
-    let mut value = DMatrix::zeros(residual.destination.len(), residual.source.len());
+    let mut value = numerics::zeros(residual.destination.len(), residual.source.len())?;
     // Each entry sums its nodes in order, so the result is independent of threading.
-    value
-        .as_mut_slice()
-        .par_chunks_mut(residual.destination.len())
-        .zip(&residual.source)
-        .enumerate()
-        .for_each(|(j, (column, from))| {
-            let rows = rows.get(&from.m).map_or(&[][..], Vec::as_slice);
-            for sample in &samples {
-                for &i in rows {
-                    let factor =
-                        factors[usize::from(residual.destination[i].pol)][usize::from(from.pol)];
-                    column[i] += sample.weight
-                        * factor
-                        * triple(sample.normal, sample.destination[i], sample.source[j]);
+    crate::threads::install(|| {
+        value
+            .as_mut_slice()
+            .par_chunks_mut(residual.destination.len())
+            .zip(&residual.source)
+            .enumerate()
+            .for_each(|(j, (column, from))| {
+                let rows = rows.get(&from.m).map_or(&[][..], Vec::as_slice);
+                for sample in &samples {
+                    for &i in rows {
+                        let factor = factors[usize::from(residual.destination[i].pol)]
+                            [usize::from(from.pol)];
+                        column[i] += sample.weight
+                            * factor
+                            * triple(sample.normal, sample.destination[i], sample.source[j]);
+                    }
                 }
-            }
-        });
+            });
+    });
     if value.iter().any(|&z| !finite(z)) {
         return Err(Error::NonFinite("non-finite EBCM integral".into()));
     }
@@ -317,56 +321,61 @@ impl QmatResidual {
         let rows = self.rows_by_order();
         let factors = self.factors();
         let [destination, source] = self.wave_sets()?;
-        let nodes = (0..self.surface.theta.len())
-            .into_par_iter()
-            .map(|node| {
-                let [point, normal, rhat, slope] = node_geometry(&self.surface, node);
-                let a =
-                    evaluate_waves::<SPATIAL_AND_K>(&destination, self.destination.len(), point)?;
-                let b = evaluate_waves::<SPATIAL_AND_K>(&source, self.source.len(), point)?;
-                let (measure, weight) = (self.measure(node), self.weight(node));
-                let along_radius = |wave: &VectorWave| -> [Complex; 3] {
-                    std::array::from_fn(|c| (0..3).map(|d| wave.position[c][d] * rhat[d]).sum())
-                };
-                let ar: Vec<_> = a.iter().map(along_radius).collect();
-                let mut result = NodeGradient::default();
-                for (j, (vb, from)) in b.iter().zip(&self.source).enumerate() {
-                    let pb = usize::from(from.pol);
-                    // With triple(n, a, b) = a . (b x n), each outer wave's cross
-                    // products serve all of its inner partners.
-                    let normal_cross = cross(vb.value, normal);
-                    let rhat_cross = cross(vb.value, rhat);
-                    let slope_cross = cross(vb.value, slope);
-                    let radius_cross = cross(along_radius(vb), normal);
-                    let k_cross = cross(vb.k, normal);
-                    for &i in rows.get(&from.m).into_iter().flatten() {
-                        let cot = cotangent[(i, j)];
-                        if cot == Complex::default() {
-                            continue;
+        let nodes = crate::threads::install(|| {
+            (0..self.surface.theta.len())
+                .into_par_iter()
+                .map(|node| {
+                    let [point, normal, rhat, slope] = node_geometry(&self.surface, node);
+                    let a = evaluate_waves::<SPATIAL_AND_K>(
+                        &destination,
+                        self.destination.len(),
+                        point,
+                    )?;
+                    let b = evaluate_waves::<SPATIAL_AND_K>(&source, self.source.len(), point)?;
+                    let (measure, weight) = (self.measure(node), self.weight(node));
+                    let along_radius = |wave: &VectorWave| -> [Complex; 3] {
+                        std::array::from_fn(|c| (0..3).map(|d| wave.position[c][d] * rhat[d]).sum())
+                    };
+                    let ar: Vec<_> = a.iter().map(along_radius).collect();
+                    let mut result = NodeGradient::default();
+                    for (j, (vb, from)) in b.iter().zip(&self.source).enumerate() {
+                        let pb = usize::from(from.pol);
+                        // With triple(n, a, b) = a . (b x n), each outer wave's cross
+                        // products serve all of its inner partners.
+                        let normal_cross = cross(vb.value, normal);
+                        let rhat_cross = cross(vb.value, rhat);
+                        let slope_cross = cross(vb.value, slope);
+                        let radius_cross = cross(along_radius(vb), normal);
+                        let k_cross = cross(vb.k, normal);
+                        for &i in rows.get(&from.m).into_iter().flatten() {
+                            let cot = cotangent[(i, j)];
+                            if cot == Complex::default() {
+                                continue;
+                            }
+                            let va = &a[i];
+                            let pa = usize::from(self.destination[i].pol);
+                            let factor = factors[pa][pb];
+                            let t = dot(va.value, normal_cross);
+                            let dr = dot(va.value, rhat_cross)
+                                + dot(ar[i], normal_cross)
+                                + dot(va.value, radius_cross);
+                            let scaled = cot.conj() * weight;
+                            let weighted = scaled * factor;
+                            result.radius += (weighted * dr).re;
+                            if self.radial_area_factor {
+                                result.radius += (cot.conj() * measure * factor * t).re;
+                            }
+                            result.slope += (weighted * dot(va.value, slope_cross)).re;
+                            result.ks[0][pa] += (weighted * dot(va.k, normal_cross)).conj();
+                            result.ks[1][pb] += (weighted * dot(va.value, k_cross)).conj();
+                            result.zs[0] += (scaled * HELICITY[pb] * t).conj();
+                            result.zs[1] += (scaled * HELICITY[pa] * t).conj();
                         }
-                        let va = &a[i];
-                        let pa = usize::from(self.destination[i].pol);
-                        let factor = factors[pa][pb];
-                        let t = dot(va.value, normal_cross);
-                        let dr = dot(va.value, rhat_cross)
-                            + dot(ar[i], normal_cross)
-                            + dot(va.value, radius_cross);
-                        let scaled = cot.conj() * weight;
-                        let weighted = scaled * factor;
-                        result.radius += (weighted * dr).re;
-                        if self.radial_area_factor {
-                            result.radius += (cot.conj() * measure * factor * t).re;
-                        }
-                        result.slope += (weighted * dot(va.value, slope_cross)).re;
-                        result.ks[0][pa] += (weighted * dot(va.k, normal_cross)).conj();
-                        result.ks[1][pb] += (weighted * dot(va.value, k_cross)).conj();
-                        result.zs[0] += (scaled * HELICITY[pb] * t).conj();
-                        result.zs[1] += (scaled * HELICITY[pa] * t).conj();
                     }
-                }
-                Ok(result)
-            })
-            .collect::<Result<Vec<_>>>()?;
+                    Ok(result)
+                })
+                .collect::<Result<Vec<_>>>()
+        })?;
         let mut result = QmatGradient {
             radii: Vec::with_capacity(nodes.len()),
             slopes: Vec::with_capacity(nodes.len()),

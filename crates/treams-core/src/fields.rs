@@ -20,7 +20,7 @@ use crate::{
     Complex, Error, Result,
     basis::{ModeLabel, MultipoleBasis, validate_wavenumbers},
     cw,
-    numerics::{Jet, finite},
+    numerics::{self, Jet, finite, parallel::try_fold_ordered},
     special::{Radial, SERIES_RADIUS, Solid, bessel, helicity_sign, polarized_wave, solid},
     sw::Mode,
 };
@@ -579,14 +579,15 @@ impl WaveSet {
             axial: vec![0.0; if with_axial { self.basis.len() } else { 0 }],
         };
         let mut point_gradients = vec![[0.0; 3]; points.len()];
+        let samples: Vec<_> = point_gradients.iter_mut().zip(points).collect();
         let Accumulator {
             mut gradient,
             axial,
-        } = point_gradients
-            .par_iter_mut()
-            .zip(points.par_iter())
-            .enumerate()
-            .try_fold(zero, |mut sum, (sample, (point_gradient, point))| {
+        } = try_fold_ordered(
+            samples,
+            true,
+            zero,
+            |mut sum, sample, (point_gradient, point)| {
                 let mut cache = self.cache::<N>();
                 for i in 0..self.basis.len() {
                     let (pidx, pol) = self.basis.position_pol(i);
@@ -611,15 +612,16 @@ impl WaveSet {
                     }
                 }
                 Ok(sum)
-            })
-            .try_reduce(zero, |a, b| Ok(a.merge(b)))?;
+            },
+            Accumulator::merge,
+        )?;
         gradient.points = point_gradients;
         Ok((gradient, axial))
     }
 }
 
-/// Partial sums of a field pullback over a range of samples. Point gradients are
-/// written in place, one per sample.
+/// Partial sums of a field pullback over a chunk of consecutive samples. Point
+/// gradients are written in place, one per sample.
 struct Accumulator {
     gradient: FieldGradient,
     axial: Vec<f64>,
@@ -683,20 +685,22 @@ pub fn field(
         ));
     }
     let (waves, points) = sampled_waves(basis, points, ks, helicity, radial)?;
-    let value = points
-        .par_iter()
-        .map(|&point| {
-            let mut cache = waves.cache::<VALUES>();
-            let mut value = [Complex::default(); 3];
-            for (i, &amplitude) in coefficients.iter().enumerate() {
-                let (wave, _) = waves.wave(i, point, &mut cache)?;
-                for (v, f) in value.iter_mut().zip(wave.value) {
-                    *v += amplitude * f;
+    let value = crate::threads::install(|| {
+        points
+            .par_iter()
+            .map(|&point| {
+                let mut cache = waves.cache::<VALUES>();
+                let mut value = [Complex::default(); 3];
+                for (i, &amplitude) in coefficients.iter().enumerate() {
+                    let (wave, _) = waves.wave(i, point, &mut cache)?;
+                    for (v, f) in value.iter_mut().zip(wave.value) {
+                        *v += amplitude * f;
+                    }
                 }
-            }
-            Ok(value)
-        })
-        .collect::<Result<Vec<_>>>()?;
+                Ok(value)
+            })
+            .collect::<Result<Vec<_>>>()
+    })?;
     Ok((
         value,
         FieldResidual {
@@ -719,16 +723,17 @@ impl FieldResidual {
     /// no dense Jacobian is stored.
     ///
     /// Each point gradient comes from its own sample only. The coefficient, position
-    /// and wavenumber gradients add partial sums along Rayon's adaptive work splits, so
-    /// with more than one thread their last bits can change with the thread count and
-    /// from run to run.
+    /// and wavenumber gradients add in chunks of consecutive samples fixed by the
+    /// sample count, and the chunk sums in chunk order
+    /// (`numerics::parallel::try_fold_ordered`), so the thread count does not change
+    /// them.
     pub fn pullback(self, cotangent: &[[Complex; 3]]) -> Result<FieldGradient> {
         self.pullback_impl::<SPATIAL_AND_K>(cotangent)
             .map(|(gradient, _)| gradient)
     }
 
     /// [`Self::pullback`] plus a real axial-wavenumber gradient for each mode of a
-    /// cylindrical basis; the axial gradients add their partial sums the same way.
+    /// cylindrical basis; the axial gradients add their chunk sums the same way.
     pub fn pullback_axial(self, cotangent: &[[Complex; 3]]) -> Result<(FieldGradient, Vec<f64>)> {
         self.pullback_impl::<WITH_AXIAL>(cotangent)
     }
@@ -769,36 +774,43 @@ pub fn operator(
 ) -> Result<(nalgebra::DMatrix<Complex>, OperatorResidual)> {
     let (waves, points) = sampled_waves(basis.into(), points, ks, helicity, radial)?;
     let samples = points.len();
-    let mut value = nalgebra::DMatrix::zeros(3 * samples, waves.basis.len());
+    let mut value = numerics::zeros(3 * samples, waves.basis.len())?;
     if samples > 0 {
         // Each task evaluates all modes at a block of consecutive samples, so the
         // waves of one sample share their radial functions. It writes the rows of
         // its samples in every column.
         let block = samples
-            .div_ceil(8 * rayon::current_num_threads())
+            .div_ceil(crate::threads::current_num_threads().saturating_mul(8))
             .clamp(1, 64);
+        // One column slice per block and mode: a third of the matrix for one-sample
+        // blocks.
         let mut blocks: Vec<Vec<&mut [Complex]>> = (0..samples.div_ceil(block))
-            .map(|_| Vec::with_capacity(waves.basis.len()))
-            .collect();
+            .map(|_| {
+                let mut columns = Vec::new();
+                numerics::reserve(&mut columns, waves.basis.len()).map(|()| columns)
+            })
+            .collect::<Result<_>>()?;
         for column in value.as_mut_slice().chunks_exact_mut(3 * samples) {
             for (rows, columns) in column.chunks_mut(3 * block).zip(&mut blocks) {
                 columns.push(rows);
             }
         }
-        blocks
-            .into_par_iter()
-            .enumerate()
-            .try_for_each(|(index, mut columns)| -> Result<()> {
-                let block_points = points.iter().skip(index * block).take(block);
-                for (sample, &point) in block_points.enumerate() {
-                    let mut cache = waves.cache::<VALUES>();
-                    for (i, column) in columns.iter_mut().enumerate() {
-                        let (wave, _) = waves.wave(i, point, &mut cache)?;
-                        column[3 * sample..3 * sample + 3].copy_from_slice(&wave.value);
+        crate::threads::install(|| {
+            blocks
+                .into_par_iter()
+                .enumerate()
+                .try_for_each(|(index, mut columns)| -> Result<()> {
+                    let block_points = points.iter().skip(index * block).take(block);
+                    for (sample, &point) in block_points.enumerate() {
+                        let mut cache = waves.cache::<VALUES>();
+                        for (i, column) in columns.iter_mut().enumerate() {
+                            let (wave, _) = waves.wave(i, point, &mut cache)?;
+                            column[3 * sample..3 * sample + 3].copy_from_slice(&wave.value);
+                        }
                     }
-                }
-                Ok(())
-            })?;
+                    Ok(())
+                })
+        })?;
     }
     Ok((value, OperatorResidual { waves, points }))
 }
@@ -814,15 +826,15 @@ impl OperatorResidual {
     /// loss with respect to the matrix; the coefficient gradient is empty.
     ///
     /// Each point gradient comes from its own sample only. The position and wavenumber
-    /// gradients add partial sums along Rayon's adaptive work splits, so with more than
-    /// one thread their last bits can change with the thread count and from run to run.
+    /// gradients add as in [`FieldResidual::pullback`], so the thread count does not
+    /// change them.
     pub fn pullback(self, cotangent: &nalgebra::DMatrix<Complex>) -> Result<FieldGradient> {
         self.pullback_impl::<SPATIAL_AND_K>(cotangent)
             .map(|(gradient, _)| gradient)
     }
 
     /// [`Self::pullback`] plus a real axial-wavenumber gradient for each mode of a
-    /// cylindrical basis; the axial gradients add their partial sums the same way.
+    /// cylindrical basis; the axial gradients add their chunk sums the same way.
     pub fn pullback_axial(
         self,
         cotangent: &nalgebra::DMatrix<Complex>,
@@ -857,7 +869,9 @@ mod tests {
         Complex, Error,
         special::Radial,
         sw::Mode,
-        test_support::{degree_order, radial, spherical_basis},
+        test_support::{
+            assert_same_bits_on_pools, bits, degree_order, patterned, radial, spherical_basis,
+        },
     };
 
     proptest! {
@@ -912,6 +926,67 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Field and operator pullbacks add their shared gradients in chunks fixed by the
+    /// sample count: with more samples than chunks, every gradient of a weighted
+    /// spherical field and of the axial pullback of a cylindrical operator repeats bit
+    /// for bit on every pool size.
+    #[test]
+    fn pullbacks_do_not_depend_on_the_thread_count() {
+        let points: Vec<[f64; 3]> = (0..120_u32)
+            .map(|i| {
+                let t = f64::from(i);
+                [
+                    1.5 * (0.37 * t).sin(),
+                    1.2 * (0.53 * t).cos(),
+                    0.9 * (0.71 * t).sin() + 0.1,
+                ]
+            })
+            .collect();
+        let ks = [Complex::new(1.1, 0.02), Complex::new(1.3, 0.01)];
+        let modes = crate::sw::modes(3).unwrap();
+        let spheres = crate::sw::Basis {
+            modes: (0..2)
+                .flat_map(|p| modes.iter().map(move |&mode| (p, mode)))
+                .collect(),
+            positions: vec![[0.1, 0.2, -0.3], [-0.2, 0.0, 0.4]],
+        };
+        let coefficients = patterned(spheres.modes.len(), 1, 0.2).as_slice().to_vec();
+        let g = patterned(3, points.len(), 0.9);
+        let g = g.as_slice().as_chunks::<3>().0;
+        assert_same_bits_on_pools(|| {
+            let (_, residual) = field(
+                spheres.clone(),
+                coefficients.clone(),
+                points.clone(),
+                ks,
+                true,
+                Radial::Regular,
+            )
+            .unwrap();
+            let g = residual.pullback(g).unwrap();
+            bits(&[&g.coefficients, &g.points, &g.positions, &g.ks])
+        });
+        let cylinders = crate::cw::Basis {
+            modes: (0..2)
+                .flat_map(|p| {
+                    [0.2, -0.35].into_iter().flat_map(move |kz| {
+                        (-3..=3).flat_map(move |m| {
+                            [1, 0].map(|pol| (p, crate::cw::Mode { kz, m, pol }))
+                        })
+                    })
+                })
+                .collect(),
+            positions: vec![[0.1, 0.2, 0.0], [-0.2, 0.0, 0.0]],
+        };
+        let g = patterned(3 * points.len(), cylinders.modes.len(), 0.4);
+        assert_same_bits_on_pools(|| {
+            let (_, residual) =
+                operator(cylinders.clone(), points.clone(), ks, true, Radial::Regular).unwrap();
+            let (g, axial) = residual.pullback_axial(&g).unwrap();
+            bits(&[&g.points, &g.positions, &g.ks, &axial])
+        });
     }
 
     /// A forward-only spherical wave has exactly the value of the differentiated one

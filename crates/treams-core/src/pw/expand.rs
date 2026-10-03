@@ -11,7 +11,7 @@ use super::{field::phase, polarization::Direction};
 use crate::{
     Complex, Error, Result,
     basis::{ModeLabel, MultipoleBasis},
-    numerics::{Jet, finite},
+    numerics::{Jet, finite, parallel::try_fold_ordered},
     special::{check_pol, polarized_angular},
     sw::Mode,
 };
@@ -273,9 +273,10 @@ impl AngularLabels {
 /// What [`expansion`] saves for its pullback: its inputs. The pullback recomputes the
 /// coefficients instead of keeping a Jacobian.
 ///
-/// The pullback adds the per-mode position gradients with Rayon's `try_fold` and
-/// `try_reduce`, so their last bits can change with the thread count and from run to
-/// run. Each wavevector gradient belongs to one plane mode and does not.
+/// The pullback adds the per-mode position gradients in chunks of consecutive plane
+/// modes fixed by the mode count, and the chunk sums in chunk order
+/// (`numerics::parallel::try_fold_ordered`), so the thread count does not change them.
+/// Each wavevector gradient belongs to one plane mode, which writes it in place.
 #[derive(Debug)]
 pub struct ExpansionResidual {
     basis: MultipoleBasis,
@@ -323,24 +324,26 @@ pub fn expansion(
     }
     let labels = AngularLabels::of(&basis);
     let mut value = DMatrix::zeros(basis.len(), vectors.len());
-    value
-        .as_mut_slice()
-        .par_chunks_mut(basis.len())
-        .enumerate()
-        .try_for_each(|(j, column)| -> Result<()> {
-            let direction = Direction::<0>::new(vectors[j])?;
-            let angular =
-                labels.evaluate(&basis, vectors[j], &direction, polarizations[j], helicity);
-            let phases: Vec<_> = basis
-                .positions()
-                .iter()
-                .map(|&p| phase(vectors[j], p))
-                .collect();
-            for (i, (out, &slot)) in column.iter_mut().zip(&labels.slot).enumerate() {
-                *out = angular[slot].value * phases[basis.position_pol(i).0];
-            }
-            Ok(())
-        })?;
+    crate::threads::install(|| {
+        value
+            .as_mut_slice()
+            .par_chunks_mut(basis.len())
+            .enumerate()
+            .try_for_each(|(j, column)| -> Result<()> {
+                let direction = Direction::<0>::new(vectors[j])?;
+                let angular =
+                    labels.evaluate(&basis, vectors[j], &direction, polarizations[j], helicity);
+                let phases: Vec<_> = basis
+                    .positions()
+                    .iter()
+                    .map(|&p| phase(vectors[j], p))
+                    .collect();
+                for (i, (out, &slot)) in column.iter_mut().zip(&labels.slot).enumerate() {
+                    *out = angular[slot].value * phases[basis.position_pol(i).0];
+                }
+                Ok(())
+            })
+    })?;
     Ok((
         value,
         ExpansionResidual {
@@ -366,56 +369,61 @@ impl ExpansionResidual {
             ));
         }
         let fixed_vectors = self.fixed_vectors;
-        let zero = || ExpansionGradient {
-            positions: vec![[0.0; 3]; self.basis.positions().len()],
-            vectors: vec![[Complex::default(); 3]; self.vectors.len()],
-        };
         let labels = AngularLabels::of(&self.basis);
-        self.vectors
-            .par_iter()
-            .enumerate()
-            .try_fold(zero, |mut result, (j, &vector)| -> Result<_> {
+        // Each plane mode writes its own wavevector gradient in place; the partial sums
+        // carry only the position gradients.
+        let mut vectors = vec![[Complex::default(); 3]; self.vectors.len()];
+        let modes: Vec<_> = self.vectors.iter().zip(&mut vectors).collect();
+        let positions = try_fold_ordered(
+            modes,
+            true,
+            || vec![[0.0; 3]; self.basis.positions().len()],
+            |mut positions, j, (&vector, vector_gradient)| -> Result<_> {
                 // Position gradients need only values, which are identical for every
                 // derivative count; fixed vectors skip the direction derivatives.
                 if fixed_vectors {
                     let direction = Direction::<0>::new(vector)?;
-                    self.contract(&labels, j, &direction, cotangent, &mut result);
+                    self.contract(
+                        &labels,
+                        j,
+                        &direction,
+                        cotangent,
+                        &mut positions,
+                        vector_gradient,
+                    );
                 } else {
                     let direction = Direction::<3>::new(vector)?;
-                    self.contract(&labels, j, &direction, cotangent, &mut result);
+                    self.contract(
+                        &labels,
+                        j,
+                        &direction,
+                        cotangent,
+                        &mut positions,
+                        vector_gradient,
+                    );
                 }
-                Ok(result)
-            })
-            .try_reduce(zero, |mut a, b| {
-                for (a, b) in a
-                    .positions
-                    .iter_mut()
-                    .flatten()
-                    .zip(b.positions.iter().flatten())
-                {
+                Ok(positions)
+            },
+            |mut total, partial| {
+                for (a, b) in total.iter_mut().flatten().zip(partial.iter().flatten()) {
                     *a += b;
                 }
-                for (a, b) in a
-                    .vectors
-                    .iter_mut()
-                    .flatten()
-                    .zip(b.vectors.iter().flatten())
-                {
-                    *a += b;
-                }
-                Ok(a)
-            })
+                total
+            },
+        )?;
+        Ok(ExpansionGradient { positions, vectors })
     }
 
-    /// Add the gradients of column `j` to the position gradients and, with direction
-    /// derivatives (`N > 0`), to its wavevector gradient.
+    /// Add the gradients of column `j` to the position gradients `positions` and, with
+    /// direction derivatives (`N > 0`), to its wavevector gradient `vector_gradient`.
     fn contract<const N: usize>(
         &self,
         labels: &AngularLabels,
         j: usize,
         direction: &Direction<N>,
         cotangent: &DMatrix<Complex>,
-        result: &mut ExpansionGradient,
+        positions: &mut [[f64; 3]],
+        vector_gradient: &mut [Complex; 3],
     ) {
         let vector = self.vectors[j];
         let angular = labels.evaluate(
@@ -444,10 +452,10 @@ impl ExpansionResidual {
             let phase = phases[p];
             let value = phase * angular.value;
             for axis in 0..3 {
-                result.positions[p][axis] +=
+                positions[p][axis] +=
                     (cotangent[(i, j)].conj() * value * Complex::i() * vector[axis]).re;
                 if N > 0 && axis < axes {
-                    result.vectors[j][axis] += cotangent[(i, j)]
+                    vector_gradient[axis] += cotangent[(i, j)]
                         * (phase
                             * (angular.derivative[axis]
                                 + Complex::i() * position[axis] * angular.value))
@@ -455,5 +463,54 @@ impl ExpansionResidual {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::expansion;
+    use crate::{
+        Complex, sw,
+        test_support::{assert_same_bits_on_pools, bits, patterned},
+    };
+
+    /// The position gradients add in chunks fixed by the plane-mode count: with more
+    /// plane modes than chunks, every gradient repeats bit for bit on every pool size.
+    #[test]
+    fn pullback_does_not_depend_on_the_thread_count() {
+        let modes = sw::modes(3).unwrap();
+        let basis = sw::Basis {
+            modes: (0..2)
+                .flat_map(|p| modes.iter().map(move |&mode| (p, mode)))
+                .collect(),
+            positions: vec![[0.1, -0.2, 0.3], [-0.3, 0.2, -0.1]],
+        };
+        let count = 100_u32;
+        let vectors: Vec<[Complex; 3]> = (0..count)
+            .map(|j| {
+                let t = f64::from(j);
+                let (theta, phi) = (1.55 + 1.3 * (0.61 * t).sin(), 2.3 * t);
+                [
+                    theta.sin() * phi.cos(),
+                    theta.sin() * phi.sin(),
+                    theta.cos(),
+                ]
+                .map(|x| Complex::new(1.2 * x, 0.0))
+            })
+            .collect();
+        let polarizations: Vec<u8> = (0..count).map(|j| u8::from(j % 2 == 0)).collect();
+        let g = patterned(basis.modes.len(), vectors.len(), 0.5);
+        assert_same_bits_on_pools(|| {
+            let (_, residual) = expansion(
+                basis.clone(),
+                vectors.clone(),
+                polarizations.clone(),
+                true,
+                false,
+            )
+            .unwrap();
+            let g = residual.pullback(&g).unwrap();
+            bits(&[&g.positions, &g.vectors])
+        });
     }
 }

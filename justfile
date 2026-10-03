@@ -121,3 +121,7 @@ bench-power: (bench "power")
 
 # Every recorded gated reference case, sequentially on the same idle CPU set.
 bench-all: (bench "all")
+
+# Compare this checkout's Python sources with those of a git ref, call by call, on one native build.
+bench-compare ref="main" *args: build-ext-release
+    uv run --no-sync python scripts/compare_builds.py --baseline-ref "{{ ref }}" {{ args }}

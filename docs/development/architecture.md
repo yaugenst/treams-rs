@@ -55,14 +55,20 @@ These rules hold everywhere:
   keeps subnormal numbers when the caller flushes them to zero, as JAX does.
   `tests/bindings/test_float_environment.py` checks every body
   ([floating-point environment](../design/floating-point.md)).
-- **Lazy Rayon pool.** The Rayon thread pool starts inside such a call, never
-  before. Its workers keep the floating-point mode of the thread that starts
-  the pool, and a process forked after the pool started hangs in its first
-  parallel call.
+- **One thread pool.** Every Rayon parallel iterator, `rayon::join` and faer
+  call with parallelism runs inside `treams_core::threads::install` (or its
+  `join`, `dense` and `product` helpers), on a pool that treams-rs owns, never
+  on Rayon's global pool. The pool starts lazily, is rebuilt in a forked child,
+  and its workers keep subnormals.
+  `tests/bindings/test_thread_pool.py` rejects other parallel code in `crates/`,
+  and `tests/conftest.py` fails the session if any test started Rayon's global
+  pool ([parallelism](../design/parallelism.md)).
 - **Unsafe code.** The workspace denies `unsafe_code`. Only
   `treams_core::fpenv` (the floating-point control register) and the NumPy
   ufunc code of `treams-py` (`ufunc/ffi.rs` and `ufunc/loops.rs`) allow it,
-  with a `SAFETY` comment on every block.
+  with a `SAFETY` comment on every block. `treams-py`'s `threads.rs` allows it
+  for one item, the unmangled `treams_rs_num_threads` that threadpoolctl looks
+  up.
 - **Analytic gradients.** Every derivative is computed analytically in Rust.
   Finite differences appear only in tests and in `treams_rs.testing`.
 - **The stub.** `python/treams_rs/_native.pyi` declares every name of

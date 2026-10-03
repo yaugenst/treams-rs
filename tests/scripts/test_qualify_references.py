@@ -291,7 +291,10 @@ def test_completed_failed_qualification_emits_json_and_success_exit(
     monkeypatch.setattr(sys, "argv", ["qualify_references.py", "--threads", "1"])
     for name in load("_harness").THREAD_VARIABLES:
         monkeypatch.setenv(name, "1")
-    assert main() == 0
+    # main() sets the process budget; the block restores it for later tests.
+    with references.treams_rs.threads(None):
+        assert main() == 0
+    assert references.treams_rs.thread_info()["source"] != "set_num_threads"
     result = json.loads(capsys.readouterr().out)
     assert result["complete"] and not result["passed"]
     assert result["observations"][2]["status"] == "failed"

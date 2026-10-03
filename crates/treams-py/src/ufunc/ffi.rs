@@ -179,6 +179,7 @@ pub(super) struct Call<I: Inputs, O: Group> {
     pub(super) inputs: I::Operands,
     pub(super) output: Operand<O::Dtype>,
     nin: usize,
+    args: *const *mut c_char,
     dimensions: *const npy_intp,
     steps: *const npy_intp,
 }
@@ -210,6 +211,7 @@ impl<I: Inputs, O: Group> Args<I, O> {
             inputs,
             output,
             nin,
+            args: self.0,
             dimensions,
             steps,
         }
@@ -234,6 +236,32 @@ impl<I: Inputs, O: Group> Call<I, O> {
     pub(super) unsafe fn core_stride(&self, index: usize) -> npy_intp {
         // SAFETY: Guaranteed by the caller.
         unsafe { *self.steps.add(self.nin + 1 + index) }
+    }
+
+    /// Whether an input overlaps the output other than element for element.
+    ///
+    /// `NumPy`'s `reduce`, `accumulate` and `reduceat` pass the accumulator as
+    /// both an input and the output and need element-by-element evaluation, which
+    /// the parallel path does not provide: it evaluates every element before the
+    /// first store. Other overlap of outer ranges is serialized conservatively; an
+    /// in-place call (identical pointer and nonzero stride) stays parallel.
+    fn accumulates(&self) -> bool {
+        let last = i128::try_from(self.len).unwrap_or(i128::MAX) - 1;
+        // SAFETY: NumPy passes a pointer and an outer stride per operand, the
+        // inputs and then the output.
+        let operand = |j: usize| unsafe { (*self.args.add(j), *self.steps.add(j)) };
+        let span = |(pointer, step): (*mut c_char, npy_intp)| {
+            let start = i128::try_from(pointer.addr()).unwrap_or_default();
+            let end = start + i128::try_from(step).unwrap_or_default() * last;
+            (start.min(end), start.max(end))
+        };
+        let output = operand(self.nin);
+        let (low, high) = span(output);
+        self.len > 1
+            && (0..self.nin).map(operand).any(|input| {
+                let (start, end) = span(input);
+                start <= high && low <= end && !(input == output && input.1 != 0)
+            })
     }
 
     /// Evaluate every element and store it in the output.
@@ -261,6 +289,11 @@ impl<I: Inputs, O: Group> Call<I, O> {
             (0..self.len).for_each(|index| store(index, value));
             return Ok(());
         }
+        let parallel = if self.accumulates() {
+            usize::MAX
+        } else {
+            parallel
+        };
         drive(self.len, parallel, kernel, store)
     }
 }
@@ -320,24 +353,26 @@ pub(super) fn drive<O: Send>(
     kernel: impl Fn(usize) -> Result<O> + Sync,
     mut store: impl FnMut(usize, O),
 ) -> Result<()> {
-    let threads = rayon::current_num_threads();
-    if len >= parallel && threads > 1 {
-        let values = (0..len)
-            .into_par_iter()
-            .with_min_len((len / (4 * threads)).max(1))
-            .map(&kernel)
-            .collect::<Result<Vec<_>>>()
-            .map_err(|error| {
-                // Report the first failing element, as the serial loop does.
-                match (0..len)
-                    .into_par_iter()
-                    .map(&kernel)
-                    .find_first(Result::is_err)
-                {
-                    Some(Err(first)) => first,
-                    _ => error,
-                }
-            })?;
+    if len >= parallel && treams_core::threads::current_num_threads() > 1 {
+        let values = treams_core::threads::install(|| {
+            let chunk = (len / rayon::current_num_threads().saturating_mul(4)).max(1);
+            (0..len)
+                .into_par_iter()
+                .with_min_len(chunk)
+                .map(&kernel)
+                .collect::<Result<Vec<_>>>()
+                .map_err(|error| {
+                    // Report the first failing element, as the serial loop does.
+                    match (0..len)
+                        .into_par_iter()
+                        .map(&kernel)
+                        .find_first(Result::is_err)
+                    {
+                        Some(Err(first)) => first,
+                        _ => error,
+                    }
+                })
+        })?;
         for (index, value) in values.into_iter().enumerate() {
             store(index, value);
         }

@@ -17,12 +17,12 @@
 //! zero on a flushing thread, and `float64` values that the Python layer
 //! computes from subnormal inputs flush before the call into Rust.
 //!
-//! [`ieee`] leaves the Rayon pool alone. The global pool starts in the first
-//! Rayon call of the process, and its workers keep the mode of the thread that
-//! starts it for good, so a flushing Rust caller makes its first Rayon use
-//! inside [`ieee`], as the bindings do. Starting the pool eagerly would spawn
-//! threads in calls that never use Rayon, and children forked after them would
-//! hang in their first parallel call.
+//! [`ieee`] guards the calling thread only. The workers of the thread pool
+//! ([`crate::threads`]) clear their flushing bits once, as each one starts
+//! (`keep_subnormals_on_worker`), so they keep subnormals whatever the mode of
+//! the thread that builds the pool; Linux threads would otherwise inherit their
+//! creator's mode for good. treams-rs never uses Rayon's global pool, whose
+//! workers would keep the mode of the thread that started it.
 //!
 //! This is the only module that reads or writes the control register: MXCSR
 //! on x86-64 (flush-to-zero, bit 15, and denormals-are-zero, bit 6) and FPCR on
@@ -285,13 +285,24 @@ pub fn ieee<T>(work: impl FnOnce() -> T) -> T {
     unsafe { with_flush(0, work) }
 }
 
+/// Clear the current thread's flushing bits for the rest of its life.
+///
+/// The thread pool of [`crate::threads`] calls this as each worker starts, before
+/// the worker runs any work.
+pub(crate) fn keep_subnormals_on_worker() {
+    // SAFETY: clearing flushing bits is always valid. The write returns the
+    // worker to the default environment that Rust assumes, before the worker
+    // runs any floating-point work that the write could be reordered against.
+    unsafe { swap_flush(0, ptr::null_mut()) };
+}
+
 /// Run `work` with the flushing bits XLA sets on the current thread, then
 /// restore the caller's flushing bits, also while unwinding a panic.
 ///
 /// For tests only: `work` runs as in a JAX callback, in an environment that
 /// Rust does not support outside [`ieee`] (see the module's soundness section).
-/// Rayon work started here without [`ieee`] starts the global pool with
-/// flushing workers on Linux. On other targets `work` runs unchanged.
+/// Pool workers keep subnormals regardless. On other targets `work` runs
+/// unchanged.
 #[doc(hidden)]
 pub fn flushing<T>(work: impl FnOnce() -> T) -> T {
     // SAFETY: XLA's flushing bits are implemented: FZ is part of every AArch64
@@ -361,9 +372,6 @@ mod tests {
     /// as [`flushing`] does with all of them, then restore the thread's bits.
     fn flushing_caller<T>(flush: Word, work: impl FnOnce() -> T) -> T {
         assert_eq!(flush & !XLA, 0, "{flush:#x} sets only XLA's flushing bits");
-        // Start the global pool here first. Workers started below would inherit
-        // the flushing mode and flush the unguarded work of concurrent tests.
-        rayon::broadcast(|_| ());
         // SAFETY: XLA's flushing bits are implemented, as `flushing` states.
         unsafe { with_flush(flush, work) }
     }
@@ -552,7 +560,7 @@ mod tests {
         }
     }
 
-    /// Scalar solves in the flushed band on the global pool's workers.
+    /// Scalar solves in the flushed band on the pool's workers.
     fn reciprocals_on_workers() -> crate::Result<Vec<Complex>> {
         parallel::try_map(64, true, |i| reciprocal(BAND[i % BAND.len()]))
     }
@@ -562,14 +570,14 @@ mod tests {
     }
 
     /// Whether this process runs `name` as the child of
-    /// `fresh_global_pools_keep_the_mode_of_their_first_caller`, which is its
+    /// `fresh_pools_keep_subnormals_whatever_their_first_caller`, which is its
     /// only purpose.
     fn is_child(name: &str) -> bool {
         std::env::var(CHILD).is_ok_and(|child| child == name)
     }
 
     #[test]
-    fn fresh_global_pools_keep_the_mode_of_their_first_caller() {
+    fn fresh_pools_keep_subnormals_whatever_their_first_caller() {
         for name in ["pool_started_under_a_guard", "pool_started_without_a_guard"] {
             let output = Command::new(std::env::current_exe().unwrap())
                 .args([&format!("fpenv::tests::{name}"), "--exact", "--ignored"])
@@ -587,8 +595,8 @@ mod tests {
     }
 
     /// The first call into Rust that uses Rayon, made inside a JAX callback: the
-    /// global pool starts under the guard of a flushing thread, and its workers
-    /// keep subnormals after the caller flushes again.
+    /// pool starts under the guard of a flushing thread, and its workers keep
+    /// subnormals after the caller flushes again.
     #[test]
     #[ignore = "run in a fresh process by its parent test"]
     fn pool_started_under_a_guard() -> crate::Result<()> {
@@ -598,7 +606,7 @@ mod tests {
         let (started, restored, workers, values) = flushing(|| {
             let started = ieee(reciprocals_on_workers);
             let restored = !keeps_subnormals();
-            let workers = rayon::broadcast(|_| keeps_subnormals());
+            let workers = crate::threads::install(|| rayon::broadcast(|_| keeps_subnormals()));
             (started, restored, workers, reciprocals_on_workers())
         });
         let expected = bits(&reciprocals_on_this_thread()?);
@@ -609,9 +617,9 @@ mod tests {
         Ok(())
     }
 
-    /// Guards alone leave the global pool unstarted, and Rust code that starts
-    /// it on a flushing thread without a guard gets workers that flush on
-    /// Linux, which is why such callers take a guard first.
+    /// Rust code that starts the pool on a flushing thread without a guard still
+    /// gets workers that keep subnormals, and neither path starts Rayon's global
+    /// pool.
     #[test]
     #[ignore = "run in a fresh process by its parent test"]
     fn pool_started_without_a_guard() -> crate::Result<()> {
@@ -619,18 +627,14 @@ mod tests {
             return Ok(());
         }
         ieee(|| ());
-        let (built, workers, flushed) = flushing(|| {
-            ieee(|| ());
-            let built = rayon::ThreadPoolBuilder::new().build_global();
-            let workers = rayon::broadcast(|_| keeps_subnormals());
-            (built, workers, reciprocals_on_workers())
+        let (workers, values) = flushing(|| {
+            let workers = crate::threads::install(|| rayon::broadcast(|_| keeps_subnormals()));
+            (workers, ieee(reciprocals_on_workers))
         });
-        assert!(built.is_ok(), "a guard must not start the global pool");
-        if cfg!(target_os = "linux") {
-            // Linux threads start with the environment of their creator.
-            assert!(workers.iter().all(|&kept| !kept), "{workers:?}");
-            assert!(flushed?.iter().all(|&z| z == Complex::ZERO));
-        }
+        assert!(workers.iter().all(|&kept| kept), "{workers:?}");
+        assert_eq!(bits(&values?), bits(&reciprocals_on_this_thread()?));
+        let built = rayon::ThreadPoolBuilder::new().build_global();
+        assert!(built.is_ok(), "the global pool stays unused");
         Ok(())
     }
 }

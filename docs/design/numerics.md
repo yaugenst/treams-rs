@@ -42,12 +42,15 @@ number of faer workers from the matrix size:
 workers = max(1, min(budget, columns / 16, max(min(rows / 512, 4), rows / 2048)))
 ```
 
-All divisions round down. `budget` is the smaller of the Rayon pool and faer's
-configured parallelism; pools of four or fewer workers use the whole budget. The
-factorization passes `columns = rows`; forward and adjoint solves pass the number
-of right-hand sides. A narrow illumination therefore stays serial, and larger
-matrices get more workers. The worker count changes the scheduling only, not the
-factorization or the pullback.
+All divisions round down. `budget` is the treams-rs thread budget; pools of four
+or fewer workers use the whole budget. The factorization passes
+`columns = rows`; forward and adjoint solves pass the number of right-hand
+sides. Fewer than 32 right-hand sides always run on one worker: faer's parallel
+triangular solves split the inner dimension by the worker count, which would
+change the last bits of the solution. Below 64 rows with at most 64 right-hand
+sides, where faer takes no parallel branch, the call stays on the calling
+thread. The worker count changes the scheduling only, not the factorization or
+the pullback, so LU results are the same at every budget.
 
 The [scheduling probe](../../benchmarks/results/cpu-parallelism.json) measured
 these medians on a Ryzen 9950X with one 16-worker pool pinned to physical cores
@@ -69,7 +72,8 @@ there the worker count grows with the panel work, as a heuristic.
 
 To repeat a measurement, run the benchmark with matrix rows, right-hand sides,
 requested faer workers and repetitions, and compare 1, 2, 4, 8 and 16 workers on
-the same CPU affinity:
+the same CPU affinity. The benchmark calls faer directly on Rayon's global pool,
+which `RAYON_NUM_THREADS` sizes:
 
 ```sh
 RAYON_NUM_THREADS=16 cargo bench -p treams-core --bench lu_scheduling -- 1024 64 2 5
@@ -145,7 +149,8 @@ shape this leaves a unitarity error of about 1e-3 at degrees 2 to 6, against
 ## Parallel thresholds
 
 Small inputs run on the calling thread, because starting Rayon tasks costs more
-than the work. Each kernel sets the size from which it runs in parallel:
+than the work, and so does everything with a one-thread budget. Each kernel sets
+the size from which it runs in parallel:
 
 | Rust item | Parallel from | Used by |
 |---|---|---|
@@ -153,6 +158,16 @@ than the work. Each kernel sets the size from which it runs in parallel:
 | `numerics::parallel::PARALLEL_ENTRIES` | 4096 matrix entries | plane-wave fields |
 | `numerics::parallel::Parallel::AtLeast` | 8 to 1024 elements, per kernel | broadcast special functions, vector waves, translations, lattice-sum batches |
 | `numerics::parallel::Parallel::Chunked` | 64 or 512 elements | cylindrical translation coefficients, in about four chunks per thread |
+| `threads::product` | M·N·K = 65536, faer's own threshold | matrix products; matrix-vector products stay sequential |
+| `linalg::DECOMPOSITION` | never | eigen- and singular-value decompositions ([parallelism](parallelism.md#results-do-not-depend-on-the-thread-count)) |
 
 Each element is computed the same way on either path and collected in index
 order, so a vectorized ufunc call equals its per-element calls bit for bit.
+
+Pullbacks that add gradients over many items, such as the columns of a
+conversion matrix or the samples of a field, split the items into at most 64
+chunks set by the number of items (`numerics::parallel::try_fold_ordered`) and
+add the chunk sums in chunk order; the plane-wave field and phase pullbacks
+split their longer axis into at most 32 blocks set by the shape. The thread
+count decides how many chunks run at once, never the order of the additions,
+so these gradients are the same bit for bit at every thread count.

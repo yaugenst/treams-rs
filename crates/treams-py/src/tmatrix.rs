@@ -59,7 +59,7 @@ pub(crate) fn sphere<'py>(
         let mat = materials(&epsilon, &mu, &kappa)?;
         let (value, residual) = detached(py, move || tmatrix::sphere(lmax, k0, &radii, &mat))?;
         // A C-ordered copy of the moved T-matrix.
-        Ok((matrix(py, &value), SphereContext::new(residual)))
+        Ok((matrix(py, &value)?, SphereContext::new(residual)))
     })
 }
 
@@ -108,7 +108,7 @@ pub(crate) fn cylinder<'py>(
         let (value, residual) =
             detached(py, move || tmatrix::cylinder(&kzs, mmax, k0, &radii, &mat))?;
         // A C-ordered copy of the moved T-matrix.
-        Ok((matrix(py, &value), CylinderContext::new(residual)))
+        Ok((matrix(py, &value)?, CylinderContext::new(residual)))
     })
 }
 

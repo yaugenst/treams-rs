@@ -124,6 +124,36 @@ def cluster_field(tr, radius, *, solve):
     return (abs(scattered.efield([[0.2, 0.4, 2.0]])) ** 2).sum()
 
 
+@scenario(1.0, name="cluster_position_solved", solve=True)
+@scenario(1.0, name="cluster_position_requested", solve=False)
+def cluster_position(tr, distance, *, solve):
+    # The solved response pulls positions back through the native cluster.
+    a = tr.sphere_tmatrix(k0=1.2, lmax=2, radius=0.2, material=3 + 0.1j)
+    b = tr.sphere_tmatrix(k0=1.2, lmax=1, radius=0.15, material=2.0)
+    zero = 0 * distance
+    positions = [[zero, zero, zero], [0.3 + zero, zero, distance]]
+    system = tr.Cluster([a, b], positions=positions)
+    wave = tr.plane_wave([0, 0, 1], "positive_helicity", k0=1.2)
+    scattered = (system.solve() if solve else system).scatter(wave)
+    return (abs(scattered.efield([[0.2, 0.4, 2.5]])) ** 2).sum()
+
+
+@scenario(1.2, name="cluster_frequency_helicity", polarization="helicity")
+@scenario(1.2, name="cluster_frequency_parity", polarization="parity")
+def cluster_frequency(tr, k0, *, polarization):
+    # k0 reaches the solve through the particle blocks and the wavenumbers.
+    particles = [
+        tr.sphere_tmatrix(
+            k0=k0, lmax=1, radius=r, material=3 + 0.1j, polarization=polarization
+        )
+        for r in (0.2, 0.15, 0.1)
+    ]
+    positions = [[0.0, 0.0, 0.0], [0.0, 0.5, 0.6], [0.4, 0.0, 1.3]]
+    solved = tr.Cluster(particles, positions=positions).solve()
+    wave = tr.plane_wave([0, 0, 1], "positive_helicity", k0=k0)
+    return solved.with_polarization("helicity").cross_sections(wave).extinction
+
+
 @scenario(0.2, name="periodic_radius_helicity", polarization="helicity")
 @scenario(0.2, name="periodic_radius_parity", polarization="parity")
 def periodic_power(tr, radius, *, polarization):
@@ -217,6 +247,43 @@ def interleaved_slab_thickness(tr, thickness):
         basis=INTERLEAVED_PORTS, k0=1.2, thickness=thickness, material=2.0 + 0.1j
     )
     return sm.power([0.0, 1.0, 0.0, 0.0, 0.3j, 0.0]).reflection
+
+
+@scenario(0.3, name="interleaved_parity_slab")
+def interleaved_parity_slab(tr, thickness):
+    # Parity changes pair each port with its partner wherever the groups interleave.
+    sm = tr.slab(
+        basis=INTERLEAVED_PORTS,
+        k0=1.2,
+        thickness=thickness,
+        material=2.0 + 0.1j,
+        polarization="parity",
+    )
+    return sm.power([0.0, 1.0, 0.0, 0.0, 0.3j, 0.0]).reflection
+
+
+@scenario(0.3, name="interleaved_parity_propagation")
+def interleaved_parity_propagation(tr, distance):
+    network = tr.stack(
+        [
+            tr.propagation(
+                distance=distance,
+                basis=INTERLEAVED_PORTS,
+                k0=1.2,
+                medium=1.5 + 0.1j,
+                polarization="parity",
+            ),
+            tr.slab(
+                basis=INTERLEAVED_PORTS,
+                k0=1.2,
+                thickness=0.2,
+                material=2.0,
+                negative_medium=1.5 + 0.1j,
+                polarization="parity",
+            ),
+        ]
+    )
+    return network.power([0.2, 1.0, 0.0, 0.3j, 0.0, 0.0]).transmission
 
 
 def port_systems(api, thickness, amplitudes):
@@ -715,6 +782,161 @@ def test_polarization_conversion_requires_complete_pairs(engine):
         assert physical.with_polarization("helicity").polarization == "helicity"
         with pytest.raises(ValueError, match="both polarizations"):
             physical.with_polarization("parity")
+
+
+@pytest.mark.interface
+@pytest.mark.parametrize("seed", range(3))
+def test_polarization_changes_equal_the_dense_operator(engine, seed):
+    # The framework applies the change pair by pair; the dense changepoltype
+    # matrix is the reference, in both directions and for permuted modes.
+    tr = engine.tr
+    rng = np.random.default_rng(seed)
+    spherical = core.SphericalBasis.default(2)
+    basis = spherical[rng.permutation(len(spherical))]
+    matrix = rng.normal(size=(len(basis),) * 2) + 1j * rng.normal(
+        size=(len(basis),) * 2
+    )
+    for source, target in (("helicity", "parity"), ("parity", "helicity")):
+        change = core.operators.changepoltype((target, source), basis=basis)
+        tm = tr.tmatrix(matrix, basis=basis, k0=1.2, polarization=source)
+        assert_allclose(
+            Engine.numpy(tm.with_polarization(target).array),
+            change @ matrix @ change.T,
+            rtol=1e-14,
+            atol=1e-15,
+        )
+        wave = tr.wave(matrix[0], basis=basis, k0=1.2, polarization=source)
+        assert_allclose(
+            Engine.numpy(wave.with_polarization(target).coefficients),
+            change @ matrix[0],
+            rtol=1e-14,
+            atol=1e-15,
+        )
+    network = tr.slab(
+        basis=INTERLEAVED_PORTS, k0=1.2, thickness=0.3, material=2.0 + 0.1j
+    )
+    change = core.operators.changepoltype("parity", basis=INTERLEAVED_PORTS)
+    assert_allclose(
+        Engine.numpy(network.with_polarization("parity").array),
+        change @ Engine.numpy(network.array) @ change.T,
+        rtol=1e-14,
+        atol=1e-15,
+    )
+
+
+@pytest.mark.interface
+def test_coincident_particles_raise_like_the_numpy_cluster(engine):
+    tr = engine.tr
+    particle = tr.sphere_tmatrix(k0=1.2, lmax=1, radius=0.2, material=3.0)
+    system = tr.Cluster([particle, particle], positions=[[0, 0, 0.5], [0, 0, 0.5]])
+    wave = tr.plane_wave([0, 0, 1], "positive_helicity", k0=1.2)
+    numpy_particle = core.sphere_tmatrix(k0=1.2, lmax=1, radius=0.2, material=3.0)
+    numpy_system = core.Cluster(
+        [numpy_particle, numpy_particle], positions=[[0, 0, 0.5], [0, 0, 0.5]]
+    )
+    for solve in (system.solve, numpy_system.solve):
+        with pytest.raises(Exception, match="distinct positions"):
+            Engine.numpy(solve().array)
+    with pytest.raises(Exception, match="distinct positions"):
+        Engine.numpy(system.scatter(wave).coefficients)
+
+
+@pytest.mark.interface
+def test_parity_requires_achiral_media_like_the_numpy_api(engine):
+    tr = engine.tr
+    chiral, achiral = tr.Material(1.0, 1.0, 0.1), tr.Material(1.0)
+    ports = core.PlaneWavePorts.default([[0.1, 0.05]])
+    message = "parity polarization requires an achiral embedding medium"
+    tm = tr.sphere_tmatrix(k0=1.2, lmax=1, radius=0.2, material=3.0, medium=chiral)
+    attempts = [
+        lambda: tm.with_polarization("parity").array,
+        lambda: (
+            tr.sphere_tmatrix(
+                k0=1.2,
+                lmax=1,
+                radius=0.2,
+                material=3.0,
+                medium=chiral,
+                polarization="parity",
+            ).array
+        ),
+        lambda: (
+            tm.scatter(
+                tr.plane_wave([0, 0, 1], "positive_helicity", k0=1.2, medium=chiral)
+            )
+            .with_polarization("parity")
+            .coefficients
+        ),
+        # An interior layer counts, as in the NumPy slab.
+        lambda: (
+            tr.slab(
+                basis=ports,
+                k0=1.2,
+                thickness=0.2,
+                material=chiral,
+                polarization="parity",
+            ).array
+        ),
+        lambda: (
+            tr.interface(
+                basis=ports,
+                k0=1.2,
+                negative_medium=achiral,
+                positive_medium=chiral,
+                polarization="parity",
+            ).array
+        ),
+        lambda: (
+            tr.propagation(
+                distance=0.3, basis=ports, k0=1.2, medium=chiral, polarization="parity"
+            ).array
+        ),
+    ]
+    for attempt in attempts:
+        with pytest.raises(Exception, match=message):
+            Engine.numpy(attempt())
+    with pytest.raises(ValueError, match=message):
+        core.slab(
+            basis=ports,
+            k0=1.2,
+            thickness=0.2,
+            material=core.Material(1.0, 1.0, 0.1),
+            polarization="parity",
+        )
+
+
+@pytest.mark.gradients
+def test_parity_chirality_check_follows_framework_values(engine):
+    # A chirality carrying gradients is checked when the framework evaluates it:
+    # zero passes with its gradient, nonzero raises.
+    ports = core.PlaneWavePorts.default([[0.1, 0.05]])
+
+    def reflection(tr, kappa):
+        sm = tr.slab(
+            basis=ports,
+            k0=1.2,
+            thickness=0.2,
+            material=tr.Material(2.0, 1.0, kappa),
+            polarization="parity",
+        )
+        return sm.power([1.0, 0.0]).reflection
+
+    value, gradient = engine.value_and_grad(reflection, 0.0)
+    assert np.isfinite(value) and np.isfinite(gradient)
+    with pytest.raises(Exception, match="achiral"):
+        engine.value_and_grad(reflection, 0.1)
+
+
+@pytest.mark.interface
+def test_order_ports_need_a_planar_lattice(engine):
+    tr = engine.tr
+    tm = tr.sphere_tmatrix(k0=1.2, lmax=1, radius=0.2, material=3.0)
+    # A 3x3 lattice solves on its xy sublattice; ports need the planar cell.
+    response = tr.solve_periodic(
+        tm, lattice=[[2.0, 0, 0], [0, 2.0, 0], [0, 0, 5.0]], kpar=[0.1, 0.05]
+    )
+    with pytest.raises(ValueError, match=r"\(2, 2\) xy lattice"):
+        response.to_smatrix(core.PlaneWavePorts.default([[0.1, 0.05]]))
 
 
 @pytest.mark.interface

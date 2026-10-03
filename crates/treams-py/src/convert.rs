@@ -15,9 +15,9 @@ use numpy::{
 };
 use pyo3::{exceptions::PyValueError, intern, prelude::*};
 use rayon::prelude::*;
-use treams_core::{Complex, coeffs::Matrix2};
+use treams_core::{Complex, Error, coeffs::Matrix2};
 
-use crate::context::cotangent_error;
+use crate::context::{cotangent_error, error};
 
 /// Python-owned `NumPy` arrays of complex (`C`) or real (`R`) values by dimension.
 pub(crate) type C1<'py> = Bound<'py, PyArray1<Complex64>>;
@@ -324,12 +324,14 @@ pub(crate) fn matrix_from_view(a: ArrayView2<'_, Complex>) -> DMatrix<Complex> {
             }
         }
     };
-    if a.len() >= 65_536 {
-        result
-            .as_mut_slice()
-            .par_chunks_mut(32 * a.nrows())
-            .enumerate()
-            .for_each(fill);
+    if a.len() >= 65_536 && treams_core::threads::current_num_threads() > 1 {
+        treams_core::threads::install(|| {
+            result
+                .as_mut_slice()
+                .par_chunks_mut(32 * a.nrows())
+                .enumerate()
+                .for_each(fill);
+        });
     } else {
         result
             .as_mut_slice()
@@ -342,12 +344,20 @@ pub(crate) fn matrix_from_view(a: ArrayView2<'_, Complex>) -> DMatrix<Complex> {
 
 // Outputs.
 
-/// A C-order copy of a matrix the residual keeps.
+/// A C-order copy of a matrix the residual keeps; `MemoryError` when the system
+/// refuses the copy.
 pub(crate) fn matrix<'py>(
     py: Python<'py>,
     value: &DMatrix<Complex>,
-) -> Bound<'py, PyArray2<Complex>> {
-    Array2::from_shape_fn(value.shape(), |(i, j)| value[(i, j)]).into_pyarray(py)
+) -> PyResult<Bound<'py, PyArray2<Complex>>> {
+    let (rows, columns) = value.shape();
+    let mut data = Vec::new();
+    data.try_reserve_exact(value.len())
+        .map_err(|_| error(Error::out_of_memory(value.len(), size_of::<Complex>())))?;
+    data.extend((0..rows).flat_map(|i| (0..columns).map(move |j| value[(i, j)])));
+    Ok(Array2::from_shape_vec((rows, columns), data)
+        .map_err(layout_error)?
+        .into_pyarray(py))
 }
 
 /// A column-major matrix as an F-order array, without copying.

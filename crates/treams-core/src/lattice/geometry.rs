@@ -6,7 +6,7 @@
 //! and `firstbrillouin3d` of `treams.misc`. `reduce_basis` is a treams-rs extension
 //! that the Ewald sums use.
 #![allow(clippy::indexing_slicing)] // Dimensions are validated before fixed-array indexing.
-use crate::{Error, Result};
+use crate::{Error, Result, numerics};
 use nalgebra::{Matrix3, Vector3};
 use std::{
     f64::consts::TAU,
@@ -186,9 +186,7 @@ pub fn cube(dim: usize, n: i64, edge: bool) -> Result<Vec<i64>> {
         .and_then(|rows| rows.checked_mul(dim))
         .ok_or_else(|| Error::InvalidInput("cube output size overflows".into()))?;
     let mut values = Vec::new();
-    values
-        .try_reserve_exact(count)
-        .map_err(|e| Error::InvalidInput(e.to_string()))?;
+    numerics::reserve(&mut values, count)?;
     visit_cube(dim, n, edge, |point| {
         values.extend_from_slice(&point[..dim]);
         Ok(())

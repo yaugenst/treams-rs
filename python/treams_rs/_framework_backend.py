@@ -22,7 +22,6 @@ import numpy as np
 
 from . import _material, diff
 from ._bases import CylindricalBasis, PlaneWavePorts, SphericalBasis
-from ._operators import changepoltype
 from ._polarization import pol_partners
 
 __all__ = [
@@ -129,11 +128,44 @@ class Backend:
         self.xp, self.operation, self.validate = xp, operation, validate
         self.asarray = xp.asarray if asarray is None else asarray
 
-    def polarization_change(self, basis: Any, source: str, target: str) -> Any:
+    def change_polarization(
+        self, value: Any, basis: Any, source: str, target: str, axes: Sequence[int]
+    ) -> Any:
+        """``value`` with the polarization change of ``basis`` applied along ``axes``.
+
+        The change matrix of ``changepoltype`` pairs each mode with its partner
+        of the other ``pol`` (``_polarization.change_polarization``), so each
+        axis costs one gather and two scaled terms instead of a dense product.
+        """
         if source == target:
-            return self.array(np.eye(len(basis)), complex_=True)
-        pol_partners(basis)  # raises unless every mode has its partner
-        return self.array(changepoltype((target, source), basis=basis), complex_=True)
+            return value
+        if {source, target} != {"helicity", "parity"}:
+            raise ValueError("polarization conversion must switch helicity and parity")
+        partners = pol_partners(basis)  # raises unless every mode has its partner
+        half = np.sqrt(0.5)
+        diagonal = np.where(basis.pol == 0, -half, half)
+        for axis in axes:
+            shape = [1] * value.ndim
+            shape[axis] = -1
+            partner = value[(slice(None),) * axis + (partners,)]
+            value = self.array(diagonal.reshape(shape)) * value + half * partner
+        return value
+
+    def require_achiral(self, value: Any, *media: Material) -> Any:
+        """Pass ``value`` through; raise unless every medium has zero chirality.
+
+        Parity channels exist only in achiral media. Static chiralities are
+        checked at once; framework values are checked in one guard.
+        """
+        kappas = [medium.kappa for medium in media]
+        if all(
+            isinstance(k, (int, float, complex, np.number, np.ndarray)) for k in kappas
+        ):
+            _require_zero_kappa(value, *kappas)
+            return value
+        return self.guard(
+            _require_zero_kappa, value, *(self.array(k, complex_=True) for k in kappas)
+        )
 
     def array(self, value: Any, *, complex_: bool = False) -> Any:
         if self.validate is not None:
@@ -183,14 +215,19 @@ class Backend:
             (self.array(q, complex_=True), (kz if positive else -kz)[:, None]), axis=1
         )
 
-    def port_change(
-        self, modes: Sequence[tuple[int, int]], source: str, target: str
+    def change_port_polarization(
+        self,
+        value: Any,
+        modes: Sequence[tuple[int, int]],
+        source: str,
+        target: str,
+        axes: Sequence[int],
     ) -> Any:
-        """Polarization change of plane ports labelled (group, pol)."""
+        """``change_polarization`` of plane ports labelled (group, pol)."""
         # The group index stands in for kx (ky = 0). The change only pairs
         # modes whose labels agree, so it never reads the wavevector values.
         labels = PlaneWavePorts([(float(group), 0.0, pol) for group, pol in modes])
-        return self.polarization_change(labels, source, target)
+        return self.change_polarization(value, labels, source, target, axes)
 
     def impedance(self, medium: Material) -> Any:
         return self.xp.sqrt(
@@ -341,6 +378,11 @@ class Backend:
             self.medium_key(first.medium, first.k0),
             self.medium_key(second.medium, second.k0),
         )
+
+
+def _require_zero_kappa(_value: Any, *kappas: Any) -> None:
+    if any(np.any(np.asarray(kappa) != 0) for kappa in kappas):
+        raise ValueError("parity polarization requires an achiral embedding medium")
 
 
 def _require_equal_keys(_value: Any, left: Any, right: Any) -> None:

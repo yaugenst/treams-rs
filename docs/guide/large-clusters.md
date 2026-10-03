@@ -157,3 +157,10 @@ The solver recomputes the pair translations in every iteration and keeps no
 Krylov vectors for the adjoint solve. It trades time for memory: a reused dense
 factor answers another incident wave in milliseconds, the matrix-free solver in
 a fresh GMRES run. Measure both for your geometry.
+
+The dense `diff.sphere_cluster` forward peaks at about four complex `NM × NM`
+buffers, `64 (NM)²` bytes: the coupling, the LU factors, the solution and its
+NumPy copy. These four allocations raise `MemoryError` when refused. Other
+allocations, including gradient buffers and matrix products, can still abort
+when refused. On Linux, memory overcommit can grant a reservation before the
+out-of-memory killer later ends the process as its pages are written.

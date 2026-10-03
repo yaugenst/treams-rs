@@ -35,6 +35,7 @@ can be used once; a second pullback raises ValueError.
 """
 
 from collections.abc import Callable, Sequence
+from typing import Any
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -67,6 +68,12 @@ class SvdvalsContext:
     def pullback(self, cotangent: ArrayLike) -> ComplexArray: ...
 
 def svdvals(operator: ComplexArray) -> tuple[RealArray, SvdvalsContext]: ...
+
+# threads.rs: treams_core::threads (the thread budget and the pool).
+
+def thread_info() -> dict[str, Any]: ...
+def set_num_threads(threads: int | None) -> None: ...
+def after_fork() -> None: ...
 
 # coordinates.rs: treams_core::special::coordinates.
 
@@ -1350,6 +1357,9 @@ def dsumcw2d_scalar(
 # testing.rs: hooks for tests and scripts; treams_rs itself calls none of them.
 
 def build_profile() -> str: ...
+
+# Whether Rayon's global pool was never started; starts it, so call it once.
+def rayon_global_pool_unused() -> bool: ...
 
 # Runs `work()` while this thread flushes subnormals to zero.
 def _run_flushing_for_tests[T](work: Callable[[], T]) -> T: ...

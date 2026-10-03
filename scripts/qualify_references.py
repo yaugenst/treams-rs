@@ -736,6 +736,8 @@ def main():
             "reference precision must be >=60 digits; threads and limit positive"
         )
     os.environ.update(pinned_threads(args.threads))
+    # treams_rs is imported above, so its environment has been read.
+    treams_rs.set_num_threads(args.threads)
     selected = [
         {"id": f"reference-{index:05d}", **case}
         for index, case in enumerate(case_grid())

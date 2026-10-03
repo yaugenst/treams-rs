@@ -10,7 +10,7 @@ use crate::{
     Complex, Error, Result,
     basis::{ExpansionGradient, ModeLabel, add_pair_gradient, validate_wavenumbers},
     cw::{self, coefficient},
-    numerics::{Jet, finite},
+    numerics::{Jet, finite, parallel::try_fold_ordered},
     special::Radial,
 };
 use nalgebra::DMatrix;
@@ -87,8 +87,9 @@ pub fn periodic_to_cw(
 /// What [`periodic_to_cw_matrix`] saves for its pullback: the bases, the wavenumbers,
 /// the period and the polarization convention.
 ///
-/// The pullback adds the per-column gradients with Rayon's `try_fold` and `try_reduce`,
-/// so their last bits can change with the thread count and from run to run.
+/// The pullback adds the per-column gradients in chunks of consecutive columns fixed by
+/// the column count, and the chunk sums in chunk order
+/// (`numerics::parallel::try_fold_ordered`), so the thread count does not change them.
 #[derive(Debug)]
 pub struct PeriodicToCwResidual {
     destination: cw::Basis,
@@ -132,21 +133,30 @@ pub fn periodic_to_cw_matrix(
     }
     validate_wavenumbers(ks, helicity, false)?;
     let mut value = DMatrix::zeros(destination.modes.len(), source.modes.len());
-    value
-        .as_mut_slice()
-        .par_chunks_mut(destination.modes.len())
-        .enumerate()
-        .try_for_each(|(j, column)| -> Result<()> {
-            let (q, from) = source.modes[j];
-            for (out, &(p, to)) in column.iter_mut().zip(&destination.modes) {
-                let r =
-                    std::array::from_fn(|a| destination.positions[p][a] - source.positions[q][a]);
-                *out =
-                    periodic_entry::<0>(to, from, ks[usize::from(from.pol)], r, period, helicity)?
-                        .value;
-            }
-            Ok(())
-        })?;
+    crate::threads::install(|| {
+        value
+            .as_mut_slice()
+            .par_chunks_mut(destination.modes.len())
+            .enumerate()
+            .try_for_each(|(j, column)| -> Result<()> {
+                let (q, from) = source.modes[j];
+                for (out, &(p, to)) in column.iter_mut().zip(&destination.modes) {
+                    let r = std::array::from_fn(|a| {
+                        destination.positions[p][a] - source.positions[q][a]
+                    });
+                    *out = periodic_entry::<0>(
+                        to,
+                        from,
+                        ks[usize::from(from.pol)],
+                        r,
+                        period,
+                        helicity,
+                    )?
+                    .value;
+                }
+                Ok(())
+            })
+    })?;
     Ok((
         value,
         PeriodicToCwResidual {
@@ -173,19 +183,18 @@ impl PeriodicToCwResidual {
                 "invalid periodic conversion cotangent".into(),
             ));
         }
-        let zero = || PeriodicToCwGradient {
-            expansion: ExpansionGradient::zeros(
-                self.destination.positions.len(),
-                self.source.positions.len(),
-            ),
-            kz: vec![0.0; self.destination.modes.len()],
-            period: 0.0,
-        };
-        self.source
-            .modes
-            .par_iter()
-            .enumerate()
-            .try_fold(zero, |mut result, (j, &(q, from))| -> Result<_> {
+        try_fold_ordered(
+            self.source.modes.iter().collect(),
+            true,
+            || PeriodicToCwGradient {
+                expansion: ExpansionGradient::zeros(
+                    self.destination.positions.len(),
+                    self.source.positions.len(),
+                ),
+                kz: vec![0.0; self.destination.modes.len()],
+                period: 0.0,
+            },
+            |mut result, j, &(q, from)| -> Result<_> {
                 for (i, &(p, to)) in self.destination.modes.iter().enumerate() {
                     let cot = cotangent[(i, j)];
                     if cot == Complex::default() {
@@ -208,14 +217,62 @@ impl PeriodicToCwResidual {
                     result.period -= (cot.conj() * entry.value).re / self.period;
                 }
                 Ok(result)
-            })
-            .try_reduce(zero, |mut a, b| {
-                a.expansion.accumulate(&b.expansion);
-                for (a, b) in a.kz.iter_mut().zip(&b.kz) {
+            },
+            |mut total, partial| {
+                total.expansion.accumulate(&partial.expansion);
+                for (a, b) in total.kz.iter_mut().zip(&partial.kz) {
                     *a += b;
                 }
-                a.period += b.period;
-                Ok(a)
-            })
+                total.period += partial.period;
+                total
+            },
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::periodic_to_cw_matrix;
+    use crate::{
+        Complex, cw, sw,
+        test_support::{assert_same_bits_on_pools, bits, patterned},
+    };
+
+    /// The per-column gradients add in chunks fixed by the column count: with more
+    /// columns than chunks, every gradient repeats bit for bit on every pool size.
+    #[test]
+    fn pullback_does_not_depend_on_the_thread_count() {
+        let modes = sw::modes(3).unwrap();
+        let source = sw::Basis {
+            modes: (0..3)
+                .flat_map(|p| modes.iter().map(move |&mode| (p, mode)))
+                .collect(),
+            positions: vec![[0.1, -0.2, 0.3], [-0.3, 0.2, -0.1], [0.2, 0.25, 0.0]],
+        };
+        let destination = cw::Basis {
+            modes: (0..2)
+                .flat_map(|p| {
+                    [0.2, -0.35].into_iter().flat_map(move |kz| {
+                        (-3..=3).flat_map(move |m| [1, 0].map(|pol| (p, cw::Mode { kz, m, pol })))
+                    })
+                })
+                .collect(),
+            positions: vec![[1.1, 0.4, 0.0], [-0.9, -0.7, 0.3]],
+        };
+        let ks = [Complex::new(1.2, 0.05); 2];
+        let g = patterned(destination.modes.len(), source.modes.len(), 0.2);
+        assert_same_bits_on_pools(|| {
+            let (_, residual) =
+                periodic_to_cw_matrix(destination.clone(), source.clone(), ks, 1.3, true).unwrap();
+            let g = residual.pullback(&g).unwrap();
+            let expansion = &g.expansion;
+            bits(&[
+                &expansion.destination,
+                &expansion.source,
+                &expansion.ks,
+                &g.kz,
+                &g.period,
+            ])
+        });
     }
 }

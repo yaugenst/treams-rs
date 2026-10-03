@@ -45,7 +45,7 @@ pub(crate) fn solve<'py>(
         let b = from_array(rhs, "rhs")?;
         let residual = detached(py, move || linalg::solve_owned(a, b))?;
         // A C-ordered copy: the residual keeps the solution for the pullback.
-        Ok((matrix(py, residual.value()), SolveContext::new(residual)))
+        Ok((matrix(py, residual.value())?, SolveContext::new(residual)))
     })
 }
 
@@ -85,7 +85,7 @@ pub(crate) fn eig<'py>(
         // Copies, the eigenvectors in C order: the residual keeps both for the pullback.
         Ok((
             residual.values().to_vec().into_pyarray(py),
-            matrix(py, residual.vectors()),
+            matrix(py, residual.vectors())?,
             EigContext::new(residual),
         ))
     })

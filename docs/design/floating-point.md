@@ -41,13 +41,14 @@ write may change every captured input and the second may read the result. So all
 arithmetic on the inputs starts after the first write and ends before the second.
 The rustdoc of `fpenv` explains why this holds and what it does not cover.
 
-## The Rayon pool starts lazily
+## The worker threads
 
-The global Rayon pool starts in the first Rayon call of the process, and its
-workers keep the mode of the thread that starts them for good. The bindings make
-that first call inside the guard, so the workers keep subnormals. Starting the
-pool eagerly would spawn threads in calls that never use Rayon, and a child
-process forked after that would hang in its first parallel call.
+The thread pool of `treams_core::threads` starts in the first parallel region of
+the process. Linux threads inherit the mode of the thread that creates them, so
+each worker clears its flushing bits once, as it starts, before it runs any
+work: the workers keep subnormals whatever the mode of the thread that starts
+the pool, also when a JAX callback starts it. treams-rs never uses Rayon's
+global pool ([parallelism](parallelism.md)).
 
 ## Limits
 

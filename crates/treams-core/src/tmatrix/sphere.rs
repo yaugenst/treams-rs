@@ -9,7 +9,10 @@ use crate::coeffs::{
     LayerGradient, Material, Matrix2, MieGradient, MieResidual, mie, to_mode_order,
 };
 use crate::sw;
-use crate::{Complex, Error, Result, numerics::finite};
+use crate::{
+    Complex, Error, Result,
+    numerics::{self, finite},
+};
 
 /// What [`sphere`] saves for its pullback: the Mie residual of each degree.
 #[derive(Clone, Debug)]
@@ -49,7 +52,7 @@ pub fn sphere(
     let degrees = (1..=lmax)
         .map(|l| mie(l, &sizes, materials))
         .collect::<Result<Vec<_>>>()?;
-    let mut value = DMatrix::zeros(dimension, dimension);
+    let mut value = numerics::zeros(dimension, dimension)?;
     for (block, degree) in block_degrees(degrees.len()).enumerate() {
         value
             .fixed_view_mut::<2, 2>(2 * block, 2 * block)

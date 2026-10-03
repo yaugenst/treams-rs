@@ -8,7 +8,7 @@ use crate::{
     Complex, Error, Result,
     basis::{ExpansionGradient, ModeLabel, add_pair_gradient, validate_wavenumbers},
     cw,
-    numerics::{Jet, finite},
+    numerics::{Jet, finite, parallel::try_fold_ordered},
     special::{Radial, polarized_angular},
     sw::{Basis, CartesianTranslation, Mode},
 };
@@ -145,8 +145,9 @@ pub fn to_sw(to: Mode, from: cw::Mode, k: Complex, helicity: bool) -> Result<Com
 /// What [`to_sw_matrix`] saves for its pullback: the bases, the wavenumbers and the
 /// polarization convention. The pullback recomputes the derivatives of every entry.
 ///
-/// The pullback adds the per-column gradients with Rayon's `try_fold` and `try_reduce`,
-/// so their last bits can change with the thread count and from run to run.
+/// The pullback adds the per-column gradients in chunks of consecutive columns fixed by
+/// the column count, and the chunk sums in chunk order
+/// (`numerics::parallel::try_fold_ordered`), so the thread count does not change them.
 #[derive(Debug)]
 pub struct ToSwResidual {
     destination: Basis,
@@ -172,25 +173,27 @@ pub fn to_sw_matrix(
     source.validate()?;
     validate_wavenumbers(ks, helicity, false)?;
     let mut value = DMatrix::zeros(destination.modes.len(), source.modes.len());
-    value
-        .as_mut_slice()
-        .par_chunks_mut(destination.modes.len())
-        .enumerate()
-        .try_for_each(|(j, column)| -> Result<()> {
-            let (q, from) = source.modes[j];
-            let k = ks[usize::from(from.pol)];
-            let mut entries = Column::<0>::new(
-                &destination.positions,
-                source.positions[q],
-                from,
-                k,
-                helicity,
-            );
-            for (value, &(p, to)) in column.iter_mut().zip(&destination.modes) {
-                *value = entries.entry(p, to)?.value;
-            }
-            Ok(())
-        })?;
+    crate::threads::install(|| {
+        value
+            .as_mut_slice()
+            .par_chunks_mut(destination.modes.len())
+            .enumerate()
+            .try_for_each(|(j, column)| -> Result<()> {
+                let (q, from) = source.modes[j];
+                let k = ks[usize::from(from.pol)];
+                let mut entries = Column::<0>::new(
+                    &destination.positions,
+                    source.positions[q],
+                    from,
+                    k,
+                    helicity,
+                );
+                for (value, &(p, to)) in column.iter_mut().zip(&destination.modes) {
+                    *value = entries.entry(p, to)?.value;
+                }
+                Ok(())
+            })
+    })?;
     Ok((
         value,
         ToSwResidual {
@@ -214,17 +217,16 @@ impl ToSwResidual {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&g| !finite(g)) {
             return Err(Error::InvalidInput("invalid conversion cotangent".into()));
         }
-        let zero = || {
-            ExpansionGradient::zeros(
-                self.destination.positions.len(),
-                self.source.positions.len(),
-            )
-        };
-        self.source
-            .modes
-            .par_iter()
-            .enumerate()
-            .try_fold(zero, |mut result, (j, &(q, from))| -> Result<_> {
+        try_fold_ordered(
+            self.source.modes.iter().collect(),
+            true,
+            || {
+                ExpansionGradient::zeros(
+                    self.destination.positions.len(),
+                    self.source.positions.len(),
+                )
+            },
+            |mut result, j, &(q, from)| -> Result<_> {
                 let pol = usize::from(from.pol);
                 let (destination, source) = (&self.destination.positions, self.source.positions[q]);
                 let mut entries =
@@ -238,10 +240,51 @@ impl ToSwResidual {
                     add_pair_gradient(&mut result, [p, q, pol], cot, wave.position, wave.k);
                 }
                 Ok(result)
-            })
-            .try_reduce(zero, |mut a, b| {
-                a.accumulate(&b);
-                Ok(a)
-            })
+            },
+            |mut total, partial| {
+                total.accumulate(&partial);
+                total
+            },
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::to_sw_matrix;
+    use crate::{
+        Complex, cw, sw,
+        test_support::{assert_same_bits_on_pools, bits, patterned},
+    };
+
+    /// The per-column gradients add in chunks fixed by the column count: with more
+    /// columns than chunks, they repeat bit for bit on every pool size.
+    #[test]
+    fn pullback_does_not_depend_on_the_thread_count() {
+        let modes = sw::modes(2).unwrap();
+        let destination = sw::Basis {
+            modes: (0..2)
+                .flat_map(|p| modes.iter().map(move |&mode| (p, mode)))
+                .collect(),
+            positions: vec![[0.1, -0.2, 0.3], [-0.3, 0.2, -0.1]],
+        };
+        let source = cw::Basis {
+            modes: (0..2)
+                .flat_map(|p| {
+                    [0.2, -0.35].into_iter().flat_map(move |kz| {
+                        (-4..=4).flat_map(move |m| [1, 0].map(|pol| (p, cw::Mode { kz, m, pol })))
+                    })
+                })
+                .collect(),
+            positions: vec![[0.3, 0.1, 0.0], [-0.2, 0.4, 0.2]],
+        };
+        let ks = [Complex::new(1.1, 0.02), Complex::new(1.3, 0.01)];
+        let g = patterned(destination.modes.len(), source.modes.len(), 0.7);
+        assert_same_bits_on_pools(|| {
+            let (_, residual) =
+                to_sw_matrix(destination.clone(), source.clone(), ks, true).unwrap();
+            let g = residual.pullback(&g).unwrap();
+            bits(&[&g.destination, &g.source, &g.ks])
+        });
     }
 }

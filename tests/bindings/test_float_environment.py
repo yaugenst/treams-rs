@@ -1,8 +1,8 @@
 """Native work keeps IEEE subnormals whatever the caller's floating-point mode.
 
 Every native entry point runs its whole body in ``treams_core::fpenv::ieee``,
-which restores the caller's mode on return; the Rayon pool starts inside that
-guard, so its workers keep subnormals too. scripts/float_environment.py
+which restores the caller's mode on return; the workers of the treams-rs pool
+clear the flushing modes as they start, so they keep subnormals too. scripts/float_environment.py
 compares native results on a thread that flushes as XLA does with those of IEEE
 callers; tests/autodiff/test_jax.py checks JAX callbacks.
 """
@@ -431,10 +431,9 @@ np.savez(sys.argv[1], slab=slab.array, bessel=bessel, flushing=flushing)
 
 @pytest.mark.interface
 def test_first_native_call_on_a_flushing_thread_keeps_subnormals(tmp_path):
-    # The global Rayon pool of a fresh process starts inside the first native
-    # call that uses it, here on a thread that flushes; without the guard its
-    # workers inherit the mode, and the flushed LU pivots of every channel break
-    # unitarity.
+    # The treams-rs pool of a fresh process starts inside the first native call
+    # that uses it, here on a thread that flushes. Workers that inherited the
+    # mode would flush the LU pivots of every channel and break unitarity.
     pytest.importorskip("torch")
     path = tmp_path / "results.npz"
     subprocess.run(
@@ -447,7 +446,7 @@ def test_first_native_call_on_a_flushing_thread_keeps_subnormals(tmp_path):
     assert results["bessel"][0] != 0
 
 
-FORK_AFTER_RAYON_FREE_CALLS = """
+FORK_AFTER_NATIVE_CALLS = """
 import multiprocessing
 import sys
 
@@ -458,11 +457,12 @@ from treams_rs import special
 core.Lattice.square(1.0)
 special.wigner3j(1, 1, 2, 0, 0, 0)
 special.incgamma(0.5, 1.0)
+parent = special.spherical_jn(3, np.linspace(0.1, 10, 200_000))
 
 
 def child():
     values = special.spherical_jn(3, np.linspace(0.1, 10, 200_000))
-    sys.exit(0 if np.isfinite(values).all() else 1)
+    sys.exit(0 if np.array_equal(values, parent) else 1)
 
 
 process = multiprocessing.get_context("fork").Process(target=child)
@@ -476,15 +476,21 @@ sys.exit(process.exitcode)
 
 
 @pytest.mark.interface
-def test_rayon_free_native_calls_leave_forked_children_a_working_pool():
-    # Rayon's workers do not survive a fork, so a child hangs in its first
-    # parallel call once the parent started the pool. The guard therefore must
-    # not start it: native calls that do not use Rayon leave none behind.
+def test_forked_children_compute_in_parallel_after_native_calls():
+    # Pool threads do not survive a fork. A child forked after serial and
+    # parallel native calls builds a pool of its own instead of waiting on the
+    # parent's workers, and its workers keep subnormals.
     if "fork" not in multiprocessing.get_all_start_methods():
         pytest.skip("this platform cannot fork")
-    environment = dict(os.environ, RAYON_NUM_THREADS="2")
+    environment = dict(os.environ, TREAMS_RS_NUM_THREADS="2")
     subprocess.run(
-        [sys.executable, "-c", FORK_AFTER_RAYON_FREE_CALLS],
+        [
+            sys.executable,
+            "-W",
+            "ignore::DeprecationWarning",
+            "-c",
+            FORK_AFTER_NATIVE_CALLS,
+        ],
         check=True,
         timeout=600,
         env=environment,

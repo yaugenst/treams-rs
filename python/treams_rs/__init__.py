@@ -94,6 +94,7 @@ from . import (
     lattice,
     misc,
     operators,
+    parallel,
     pw,
     special,
     sw,
@@ -139,6 +140,7 @@ from ._waves import (
     plane_wave_angle,
     spherical_wave,
 )
+from .parallel import get_num_threads, set_num_threads, thread_info, threads
 
 __all__ = [
     "BandModes",
@@ -170,6 +172,7 @@ __all__ = [
     "cylindrical_wave",
     "diff",
     "ebcm",
+    "get_num_threads",
     "interface",
     "iterative",
     "lattice",
@@ -178,11 +181,13 @@ __all__ = [
     "multilayer_slab",
     "multilayer_sphere_tmatrix",
     "operators",
+    "parallel",
     "plane_wave",
     "plane_wave_angle",
     "poynting_avg_z",
     "propagation",
     "pw",
+    "set_num_threads",
     "slab",
     "solve_periodic",
     "special",
@@ -192,6 +197,8 @@ __all__ = [
     "support_catalog",
     "sw",
     "testing",
+    "thread_info",
+    "threads",
 ]
 
 
