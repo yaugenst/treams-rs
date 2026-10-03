@@ -354,6 +354,20 @@ def pytest_runtest_call(item: pytest.Item) -> Generator[None]:
     pytest.skip(reason)
 
 
+@pytest.hookimpl(optionalhook=True)
+def pytest_testnodedown(node, error):
+    """Under pytest-xdist, merge what each worker reported into the controller."""
+    output = getattr(node, "workeroutput", {})
+    if output.get("rayon_global_pool_started"):
+        _GLOBAL_POOL_UNUSED[:] = [False]
+    policy = _policy(node.config)
+    if policy is not None and "unavailable" in output:
+        ignored, skipped = output["unavailable"]
+        policy.ignored.update(ignored)
+        for name, tests in skipped.items():
+            policy.skipped[name].extend(tests)
+
+
 def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter) -> None:
     policy = _policy(terminalreporter.config)
     if policy is None or not (policy.ignored or policy.skipped):
@@ -385,11 +399,15 @@ def pytest_sessionfinish(session, exitstatus):
     per interpreter, and only when the extension was loaded.
     """
     native = sys.modules.get("treams_rs._native")
-    if native is None or not hasattr(native, "rayon_global_pool_unused"):
-        return
-    if not _GLOBAL_POOL_UNUSED:
+    if not _GLOBAL_POOL_UNUSED and hasattr(native, "rayon_global_pool_unused"):
         _GLOBAL_POOL_UNUSED.append(native.rayon_global_pool_unused())
-    if not _GLOBAL_POOL_UNUSED[0]:
+    # A pytest-xdist worker hands its results to the controller, which reports.
+    if (output := getattr(session.config, "workeroutput", None)) is not None:
+        output["rayon_global_pool_started"] = _GLOBAL_POOL_UNUSED == [False]
+        if (policy := _policy(session.config)) is not None:
+            output["unavailable"] = (policy.ignored, dict(policy.skipped))
+        return
+    if _GLOBAL_POOL_UNUSED == [False]:
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
         reporter = session.config.pluginmanager.get_plugin("terminalreporter")
         if reporter is not None:
