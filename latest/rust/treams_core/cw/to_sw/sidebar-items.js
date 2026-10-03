@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["coefficient","to_sw","to_sw_matrix"],"struct":["Column","ToSwResidual"]};

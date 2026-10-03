@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["cube","diffraction_orders","first_brillouin","first_brillouin_1d","reciprocal","reduce_basis","visit_cube","volume"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["MultipoleBasis"],"fn":["add_pair_gradient","validate_wavenumbers"],"struct":["Basis","ExpansionGradient","LatticeExpansionGradient"],"trait":["ModeLabel"]};

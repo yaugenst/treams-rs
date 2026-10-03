@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["ewald","reduce_to_cell","vanishes","verify_settled"],"mod":["probes"],"struct":["AutomaticSplit","CellReduction","RealSummands","ReciprocalSummands","SmallSplitMonitor","Symmetry"]};

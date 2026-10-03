@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["check_pol","helicity_sign","pol_index","polarized_wave"]};

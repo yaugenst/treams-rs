@@ -1,0 +1,197 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Lattice sums of outgoing spherical and cylindrical waves, and lattice geometry."><title>treams_core::lattice - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="treams_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module lattice</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../treams_core/index.html">treams_<wbr>core</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module lattice</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#definition" title="Definition">Definition</a></li><li><a href="#frame" title="Frame">Frame</a></li><li><a href="#branch-and-bloch-sign" title="Branch and Bloch sign">Branch and Bloch sign</a></li><li><a href="#ewald-split" title="Ewald split">Ewald split</a></li><li><a href="#crosswalk" title="Crosswalk">Crosswalk</a></li><li><a href="#differences-from-treamslattice" title="Differences from `treams.lattice`">Differences from <code>treams.lattice</code></a></li><li><a href="#glossary" title="Glossary">Glossary</a></li><li><a href="#failure-messages" title="Failure messages">Failure messages</a></li><li><a href="#tuning-constants" title="Tuning constants">Tuning constants</a></li><li><a href="#references" title="References">References</a></li></ul><h3><a href="#modules">Module Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate treams_<wbr>core</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">treams_core</a></div><h1>Module <span>lattice</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/treams_core/lattice/mod.rs.html#1-534">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Lattice sums of outgoing spherical and cylindrical waves, and lattice geometry.</p>
+<p>Upstream: <code>treams.lattice</code> (<code>lattice/_esum.pyx</code>, <code>_dsum.pyx</code> and <code>_misc.pyx</code> of
+tfp-photonics/treams, MIT), whose formulae and conventions the sums follow, and the
+Brillouin-zone helpers of <code>treams.misc</code>.</p>
+<h2 id="definition"><a class="doc-anchor" href="#definition">§</a>Definition</h2>
+<p>A lattice of dimension <code>d</code> holds the points <code>R = n_1 a_1 + ... + n_d a_d</code> with integer
+<code>n_i</code>. For a wavenumber <code>k</code>, a real Bloch vector <code>kpar</code> (the wavevector components
+along the lattice) and a shift <code>r</code>, <a href="fn.sum.html" title="fn treams_core::lattice::sum"><code>sum</code></a> returns</p>
+<div class="example-wrap"><pre class="language-text"><code>D_lm(k, kpar, r) = Σ&#39;_R h_l^(1)(k |r + R|) Y_lm(-r - R) exp(i kpar · R)        spherical
+D_m(k, kpar, r)  = Σ&#39;_R H_m^(1)(k |r + R|) exp(i m φ(-r - R)) exp(i kpar · R)   cylindrical</code></pre></div>
+<p>as in <code>treams.lattice</code>. <code>Y_lm(-r - R)</code> is the spherical harmonic in the direction of
+<code>-r - R</code> and <code>φ</code> its azimuth. The prime drops the point with <code>r + R = 0</code>, if there is
+one. <a href="enum.Family.html" title="enum treams_core::lattice::Family"><code>Family</code></a> selects the sum and its labels: degree <code>l</code> and order <code>m</code> for spherical
+sums (<code>d &lt;= 3</code>), order <code>m</code> for cylindrical sums (<code>d &lt;= 2</code>).</p>
+<h2 id="frame"><a class="doc-anchor" href="#frame">§</a>Frame</h2>
+<p>The lattice lies along fixed Cartesian axes:</p>
+<div><table><thead><tr><th>Sum</th><th>Lattice axes</th></tr></thead><tbody>
+<tr><td>1D spherical</td><td>z</td></tr>
+<tr><td>1D cylindrical</td><td>x</td></tr>
+<tr><td>2D spherical and cylindrical</td><td>x and y (the plane <code>z = 0</code>)</td></tr>
+<tr><td>3D spherical</td><td>x, y and z</td></tr>
+</tbody></table>
+</div>
+<p><a href="struct.BlochLattice.html" title="struct treams_core::lattice::BlochLattice"><code>BlochLattice</code></a> takes the lattice vectors and <code>kpar</code> as components along these axes.
+The shift is a Cartesian 3-vector; cylindrical shifts lie in the xy plane.</p>
+<h2 id="branch-and-bloch-sign"><a class="doc-anchor" href="#branch-and-bloch-sign">§</a>Branch and Bloch sign</h2>
+<p>The waves are outgoing: <code>h_l^(1)</code> and <code>H_m^(1)</code>, which decay for <code>Im k &gt; 0</code>. The Bloch
+factor is <code>exp(+i kpar · R)</code>, so the sum at <code>r + R</code> is <code>exp(-i kpar · R)</code> times the
+sum at <code>r</code>. The sum depends on the lattice and on <code>kpar</code> modulo the reciprocal
+lattice, but not on the primitive basis or on the Bloch cell. Exact diffraction
+thresholds (<code>|kpar + G| = k</code> for a reciprocal lattice vector <code>G</code>) are singular.</p>
+<h2 id="ewald-split"><a class="doc-anchor" href="#ewald-split">§</a>Ewald split</h2>
+<p>The Ewald split parameter <code>eta</code> divides each sum into a real-space part, whose terms
+fall like <code>exp(-Re((k eta)^2) |R|^2 / 2)</code>, and a reciprocal-space part, whose terms
+fall like <code>exp(-Re(1 / (k eta)^2) |kpar + G|^2 / 2)</code>. The exact sum does not depend
+on <code>eta</code>. <code>eta = 0</code> selects the automatic split</p>
+<div class="example-wrap"><pre class="language-text"><code>eta = sqrt(2 pi) / (k L) max(|k L| / 8, 1),    L = V^(1/d)</code></pre></div>
+<p>with the cell measure <code>V</code> (length, area or volume). Derivatives hold the split fixed.
+The automatic split has the modulus <code>sqrt(2 pi) / 8 = 0.31</code> from <code>|k L| = 8</code> on, and
+more below. A split is small when it lies below every automatic one,
+<code>Re(1 / (2 eta^2)) &gt; 16 / pi</code>: there the two parts grow like <code>exp(Re(1 / (2 eta^2)))</code>
+and cancel.</p>
+<p>Ewald sums require <code>Im k &gt;= 0</code>, and spherical sums additionally require <code>Re k &gt;= 0</code>.
+Within this domain every sum has the same value at every split where its Ewald parts
+converge. Inputs outside it give <a href="../enum.Error.html#variant.InvalidInput" title="variant treams_core::Error::InvalidInput"><code>InvalidInput</code></a>: the gain-side continuation is not
+supported, and negative-real spherical wavenumbers select the wrong Kambe branch.
+Finite direct shells accept every finite nonzero complex wavenumber.</p>
+<h2 id="crosswalk"><a class="doc-anchor" href="#crosswalk">§</a>Crosswalk</h2>
+<p>Each <code>treams.lattice</code> function is one call of <a href="fn.sum_part.html" title="fn treams_core::lattice::sum_part"><code>sum_part</code></a> (or <a href="fn.sum.html" title="fn treams_core::lattice::sum"><code>sum</code></a> for <code>Full</code>).
+<code>r</code> is the shift, <code>i</code> the shell of a direct sum, and <code>dim</code> the lattice dimension of
+<a href="struct.BlochLattice.html" title="struct treams_core::lattice::BlochLattice"><code>BlochLattice</code></a>.</p>
+<div><table><thead><tr><th>treams</th><th>Family</th><th><code>dim</code></th><th>Shift</th></tr></thead><tbody>
+<tr><td><code>lsumsw1d(l, k, kpar, a, r, eta)</code></td><td><code>Spherical { l, m: 0 }</code></td><td>1</td><td><code>[0, 0, r]</code></td></tr>
+<tr><td><code>lsumsw1d_shift(l, m, ...)</code></td><td><code>Spherical { l, m }</code></td><td>1</td><td><code>r</code></td></tr>
+<tr><td><code>lsumsw2d(l, m, ...)</code></td><td><code>Spherical { l, m }</code></td><td>2</td><td><code>[r_x, r_y, 0]</code></td></tr>
+<tr><td><code>lsumsw2d_shift(l, m, ...)</code></td><td><code>Spherical { l, m }</code></td><td>2</td><td><code>r</code></td></tr>
+<tr><td><code>lsumsw3d(l, m, ...)</code></td><td><code>Spherical { l, m }</code></td><td>3</td><td><code>r</code></td></tr>
+<tr><td><code>lsumcw1d(m, ...)</code></td><td><code>Cylindrical { m }</code></td><td>1</td><td><code>[r, 0, 0]</code></td></tr>
+<tr><td><code>lsumcw1d_shift(m, ...)</code></td><td><code>Cylindrical { m }</code></td><td>1</td><td><code>[r_x, r_y, 0]</code></td></tr>
+<tr><td><code>lsumcw2d(m, ...)</code></td><td><code>Cylindrical { m }</code></td><td>2</td><td><code>[r_x, r_y, 0]</code></td></tr>
+</tbody></table>
+</div>
+<p>The prefix selects the <a href="enum.SumPart.html" title="enum treams_core::lattice::SumPart"><code>SumPart</code></a>:</p>
+<div><table><thead><tr><th>treams prefix</th><th><a href="enum.SumPart.html" title="enum treams_core::lattice::SumPart"><code>SumPart</code></a></th></tr></thead><tbody>
+<tr><td><code>lsum*</code></td><td><code>Full</code></td></tr>
+<tr><td><code>realsum*</code></td><td><code>Real</code></td></tr>
+<tr><td><code>recsum*</code>, with <code>zero2d</code> or <code>zero3d</code> added at <code>r = 0</code></td><td><code>Reciprocal</code>, which adds the self term at <code>r = 0</code> for every degree</td></tr>
+<tr><td><code>dsum*(..., i)</code></td><td><code>Direct(i)</code>; <code>eta</code> is not used</td></tr>
+</tbody></table>
+</div>
+<p>The geometry helpers map one to one:</p>
+<div><table><thead><tr><th>treams</th><th>treams-rs</th></tr></thead><tbody>
+<tr><td><code>lattice.volume</code>, <code>lattice.area</code></td><td><a href="fn.volume.html" title="fn treams_core::lattice::volume"><code>volume</code></a></td></tr>
+<tr><td><code>lattice.reciprocal</code></td><td><a href="fn.reciprocal.html" title="fn treams_core::lattice::reciprocal"><code>reciprocal()</code></a></td></tr>
+<tr><td><code>lattice.cube(d, n)</code>, <code>lattice.cubeedge(d, n)</code></td><td><a href="fn.cube.html" title="fn treams_core::lattice::cube"><code>cube</code></a> with <code>edge</code> false or true</td></tr>
+<tr><td><code>lattice.diffr_orders_circle(b, rmax)</code></td><td><a href="fn.diffraction_orders.html" title="fn treams_core::lattice::diffraction_orders"><code>diffraction_orders</code></a></td></tr>
+<tr><td><code>misc.firstbrillouin1d</code></td><td><a href="fn.first_brillouin_1d.html" title="fn treams_core::lattice::first_brillouin_1d"><code>first_brillouin_1d</code></a></td></tr>
+<tr><td><code>misc.firstbrillouin2d</code>, <code>misc.firstbrillouin3d</code></td><td><a href="fn.first_brillouin.html" title="fn treams_core::lattice::first_brillouin"><code>first_brillouin</code></a></td></tr>
+</tbody></table>
+</div>
+<p><a href="fn.derivatives.html" title="fn treams_core::lattice::derivatives"><code>derivatives</code></a>, <a href="fn.derivatives_part.html" title="fn treams_core::lattice::derivatives_part"><code>derivatives_part</code></a> and <a href="struct.SumResidual.html" title="struct treams_core::lattice::SumResidual"><code>SumResidual</code></a> have no upstream
+counterpart: they give the derivatives and gradients of the sums.</p>
+<h2 id="differences-from-treamslattice"><a class="doc-anchor" href="#differences-from-treamslattice">§</a>Differences from <code>treams.lattice</code></h2>
+<ul>
+<li><strong>Automatic split in 3D.</strong> The cell length is <code>L = V^(1/3)</code>. Upstream <code>_check_eta</code>
+divides by <code>k V^(2/3)</code>. Both choices give the same sum wherever the parts converge;
+they differ in cost and in which sums converge.</li>
+<li><strong>Convergence.</strong> Each Ewald part adds integer cube shells until two consecutive
+shells add less than <code>2e-13 max(|P|, 1)</code> of the part <code>P</code>, and fails after 200, 32
+or 16 shells in one, two or three dimensions (up to four times that where a large
+<code>|k| L</code> or a small <code>|k eta|</code> needs it). Upstream stops once two shells change a part
+by less than <code>1e-10</code>, or after 200, 20 or 10 shells, and reports no failure.</li>
+<li><strong>Reduced bases.</strong> Both Ewald parts sum over shells of reduced bases, the shift is
+reduced into a cell of the direct lattice and <code>kpar</code> into a cell of the reciprocal
+lattice. Upstream sums over the given basis, whose shells can miss short lattice
+vectors of a skewed basis.</li>
+<li><strong>Outgoing sheets.</strong> For <code>Im k &gt;= 0</code> the reciprocal integrals at a complex split
+take the sheet that continues the sum from the automatic split, so the value does
+not depend on the split. Upstream takes the principal branches.</li>
+<li><strong>Small splits.</strong> Sums at small splits predict the rounding their cancelling parts
+leave and fail where it exceeds <code>1e-3</code> of the scale of a component. Upstream returns
+the cancelled sum.</li>
+<li><strong>Exact zeros.</strong> For odd <code>l</code> (spherical) or odd <code>m</code> (cylindrical), <code>kpar = 0</code> and a
+shift on the lattice line or plane with <code>2 r</code> a lattice vector, inversion maps the
+sum onto its negative. The sum is then exactly zero at every split. Upstream
+returns exact zeros only at <code>r = 0</code> (and, in 1D, at <code>r = ±a / 2</code>); at the other
+such shifts it returns the rounding of its parts.</li>
+<li><strong>Spectral series.</strong> Off the axis the Ewald parts of 1D spherical sums cancel by up
+to <code>exp(w^2)</code> (see the glossary). There each component whose rounding exceeds
+<code>1e-12 max(|S|, 1)</code> comes from the spectral series, a sum over diffraction orders
+of cylindrical waves, where that is more accurate.</li>
+<li><strong>Derivatives.</strong> <a href="fn.derivatives.html" title="fn treams_core::lattice::derivatives"><code>derivatives</code></a> returns the analytic derivatives in <code>k</code>, <code>eta</code>,
+the shift, <code>kpar</code> and the lattice vectors, from jets (see the glossary) and the
+derivative identities of the integrals.</li>
+</ul>
+<h2 id="glossary"><a class="doc-anchor" href="#glossary">§</a>Glossary</h2><div><table><thead><tr><th>Term</th><th>Meaning</th></tr></thead><tbody>
+<tr><td>shell</td><td>The integer points <code>n</code> with <code>max_i |n_i| = s</code> of shell <code>s</code>; sums add shell by shell</td></tr>
+<tr><td>split</td><td>The Ewald split parameter <code>eta</code></td></tr>
+<tr><td>small split</td><td>A split below every automatic one, <code>Re(1 / (2 eta^2)) &gt; 16 / pi</code></td></tr>
+<tr><td>diffraction order</td><td><code>q = kpar + G</code> for a reciprocal lattice vector <code>G</code></td></tr>
+<tr><td><code>v</code></td><td><code>(q · q / k^2 - 1) / (2 eta^2)</code> of a diffraction order <code>q</code></td></tr>
+<tr><td><code>w</code></td><td><code>k rho eta</code>, with the distance <code>rho</code> of the shift from the lattice plane or axis</td></tr>
+<tr><td><code>t</code></td><td><code>w^2</code></td></tr>
+<tr><td><code>F_n(v, t)</code></td><td>The reduced integral <code>(-1)^n ∫_1^∞ s^(n-1) exp(-v s - t / (2 s)) ds</code> of the reciprocal terms; <code>F_n(v, 0) = Γ(n, v) / (-v)^n</code> (upstream <code>_redincgamma</code>, <code>_redintkambe</code>)</td></tr>
+<tr><td><code>I_n(z, eta)</code></td><td>The Kambe integral <code>∫_eta^∞ t^n exp(-z^2 t^2 / 2 + 1 / (2 t^2)) dt</code> of the real-space terms, at <code>z = k |r + R|</code> (upstream <code>intkambe</code>)</td></tr>
+<tr><td>sheet</td><td>The branch of <code>ln v</code> on which a reciprocal term takes <code>F_n</code></td></tr>
+<tr><td>self term</td><td>The correction at <code>r = 0</code> that removes the missing <code>R = 0</code> term from the reciprocal part; upstream adds it as <code>zero2d</code> or <code>zero3d</code></td></tr>
+<tr><td>jet</td><td>A value carried through the arithmetic together with its first derivatives</td></tr>
+<tr><td>settled</td><td>A real-space shell sum that reaches its shell limit while the Bloch phases cancel each of its last two shells; it is kept only if it agrees with the sum at the automatic split</td></tr>
+</tbody></table>
+</div><h2 id="failure-messages"><a class="doc-anchor" href="#failure-messages">§</a>Failure messages</h2><div><table><thead><tr><th>Message</th><th>Error</th><th>Cause</th></tr></thead><tbody>
+<tr><td><code>Ewald sums require Im(k) &gt;= 0; gain media are unsupported</code></td><td><a href="../enum.Error.html#variant.InvalidInput" title="variant treams_core::Error::InvalidInput"><code>InvalidInput</code></a></td><td>An amplifying wavenumber</td></tr>
+<tr><td><code>spherical Ewald sums require Re(k) &gt;= 0</code></td><td><a href="../enum.Error.html#variant.InvalidInput" title="variant treams_core::Error::InvalidInput"><code>InvalidInput</code></a></td><td>A spherical wavenumber on the unsupported Kambe branch</td></tr>
+<tr><td><code>Ewald sum did not converge within the shell limit</code></td><td><a href="../enum.Error.html#variant.NotConverged" title="variant treams_core::Error::NotConverged"><code>NotConverged</code></a></td><td>A part needs more shells than its limit</td></tr>
+<tr><td>… <code>; use a larger split (eta = 0 selects one)</code></td><td><a href="../enum.Error.html#variant.NotConverged" title="variant treams_core::Error::NotConverged"><code>NotConverged</code></a></td><td>The same, at a small split</td></tr>
+<tr><td>… <code>, neither at this split nor at the automatic one</code></td><td><a href="../enum.Error.html#variant.NotConverged" title="variant treams_core::Error::NotConverged"><code>NotConverged</code></a></td><td>A settled sum whose check at the automatic split does not converge</td></tr>
+<tr><td><code>Ewald split too small: its cancelling parts lose about ...; use a larger split (eta = 0 selects one)</code></td><td><a href="../enum.Error.html#variant.NotConverged" title="variant treams_core::Error::NotConverged"><code>NotConverged</code></a></td><td>The parts at a small split cancel by more than about <code>1e-3</code> of the scale of the value or a derivative</td></tr>
+<tr><td><code>Ewald sum lost its accuracy to cancelling Kambe integrals; reduce the split parameter</code></td><td><a href="../enum.Error.html#variant.NotConverged" title="variant treams_core::Error::NotConverged"><code>NotConverged</code></a></td><td>A 1D spherical sum off the axis rounds by more than <code>1e-3 max(|S|, 1)</code>, and its spectral series does not help</td></tr>
+<tr><td><code>non-finite Ewald summand; change the split parameter or reduce the order</code></td><td><a href="../enum.Error.html#variant.NonFinite" title="variant treams_core::Error::NonFinite"><code>NonFinite</code></a></td><td>A term is not finite</td></tr>
+<tr><td><code>non-finite direct lattice term</code></td><td><a href="../enum.Error.html#variant.NonFinite" title="variant treams_core::Error::NonFinite"><code>NonFinite</code></a></td><td>A term of a direct sum is not finite</td></tr>
+<tr><td><code>lattice sum is at a diffraction threshold; supply a limiting complex wavenumber</code></td><td><a href="../enum.Error.html#variant.InvalidInput" title="variant treams_core::Error::InvalidInput"><code>InvalidInput</code></a></td><td>A diffraction order lies on its threshold, <code>|v| &lt;= 1e-14</code></td></tr>
+<tr><td><code>component adjoints require an explicit nonzero Ewald split</code></td><td><a href="../enum.Error.html#variant.InvalidInput" title="variant treams_core::Error::InvalidInput"><code>InvalidInput</code></a></td><td>Derivatives of the real or reciprocal part at <code>eta = 0</code></td></tr>
+<tr><td><code>direct half-cell shell grouping changes discontinuously; use the Ewald sum for adjoints</code></td><td><a href="../enum.Error.html#variant.InvalidInput" title="variant treams_core::Error::InvalidInput"><code>InvalidInput</code></a></td><td>Derivatives of a direct 1D shell at a half-cell shift</td></tr>
+</tbody></table>
+</div>
+<p>Invalid labels, dimensions and non-finite inputs give <a href="../enum.Error.html#variant.InvalidInput" title="variant treams_core::Error::InvalidInput"><code>InvalidInput</code></a> with a message
+that names the input. A value-only call can return a sum whose derivatives fail.</p>
+<h2 id="tuning-constants"><a class="doc-anchor" href="#tuning-constants">§</a>Tuning constants</h2><div><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th><th>Why</th></tr></thead><tbody>
+<tr><td><code>resolve_split</code></td><td><code>1 / 8</code>, <code>sqrt(2 pi)</code></td><td>Automatic split <code>sqrt(2 pi) / (k L) max(|k L| / 8, 1)</code></td><td>As upstream <code>_check_eta</code>, except for <code>L</code> in 3D</td></tr>
+<tr><td><code>SHELL_TOLERANCE</code></td><td><code>2e-13</code></td><td>Part of <code>max(|P|, 1)</code> that each of the last two shells may add</td><td>About 900 ulps of the scale</td></tr>
+<tr><td><code>shells</code></td><td>200, 32, 16</td><td>Shell limit in 1D, 2D, 3D, raised up to four times where the terms need it (<code>shells_within</code>)</td><td>200 in 1D as upstream; above upstream’s 20 and 10 in 2D and 3D</td></tr>
+<tr><td><code>TERM_DECAY</code></td><td><code>50</code></td><td>Shell limits reach every term above <code>exp(-50)</code></td><td><code>exp(-50) = 2e-22</code>, far below <code>SHELL_TOLERANCE</code></td></tr>
+<tr><td><code>AUTOMATIC_GROWTH</code></td><td><code>16 / pi (1 + 1e-12)</code></td><td>Largest <code>Re(1 / (2 eta^2))</code> of the automatic split; larger values mark a small split</td><td>Exact, with a margin for rounding</td></tr>
+<tr><td><code>MAX_LOSS</code></td><td><code>1e-3</code></td><td>Largest predicted loss of a sum, relative to the scale of a component, before it fails</td><td>Calibrated: the bounds exceed the errors by a median factor of 17 to 87</td></tr>
+<tr><td><code>EARLY_FAILURE_LOSS</code></td><td><code>2e-3</code></td><td>Loss at which a complete sum at a small split fails before its far shells</td><td>Calibrated: without it, a 3D sum at the split 0.03 takes 29 s to fail</td></tr>
+<tr><td><code>TERM_ULPS</code></td><td><code>8</code></td><td>Rounding of each Ewald term and of the self term, in ulps</td><td>The <code>MAX_LOSS</code> calibration compares the bounds built from it with the errors</td></tr>
+<tr><td><code>REAL_ULPS</code></td><td><code>64</code></td><td>Rounding of the real-space part of a 1D spherical sum, in ulps</td><td>Its Kambe integrals of even order keep their relative accuracy</td></tr>
+<tr><td><code>SPECTRAL_SWITCH_LOSS</code></td><td><code>1e-12</code></td><td>Rounding of a 1D spherical component, relative to its scale, from which the spectral series replaces it</td><td>Far below <code>MAX_LOSS</code>, so the series takes over long before a sum fails</td></tr>
+<tr><td><code>SPECTRAL_FIRST_W</code></td><td><code>2.5</code></td><td><code>w = |k| rho |eta|</code> from which a 1D spherical sum tries the spectral series first</td><td>The reciprocal part cancels by <code>exp(w^2) = 5e2</code> there</td></tr>
+<tr><td><code>SERIES_SHELLS</code></td><td><code>512</code></td><td>Diffraction orders the spectral series may take on each side</td><td>Caps the cost of one series; beyond it the Ewald sum is used</td></tr>
+<tr><td><code>SERIES_DECAY</code></td><td><code>45</code></td><td>The spectral series runs only where its terms fall by <code>exp(-45)</code> within <code>SERIES_SHELLS</code></td><td><code>exp(-45) = 3e-20</code>, below <code>QUIET_SHELL</code></td></tr>
+<tr><td><code>QUIET_SHELL</code></td><td><code>1e-18</code></td><td>Part of the summed moduli below which a shell of the spectral series is quiet</td><td>The series stops after two quiet shells past its peak; <code>1e-18</code> is below the rounding of the sum</td></tr>
+<tr><td><code>SERIES_T</code></td><td><code>1e-2</code></td><td>Largest <code>|t|</code> at which integer orders of <code>F_n</code> come from their series in <code>t</code></td><td>Below about <code>|w| = 1e-50</code> the Kambe integrals at <code>eta = -i / w</code> leave the range of <code>f64</code>; the series loses only a few ulps</td></tr>
+<tr><td><code>SERIES_REACH</code></td><td><code>1</code></td><td>The same, for the orders below the Kambe base pair</td><td>Each of these orders would need a gamma-function series of its own</td></tr>
+<tr><td><code>HALF_INTEGER_SERIES_T</code></td><td><code>1</code></td><td>Largest <code>|t|</code> at which half-integer orders come from their series in <code>t</code></td><td>Calibrated: within <code>1e-13</code> of 30-digit references for <code>|t|</code> from 0.3 to 1</td></tr>
+<tr><td><code>SERIES_TERMS</code></td><td><code>64</code></td><td>Terms of the series in <code>t</code> at most</td><td><code>|t| &lt;= 1</code> stops within 20</td></tr>
+<tr><td><code>NEAR_THRESHOLD</code></td><td><code>1 / 16</code></td><td>Bound on the real and imaginary parts of <code>q · q / k^2 - 1</code> below which the zeroth order takes compensated sums</td><td>Rounded sums lose 50 ulps of <code>v</code> there</td></tr>
+<tr><td><code>THRESHOLD_DISTANCE</code></td><td><code>1e-14</code></td><td><code>|v|</code> (reciprocal terms) or <code>|k_q^2 / k^2|</code> (spectral series) at or below which a diffraction order counts as on its threshold</td><td>The sums are singular on the threshold <code>|q| = k</code></td></tr>
+<tr><td><code>SHEET_MARGIN</code></td><td><code>0.5</code></td><td>Angle margin within which a diffraction order needs the argument of its sheet</td><td>Far above the rounding of the angle (<code>1e-2</code> next to a threshold)</td></tr>
+<tr><td><code>axial_cylindrical_reciprocal</code></td><td><code>4</code></td><td><code>|v|</code> above which the gamma functions of value-only 1D cylindrical sums on the axis recur upward</td><td>A downward step there subtracts the leading asymptotic term</td></tr>
+<tr><td><code>kambe_arguments</code></td><td><code>1e-100</code></td><td>Imaginary part that puts a real Kambe argument on the outgoing side</td><td>Any positive part selects the upper half plane</td></tr>
+<tr><td><code>reduce_basis</code></td><td><code>1e-8</code>, <code>2^20</code>, 64</td><td>Relative shortening a reduction step needs, largest coefficient, most passes</td><td>Only strict decreases count, so ties such as those of a hexagonal basis keep it as given</td></tr>
+<tr><td><code>first_brillouin</code></td><td><code>1e-13</code>, <code>1e-14</code></td><td>Relative and absolute tolerance on squared lengths of a reduced 2D basis</td><td>The absolute one is upstream’s</td></tr>
+<tr><td><code>PARALLEL</code></td><td>8</td><td>Batched sums run in parallel from this many outputs</td><td>Fewer outputs run on the calling thread</td></tr>
+</tbody></table>
+</div><h2 id="references"><a class="doc-anchor" href="#references">§</a>References</h2>
+<ul>
+<li>K. Kambe, Z. Naturforsch. A 22 (1967), <a href="https://doi.org/10.1515/zna-1967-0305">https://doi.org/10.1515/zna-1967-0305</a></li>
+<li>K. Kambe, Z. Naturforsch. A 23 (1968), <a href="https://doi.org/10.1515/zna-1968-0908">https://doi.org/10.1515/zna-1968-0908</a></li>
+<li>C. M. Linton, SIAM Rev. 52, 630 (2010), <a href="https://doi.org/10.1137/09075130X">https://doi.org/10.1137/09075130X</a></li>
+<li>D. Beutel et al., J. Opt. Soc. Am. B 38 (2021), <a href="https://doi.org/10.1364/JOSAB.419645">https://doi.org/10.1364/JOSAB.419645</a></li>
+<li>NIST DLMF, chapter 8 (incomplete gamma functions), <a href="https://dlmf.nist.gov/8">https://dlmf.nist.gov/8</a></li>
+</ul>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="accuracy/index.html" title="mod treams_core::lattice::accuracy">accuracy</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Rounding-error bounds, and the failure of sums whose Ewald parts cancel.</dd><dt><a class="mod" href="batch/index.html" title="mod treams_core::lattice::batch">batch</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Lattice sums over arrays of inputs, with their gradients.</dd><dt><a class="mod" href="cell/index.html" title="mod treams_core::lattice::cell">cell</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>The lattice and Bloch vector of a sum, and the automatic Ewald split.</dd><dt><a class="mod" href="direct/index.html" title="mod treams_core::lattice::direct">direct</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Direct sums over cube shells, without Ewald acceleration.</dd><dt><a class="mod" href="ewald/index.html" title="mod treams_core::lattice::ewald">ewald</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>The Ewald sum: real-space part, reciprocal-space part and self term.</dd><dt><a class="mod" href="geometry/index.html" title="mod treams_core::lattice::geometry">geometry</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Lattice geometry: cell volumes, reciprocal and reduced bases, integer cube points,
+diffraction orders and reduction to the first Brillouin zone.</dd><dt><a class="mod" href="inputs/index.html" title="mod treams_core::lattice::inputs">inputs</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>The inputs of one sum as forward-mode jets, and their jet slots.</dd><dt><a class="mod" href="real/index.html" title="mod treams_core::lattice::real">real</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Real-space terms of the Ewald sum.</dd><dt><a class="mod" href="reciprocal/index.html" title="mod treams_core::lattice::reciprocal">reciprocal</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Reciprocal-space terms of the five sums (family and lattice dimension: sw3d, sw2d,
+sw1d, cw2d, cw1d) and the self term.</dd><dt><a class="mod" href="reduced/index.html" title="mod treams_core::lattice::reduced">reduced</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Reduced integrals <code>F_n(v, t)</code> of the reciprocal terms.</dd><dt><a class="mod" href="sheets/index.html" title="mod treams_core::lattice::sheets">sheets</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Continuation of the reciprocal integrals to the sheet of the outgoing sum.</dd><dt><a class="mod" href="shells/index.html" title="mod treams_core::lattice::shells">shells</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Sums over cube shells and when they stop.</dd><dt><a class="mod" href="spectral/index.html" title="mod treams_core::lattice::spectral">spectral</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>The spectral series of 1D spherical sums off the axis, and when to take it.</dd><dt><a class="mod" href="wave/index.html" title="mod treams_core::lattice::wave">wave</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>The family of a sum, the scalar wave it adds up, and its angular factors.</dd></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.BlochLattice.html" title="struct treams_core::lattice::BlochLattice">Bloch<wbr>Lattice</a></dt><dd>Row lattice vectors, a real Bloch vector <code>kpar</code> and their reduced bases in one, two or
+three dimensions.</dd><dt><a class="struct" href="struct.Derivatives.html" title="struct treams_core::lattice::Derivatives">Derivatives</a></dt><dd>Local derivatives of one scalar Ewald sum.</dd><dt><a class="struct" href="struct.SumGradient.html" title="struct treams_core::lattice::SumGradient">SumGradient</a></dt><dd>Cotangents of the continuous Ewald parameters under the real Hermitian pairing.</dd><dt><a class="struct" href="struct.SumResidual.html" title="struct treams_core::lattice::SumResidual">SumResidual</a></dt><dd>What <a href="fn.sum_array.html" title="fn treams_core::lattice::sum_array"><code>sum_array</code></a> saves for the pullback of a batch of lattice sums: the inputs,
+each one value for all outputs or one per output.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.Family.html" title="enum treams_core::lattice::Family">Family</a></dt><dd>The family of a lattice sum: spherical or cylindrical.</dd><dt><a class="enum" href="enum.SumPart.html" title="enum treams_core::lattice::SumPart">SumPart</a></dt><dd>Part of an Ewald sum, or one unaccelerated integer cube shell: the <code>lsum*</code>,
+<code>realsum*</code>, <code>recsum*</code> and <code>dsum*</code> functions of <code>treams.lattice</code>.</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.cube.html" title="fn treams_core::lattice::cube">cube</a></dt><dd>All integer cube points, or just its boundary, in lexicographic row order.</dd><dt><a class="fn" href="fn.derivatives.html" title="fn treams_core::lattice::derivatives">derivatives</a></dt><dd>Differentiate an Ewald sum using analytic integral identities and Cartesian polynomials.</dd><dt><a class="fn" href="fn.derivatives_part.html" title="fn treams_core::lattice::derivatives_part">derivatives_<wbr>part</a></dt><dd>Differentiate the selected component, holding a direct shell’s index fixed.</dd><dt><a class="fn" href="fn.diffraction_orders.html" title="fn treams_core::lattice::diffraction_orders">diffraction_<wbr>orders</a></dt><dd>Diffraction orders inside a reciprocal-space circle, with adjacent opposite pairs.</dd><dt><a class="fn" href="fn.evaluate.html" title="fn treams_core::lattice::evaluate">evaluate</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Validates the inputs and evaluates what <code>evaluation</code> selects: a direct shell, or the
+Ewald sum at the resolved split. <code>N</code> is the number of jet slots: 0 for a value, 1 for
+the split derivative of the real-space part, and for all derivatives 6, 10 or 16 in
+one, two or three dimensions (<code>k</code>, three shift components, <code>dim</code> Bloch components and
+<code>dim * dim</code> lattice-vector components).</dd><dt><a class="fn" href="fn.first_brillouin.html" title="fn treams_core::lattice::first_brillouin">first_<wbr>brillouin</a></dt><dd>Iterative nearest-cell reduction of a 2D or 3D wavevector.</dd><dt><a class="fn" href="fn.first_brillouin_1d.html" title="fn treams_core::lattice::first_brillouin_1d">first_<wbr>brillouin_<wbr>1d</a></dt><dd>Reduce a scalar wavevector to <code>(-b/2, b/2]</code>, for positive reciprocal pitch <code>b</code>.</dd><dt><a class="fn" href="fn.larger_split.html" title="fn treams_core::lattice::larger_split">larger_<wbr>split</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd><code>error</code>, advising a larger split where a sum at a split <code>eta</code> below every automatic
+one does not converge: its real-space shells converge sooner at a larger one. A sum
+whose shells settle but whose automatic split, which verifies it, does not converge
+either reports that instead (see <a href="ewald/fn.ewald.html" title="fn treams_core::lattice::ewald::ewald"><code>ewald</code></a>).</dd><dt><a class="fn" href="fn.reciprocal.html" title="fn treams_core::lattice::reciprocal">reciprocal</a></dt><dd>Reciprocal row vectors, padded by unused identity axes for dimensions below three.</dd><dt><a class="fn" href="fn.sum.html" title="fn treams_core::lattice::sum">sum</a></dt><dd>The lattice sum of <code>wave</code> at the wavenumber <code>k</code>, the shift <code>shift</code> and the Ewald split
+parameter <code>eta</code>, as <code>treams.lattice.lsum*</code> returns it.</dd><dt><a class="fn" href="fn.sum_array.html" title="fn treams_core::lattice::sum_array">sum_<wbr>array</a></dt><dd><a href="fn.sum_part.html" title="fn treams_core::lattice::sum_part"><code>sum_part</code></a> over arrays, with the residual for the pullback.</dd><dt><a class="fn" href="fn.sum_part.html" title="fn treams_core::lattice::sum_part">sum_<wbr>part</a></dt><dd>Evaluate an Ewald component or one direct-summation shell.</dd><dt><a class="fn" href="fn.volume.html" title="fn treams_core::lattice::volume">volume</a></dt><dd>Signed determinant for a one-, two- or three-dimensional cell.</dd></dl></section></div></main></body></html>

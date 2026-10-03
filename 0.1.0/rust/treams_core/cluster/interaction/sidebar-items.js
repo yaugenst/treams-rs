@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["interaction","interaction_blocks","operator","solve_interacting"],"struct":["IlluminateGradient","IlluminateResidual","InteractionFactor","InteractionGradient","InteractionResidual","LocalMatrix"]};

@@ -1,0 +1,131 @@
+# treams-rs
+
+> A Rust port of treams for electromagnetic T-matrix scattering, with a Python interface and analytic first-order gradients. Version 0.1.0.
+
+The documentation site for these sources is [here](./).
+The Markdown sources linked below belong to this documentation version.
+After installing the package, run `python -m treams_rs` for a short example,
+`python -m treams_rs sphere_tmatrix` for one function, or `--search TEXT` to find names.
+Use `--format json` or `--format markdown` to list all documented functions and classes.
+`treams_rs.support_catalog()` never imports optional frameworks.
+
+## Home
+
+- [Home](index.md): A Rust port of treams with a Python interface and analytic gradients.
+
+## Getting started
+
+- [Install](getting-started/install.md): Install treams-rs from PyPI, choose extras for gradients and HDF5, build from source, and set the thread count.
+- [Quickstart](getting-started/quickstart.md): Four short runnable examples, a sphere, a cluster, a periodic array and a slab stack, each with a check.
+
+## Coming from treams
+
+- [treams workflows in treams-rs](coming-from-treams/index.md): treams workflows next to their treams-rs equivalents, the concept map and the pitfalls for treams users.
+- [Name map](coming-from-treams/names.md): The treams names that treams-rs spells differently, member by member, and the keyword changes.
+- [Conventions](coming-from-treams/conventions.md): Units, time convention, polarization, mode ordering, planar sides, field normalization, branches and label bounds, as in treams.
+- [Differences from treams 0.4.7](coming-from-treams/differences.md): Where treams-rs and treams 0.4.7 give different results, why, and the tests that show it.
+
+## User guide
+
+- [User guide](guide/index.md): The physics objects of treams-rs, their metadata and read-only arrays, and which computation path fits a problem.
+- [Particles and waves](guide/particles-and-waves.md): Sphere and cylinder T-matrices, materials and media, plane and multipole waves, fields and cross sections.
+- [Clusters](guide/clusters.md): Solve a finite cluster for its full response, scatter requested illuminations, reuse a factor and expand into one global basis.
+- [Large clusters](guide/large-clusters.md): Large sphere clusters with a reusable dense LU factor or the matrix-free GMRES solver, and how convergence is checked.
+- [Periodic arrays](guide/periodic.md): Solve a periodic array once, convert it to an S-matrix, count diffraction orders and evaluate the field of all cells.
+- [Planar layers and S-matrices](guide/planar.md): Interfaces, slabs and stacks as S-matrices, with named power, scattered waves, blocks and band structures.
+- [Numerical namespaces](guide/numerical-namespaces.md): The numerical namespaces special, sw, cw, pw, lattice, coeffs, misc, ebcm and operators, with one checked example each.
+- [HDF5 and Gmsh](guide/io.md): Save and load T-matrices in HDF5 files of the tmat.h5 format and mesh spheres with Gmsh.
+- [Threads and process pools](guide/threads.md): How many CPU threads treams-rs uses, how to change it, and how it works with process pools, threadpoolctl and other thread pools.
+- [API discovery](guide/api-discovery.md): Find functions, signatures and gradient contexts offline with python -m treams_rs, support_catalog() and llms.txt.
+
+## Examples
+
+- [Examples](examples/index.md): Runnable treams-rs versions of the treams example gallery, each next to the treams code and the printed results.
+- [Single sphere](examples/sphere.md): Averaged extinction and scattering spectra of a high-index sphere, and the intensity of the total field around it.
+- [Cluster of spheres](examples/cluster.md): Cross sections and near fields of four coupled spheres from local, global and rotated T-matrices.
+- [Chain of spheres](examples/chain.md): Near field of a chain of sphere pairs that repeats every 300 nm along z.
+- [Grid of spheres](examples/grid.md): Near field of a square array of sphere pairs in the xy plane at normal incidence.
+- [Photonic crystal](examples/crystal.md): Smallest singular value of the lattice interaction matrix of a simple cubic crystal of spheres.
+- [Chiral slab](examples/slab.md): Transmission and reflection of a chiral slab between vacuum and a dense medium, for both helicities.
+- [Array of spheres on a slab](examples/array_spheres.md): Transmission and reflection of a square array of chiral spheres on a thin slab at oblique incidence.
+- [Band structure](examples/band_structure.md): Bloch modes of a periodic stack of sphere arrays on slabs, from the S-matrix of one period.
+- [Single cylinder](examples/cylinder.md): Averaged extinction and scattering cross widths of an infinite cylinder, and the intensity of the total field around it.
+- [Chain of spheres in cylindrical waves](examples/cylindrical_chain.md): Near field of a chain of sphere pairs along z, from cylindrical waves outside the chain's cylinders and spherical waves between the spheres.
+- [Chain and cylinder](examples/cylindrical_cluster.md): Near field of a chain of spheres and an infinite cylinder, coupled through their cylindrical T-matrices.
+- [Cylinder crystal](examples/cylindrical_crystal.md): Smallest singular value of the lattice interaction matrix of a square lattice of infinite cylinders.
+- [Grating](examples/grating.md): Near field of a grating made of chains of spheres and cylinders, repeated along x.
+- [Array of spheres from cylindrical waves](examples/cylindrical_array.md): Transmission and reflection of a square array of chiral spheres on a slab, built from chains of spheres in cylindrical waves.
+- [Sphere radius optimization](examples/sphere_radius_optimization.md): Five gradient-ascent steps on the radius of a lossless dielectric sphere maximize its scattering efficiency.
+- [Array transmission gradient](examples/array_transmission_gradient.md): jax.grad of the transmission of a sphere array on a slab with respect to the sphere radius and slab thickness, next to central differences.
+
+## Differentiation
+
+- [Differentiation](differentiation/index.md): How a record returns a value and a context, and how context.pullback returns the input gradients in argument order.
+- [Framework adapters](differentiation/frameworks.md): Differentiate the ordinary API with Advect, JAX, PyTorch or HIPS Autograd, with their transforms, dtypes and limits.
+- [Custom records](differentiation/custom-records.md): Wrap a diff record for JAX, PyTorch or HIPS Autograd, and find the record and physics object for each family.
+- [Gradient checks](differentiation/gradient-checks.md): Check the pullback of a record or the gradient of a scalar objective against finite differences with treams_rs.testing.
+
+## Design
+
+- [Design](design/index.md): The layers of treams-rs, their responsibilities and their treams counterparts.
+- [Python API design](design/python-api.md): Physics objects, names and metadata in the Python API.
+- [Analytic pullbacks](design/pullbacks.md): Analytic first derivatives, one-use gradient contexts and the complex-gradient convention.
+- [Framework adapters](design/adapters.md): Lazy input dispatch, shared physics classes, native calls and gradients in Advect, JAX, PyTorch and HIPS Autograd.
+- [Floating-point environment](design/floating-point.md): How native calculations preserve subnormal numbers when callers flush them to zero.
+- [Numerical choices](design/numerics.md): Numerical choices of the Rust core - equilibrated LU, LU worker counts, Wigner 3j, Ewald sums, branches, EBCM and parallel thresholds.
+- [Parallelism](design/parallelism.md): The treams-rs thread pool, reproducible results and remaining work.
+- [Formal proofs](design/formal-proofs.md): Lean 4 proofs of six numerical algorithms, their limits and their checks against Rust.
+
+## Validation
+
+- [Validation](validation/index.md): Numerical checks, physical identities and proofs, with links to the tests.
+- [Capabilities](validation/capabilities.md): Implemented physics, derivatives and limits, compared with treams.
+- [Numerical and platform limits](validation/numerical-limits.md): Accuracy limits of special functions, waves and lattice sums, with scale and platform limits.
+- [Published applications](validation/published-applications.md): treams-rs reproductions of published electron-beam spectra, treams paper spectra and thermal radiation results.
+
+## Performance
+
+- [Performance](performance/index.md): Measured speed and memory against treams 0.4.5, with methods and caveats.
+- [Requested illuminations and larger clusters](performance/large-problems.md): Measured time and memory of requested illuminations for large sphere clusters.
+- [Mac and Linux benchmark comparison](performance/platform-comparison.md): The Mac and Linux benchmark comparison of treams-rs and treams 0.4.5.
+- [Benchmark evidence](performance/evidence.md): Benchmark sources, methods and archived measurements of individual operations.
+
+## Reference
+
+- [Reference](reference/index.md): Where the Python and Rust API references come from and how to regenerate them.
+- [Python API](reference/python/index.md): Every public module of treams_rs, with signatures and docstrings generated from the source.
+- [`treams_rs`](reference/python/treams_rs.md): T-matrix scattering with Rust numerics and analytic first-order derivatives.
+- [`treams_rs.special`](reference/python/special.md): Special functions of multipole waves, with NumPy broadcasting.
+- [`treams_rs.sw`](reference/python/sw.md): Coefficients of spherical waves: translation, rotation and periodic arrays.
+- [`treams_rs.cw`](reference/python/cw.md): Coefficients of cylindrical waves: translation, rotation and periodic arrays.
+- [`treams_rs.pw`](reference/python/pw.md): Coefficients of plane waves: translation, expansion and axis permutation.
+- [`treams_rs.lattice`](reference/python/lattice.md): Lattice sums of spherical and cylindrical waves, and lattice geometry.
+- [`treams_rs.coeffs`](reference/python/coeffs.md): Mie and Fresnel coefficients in the helicity basis.
+- [`treams_rs.misc`](reference/python/misc.md): Refractive indices, normal wavenumbers, mode selection and Brillouin zones.
+- [`treams_rs.ebcm`](reference/python/ebcm.md): Surface integrals of the extended boundary condition method (EBCM).
+- [`treams_rs.io`](reference/python/io.md): T-matrix files in the tmat.h5 layout, and Gmsh meshes of sphere clusters.
+- [`treams_rs.operators`](reference/python/operators.md): Basis and field operators, as functions and as operator objects.
+- [`treams_rs.iterative`](reference/python/iterative.md): Matrix-free scattering by finite clusters of homogeneous spheres in vacuum.
+- [`treams_rs.parallel`](reference/python/parallel.md): CPU threads of the native numerical work.
+- [`treams_rs.diff`](reference/python/diff.md): Records: functions that return a value and a context for its gradients.
+- [`treams_rs.testing`](reference/python/testing.md): Finite-difference checks of first-order gradients and pullbacks.
+- [`treams_rs.advect`](reference/python/advect.md): Advect adapter: physics objects and records differentiated by Advect, on the CPU and in first-order reverse mode only.
+- [`treams_rs.jax`](reference/python/jax.md): JAX adapter: physics objects and records as JAX operations on the CPU, in first-order reverse mode only, with jit and sequential vmap.
+- [`treams_rs.torch`](reference/python/torch.md): PyTorch adapter: physics objects and records as autograd operations on the CPU, in first-order reverse mode only.
+- [`treams_rs.autograd`](reference/python/autograd.md): HIPS Autograd adapter: physics objects and native records on the CPU.
+- [Returned types](reference/python/native-types.md): Objects that public records and solvers return: native contexts and factors, and Python helper objects.
+- [Rust crate](reference/rust.md): The rustdoc of treams-core, the internal Rust crate that holds the numerical code.
+- [Glossary](reference/glossary.md): One name per concept, with the treams-rs Python name, the native name, the Rust name and the treams name side by side.
+
+## Development
+
+- [Development](development/index.md): Set up a development checkout, run the checks that hosted CI runs, and check a clean wheel.
+- [Source ownership](development/architecture.md): Which Rust module, binding file, Python module and test directory own each part of treams-rs, and the rules that hold across them.
+- [Testing](development/testing.md): Where a Rust or Python test goes, the test domains, markers, Hypothesis profiles and shared helpers, and how to add a test.
+- [Documentation](development/documentation.md): Build and preview the site, add a page, regenerate the API reference, write tested examples and add a gallery example.
+- [Benchmarks](development/benchmarks.md): Run the benchmarks on an idle host, compare two builds and record new measurements next to the archived evidence.
+- [Releasing](development/releasing.md): Prepare a version, test its distributions, publish through TestPyPI and PyPI, and deploy versioned documentation.
+
+## Changelog
+
+- [Changelog](changelog.md): Changes to treams-rs, including every renamed public name.

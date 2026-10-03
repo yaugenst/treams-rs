@@ -1,0 +1,422 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/treams-core/src/lattice/shells.rs`."><title>shells.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="treams_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">treams_core/lattice/</div>shells.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Sums over cube shells and when they stop.
+<a href=#2 id=2 data-nosnippet>2</a>//!
+<a href=#3 id=3 data-nosnippet>3</a>//! Upstream: the shell loops of `realsum*` and `recsum*` in `lattice/_esum.pyx`. The
+<a href=#4 id=4 data-nosnippet>4</a>//! relative tolerance, the shell limits that grow with the terms and the compensated
+<a href=#5 id=5 data-nosnippet>5</a>//! sums are treams-rs extensions.
+<a href=#6 id=6 data-nosnippet>6</a>
+<a href=#7 id=7 data-nosnippet>7</a></span><span class="kw">use </span>std::f64::consts::PI;
+<a href=#8 id=8 data-nosnippet>8</a>
+<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>super::{
+<a href=#10 id=10 data-nosnippet>10</a>    accuracy::{Rounding, TERM_ULPS, below_automatic},
+<a href=#11 id=11 data-nosnippet>11</a>    cell::{BlochLattice, Reduction},
+<a href=#12 id=12 data-nosnippet>12</a>    geometry::visit_cube,
+<a href=#13 id=13 data-nosnippet>13</a>    wave::Family,
+<a href=#14 id=14 data-nosnippet>14</a>};
+<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>crate::{Complex, Error, <span class="prelude-ty">Result</span>, numerics::Jet};
+<a href=#16 id=16 data-nosnippet>16</a>
+<a href=#17 id=17 data-nosnippet>17</a><span class="doccomment">/// `Jet::norm`, the largest modulus of the value and derivatives, from one square root
+<a href=#18 id=18 data-nosnippet>18</a>/// of the largest squared modulus instead of a `hypot` per component; `Jet::norm` when
+<a href=#19 id=19 data-nosnippet>19</a>/// the squares overflow.
+<a href=#20 id=20 data-nosnippet>20</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>largest_modulus&lt;<span class="kw">const </span>N: usize&gt;(jet: <span class="kw-2">&amp;</span>Jet&lt;N&gt;) -&gt; f64 {
+<a href=#21 id=21 data-nosnippet>21</a>    <span class="kw">let </span>square = jet
+<a href=#22 id=22 data-nosnippet>22</a>        .derivative
+<a href=#23 id=23 data-nosnippet>23</a>        .iter()
+<a href=#24 id=24 data-nosnippet>24</a>        .fold(jet.value.norm_sqr(), |square, d| square.max(d.norm_sqr()));
+<a href=#25 id=25 data-nosnippet>25</a>    <span class="kw">if </span>square.is_finite() {
+<a href=#26 id=26 data-nosnippet>26</a>        square.sqrt()
+<a href=#27 id=27 data-nosnippet>27</a>    } <span class="kw">else </span>{
+<a href=#28 id=28 data-nosnippet>28</a>        jet.norm()
+<a href=#29 id=29 data-nosnippet>29</a>    }
+<a href=#30 id=30 data-nosnippet>30</a>}
+<a href=#31 id=31 data-nosnippet>31</a>
+<a href=#32 id=32 data-nosnippet>32</a><span class="doccomment">/// Largest part of the scale of a shell sum that each of its last two shells may add
+<a href=#33 id=33 data-nosnippet>33</a>/// before the sum stops.
+<a href=#34 id=34 data-nosnippet>34</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>SHELL_TOLERANCE: f64 = <span class="number">2e-13</span>;
+<a href=#35 id=35 data-nosnippet>35</a>
+<a href=#36 id=36 data-nosnippet>36</a><span class="doccomment">/// One Ewald part summed over cube shells of integer points ([`Shells::sum`]), which
+<a href=#37 id=37 data-nosnippet>37</a>/// [`Shells::extend`] continues. Below every automatic split ([`below_automatic`]), where
+<a href=#38 id=38 data-nosnippet>38</a>/// the parts cancel, a part that stops at [`SHELL_TOLERANCE`] of its own sum leaves that
+<a href=#39 id=39 data-nosnippet>39</a>/// much in the complete sum, so both parts continue to [`SHELL_TOLERANCE`] of the
+<a href=#40 id=40 data-nosnippet>40</a>/// complete sum, and each part keeps the rounding errors of its additions
+<a href=#41 id=41 data-nosnippet>41</a>/// ([`add_exactly`]): next to a lattice point at a zero Bloch vector millions of
+<a href=#42 id=42 data-nosnippet>42</a>/// real-space terms add in phase far below an ulp of it.
+<a href=#43 id=43 data-nosnippet>43</a>///
+<a href=#44 id=44 data-nosnippet>44</a>/// Calibrated: continuing the parts this way at every split costs the other splits 5%
+<a href=#45 id=45 data-nosnippet>45</a>/// and gains them 1e-14 of `max(|S|, 1)`.
+<a href=#46 id=46 data-nosnippet>46</a></span><span class="attr">#[derive(Clone, Copy, Debug)]
+<a href=#47 id=47 data-nosnippet>47</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>Shells&lt;<span class="kw">const </span>N: usize&gt; {
+<a href=#48 id=48 data-nosnippet>48</a>    <span class="doccomment">/// The sum, or with `error` its leading part.
+<a href=#49 id=49 data-nosnippet>49</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) sum: Jet&lt;N&gt;,
+<a href=#50 id=50 data-nosnippet>50</a>    <span class="doccomment">/// The rounding errors of the additions to `sum` since the last shell, where they
+<a href=#51 id=51 data-nosnippet>51</a>    /// are kept (`cancelling`); each shell adds them to `sum`.
+<a href=#52 id=52 data-nosnippet>52</a>    </span>error: Jet&lt;N&gt;,
+<a href=#53 id=53 data-nosnippet>53</a>    <span class="doccomment">/// Whether the part may cancel against the other, below every automatic split: it
+<a href=#54 id=54 data-nosnippet>54</a>    /// then keeps the rounding errors of its additions and counts `bound`.
+<a href=#55 id=55 data-nosnippet>55</a>    </span>cancelling: bool,
+<a href=#56 id=56 data-nosnippet>56</a>    <span class="doccomment">/// The rounding bounds of the value and each derivative that its terms predict, in
+<a href=#57 id=57 data-nosnippet>57</a>    /// units of epsilon: [`TERM_ULPS`] ulps of the moduli of each term, plus the bounds
+<a href=#58 id=58 data-nosnippet>58</a>    /// the terms add beyond their relative accuracy.
+<a href=#59 id=59 data-nosnippet>59</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) bound: Rounding&lt;N&gt;,
+<a href=#60 id=60 data-nosnippet>60</a>    <span class="doccomment">/// Shells summed so far.
+<a href=#61 id=61 data-nosnippet>61</a>    </span>count: i32,
+<a href=#62 id=62 data-nosnippet>62</a>    <span class="doccomment">/// Shells to sum before the convergence test may stop the sum ([`peak_shells`]).
+<a href=#63 id=63 data-nosnippet>63</a>    </span>floor: i32,
+<a href=#64 id=64 data-nosnippet>64</a>    <span class="doccomment">/// The largest moduli of the value and derivatives that the last two shells added.
+<a href=#65 id=65 data-nosnippet>65</a>    </span>last: [f64; <span class="number">2</span>],
+<a href=#66 id=66 data-nosnippet>66</a>    <span class="doccomment">/// The same of what each of the last two shells added in all, where their terms
+<a href=#67 id=67 data-nosnippet>67</a>    /// cancel.
+<a href=#68 id=68 data-nosnippet>68</a>    </span>net: [f64; <span class="number">2</span>],
+<a href=#69 id=69 data-nosnippet>69</a>    <span class="doccomment">/// Whether the sum stopped at its shell limit on `net` instead of `last` (see
+<a href=#70 id=70 data-nosnippet>70</a>    /// [`Shells::sum`]).
+<a href=#71 id=71 data-nosnippet>71</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) settled: bool,
+<a href=#72 id=72 data-nosnippet>72</a>}
+<a href=#73 id=73 data-nosnippet>73</a>
+<a href=#74 id=74 data-nosnippet>74</a><span class="kw">impl</span>&lt;<span class="kw">const </span>N: usize&gt; Shells&lt;N&gt; {
+<a href=#75 id=75 data-nosnippet>75</a>    <span class="doccomment">/// Sum `term` over cube shells until two consecutive shells add less than
+<a href=#76 id=76 data-nosnippet>76</a>    /// [`SHELL_TOLERANCE`] times `max(|sum|, 1)`, but not before `floor` shells
+<a href=#77 id=77 data-nosnippet>77</a>    /// ([`peak_shells`]), failing after `maximum` shells; where `cancelling`, keep the
+<a href=#78 id=78 data-nosnippet>78</a>    /// rounding errors of the additions and count their bounds ([`Self::bound`]). With
+<a href=#79 id=79 data-nosnippet>79</a>    /// `settle` a sum at the limit whose last two shells add less than that in all
+<a href=#80 id=80 data-nosnippet>80</a>    /// ([`Self::settled`]) is returned for the caller to verify: at `|k eta|` far below the
+<a href=#81 id=81 data-nosnippet>81</a>    /// automatic split the real-space terms reach beyond the limit while their Bloch
+<a href=#82 id=82 data-nosnippet>82</a>    /// phases cancel them within each shell.
+<a href=#83 id=83 data-nosnippet>83</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>sum(
+<a href=#84 id=84 data-nosnippet>84</a>        dim: usize,
+<a href=#85 id=85 data-nosnippet>85</a>        [maximum, floor]: [i32; <span class="number">2</span>],
+<a href=#86 id=86 data-nosnippet>86</a>        term: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut([i64; <span class="number">3</span>], <span class="kw-2">&amp;mut </span>Rounding&lt;N&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Jet&lt;N&gt;&gt;,
+<a href=#87 id=87 data-nosnippet>87</a>        settle: bool,
+<a href=#88 id=88 data-nosnippet>88</a>        cancelling: bool,
+<a href=#89 id=89 data-nosnippet>89</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
+<a href=#90 id=90 data-nosnippet>90</a>        <span class="kw">let </span><span class="kw-2">mut </span>shells = <span class="self">Self </span>{
+<a href=#91 id=91 data-nosnippet>91</a>            sum: Jet::default(),
+<a href=#92 id=92 data-nosnippet>92</a>            error: Jet::default(),
+<a href=#93 id=93 data-nosnippet>93</a>            cancelling,
+<a href=#94 id=94 data-nosnippet>94</a>            bound: Rounding::default(),
+<a href=#95 id=95 data-nosnippet>95</a>            count: <span class="number">0</span>,
+<a href=#96 id=96 data-nosnippet>96</a>            floor,
+<a href=#97 id=97 data-nosnippet>97</a>            last: [f64::INFINITY; <span class="number">2</span>],
+<a href=#98 id=98 data-nosnippet>98</a>            net: [f64::INFINITY; <span class="number">2</span>],
+<a href=#99 id=99 data-nosnippet>99</a>            settled: <span class="bool-val">false</span>,
+<a href=#100 id=100 data-nosnippet>100</a>        };
+<a href=#101 id=101 data-nosnippet>101</a>        <span class="kw">if </span>shells.extend(dim, maximum, term, <span class="prelude-val">None</span>)<span class="question-mark">? </span>{
+<a href=#102 id=102 data-nosnippet>102</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(shells);
+<a href=#103 id=103 data-nosnippet>103</a>        }
+<a href=#104 id=104 data-nosnippet>104</a>        <span class="kw">let </span>limit = SHELL_TOLERANCE * shells.sum.norm().max(<span class="number">1.0</span>);
+<a href=#105 id=105 data-nosnippet>105</a>        <span class="kw">if </span>settle &amp;&amp; shells.net.iter().all(|<span class="kw-2">&amp;</span>net| net &lt;= limit) {
+<a href=#106 id=106 data-nosnippet>106</a>            shells.settled = <span class="bool-val">true</span>;
+<a href=#107 id=107 data-nosnippet>107</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(shells);
+<a href=#108 id=108 data-nosnippet>108</a>        }
+<a href=#109 id=109 data-nosnippet>109</a>        <span class="prelude-val">Err</span>(not_converged())
+<a href=#110 id=110 data-nosnippet>110</a>    }
+<a href=#111 id=111 data-nosnippet>111</a>
+<a href=#112 id=112 data-nosnippet>112</a>    <span class="doccomment">/// The moduli of the last two shells, or for a sum that settled what they added in
+<a href=#113 id=113 data-nosnippet>113</a>    /// all: a bound on what the shells beyond would add.
+<a href=#114 id=114 data-nosnippet>114</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>tail(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f64 {
+<a href=#115 id=115 data-nosnippet>115</a>        <span class="kw">if </span><span class="self">self</span>.settled {
+<a href=#116 id=116 data-nosnippet>116</a>            <span class="self">self</span>.net.iter().sum()
+<a href=#117 id=117 data-nosnippet>117</a>        } <span class="kw">else </span>{
+<a href=#118 id=118 data-nosnippet>118</a>            <span class="self">self</span>.last.iter().sum()
+<a href=#119 id=119 data-nosnippet>119</a>        }
+<a href=#120 id=120 data-nosnippet>120</a>    }
+<a href=#121 id=121 data-nosnippet>121</a>
+<a href=#122 id=122 data-nosnippet>122</a>    <span class="doccomment">/// Adds `value` to a cancelling sum with the rounding error of that addition, and
+<a href=#123 id=123 data-nosnippet>123</a>    /// counts [`TERM_ULPS`] of its moduli in [`Self::bound`]. Kept out of line, like
+<a href=#124 id=124 data-nosnippet>124</a>    /// [`small_split_kambe`], for the sums at other splits.
+<a href=#125 id=125 data-nosnippet>125</a>    ///
+<a href=#126 id=126 data-nosnippet>126</a>    /// [`small_split_kambe`]: super::real::small_split_kambe
+<a href=#127 id=127 data-nosnippet>127</a>    </span><span class="attr">#[inline(never)]
+<a href=#128 id=128 data-nosnippet>128</a>    </span><span class="kw">fn </span>add_compensated(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value: <span class="kw-2">&amp;</span>Jet&lt;N&gt;) {
+<a href=#129 id=129 data-nosnippet>129</a>        add_jet_exactly(<span class="kw-2">&amp;mut </span><span class="self">self</span>.sum, <span class="kw-2">&amp;mut </span><span class="self">self</span>.error, value);
+<a href=#130 id=130 data-nosnippet>130</a>        <span class="self">self</span>.bound += Rounding::relative(value, TERM_ULPS);
+<a href=#131 id=131 data-nosnippet>131</a>    }
+<a href=#132 id=132 data-nosnippet>132</a>
+<a href=#133 id=133 data-nosnippet>133</a>    <span class="doccomment">/// Add shells until the last two add less than [`SHELL_TOLERANCE`] times `scale`, or
+<a href=#134 id=134 data-nosnippet>134</a>    /// without one each less than that of `max(|sum|, 1)` as it was then, from
+<a href=#135 id=135 data-nosnippet>135</a>    /// [`Self::floor`] shells on, and whether they did within `maximum` shells.
+<a href=#136 id=136 data-nosnippet>136</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>extend(
+<a href=#137 id=137 data-nosnippet>137</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#138 id=138 data-nosnippet>138</a>        dim: usize,
+<a href=#139 id=139 data-nosnippet>139</a>        maximum: i32,
+<a href=#140 id=140 data-nosnippet>140</a>        term: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut([i64; <span class="number">3</span>], <span class="kw-2">&amp;mut </span>Rounding&lt;N&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Jet&lt;N&gt;&gt;,
+<a href=#141 id=141 data-nosnippet>141</a>        scale: <span class="prelude-ty">Option</span>&lt;f64&gt;,
+<a href=#142 id=142 data-nosnippet>142</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
+<a href=#143 id=143 data-nosnippet>143</a>        <span class="kw">let </span>tolerance =
+<a href=#144 id=144 data-nosnippet>144</a>            |sum: <span class="kw-2">&amp;</span>Jet&lt;N&gt;| SHELL_TOLERANCE * scale.unwrap_or_else(|| sum.norm().max(<span class="number">1.0</span>));
+<a href=#145 id=145 data-nosnippet>145</a>        <span class="kw">let </span>limit = tolerance(<span class="kw-2">&amp;</span><span class="self">self</span>.sum);
+<a href=#146 id=146 data-nosnippet>146</a>        <span class="kw">let </span><span class="kw-2">mut </span>quiet = <span class="self">self</span>.last.iter().rev().take_while(|&amp;&amp;m| m &lt;= limit).count();
+<a href=#147 id=147 data-nosnippet>147</a>        <span class="kw">while </span>quiet &lt; <span class="number">2 </span>|| <span class="self">self</span>.count &lt; <span class="self">self</span>.floor {
+<a href=#148 id=148 data-nosnippet>148</a>            <span class="kw">if </span><span class="self">self</span>.count &gt;= maximum {
+<a href=#149 id=149 data-nosnippet>149</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="bool-val">false</span>);
+<a href=#150 id=150 data-nosnippet>150</a>            }
+<a href=#151 id=151 data-nosnippet>151</a>            <span class="kw">let </span><span class="kw-2">mut </span>shell = <span class="number">0.0</span>;
+<a href=#152 id=152 data-nosnippet>152</a>            <span class="kw">let </span><span class="kw-2">mut </span>net = Jet::default();
+<a href=#153 id=153 data-nosnippet>153</a>            visit_cube(dim, i64::from(<span class="self">self</span>.count), <span class="bool-val">true</span>, |point| {
+<a href=#154 id=154 data-nosnippet>154</a>                <span class="kw">let </span>value = term(point, <span class="kw-2">&amp;mut </span><span class="self">self</span>.bound)<span class="question-mark">?</span>;
+<a href=#155 id=155 data-nosnippet>155</a>                <span class="kw">if </span>!value.finite() {
+<a href=#156 id=156 data-nosnippet>156</a>                    <span class="kw">return </span><span class="prelude-val">Err</span>(Error::NonFinite(
+<a href=#157 id=157 data-nosnippet>157</a>                        <span class="string">"non-finite Ewald summand; change the split parameter or reduce the order"
+<a href=#158 id=158 data-nosnippet>158</a>                            </span>.into(),
+<a href=#159 id=159 data-nosnippet>159</a>                    ));
+<a href=#160 id=160 data-nosnippet>160</a>                }
+<a href=#161 id=161 data-nosnippet>161</a>                <span class="kw">if </span><span class="self">self</span>.cancelling {
+<a href=#162 id=162 data-nosnippet>162</a>                    <span class="self">self</span>.add_compensated(<span class="kw-2">&amp;</span>value);
+<a href=#163 id=163 data-nosnippet>163</a>                } <span class="kw">else </span>{
+<a href=#164 id=164 data-nosnippet>164</a>                    <span class="self">self</span>.sum += value;
+<a href=#165 id=165 data-nosnippet>165</a>                }
+<a href=#166 id=166 data-nosnippet>166</a>                net += value;
+<a href=#167 id=167 data-nosnippet>167</a>                shell += largest_modulus(<span class="kw-2">&amp;</span>value);
+<a href=#168 id=168 data-nosnippet>168</a>                <span class="prelude-val">Ok</span>(())
+<a href=#169 id=169 data-nosnippet>169</a>            })<span class="question-mark">?</span>;
+<a href=#170 id=170 data-nosnippet>170</a>            <span class="kw">if </span><span class="self">self</span>.cancelling {
+<a href=#171 id=171 data-nosnippet>171</a>                <span class="kw">let </span>error = std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.error);
+<a href=#172 id=172 data-nosnippet>172</a>                add_jet_exactly(<span class="kw-2">&amp;mut </span><span class="self">self</span>.sum, <span class="kw-2">&amp;mut </span><span class="self">self</span>.error, <span class="kw-2">&amp;</span>error);
+<a href=#173 id=173 data-nosnippet>173</a>            }
+<a href=#174 id=174 data-nosnippet>174</a>            <span class="self">self</span>.count += <span class="number">1</span>;
+<a href=#175 id=175 data-nosnippet>175</a>            <span class="self">self</span>.last = [<span class="self">self</span>.last[<span class="number">1</span>], shell];
+<a href=#176 id=176 data-nosnippet>176</a>            <span class="self">self</span>.net = [<span class="self">self</span>.net[<span class="number">1</span>], largest_modulus(<span class="kw-2">&amp;</span>net)];
+<a href=#177 id=177 data-nosnippet>177</a>            quiet = <span class="kw">if </span>shell &lt;= tolerance(<span class="kw-2">&amp;</span><span class="self">self</span>.sum) {
+<a href=#178 id=178 data-nosnippet>178</a>                quiet + <span class="number">1
+<a href=#179 id=179 data-nosnippet>179</a>            </span>} <span class="kw">else </span>{
+<a href=#180 id=180 data-nosnippet>180</a>                <span class="number">0
+<a href=#181 id=181 data-nosnippet>181</a>            </span>};
+<a href=#182 id=182 data-nosnippet>182</a>        }
+<a href=#183 id=183 data-nosnippet>183</a>        <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>)
+<a href=#184 id=184 data-nosnippet>184</a>    }
+<a href=#185 id=185 data-nosnippet>185</a>}
+<a href=#186 id=186 data-nosnippet>186</a>
+<a href=#187 id=187 data-nosnippet>187</a><span class="doccomment">/// Adds `x` to `sum` and the rounding error of that addition, which Knuth's two-sum
+<a href=#188 id=188 data-nosnippet>188</a>/// finds exactly, to `error`.
+<a href=#189 id=189 data-nosnippet>189</a></span><span class="kw">fn </span>add_exactly(sum: <span class="kw-2">&amp;mut </span>f64, error: <span class="kw-2">&amp;mut </span>f64, x: f64) {
+<a href=#190 id=190 data-nosnippet>190</a>    <span class="kw">let </span>total = <span class="kw-2">*</span>sum + x;
+<a href=#191 id=191 data-nosnippet>191</a>    <span class="kw">let </span>back = total - <span class="kw-2">*</span>sum;
+<a href=#192 id=192 data-nosnippet>192</a>    <span class="kw-2">*</span>error += (<span class="kw-2">*</span>sum - (total - back)) + (x - back);
+<a href=#193 id=193 data-nosnippet>193</a>    <span class="kw-2">*</span>sum = total;
+<a href=#194 id=194 data-nosnippet>194</a>}
+<a href=#195 id=195 data-nosnippet>195</a>
+<a href=#196 id=196 data-nosnippet>196</a><span class="doccomment">/// [`add_exactly`] for the real and imaginary parts of a jet's value and derivatives.
+<a href=#197 id=197 data-nosnippet>197</a></span><span class="kw">fn </span>add_jet_exactly&lt;<span class="kw">const </span>N: usize&gt;(sum: <span class="kw-2">&amp;mut </span>Jet&lt;N&gt;, error: <span class="kw-2">&amp;mut </span>Jet&lt;N&gt;, x: <span class="kw-2">&amp;</span>Jet&lt;N&gt;) {
+<a href=#198 id=198 data-nosnippet>198</a>    <span class="kw">let </span>add = |sum: <span class="kw-2">&amp;mut </span>Complex, error: <span class="kw-2">&amp;mut </span>Complex, x: Complex| {
+<a href=#199 id=199 data-nosnippet>199</a>        add_exactly(<span class="kw-2">&amp;mut </span>sum.re, <span class="kw-2">&amp;mut </span>error.re, x.re);
+<a href=#200 id=200 data-nosnippet>200</a>        add_exactly(<span class="kw-2">&amp;mut </span>sum.im, <span class="kw-2">&amp;mut </span>error.im, x.im);
+<a href=#201 id=201 data-nosnippet>201</a>    };
+<a href=#202 id=202 data-nosnippet>202</a>    add(<span class="kw-2">&amp;mut </span>sum.value, <span class="kw-2">&amp;mut </span>error.value, x.value);
+<a href=#203 id=203 data-nosnippet>203</a>    <span class="kw">for </span>((sum, error), <span class="kw-2">&amp;</span>x) <span class="kw">in </span>sum
+<a href=#204 id=204 data-nosnippet>204</a>        .derivative
+<a href=#205 id=205 data-nosnippet>205</a>        .iter_mut()
+<a href=#206 id=206 data-nosnippet>206</a>        .zip(<span class="kw-2">&amp;mut </span>error.derivative)
+<a href=#207 id=207 data-nosnippet>207</a>        .zip(<span class="kw-2">&amp;</span>x.derivative)
+<a href=#208 id=208 data-nosnippet>208</a>    {
+<a href=#209 id=209 data-nosnippet>209</a>        add(sum, error, x);
+<a href=#210 id=210 data-nosnippet>210</a>    }
+<a href=#211 id=211 data-nosnippet>211</a>}
+<a href=#212 id=212 data-nosnippet>212</a>
+<a href=#213 id=213 data-nosnippet>213</a><span class="doccomment">/// The message of a shell sum that does not converge within its limit.
+<a href=#214 id=214 data-nosnippet>214</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">const </span>NOT_CONVERGED: <span class="kw-2">&amp;</span>str = <span class="string">"Ewald sum did not converge within the shell limit"</span>;
+<a href=#215 id=215 data-nosnippet>215</a>
+<a href=#216 id=216 data-nosnippet>216</a><span class="doccomment">/// The failure of a shell sum that does not converge within its limit.
+<a href=#217 id=217 data-nosnippet>217</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>not_converged() -&gt; Error {
+<a href=#218 id=218 data-nosnippet>218</a>    Error::NotConverged(NOT_CONVERGED.into())
+<a href=#219 id=219 data-nosnippet>219</a>}
+<a href=#220 id=220 data-nosnippet>220</a>
+<a href=#221 id=221 data-nosnippet>221</a><span class="doccomment">/// Whether `error` is the failure of [`not_converged`] rather than one of the
+<a href=#222 id=222 data-nosnippet>222</a>/// cancellation failures that share its variant.
+<a href=#223 id=223 data-nosnippet>223</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>is_shell_limit(error: <span class="kw-2">&amp;</span>Error) -&gt; bool {
+<a href=#224 id=224 data-nosnippet>224</a>    <span class="macro">matches!</span>(error, Error::NotConverged(text) <span class="kw">if </span>text == NOT_CONVERGED)
+<a href=#225 id=225 data-nosnippet>225</a>}
+<a href=#226 id=226 data-nosnippet>226</a>
+<a href=#227 id=227 data-nosnippet>227</a><span class="doccomment">/// The shell limits of [`real_shells`] and [`reciprocal_shells`] reach every term whose
+<a href=#228 id=228 data-nosnippet>228</a>/// Gaussian factor exceeds `e^-TERM_DECAY`.
+<a href=#229 id=229 data-nosnippet>229</a></span><span class="kw">const </span>TERM_DECAY: f64 = <span class="number">50.0</span>;
+<a href=#230 id=230 data-nosnippet>230</a>
+<a href=#231 id=231 data-nosnippet>231</a><span class="doccomment">/// Cube shells a sum may visit before it fails: 200, 32 and 16 in one, two and three
+<a href=#232 id=232 data-nosnippet>232</a>/// dimensions.
+<a href=#233 id=233 data-nosnippet>233</a></span><span class="kw">const fn </span>shells(dim: usize) -&gt; i32 {
+<a href=#234 id=234 data-nosnippet>234</a>    <span class="kw">match </span>dim {
+<a href=#235 id=235 data-nosnippet>235</a>        <span class="number">1 </span>=&gt; <span class="number">200</span>,
+<a href=#236 id=236 data-nosnippet>236</a>        <span class="number">2 </span>=&gt; <span class="number">32</span>,
+<a href=#237 id=237 data-nosnippet>237</a>        <span class="kw">_ </span>=&gt; <span class="number">16</span>,
+<a href=#238 id=238 data-nosnippet>238</a>    }
+<a href=#239 id=239 data-nosnippet>239</a>}
+<a href=#240 id=240 data-nosnippet>240</a>
+<a href=#241 id=241 data-nosnippet>241</a><span class="doccomment">/// Cube shells the reciprocal sum may visit, as `[fail, extend]`.
+<a href=#242 id=242 data-nosnippet>242</a>///
+<a href=#243 id=243 data-nosnippet>243</a>/// # Formula
+<a href=#244 id=244 data-nosnippet>244</a>///
+<a href=#245 id=245 data-nosnippet>245</a>/// The terms fall like `exp(-Re(1 / (k eta)^2) |q + G|^2 / 2)`, below `exp(-50)` beyond
+<a href=#246 id=246 data-nosnippet>246</a>/// `|q + G| = sqrt(100 / Re(1 / (k eta)^2))`. That is `10 |k eta|` for real `k eta`,
+<a href=#247 id=247 data-nosnippet>247</a>/// within `|k| sqrt(1 + 100 |eta|^2)`, and grows as `k eta` turns off the real axis.
+<a href=#248 id=248 data-nosnippet>248</a>///
+<a href=#249 id=249 data-nosnippet>249</a>/// # Limits
+<a href=#250 id=250 data-nosnippet>250</a>///
+<a href=#251 id=251 data-nosnippet>251</a>/// - A sum fails once it passes `fail` shells, which reach the larger of the two radii
+<a href=#252 id=252 data-nosnippet>252</a>///   plus `|q|`.
+<a href=#253 id=253 data-nosnippet>253</a>/// - At small splits a converged sum continues toward the tolerance of the complete sum
+<a href=#254 id=254 data-nosnippet>254</a>///   and keeps what it leaves out as its tail. It stops at `extend` shells, which reach
+<a href=#255 id=255 data-nosnippet>255</a>///   `|k| sqrt(1 + 100 |eta|^2) + |q|` alone, so the larger radius changes no sum that
+<a href=#256 id=256 data-nosnippet>256</a>///   converges within the smaller one.
+<a href=#257 id=257 data-nosnippet>257</a>/// - A 1D spherical sum fails at `extend` shells and takes its spectral series instead.
+<a href=#258 id=258 data-nosnippet>258</a>///
+<a href=#259 id=259 data-nosnippet>259</a>/// At large `|k| L` either radius needs more than the fixed limit.
+<a href=#260 id=260 data-nosnippet>260</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>reciprocal_shells(
+<a href=#261 id=261 data-nosnippet>261</a>    lattice: <span class="kw-2">&amp;</span>BlochLattice,
+<a href=#262 id=262 data-nosnippet>262</a>    k: Complex,
+<a href=#263 id=263 data-nosnippet>263</a>    eta: Complex,
+<a href=#264 id=264 data-nosnippet>264</a>    kpar: [f64; <span class="number">3</span>],
+<a href=#265 id=265 data-nosnippet>265</a>) -&gt; [i32; <span class="number">2</span>] {
+<a href=#266 id=266 data-nosnippet>266</a>    <span class="kw">let </span>within = |radius| {
+<a href=#267 id=267 data-nosnippet>267</a>        shells_within(
+<a href=#268 id=268 data-nosnippet>268</a>            lattice.dim,
+<a href=#269 id=269 data-nosnippet>269</a>            radius,
+<a href=#270 id=270 data-nosnippet>270</a>            <span class="kw-2">&amp;</span>lattice.direct,
+<a href=#271 id=271 data-nosnippet>271</a>            lattice.reciprocal_reduction.as_ref(),
+<a href=#272 id=272 data-nosnippet>272</a>        )
+<a href=#273 id=273 data-nosnippet>273</a>    };
+<a href=#274 id=274 data-nosnippet>274</a>    <span class="kw">let </span>split = k * eta;
+<a href=#275 id=275 data-nosnippet>275</a>    <span class="kw">let </span>decay = (split * split).inv().re;
+<a href=#276 id=276 data-nosnippet>276</a>    <span class="kw">let </span>radius = k.norm() * eta.norm_sqr().mul_add(<span class="number">2.0 </span>* TERM_DECAY, <span class="number">1.0</span>).sqrt();
+<a href=#277 id=277 data-nosnippet>277</a>    <span class="kw">let </span>extend = within(radius + norm(kpar));
+<a href=#278 id=278 data-nosnippet>278</a>    <span class="comment">// Off the real axis the terms fall slower: 0.27 times as fast with `k eta` at 37 degrees.
+<a href=#279 id=279 data-nosnippet>279</a>    </span><span class="kw">let </span>turned = <span class="kw">if </span>decay &gt; <span class="number">0.0 </span>{
+<a href=#280 id=280 data-nosnippet>280</a>        (<span class="number">2.0 </span>* TERM_DECAY / decay).sqrt()
+<a href=#281 id=281 data-nosnippet>281</a>    } <span class="kw">else </span>{
+<a href=#282 id=282 data-nosnippet>282</a>        <span class="number">0.0
+<a href=#283 id=283 data-nosnippet>283</a>    </span>};
+<a href=#284 id=284 data-nosnippet>284</a>    <span class="kw">if </span>turned &gt; radius {
+<a href=#285 id=285 data-nosnippet>285</a>        [within(turned + norm(kpar)), extend]
+<a href=#286 id=286 data-nosnippet>286</a>    } <span class="kw">else </span>{
+<a href=#287 id=287 data-nosnippet>287</a>        [extend, extend]
+<a href=#288 id=288 data-nosnippet>288</a>    }
+<a href=#289 id=289 data-nosnippet>289</a>}
+<a href=#290 id=290 data-nosnippet>290</a>
+<a href=#291 id=291 data-nosnippet>291</a><span class="doccomment">/// Cube shells the real-space sum may visit.
+<a href=#292 id=292 data-nosnippet>292</a>///
+<a href=#293 id=293 data-nosnippet>293</a>/// # Formula
+<a href=#294 id=294 data-nosnippet>294</a>///
+<a href=#295 id=295 data-nosnippet>295</a>/// The terms fall like `exp(Re(1 / (2 eta^2)) - Re((k eta)^2) |R|^2 / 2)` from the
+<a href=#296 id=296 data-nosnippet>296</a>/// nearest ones, below `exp(-50)` beyond `|R| = sqrt(2 (50 + Re(1 / (2 eta^2))) /
+<a href=#297 id=297 data-nosnippet>297</a>/// Re((k eta)^2))`. Splits with `|k eta|` well below the automatic one need more than the
+<a href=#298 id=298 data-nosnippet>298</a>/// fixed limit to reach it.
+<a href=#299 id=299 data-nosnippet>299</a>///
+<a href=#300 id=300 data-nosnippet>300</a>/// # Why
+<a href=#301 id=301 data-nosnippet>301</a>///
+<a href=#302 id=302 data-nosnippet>302</a>/// Where `(k eta)^2` lies more than 45 degrees off the real axis
+<a href=#303 id=303 data-nosnippet>303</a>/// (`Re((k eta)^2) &lt; |Im((k eta)^2)|`), the phase of the terms turns faster than they
+<a href=#304 id=304 data-nosnippet>304</a>/// fall, and their far shells cancel. There only 1D and 2D sums at small splits, which
+<a href=#305 id=305 data-nosnippet>305</a>/// check the [`cancellation`] of their parts, take the grown limit.
+<a href=#306 id=306 data-nosnippet>306</a>///
+<a href=#307 id=307 data-nosnippet>307</a>/// Calibrated: with the grown limit, 3D sums take up to 20 s, and a 1D cylindrical sum
+<a href=#308 id=308 data-nosnippet>308</a>/// above the automatic splits comes back 2e-5 of `max(|S|, 1)` off.
+<a href=#309 id=309 data-nosnippet>309</a>///
+<a href=#310 id=310 data-nosnippet>310</a>/// [`cancellation`]: super::accuracy::cancellation
+<a href=#311 id=311 data-nosnippet>311</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>real_shells(lattice: <span class="kw-2">&amp;</span>BlochLattice, k: Complex, eta: Complex) -&gt; i32 {
+<a href=#312 id=312 data-nosnippet>312</a>    <span class="kw">let </span>split = k * eta;
+<a href=#313 id=313 data-nosnippet>313</a>    <span class="kw">let </span>square = split * split;
+<a href=#314 id=314 data-nosnippet>314</a>    <span class="kw">let </span>decay = square.re;
+<a href=#315 id=315 data-nosnippet>315</a>    <span class="kw">let </span>turned = decay &lt; square.im.abs();
+<a href=#316 id=316 data-nosnippet>316</a>    <span class="kw">if </span>decay &gt; <span class="number">0.0 </span>&amp;&amp; (!turned || (lattice.dim &lt; <span class="number">3 </span>&amp;&amp; below_automatic(eta))) {
+<a href=#317 id=317 data-nosnippet>317</a>        <span class="kw">let </span>growth = (<span class="number">0.5 </span>/ (eta * eta)).re.max(<span class="number">0.0</span>);
+<a href=#318 id=318 data-nosnippet>318</a>        <span class="kw">let </span>radius = (<span class="number">2.0 </span>* (TERM_DECAY + growth) / decay).sqrt();
+<a href=#319 id=319 data-nosnippet>319</a>        shells_within(
+<a href=#320 id=320 data-nosnippet>320</a>            lattice.dim,
+<a href=#321 id=321 data-nosnippet>321</a>            radius,
+<a href=#322 id=322 data-nosnippet>322</a>            <span class="kw-2">&amp;</span>lattice.reciprocal,
+<a href=#323 id=323 data-nosnippet>323</a>            lattice.direct_reduction.as_ref(),
+<a href=#324 id=324 data-nosnippet>324</a>        )
+<a href=#325 id=325 data-nosnippet>325</a>    } <span class="kw">else </span>{
+<a href=#326 id=326 data-nosnippet>326</a>        shells(lattice.dim)
+<a href=#327 id=327 data-nosnippet>327</a>    }
+<a href=#328 id=328 data-nosnippet>328</a>}
+<a href=#329 id=329 data-nosnippet>329</a>
+<a href=#330 id=330 data-nosnippet>330</a><span class="doccomment">/// The Euclidean norm of a lattice-frame vector.
+<a href=#331 id=331 data-nosnippet>331</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>norm(v: [f64; <span class="number">3</span>]) -&gt; f64 {
+<a href=#332 id=332 data-nosnippet>332</a>    v.iter().map(|x| x * x).sum::&lt;f64&gt;().sqrt()
+<a href=#333 id=333 data-nosnippet>333</a>}
+<a href=#334 id=334 data-nosnippet>334</a>
+<a href=#335 id=335 data-nosnippet>335</a><span class="doccomment">/// Cube shells of a sum over a lattice, reduced by `reduction`, whose dual rows are
+<a href=#336 id=336 data-nosnippet>336</a>/// `dual` (`a_i . b_j = 2 pi delta_ij`): [`shells`], or where reaching the lattice
+<a href=#337 id=337 data-nosnippet>337</a>/// vectors within `radius` needs more, that many plus two, up to four times the base.
+<a href=#338 id=338 data-nosnippet>338</a>/// Index `i` of a lattice vector `x` is `c_i . x / 2 pi` for the dual rows `c` of the
+<a href=#339 id=339 data-nosnippet>339</a>/// reduced basis.
+<a href=#340 id=340 data-nosnippet>340</a></span><span class="attr">#[allow(clippy::cast_possible_truncation)] </span><span class="comment">// Bounded by four times the base limit.
+<a href=#341 id=341 data-nosnippet>341</a></span><span class="kw">fn </span>shells_within(
+<a href=#342 id=342 data-nosnippet>342</a>    dim: usize,
+<a href=#343 id=343 data-nosnippet>343</a>    radius: f64,
+<a href=#344 id=344 data-nosnippet>344</a>    dual: <span class="kw-2">&amp;</span>[[f64; <span class="number">3</span>]; <span class="number">3</span>],
+<a href=#345 id=345 data-nosnippet>345</a>    reduction: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Reduction&gt;,
+<a href=#346 id=346 data-nosnippet>346</a>) -&gt; i32 {
+<a href=#347 id=347 data-nosnippet>347</a>    <span class="kw">let </span>base = shells(dim);
+<a href=#348 id=348 data-nosnippet>348</a>    <span class="kw">let </span>needed = largest_index(dim, radius, dual, reduction).ceil() + <span class="number">2.0</span>;
+<a href=#349 id=349 data-nosnippet>349</a>    <span class="kw">if </span>needed &gt; f64::from(base) {
+<a href=#350 id=350 data-nosnippet>350</a>        needed.min(f64::from(<span class="number">4 </span>* base)) <span class="kw">as </span>i32
+<a href=#351 id=351 data-nosnippet>351</a>    } <span class="kw">else </span>{
+<a href=#352 id=352 data-nosnippet>352</a>        base
+<a href=#353 id=353 data-nosnippet>353</a>    }
+<a href=#354 id=354 data-nosnippet>354</a>}
+<a href=#355 id=355 data-nosnippet>355</a>
+<a href=#356 id=356 data-nosnippet>356</a><span class="doccomment">/// The largest shell index of the lattice vectors within `radius` of a lattice reduced
+<a href=#357 id=357 data-nosnippet>357</a>/// by `reduction`, whose dual rows are `dual` (see [`shells_within`]).
+<a href=#358 id=358 data-nosnippet>358</a></span><span class="kw">fn </span>largest_index(
+<a href=#359 id=359 data-nosnippet>359</a>    dim: usize,
+<a href=#360 id=360 data-nosnippet>360</a>    radius: f64,
+<a href=#361 id=361 data-nosnippet>361</a>    dual: <span class="kw-2">&amp;</span>[[f64; <span class="number">3</span>]; <span class="number">3</span>],
+<a href=#362 id=362 data-nosnippet>362</a>    reduction: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Reduction&gt;,
+<a href=#363 id=363 data-nosnippet>363</a>) -&gt; f64 {
+<a href=#364 id=364 data-nosnippet>364</a>    <span class="kw">let </span>spacing = (<span class="number">0</span>..dim)
+<a href=#365 id=365 data-nosnippet>365</a>        .map(|i| {
+<a href=#366 id=366 data-nosnippet>366</a>            norm(reduction.map_or(dual[i], |reduction| {
+<a href=#367 id=367 data-nosnippet>367</a>                std::array::from_fn(|j| (<span class="number">0</span>..dim).map(|k| reduction.dual[i][k] * dual[k][j]).sum())
+<a href=#368 id=368 data-nosnippet>368</a>            }))
+<a href=#369 id=369 data-nosnippet>369</a>        })
+<a href=#370 id=370 data-nosnippet>370</a>        .fold(<span class="number">0.0</span>, f64::max);
+<a href=#371 id=371 data-nosnippet>371</a>    radius * spacing / (<span class="number">2.0 </span>* PI)
+<a href=#372 id=372 data-nosnippet>372</a>}
+<a href=#373 id=373 data-nosnippet>373</a>
+<a href=#374 id=374 data-nosnippet>374</a><span class="doccomment">/// Cube shells that an Ewald part of `wave` on a lattice of dimension `dim` visits
+<a href=#375 id=375 data-nosnippet>375</a>/// before its convergence test may stop it ([`Shells::sum`]).
+<a href=#376 id=376 data-nosnippet>376</a>///
+<a href=#377 id=377 data-nosnippet>377</a>/// These are the shells with a lattice vector within `offset` (the reduced shift or Bloch
+<a href=#378 id=378 data-nosnippet>378</a>/// vector, the origin of the part) plus the radius where the moduli of its far terms
+<a href=#379 id=379 data-nosnippet>379</a>/// peak, on a lattice reduced by `reduction` with the dual rows `dual`. `0` where the
+<a href=#380 id=380 data-nosnippet>380</a>/// terms do not fall (`decay &lt;= 0`): both parts diverge there.
+<a href=#381 id=381 data-nosnippet>381</a>///
+<a href=#382 id=382 data-nosnippet>382</a>/// # Formula
+<a href=#383 id=383 data-nosnippet>383</a>///
+<a href=#384 id=384 data-nosnippet>384</a>/// Far from the origin each term is the Gaussian `exp(-decay x^2 / 2)` of its distance
+<a href=#385 id=385 data-nosnippet>385</a>/// `x` times a polynomial of degree `l` (`l - |m|` along a chain, `|m|` for cylindrical
+<a href=#386 id=386 data-nosnippet>386</a>/// waves) in real and reciprocal space, less 2 for the endpoint of its Kambe integral or
+<a href=#387 id=387 data-nosnippet>387</a>/// `1 / v`. A shell holds about `x^(dim - 1)` terms, and jets up to `x^2` more, so the
+<a href=#388 id=388 data-nosnippet>388</a>/// moduli of a shell peak at `x^2 = power / decay` and fall monotonically beyond.
+<a href=#389 id=389 data-nosnippet>389</a>///
+<a href=#390 id=390 data-nosnippet>390</a>/// # Why
+<a href=#391 id=391 data-nosnippet>391</a>///
+<a href=#392 id=392 data-nosnippet>392</a>/// Before the peak the moduli can fall and rise again, as the real-space terms of lossy
+<a href=#393 id=393 data-nosnippet>393</a>/// `k` at splits turned close to 90 degrees and the reciprocal terms of high degree do;
+<a href=#394 id=394 data-nosnippet>394</a>/// without the floor such sums stop on their first shells.
+<a href=#395 id=395 data-nosnippet>395</a></span><span class="attr">#[allow(clippy::cast_possible_truncation)] </span><span class="comment">// Clamped to the range of i32.
+<a href=#396 id=396 data-nosnippet>396</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>peak_shells(
+<a href=#397 id=397 data-nosnippet>397</a>    wave: Family,
+<a href=#398 id=398 data-nosnippet>398</a>    dim: usize,
+<a href=#399 id=399 data-nosnippet>399</a>    jet: bool,
+<a href=#400 id=400 data-nosnippet>400</a>    decay: f64,
+<a href=#401 id=401 data-nosnippet>401</a>    offset: f64,
+<a href=#402 id=402 data-nosnippet>402</a>    (dual, reduction): (<span class="kw-2">&amp;</span>[[f64; <span class="number">3</span>]; <span class="number">3</span>], <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Reduction&gt;),
+<a href=#403 id=403 data-nosnippet>403</a>) -&gt; i32 {
+<a href=#404 id=404 data-nosnippet>404</a>    <span class="comment">// Terms that do not fall have no peak, nor does a split that makes `decay` NaN.
+<a href=#405 id=405 data-nosnippet>405</a>    </span><span class="kw">if </span>decay.is_nan() || decay &lt;= <span class="number">0.0 </span>{
+<a href=#406 id=406 data-nosnippet>406</a>        <span class="kw">return </span><span class="number">0</span>;
+<a href=#407 id=407 data-nosnippet>407</a>    }
+<a href=#408 id=408 data-nosnippet>408</a>    <span class="kw">let </span>degree = <span class="kw">match </span>wave {
+<a href=#409 id=409 data-nosnippet>409</a>        Family::Spherical { l, m } <span class="kw">if </span>dim == <span class="number">1 </span>=&gt; l - m.abs(),
+<a href=#410 id=410 data-nosnippet>410</a>        Family::Spherical { l, .. } =&gt; l,
+<a href=#411 id=411 data-nosnippet>411</a>        Family::Cylindrical { m } =&gt; m.abs(),
+<a href=#412 id=412 data-nosnippet>412</a>    };
+<a href=#413 id=413 data-nosnippet>413</a>    <span class="kw">let </span>derivatives = <span class="kw">if </span>jet { <span class="number">2 </span>} <span class="kw">else </span>{ <span class="number">0 </span>};
+<a href=#414 id=414 data-nosnippet>414</a>    <span class="kw">let </span>power = degree - <span class="number">2 </span>+ i32::try_from(dim).unwrap_or(<span class="number">3</span>) - <span class="number">1 </span>+ derivatives;
+<a href=#415 id=415 data-nosnippet>415</a>    <span class="kw">if </span>power &lt;= <span class="number">0 </span>{
+<a href=#416 id=416 data-nosnippet>416</a>        <span class="kw">return </span><span class="number">0</span>;
+<a href=#417 id=417 data-nosnippet>417</a>    }
+<a href=#418 id=418 data-nosnippet>418</a>    <span class="kw">let </span>radius = (f64::from(power) / decay).sqrt() + offset;
+<a href=#419 id=419 data-nosnippet>419</a>    <span class="kw">let </span>shells = largest_index(dim, radius, dual, reduction).ceil() + <span class="number">1.0</span>;
+<a href=#420 id=420 data-nosnippet>420</a>    shells.min(f64::from(i32::MAX)) <span class="kw">as </span>i32
+<a href=#421 id=421 data-nosnippet>421</a>}
+</code></pre></div></section></main></body></html>

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["field","phase","phases","translate"],"struct":["FieldGradient","FieldResidual","ModeSums","ModeTerms","PhasesGradient","PhasesResidual"]};

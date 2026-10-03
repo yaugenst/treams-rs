@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["interface","inverse2","mie","radials","to_mode_order"],"struct":["Interface","MieGradient","MieResidual","Riccati"]};

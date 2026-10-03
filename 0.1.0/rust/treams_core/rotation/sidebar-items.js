@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["coupled","cw_rotate","cw_rotation","sw_rotate","sw_rotation"],"struct":["RotationResidual","Spherical"]};

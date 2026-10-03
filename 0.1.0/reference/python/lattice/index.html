@@ -1,0 +1,5230 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Lattice sums of spherical and cylindrical waves, and lattice geometry.">
+      
+      
+      
+        <link rel="canonical" href="https://yaugenst.github.io/treams-rs/0.1.0/reference/python/lattice/">
+      
+      
+        <link rel="prev" href="../pw/">
+      
+      
+        <link rel="next" href="../coeffs/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/favicon.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>treams_rs.lattice - treams-rs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#treams_rslattice" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="treams-rs" class="md-header__button md-logo" aria-label="treams-rs" data-md-component="logo">
+      
+  <img src="../../../assets/logo.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            treams-rs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              treams_rs.lattice
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Follow the system color scheme"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Follow the system color scheme" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/yaugenst/treams-rs" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    yaugenst/treams-rs
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="treams-rs" class="md-nav__button md-logo" aria-label="treams-rs" data-md-component="logo">
+      
+  <img src="../../../assets/logo.svg" alt="logo">
+
+    </a>
+    treams-rs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/yaugenst/treams-rs" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    yaugenst/treams-rs
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../coming-from-treams/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coming from treams
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Coming from treams
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../coming-from-treams/names/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Name map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../coming-from-treams/conventions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conventions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../coming-from-treams/differences/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differences from treams 0.4.7
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../guide/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guide/particles-and-waves/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Particles and waves
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guide/clusters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clusters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guide/large-clusters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Large clusters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guide/periodic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Periodic arrays
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guide/planar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Planar layers and S-matrices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guide/numerical-namespaces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Numerical namespaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guide/io/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    HDF5 and Gmsh
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guide/threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Threads and process pools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guide/api-discovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API discovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../examples/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/sphere/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single sphere
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster of spheres
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chain of spheres
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/grid/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grid of spheres
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/crystal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Photonic crystal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/slab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chiral slab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/array_spheres/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Array of spheres on a slab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/band_structure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Band structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/cylinder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single cylinder
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/cylindrical_chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chain of spheres in cylindrical waves
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/cylindrical_cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chain and cylinder
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/cylindrical_crystal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cylinder crystal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/grating/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grating
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/cylindrical_array/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Array of spheres from cylindrical waves
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/sphere_radius_optimization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sphere radius optimization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/array_transmission_gradient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Array transmission gradient
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../differentiation/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differentiation
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Differentiation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../differentiation/frameworks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Framework adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../differentiation/custom-records/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../differentiation/gradient-checks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gradient checks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../design/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/python-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/pullbacks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analytic pullbacks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/adapters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Framework adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/floating-point/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Floating-point environment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/numerics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Numerical choices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/parallelism/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parallelism
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/formal-proofs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Formal proofs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../validation/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validation
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_8" id="__nav_8_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Validation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../validation/capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../validation/numerical-limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Numerical and platform limits
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../validation/published-applications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Published applications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../performance/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_9" id="__nav_9_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Performance
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../performance/large-problems/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Requested illuminations and larger clusters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../performance/platform-comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mac and Linux benchmark comparison
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../performance/evidence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmark evidence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10_2" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_10_2" id="__nav_10_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_10_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_10_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../treams_rs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../special/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.special
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sw/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.sw
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cw/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.cw
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pw/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.pw
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.lattice
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.lattice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#sumresult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SumResult
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#area" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        area
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cube" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cube
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cubeedge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cubeedge
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#diffr_orders_circle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        diffr_orders_circle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumcw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumcw
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumcw1d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumcw1d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumcw1d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumcw1d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumcw2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumcw2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumsw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumsw
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumsw1d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumsw1d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumsw1d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumsw1d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumsw2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumsw2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumsw2d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumsw2d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumsw3d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumsw3d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumcw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumcw
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumcw1d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumcw1d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumcw1d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumcw1d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumcw2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumcw2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumsw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumsw
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumsw1d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumsw1d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumsw1d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumsw1d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumsw2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumsw2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumsw2d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumsw2d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumsw3d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumsw3d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumcw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumcw
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumcw1d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumcw1d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumcw1d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumcw1d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumcw2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumcw2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumsw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumsw
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumsw1d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumsw1d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumsw1d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumsw1d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumsw2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumsw2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumsw2d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumsw2d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumsw3d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumsw3d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reciprocal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        reciprocal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumcw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumcw
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumcw1d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumcw1d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumcw1d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumcw1d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumcw2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumcw2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumsw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumsw
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumsw1d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumsw1d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumsw1d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumsw1d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumsw2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumsw2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumsw2d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumsw2d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumsw3d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumsw3d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#volume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        volume
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../coeffs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.coeffs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../misc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.misc
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ebcm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.ebcm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../io/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.io
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.operators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../iterative/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.iterative
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../parallel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.parallel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.diff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.advect
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../jax/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.jax
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../torch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.torch
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../autograd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.autograd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../native-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Returned types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../rust/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rust crate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../development/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../development/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Source ownership
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../development/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../development/documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../development/benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../development/releasing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#sumresult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SumResult
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#area" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        area
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cube" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cube
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cubeedge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cubeedge
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#diffr_orders_circle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        diffr_orders_circle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumcw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumcw
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumcw1d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumcw1d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumcw1d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumcw1d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumcw2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumcw2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumsw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumsw
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumsw1d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumsw1d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumsw1d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumsw1d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumsw2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumsw2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumsw2d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumsw2d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dsumsw3d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dsumsw3d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumcw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumcw
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumcw1d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumcw1d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumcw1d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumcw1d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumcw2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumcw2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumsw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumsw
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumsw1d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumsw1d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumsw1d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumsw1d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumsw2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumsw2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumsw2d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumsw2d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lsumsw3d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        lsumsw3d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumcw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumcw
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumcw1d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumcw1d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumcw1d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumcw1d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumcw2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumcw2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumsw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumsw
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumsw1d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumsw1d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumsw1d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumsw1d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumsw2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumsw2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumsw2d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumsw2d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#realsumsw3d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        realsumsw3d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reciprocal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        reciprocal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumcw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumcw
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumcw1d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumcw1d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumcw1d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumcw1d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumcw2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumcw2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumsw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumsw
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumsw1d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumsw1d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumsw1d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumsw1d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumsw2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumsw2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumsw2d_shift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumsw2d_shift
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recsumsw3d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recsumsw3d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#volume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        volume
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../../" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Reference
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Python API
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="treams_rslattice"><code>treams_rs.lattice</code><a class="headerlink" href="#treams_rslattice" title="Permanent link">&para;</a></h1>
+<!-- Generated by scripts/generate_docs.py from the docstrings; run `just docs` after editing them. -->
+<!-- fmt: off -->
+
+<p>Lattice sums of spherical and cylindrical waves, and lattice geometry.</p>
+<p>Mirrors <code>treams.lattice</code>. A lattice of dimension d holds the points
+<code>R = n_1 a_1 + ... + n_d a_d</code> with integers <code>n_i</code>. The rows of <code>a</code> are
+the lattice vectors <code>a_i</code>. For a wavenumber <code>k</code>, a Bloch vector <code>kpar</code>
+(the real wavevector components along the lattice) and a shift <code>r</code>, the
+spherical and cylindrical sums are</p>
+<div class="highlight"><pre><span></span><code>D_lm(k, kpar, r) = sum'_R h_l(k |r + R|) Y_lm(-r - R) exp(i kpar . R)
+D_m(k, kpar, r)  = sum'_R H_m(k |r + R|) exp(i m phi) exp(i kpar . R)
+</code></pre></div>
+<p>with the outgoing (first-kind) Hankel functions <code>h_l</code> and <code>H_m</code>, the
+spherical harmonic <code>Y_lm</code> in the direction of <code>-r - R</code> and the azimuth
+<code>phi</code> of <code>-r - R</code>. The prime drops the term with <code>r + R = 0</code>.</p>
+<p>Spherical sums (<code>*sw*</code>) take a degree <code>l</code> and an order <code>m</code> and run over
+lattices in 1, 2 or 3 dimensions; cylindrical sums (<code>*cw*</code>) take an order
+<code>m</code> and run over lattices in 1 or 2 dimensions. A 1D spherical lattice lies
+on the z axis, a 1D cylindrical lattice on the x axis, and a 2D lattice in the
+plane z = 0. In 1D, <code>a</code> is the period and <code>kpar</code> a number. In 2D and 3D,
+<code>a</code> is a (d, d) array of rows, or the d side lengths of a rectangular cell,
+and <code>kpar</code> has d components. The functions that take the dimension <code>dim</code>
+as their first argument, and the <code>lsum*</code> functions, also take a
+<code>Lattice</code> for <code>a</code> and a <code>WaveVector</code> for <code>kpar</code>, and use their
+components along the lattice axes.</p>
+<p>The Ewald method splits each sum into a real-space part (<code>realsum*</code>), a
+sum over lattice points, and a reciprocal-space part (<code>recsum*</code>), a sum over
+the diffraction orders <code>kpar + G</code> with reciprocal lattice vectors <code>G</code>.
+Both parts converge exponentially. The Ewald split parameter <code>eta</code> sets how
+the sum divides between them; the exact sum does not depend on it. <code>eta=0</code>
+(the default) selects <code>sqrt(2 pi) / (k L) max(|k L| / 8, 1)</code>, where <code>L</code> is
+the length, the square root of the area or the cube root of the volume of the
+cell. The direct sums <code>dsum*</code> add one shell of lattice points at a time and
+serve as a check. <code>volume</code>, <code>area</code>, <code>reciprocal</code>, <code>cube</code>, <code>cubeedge</code>
+and <code>diffr_orders_circle</code> describe the lattice itself.</p>
+<p><strong>Accuracy</strong></p>
+<p>The two Ewald parts grow and cancel as <code>eta</code> gets small. An explicit split
+far below the automatic one loses about <code>eps * exp(Re(1 / (2 * eta**2)))</code> of
+relative accuracy, with the machine precision <code>eps = 2.2e-16</code>.</p>
+<ul>
+<li>A split is small when <code>Re(1 / (2 * eta**2)) &gt; 16 / pi</code>, which holds below
+  every automatic split; a real split is small below 0.31.</li>
+<li>A sum at a small split predicts its loss from the terms it adds. It raises
+  ValueError "Ewald split too small" where the loss exceeds 1e-3 of
+  <code>max(|S|, 1)</code> for the sum <code>S</code>. Off the axis, a 1D spherical sum takes its
+  spectral series instead, where that series applies.</li>
+<li>At a small split the real-space part needs more terms: its cost grows like
+  <code>1 / eta**2</code> up to the shell limit. A sum fails as soon as its predicted
+  loss exceeds 2e-3 of <code>max(|S|, 1)</code> for the sum <code>S</code> at the automatic split.</li>
+<li>At a small split, a complete sum whose real-space shells reach their limit is
+  returned only if its last shells add a negligible amount and it matches the
+  sum at the automatic split within the predicted loss. Otherwise it raises
+  ValueError "did not converge".</li>
+<li><code>realsum*</code> and <code>recsum*</code> apply the 1e-3 rule with the scale
+  <code>max(|P|, 1)</code> of their part <code>P</code>, so a part can succeed at a split where
+  the complete sum fails.</li>
+<li>Gradients from <code>diff.lattice_sum</code> fail the same way where the loss
+  predicted for a derivative exceeds 1e-3 of <code>|dS| + max(|S|, 1) s</code>, and as
+  soon as it exceeds 2e-3 of that at the automatic split. The factor <code>s</code> is
+  <code>|k|</code> for the shift and the lattice vectors and <code>1 / |k|</code> for <code>k</code> and
+  <code>kpar</code>. A value can succeed where its gradient fails. Gradients of a single
+  part need an explicit nonzero <code>eta</code>.</li>
+<li>Ewald sums require <code>Im k &gt;= 0</code>; spherical sums also require <code>Re k &gt;= 0</code>.
+  Unsupported wavenumbers raise ValueError before summation. Finite direct
+  shells accept every finite nonzero complex wavenumber.</li>
+</ul>
+<p><strong>Differences from treams</strong></p>
+<ul>
+<li><code>a</code> may be a <code>Lattice</code> and <code>kpar</code> a <code>WaveVector</code>, as described
+  above.</li>
+<li><code>eta</code> defaults to 0, the automatic split; treams requires it.</li>
+<li>The automatic split in 3D uses the cell length <code>L = V**(1/3)</code> of the
+  volume <code>V</code>; treams divides by <code>k V**(2/3)</code>. Both give the same sum
+  where the parts converge.</li>
+<li>Each Ewald part stops when two consecutive shells add less than
+  <code>2e-13 max(|P|, 1)</code> and raises ValueError at its shell limit or at a
+  small split, as described under Accuracy. treams stops at a change below
+  1e-10 or after 200, 20 or 10 shells, and returns the sum without warning.</li>
+<li>Both Ewald parts sum over a reduced basis, with the shift reduced into a
+  cell of the lattice and <code>kpar</code> into a cell of the reciprocal lattice.
+  treams sums over the given basis and can miss short lattice vectors of a
+  skewed basis.</li>
+<li>At a complex split and <code>Im k &gt;= 0</code>, the reciprocal part continues the
+  sum from the automatic split, so the value does not depend on the split.
+  treams takes the principal branches.</li>
+<li>For odd <code>l</code> (spherical) or odd <code>m</code> (cylindrical), <code>kpar = 0</code> and a
+  shift <code>r</code> in the lattice line or plane with <code>2 r</code> a lattice vector,
+  the sum is exactly zero at every split. treams returns exact zeros only
+  at <code>r = 0</code> (and at <code>r = ±a / 2</code> in 1D).</li>
+<li>Off the axis, the Ewald parts of a 1D spherical sum can cancel strongly.
+  There the sum comes from a spectral series, a sum over diffraction orders
+  of cylindrical waves, wherever that is more accurate.</li>
+</ul>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">treams_rs</span><span class="w"> </span><span class="kn">import</span> <span class="n">Lattice</span><span class="p">,</span> <span class="n">WaveVector</span><span class="p">,</span> <span class="n">lattice</span>
+
+<span class="n">a</span><span class="p">,</span> <span class="n">kpar</span> <span class="o">=</span> <span class="n">Lattice</span><span class="p">([</span><span class="mf">1.7</span><span class="p">,</span> <span class="mf">1.7</span><span class="p">]),</span> <span class="n">WaveVector</span><span class="p">([</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+<span class="n">r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">])</span>
+<span class="n">total</span> <span class="o">=</span> <span class="n">lattice</span><span class="o">.</span><span class="n">lsumsw2d</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">1.3</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">)</span>  <span class="c1"># l, m, k, kpar, a, r</span>
+<span class="c1"># The sum does not depend on the Ewald split eta.</span>
+<span class="n">split</span> <span class="o">=</span> <span class="n">lattice</span><span class="o">.</span><span class="n">lsumsw2d</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">1.3</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">eta</span><span class="o">=</span><span class="mf">0.6</span><span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">split</span><span class="p">,</span> <span class="n">total</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">)</span>
+<span class="c1"># A shift by the lattice vector R = (1.7, 0) multiplies it by exp(-i kpar . R).</span>
+<span class="n">shifted</span> <span class="o">=</span> <span class="n">lattice</span><span class="o">.</span><span class="n">lsumsw2d</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">1.3</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span> <span class="o">+</span> <span class="p">[</span><span class="mf">1.7</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">shifted</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">0.17</span><span class="n">j</span><span class="p">)</span> <span class="o">*</span> <span class="n">total</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="sumresult"><code>SumResult</code><a class="headerlink" href="#sumresult" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">SumResult</span> <span class="o">=</span> <span class="nb">complex</span> <span class="o">|</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">complex128</span><span class="p">]]</span>
+</code></pre></div>
+<p>Lattice-sum value: a complex scalar, or a complex128 array of the broadcast shape.</p>
+<h2 id="area"><code>area</code><a class="headerlink" href="#area" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">area</span><span class="p">(</span><span class="n">cell</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+<p>Same as <code>volume</code>.</p>
+<p>Signed volume (area, length) of cells whose rows are lattice vectors.</p>
+<p>Cells have shape (..., d, d) with d = 1, 2 or 3; integer cells stay integer.</p>
+<p>Mirrors <code>treams.lattice.volume</code>.</p>
+<p>Differences from treams: also one-dimensional cells.</p>
+<h2 id="cube"><code>cube</code><a class="headerlink" href="#cube" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">cube</span><span class="p">(</span><span class="n">d</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">]</span>
+</code></pre></div>
+<p>All integer points in the cube [-n, n]^d, in lexicographic order.</p>
+<p>Mirrors <code>treams.lattice.cube</code>.</p>
+<p><strong>Args</strong></p>
+<ul>
+<li><code>d</code>: Space dimension 1, 2 or 3.</li>
+<li><code>n</code>: Nonnegative half side length of the cube.</li>
+</ul>
+<p><strong>Returns</strong></p>
+<p>int64 array of shape ((2 n + 1)**d, d).</p>
+<h2 id="cubeedge"><code>cubeedge</code><a class="headerlink" href="#cubeedge" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">cubeedge</span><span class="p">(</span><span class="n">d</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">]</span>
+</code></pre></div>
+<p>Integer points on the surface of the cube [-n, n]^d, in lexicographic order.</p>
+<p>Mirrors <code>treams.lattice.cubeedge</code>. For <code>n = 0</code> the surface is the
+origin alone.</p>
+<p><strong>Args</strong></p>
+<ul>
+<li><code>d</code>: Space dimension 1, 2 or 3.</li>
+<li><code>n</code>: Nonnegative half side length of the cube.</li>
+</ul>
+<p><strong>Returns</strong></p>
+<p>int64 array of shape (points, d).</p>
+<h2 id="diffr_orders_circle"><code>diffr_orders_circle</code><a class="headerlink" href="#diffr_orders_circle" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">diffr_orders_circle</span><span class="p">(</span><span class="n">b</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">rmax</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">]</span>
+</code></pre></div>
+<p>All diffraction orders within a circle of radius rmax.</p>
+<p>Mirrors <code>treams.lattice.diffr_orders_circle</code>. Each order is followed by its
+opposite; the enumeration covers skew lattices and keeps the treams order on
+orthogonal cells.</p>
+<p><strong>Args</strong></p>
+<ul>
+<li><code>b</code>: Reciprocal lattice vectors as the rows of a (2, 2) array.</li>
+<li><code>rmax</code>: Radius of the circle in reciprocal space.</li>
+</ul>
+<p><strong>Returns</strong></p>
+<p>int64 array of shape (orders, 2).</p>
+<p><strong>Differences from treams</strong></p>
+<p>A negative <code>rmax</code> gives an empty (0, 2) array; treams gives an empty
+one-dimensional array.</p>
+<h2 id="dsumcw"><code>dsumcw</code><a class="headerlink" href="#dsumcw" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">dsumcw</span><span class="p">(</span><span class="n">dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">m</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">i</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Shell <code>i</code> of the direct sum D_m over a 1D or 2D lattice.</p>
+<p>Mirrors <code>treams.lattice.dsumcw</code>. Calls <code>dsumcw1d_shift</code> or <code>dsumcw2d</code>. Shell
+<code>i</code> holds the lattice points whose integer coordinates have the largest magnitude
+<code>i</code>. In 1D at a shift <code>r = s a / 2</code> on the axis, with <code>s = 1</code> or <code>-1</code>,
+shell <code>i</code> holds <code>n = s i</code> and <code>n = -s (i + 1)</code> instead. The shells
+<code>0, 1, 2, ...</code> add up to the sum, but slowly.</p>
+<p><strong>Args</strong></p>
+<ul>
+<li><code>dim</code>: Lattice dimension, 1 or 2.</li>
+<li><code>m</code>: Order, <code>|m|</code> up to 128.</li>
+<li><code>k</code>: Wavenumber, real or complex, nonzero.</li>
+<li><code>kpar</code>: Bloch vector: a number in 1D, <code>dim</code> components otherwise, or a <code>WaveVector</code>.</li>
+<li><code>a</code>: Lattice vectors as rows: the period in 1D, a <code>(dim, dim)</code> array or the side lengths of a rectangular cell, or a <code>Lattice</code>.</li>
+<li><code>r</code>: Shift <code>(x, y)</code>.</li>
+<li><code>i</code>: Shell index, 0 or more.</li>
+<li><code>out</code>: Array for the result, as for a NumPy ufunc.</li>
+<li><code>**kwargs</code>: Further ufunc keywords.</li>
+</ul>
+<p><strong>Returns</strong></p>
+<p>The shell sum, complex128 with the broadcast shape of the arguments.</p>
+<h2 id="dsumcw1d"><code>dsumcw1d</code><a class="headerlink" href="#dsumcw1d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">dsumcw1d</span><span class="p">(</span><span class="n">m</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">i</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Shell <code>i</code> of the direct sum D_m over a 1D lattice on the x axis.</p>
+<p>Mirrors <code>treams.lattice.dsumcw1d</code>. <code>a</code> is the period, <code>kpar</code> the Bloch
+wavenumber along x and <code>r</code> the shift along x. Shell <code>i</code> holds the lattice points
+<code>n a</code> with <code>|n| = i</code>. At <code>r = s a / 2</code>, with <code>s = 1</code> or <code>-1</code>, it holds
+<code>n = s i</code> and <code>n = -s (i + 1)</code> instead. Arguments broadcast as for a NumPy
+ufunc; <code>out</code> and <code>**kwargs</code> go to the ufunc.</p>
+<h2 id="dsumcw1d_shift"><code>dsumcw1d_shift</code><a class="headerlink" href="#dsumcw1d_shift" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">dsumcw1d_shift</span><span class="p">(</span><span class="n">m</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">i</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Shell <code>i</code> of the direct sum D_m over a 1D lattice on the x axis.</p>
+<p>Mirrors <code>treams.lattice.dsumcw1d_shift</code>. <code>a</code> is the period, <code>kpar</code> the Bloch
+wavenumber along x and <code>r</code> the shift <code>(x, y)</code>. Shell <code>i</code> holds the lattice
+points <code>n a</code> with <code>|n| = i</code>. At <code>r = (s a / 2, 0)</code>, with <code>s = 1</code> or <code>-1</code>,
+it holds <code>n = s i</code> and <code>n = -s (i + 1)</code> instead. Arguments broadcast as for a
+NumPy ufunc; <code>out</code> and <code>**kwargs</code> go to the ufunc.</p>
+<h2 id="dsumcw2d"><code>dsumcw2d</code><a class="headerlink" href="#dsumcw2d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">dsumcw2d</span><span class="p">(</span><span class="n">m</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">i</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Shell <code>i</code> of the direct sum D_m over a 2D lattice in the plane z = 0.</p>
+<p>Mirrors <code>treams.lattice.dsumcw2d</code>. The rows of <code>a</code>, shape <code>(2, 2)</code>, are the
+lattice vectors; <code>kpar</code> and <code>r</code> have shape <code>(2,)</code>. Shell <code>i</code> holds the
+lattice points whose integer coordinates have the largest magnitude <code>i</code>. Arguments
+broadcast as for a NumPy ufunc; <code>out</code> and <code>**kwargs</code> go to the ufunc.</p>
+<h2 id="dsumsw"><code>dsumsw</code><a class="headerlink" href="#dsumsw" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">dsumsw</span><span class="p">(</span><span class="n">dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">l</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">m</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">i</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Shell <code>i</code> of the direct sum D_lm over a 1D, 2D or 3D lattice.</p>
+<p>Mirrors <code>treams.lattice.dsumsw</code>. Calls <code>dsumsw1d_shift</code>, <code>dsumsw2d_shift</code> or
+<code>dsumsw3d</code>. Shell <code>i</code> holds the lattice points whose integer coordinates have
+the largest magnitude <code>i</code>. In 1D at a shift <code>r = s a / 2</code> on the axis, with
+<code>s = 1</code> or <code>-1</code>, shell <code>i</code> holds <code>n = s i</code> and <code>n = -s (i + 1)</code> instead.
+The shells <code>0, 1, 2, ...</code> add up to the sum, but slowly.</p>
+<p><strong>Args</strong></p>
+<ul>
+<li><code>dim</code>: Lattice dimension, 1, 2 or 3.</li>
+<li><code>l</code>: Degree, 0 to 128.</li>
+<li><code>m</code>: Order, <code>|m| &lt;= l</code>.</li>
+<li><code>k</code>: Wavenumber, real or complex, nonzero.</li>
+<li><code>kpar</code>: Bloch vector: a number in 1D, <code>dim</code> components otherwise, or a <code>WaveVector</code>.</li>
+<li><code>a</code>: Lattice vectors as rows: the period in 1D, a <code>(dim, dim)</code> array or the side lengths of a rectangular cell, or a <code>Lattice</code>.</li>
+<li><code>r</code>: Shift <code>(x, y, z)</code>.</li>
+<li><code>i</code>: Shell index, 0 or more.</li>
+<li><code>out</code>: Array for the result, as for a NumPy ufunc.</li>
+<li><code>**kwargs</code>: Further ufunc keywords.</li>
+</ul>
+<p><strong>Returns</strong></p>
+<p>The shell sum, complex128 with the broadcast shape of the arguments.</p>
+<h2 id="dsumsw1d"><code>dsumsw1d</code><a class="headerlink" href="#dsumsw1d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">dsumsw1d</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">where</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+<p>Shell <code>i</code> of the direct sum over the lattice points <code>R</code> of <code>h_l(k |r + R|) Y_lm(-r - R) exp(i kpar.R)</code>, without the term at <code>r + R = 0</code>. Shell <code>i</code> holds the lattice points whose integer coordinates in the basis <code>a</code> have the largest magnitude <code>i</code>; the shells <code>0, 1, 2, ...</code> add up to the sum. The lattice lies on the z axis: <code>a</code> is the pitch, <code>kpar</code> the Bloch wavenumber and <code>r</code> the shift along z; <code>m = 0</code>.</p>
+<p>Mirrors <code>treams.lattice.dsumsw1d</code>.</p>
+<p>Differences from treams: degrees up to 128; <code>ValueError</code> for non-finite input, <code>k = 0</code> and a cell of zero volume.</p>
+<h2 id="dsumsw1d_shift"><code>dsumsw1d_shift</code><a class="headerlink" href="#dsumsw1d_shift" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">dsumsw1d_shift</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+<p>Shell <code>i</code> of the direct sum over the lattice points <code>R</code> of <code>h_l(k |r + R|) Y_lm(-r - R) exp(i kpar.R)</code>, without the term at <code>r + R = 0</code>. Shell <code>i</code> holds the lattice points whose integer coordinates in the basis <code>a</code> have the largest magnitude <code>i</code>; the shells <code>0, 1, 2, ...</code> add up to the sum. The lattice lies on the z axis: <code>a</code> is the pitch, <code>kpar</code> the Bloch wavenumber and <code>r</code> a shift <code>(x, y, z)</code>.</p>
+<p>Mirrors <code>treams.lattice.dsumsw1d_shift</code>.</p>
+<p>Differences from treams: degrees up to 128; <code>ValueError</code> for <code>|m| &gt; l</code>, non-finite input, <code>k = 0</code> and a cell of zero volume.</p>
+<h2 id="dsumsw2d"><code>dsumsw2d</code><a class="headerlink" href="#dsumsw2d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">dsumsw2d</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+<p>Shell <code>i</code> of the direct sum over the lattice points <code>R</code> of <code>h_l(k |r + R|) Y_lm(-r - R) exp(i kpar.R)</code>, without the term at <code>r + R = 0</code>. Shell <code>i</code> holds the lattice points whose integer coordinates in the basis <code>a</code> have the largest magnitude <code>i</code>; the shells <code>0, 1, 2, ...</code> add up to the sum. The lattice lies in the xy plane: the rows of <code>a</code>, shape <code>(2, 2)</code>, are the lattice vectors, <code>kpar</code> has shape <code>(2,)</code> and <code>r</code> is a shift <code>(x, y)</code>.</p>
+<p>Mirrors <code>treams.lattice.dsumsw2d</code>.</p>
+<p>Differences from treams: degrees up to 128; <code>ValueError</code> for <code>|m| &gt; l</code>, non-finite input, <code>k = 0</code> and a cell of zero volume.</p>
+<h2 id="dsumsw2d_shift"><code>dsumsw2d_shift</code><a class="headerlink" href="#dsumsw2d_shift" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">dsumsw2d_shift</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+<p>Shell <code>i</code> of the direct sum over the lattice points <code>R</code> of <code>h_l(k |r + R|) Y_lm(-r - R) exp(i kpar.R)</code>, without the term at <code>r + R = 0</code>. Shell <code>i</code> holds the lattice points whose integer coordinates in the basis <code>a</code> have the largest magnitude <code>i</code>; the shells <code>0, 1, 2, ...</code> add up to the sum. The lattice lies in the xy plane: the rows of <code>a</code>, shape <code>(2, 2)</code>, are the lattice vectors, <code>kpar</code> has shape <code>(2,)</code> and <code>r</code> is a shift <code>(x, y, z)</code>.</p>
+<p>Mirrors <code>treams.lattice.dsumsw2d_shift</code>.</p>
+<p>Differences from treams: degrees up to 128; <code>ValueError</code> for <code>|m| &gt; l</code>, non-finite input, <code>k = 0</code> and a cell of zero volume.</p>
+<h2 id="dsumsw3d"><code>dsumsw3d</code><a class="headerlink" href="#dsumsw3d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">dsumsw3d</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+<p>Shell <code>i</code> of the direct sum over the lattice points <code>R</code> of <code>h_l(k |r + R|) Y_lm(-r - R) exp(i kpar.R)</code>, without the term at <code>r + R = 0</code>. Shell <code>i</code> holds the lattice points whose integer coordinates in the basis <code>a</code> have the largest magnitude <code>i</code>; the shells <code>0, 1, 2, ...</code> add up to the sum. The rows of <code>a</code>, shape <code>(3, 3)</code>, are the lattice vectors; <code>kpar</code> and <code>r</code> have shape <code>(3,)</code>.</p>
+<p>Mirrors <code>treams.lattice.dsumsw3d</code>.</p>
+<p>Differences from treams: degrees up to 128; <code>ValueError</code> for <code>|m| &gt; l</code>, non-finite input, <code>k = 0</code> and a cell of zero volume.</p>
+<h2 id="lsumcw"><code>lsumcw</code><a class="headerlink" href="#lsumcw" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">lsumcw</span><span class="p">(</span><span class="n">dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">m</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">eta</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Ewald sum D_m of cylindrical waves over a 1D or 2D lattice.</p>
+<p>Mirrors <code>treams.lattice.lsumcw</code>. Calls <code>lsumcw1d_shift</code> or <code>lsumcw2d</code>.</p>
+<p><strong>Args</strong></p>
+<ul>
+<li><code>dim</code>: Lattice dimension, 1 or 2.</li>
+<li><code>m</code>: Order, <code>|m|</code> up to 128.</li>
+<li><code>k</code>: Finite nonzero wavenumber with <code>Im k &gt;= 0</code>.</li>
+<li><code>kpar</code>: Bloch vector: a number in 1D, <code>dim</code> components otherwise, or a <code>WaveVector</code>.</li>
+<li><code>a</code>: Lattice vectors as rows: the period in 1D, a <code>(dim, dim)</code> array or the side lengths of a rectangular cell, or a <code>Lattice</code>.</li>
+<li><code>r</code>: Shift <code>(x, y)</code>.</li>
+<li><code>eta</code>: Ewald split parameter; 0 selects it automatically.</li>
+<li><code>out</code>: Array for the result, as for a NumPy ufunc.</li>
+<li><code>**kwargs</code>: Further ufunc keywords.</li>
+</ul>
+<p><strong>Returns</strong></p>
+<p>The sum, complex128 with the broadcast shape of the arguments.</p>
+<p>See the Accuracy section of <code>treams_rs.lattice</code>.</p>
+<h2 id="lsumcw1d"><code>lsumcw1d</code><a class="headerlink" href="#lsumcw1d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">lsumcw1d</span><span class="p">(</span><span class="n">m</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">eta</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Ewald sum D_m over a 1D lattice on the x axis.</p>
+<p>Mirrors <code>treams.lattice.lsumcw1d</code>. <code>a</code> is the period or a <code>Lattice</code>, and
+<code>kpar</code> the Bloch wavenumber along x or a <code>WaveVector</code>. <code>r</code> is the shift along
+x. <code>eta</code> is the Ewald split parameter, and <code>eta=0</code> selects it automatically.
+Arguments broadcast as for a NumPy ufunc; <code>out</code> and <code>**kwargs</code> go to the ufunc.
+See the Accuracy section of <code>treams_rs.lattice</code>.</p>
+<h2 id="lsumcw1d_shift"><code>lsumcw1d_shift</code><a class="headerlink" href="#lsumcw1d_shift" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">lsumcw1d_shift</span><span class="p">(</span><span class="n">m</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">eta</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Ewald sum D_m over a 1D lattice on the x axis.</p>
+<p>Mirrors <code>treams.lattice.lsumcw1d_shift</code>. <code>a</code> is the period or a <code>Lattice</code>, and
+<code>kpar</code> the Bloch wavenumber along x or a <code>WaveVector</code>. <code>r</code> is the shift <code>(x,
+y)</code>. <code>eta</code> is the Ewald split parameter, and <code>eta=0</code> selects it automatically.
+Arguments broadcast as for a NumPy ufunc; <code>out</code> and <code>**kwargs</code> go to the ufunc.
+See the Accuracy section of <code>treams_rs.lattice</code>.</p>
+<h2 id="lsumcw2d"><code>lsumcw2d</code><a class="headerlink" href="#lsumcw2d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">lsumcw2d</span><span class="p">(</span><span class="n">m</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">eta</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Ewald sum D_m over a 2D lattice in the plane z = 0.</p>
+<p>Mirrors <code>treams.lattice.lsumcw2d</code>. The rows of <code>a</code>, shape <code>(2, 2)</code>, are the
+lattice vectors; <code>a</code> may also be the two side lengths of a rectangular cell or a
+<code>Lattice</code>. <code>kpar</code> has shape <code>(2,)</code> or is a <code>WaveVector</code>. <code>r</code> is the shift
+<code>(x, y)</code>. <code>eta</code> is the Ewald split parameter, and <code>eta=0</code> selects it
+automatically. Arguments broadcast as for a NumPy ufunc; <code>out</code> and <code>**kwargs</code> go
+to the ufunc. See the Accuracy section of <code>treams_rs.lattice</code>.</p>
+<h2 id="lsumsw"><code>lsumsw</code><a class="headerlink" href="#lsumsw" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">lsumsw</span><span class="p">(</span><span class="n">dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">l</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">m</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">eta</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Ewald sum D_lm of spherical waves over a 1D, 2D or 3D lattice.</p>
+<p>Mirrors <code>treams.lattice.lsumsw</code>. Calls <code>lsumsw1d_shift</code>, <code>lsumsw2d_shift</code> or
+<code>lsumsw3d</code>.</p>
+<p><strong>Args</strong></p>
+<ul>
+<li><code>dim</code>: Lattice dimension, 1, 2 or 3.</li>
+<li><code>l</code>: Degree, 0 to 128.</li>
+<li><code>m</code>: Order, <code>|m| &lt;= l</code>.</li>
+<li><code>k</code>: Finite nonzero wavenumber with <code>Re k &gt;= 0</code> and <code>Im k &gt;= 0</code>.</li>
+<li><code>kpar</code>: Bloch vector: a number in 1D, <code>dim</code> components otherwise, or a <code>WaveVector</code>.</li>
+<li><code>a</code>: Lattice vectors as rows: the period in 1D, a <code>(dim, dim)</code> array or the side lengths of a rectangular cell, or a <code>Lattice</code>.</li>
+<li><code>r</code>: Shift <code>(x, y, z)</code>.</li>
+<li><code>eta</code>: Ewald split parameter; 0 selects it automatically.</li>
+<li><code>out</code>: Array for the result, as for a NumPy ufunc.</li>
+<li><code>**kwargs</code>: Further ufunc keywords.</li>
+</ul>
+<p><strong>Returns</strong></p>
+<p>The sum, complex128 with the broadcast shape of the arguments.</p>
+<p>See the Accuracy section of <code>treams_rs.lattice</code>.</p>
+<h2 id="lsumsw1d"><code>lsumsw1d</code><a class="headerlink" href="#lsumsw1d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">lsumsw1d</span><span class="p">(</span><span class="n">l</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">eta</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Ewald sum D_lm with <code>m = 0</code> over a 1D lattice on the z axis.</p>
+<p>Mirrors <code>treams.lattice.lsumsw1d</code>. <code>a</code> is the period or a <code>Lattice</code>, and
+<code>kpar</code> the Bloch wavenumber along z or a <code>WaveVector</code>. <code>r</code> is the shift along
+z. <code>eta</code> is the Ewald split parameter, and <code>eta=0</code> selects it automatically.
+Arguments broadcast as for a NumPy ufunc; <code>out</code> and <code>**kwargs</code> go to the ufunc.
+See the Accuracy section of <code>treams_rs.lattice</code>.</p>
+<h2 id="lsumsw1d_shift"><code>lsumsw1d_shift</code><a class="headerlink" href="#lsumsw1d_shift" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">lsumsw1d_shift</span><span class="p">(</span><span class="n">l</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">m</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">eta</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Ewald sum D_lm over a 1D lattice on the z axis.</p>
+<p>Mirrors <code>treams.lattice.lsumsw1d_shift</code>. <code>a</code> is the period or a <code>Lattice</code>, and
+<code>kpar</code> the Bloch wavenumber along z or a <code>WaveVector</code>. <code>r</code> is the shift <code>(x,
+y, z)</code>. <code>eta</code> is the Ewald split parameter, and <code>eta=0</code> selects it
+automatically. Arguments broadcast as for a NumPy ufunc; <code>out</code> and <code>**kwargs</code> go
+to the ufunc. See the Accuracy section of <code>treams_rs.lattice</code>.</p>
+<h2 id="lsumsw2d"><code>lsumsw2d</code><a class="headerlink" href="#lsumsw2d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">lsumsw2d</span><span class="p">(</span><span class="n">l</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">m</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">eta</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Ewald sum D_lm over a 2D lattice in the plane z = 0.</p>
+<p>Mirrors <code>treams.lattice.lsumsw2d</code>. The rows of <code>a</code>, shape <code>(2, 2)</code>, are the
+lattice vectors; <code>a</code> may also be the two side lengths of a rectangular cell or a
+<code>Lattice</code>. <code>kpar</code> has shape <code>(2,)</code> or is a <code>WaveVector</code>. <code>r</code> is the shift
+<code>(x, y)</code> in the plane. <code>eta</code> is the Ewald split parameter, and <code>eta=0</code> selects
+it automatically. Arguments broadcast as for a NumPy ufunc; <code>out</code> and <code>**kwargs</code>
+go to the ufunc. See the Accuracy section of <code>treams_rs.lattice</code>.</p>
+<h2 id="lsumsw2d_shift"><code>lsumsw2d_shift</code><a class="headerlink" href="#lsumsw2d_shift" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">lsumsw2d_shift</span><span class="p">(</span><span class="n">l</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">m</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">eta</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Ewald sum D_lm over a 2D lattice in the plane z = 0.</p>
+<p>Mirrors <code>treams.lattice.lsumsw2d_shift</code>. The rows of <code>a</code>, shape <code>(2, 2)</code>, are
+the lattice vectors; <code>a</code> may also be the two side lengths of a rectangular cell or
+a <code>Lattice</code>. <code>kpar</code> has shape <code>(2,)</code> or is a <code>WaveVector</code>. <code>r</code> is the
+shift <code>(x, y, z)</code>. <code>eta</code> is the Ewald split parameter, and <code>eta=0</code> selects it
+automatically. Arguments broadcast as for a NumPy ufunc; <code>out</code> and <code>**kwargs</code> go
+to the ufunc. See the Accuracy section of <code>treams_rs.lattice</code>.</p>
+<h2 id="lsumsw3d"><code>lsumsw3d</code><a class="headerlink" href="#lsumsw3d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">lsumsw3d</span><span class="p">(</span><span class="n">l</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">m</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">eta</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Ewald sum D_lm over a 3D lattice.</p>
+<p>Mirrors <code>treams.lattice.lsumsw3d</code>. The rows of <code>a</code>, shape <code>(3, 3)</code>, are the
+lattice vectors; <code>a</code> may also be the three side lengths of a rectangular cell or a
+<code>Lattice</code>. <code>kpar</code> has shape <code>(3,)</code> or is a <code>WaveVector</code>. <code>r</code> is the shift
+<code>(x, y, z)</code>. <code>eta</code> is the Ewald split parameter, and <code>eta=0</code> selects it
+automatically. Arguments broadcast as for a NumPy ufunc; <code>out</code> and <code>**kwargs</code> go
+to the ufunc. See the Accuracy section of <code>treams_rs.lattice</code>.</p>
+<h2 id="realsumcw"><code>realsumcw</code><a class="headerlink" href="#realsumcw" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">realsumcw</span><span class="p">(</span><span class="n">dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">m</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">eta</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Real-space part of the Ewald sum D_m over a 1D or 2D lattice.</p>
+<p>Mirrors <code>treams.lattice.realsumcw</code>. Calls <code>realsumcw1d_shift</code> or
+<code>realsumcw2d</code>. Adding <code>recsumcw</code> at the same <code>eta</code> gives <code>lsumcw</code>.</p>
+<p><strong>Args</strong></p>
+<ul>
+<li><code>dim</code>: Lattice dimension, 1 or 2.</li>
+<li><code>m</code>: Order, <code>|m|</code> up to 128.</li>
+<li><code>k</code>: Finite nonzero wavenumber with <code>Im k &gt;= 0</code>.</li>
+<li><code>kpar</code>: Bloch vector: a number in 1D, <code>dim</code> components otherwise, or a <code>WaveVector</code>.</li>
+<li><code>a</code>: Lattice vectors as rows: the period in 1D, a <code>(dim, dim)</code> array or the side lengths of a rectangular cell, or a <code>Lattice</code>.</li>
+<li><code>r</code>: Shift <code>(x, y)</code>.</li>
+<li><code>eta</code>: Ewald split parameter; 0 selects it automatically.</li>
+<li><code>out</code>: Array for the result, as for a NumPy ufunc.</li>
+<li><code>**kwargs</code>: Further ufunc keywords.</li>
+</ul>
+<p><strong>Returns</strong></p>
+<p>The part, complex128 with the broadcast shape of the arguments.</p>
+<p>See the Accuracy section of <code>treams_rs.lattice</code>.</p>
+<h2 id="realsumcw1d"><code>realsumcw1d</code><a class="headerlink" href="#realsumcw1d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">realsumcw1d</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">eta</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">where</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+<p>The real-space part of the Ewald sum over the lattice points <code>R</code> of <code>H_m(k |r + R|) exp(i m phi) exp(i kpar.R)</code>, where <code>phi</code> is the azimuth of <code>-r - R</code>, without the term at <code>r + R = 0</code>. <code>eta</code> sets how the sum divides into a real-space and a reciprocal-space part (the Ewald split); <code>eta = 0</code> picks it automatically. The lattice lies on the x axis: <code>a</code> is the pitch, <code>kpar</code> the Bloch wavenumber and <code>r</code> the shift along x.</p>
+<p>Mirrors <code>treams.lattice.realsumcw1d</code>.</p>
+<p>Differences from treams: orders <code>|m|</code> up to 128; <code>ValueError</code> for non-finite input, <code>k = 0</code> and a cell of zero volume. It also raises <code>ValueError</code> where the sum does not converge and where the split <code>eta</code> is too small for full accuracy.</p>
+<h2 id="realsumcw1d_shift"><code>realsumcw1d_shift</code><a class="headerlink" href="#realsumcw1d_shift" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">realsumcw1d_shift</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">eta</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+<p>The real-space part of the Ewald sum over the lattice points <code>R</code> of <code>H_m(k |r + R|) exp(i m phi) exp(i kpar.R)</code>, where <code>phi</code> is the azimuth of <code>-r - R</code>, without the term at <code>r + R = 0</code>. <code>eta</code> sets how the sum divides into a real-space and a reciprocal-space part (the Ewald split); <code>eta = 0</code> picks it automatically. The lattice lies on the x axis: <code>a</code> is the pitch, <code>kpar</code> the Bloch wavenumber and <code>r</code> a shift <code>(x, y)</code>.</p>
+<p>Mirrors <code>treams.lattice.realsumcw1d_shift</code>.</p>
+<p>Differences from treams: orders <code>|m|</code> up to 128; <code>ValueError</code> for non-finite input, <code>k = 0</code> and a cell of zero volume. It also raises <code>ValueError</code> where the sum does not converge and where the split <code>eta</code> is too small for full accuracy.</p>
+<h2 id="realsumcw2d"><code>realsumcw2d</code><a class="headerlink" href="#realsumcw2d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">realsumcw2d</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">eta</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+<p>The real-space part of the Ewald sum over the lattice points <code>R</code> of <code>H_m(k |r + R|) exp(i m phi) exp(i kpar.R)</code>, where <code>phi</code> is the azimuth of <code>-r - R</code>, without the term at <code>r + R = 0</code>. <code>eta</code> sets how the sum divides into a real-space and a reciprocal-space part (the Ewald split); <code>eta = 0</code> picks it automatically. The lattice lies in the xy plane: the rows of <code>a</code>, shape <code>(2, 2)</code>, are the lattice vectors; <code>kpar</code> and <code>r</code> have shape <code>(2,)</code>.</p>
+<p>Mirrors <code>treams.lattice.realsumcw2d</code>.</p>
+<p>Differences from treams: orders <code>|m|</code> up to 128; <code>ValueError</code> for non-finite input, <code>k = 0</code> and a cell of zero volume. It also raises <code>ValueError</code> where the sum does not converge and where the split <code>eta</code> is too small for full accuracy.</p>
+<h2 id="realsumsw"><code>realsumsw</code><a class="headerlink" href="#realsumsw" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">realsumsw</span><span class="p">(</span><span class="n">dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">l</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">m</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">eta</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Real-space part of the Ewald sum D_lm over a 1D, 2D or 3D lattice.</p>
+<p>Mirrors <code>treams.lattice.realsumsw</code>. Calls <code>realsumsw1d_shift</code>,
+<code>realsumsw2d_shift</code> or <code>realsumsw3d</code>. Adding <code>recsumsw</code> at the same <code>eta</code>
+gives <code>lsumsw</code>.</p>
+<p><strong>Args</strong></p>
+<ul>
+<li><code>dim</code>: Lattice dimension, 1, 2 or 3.</li>
+<li><code>l</code>: Degree, 0 to 128.</li>
+<li><code>m</code>: Order, <code>|m| &lt;= l</code>.</li>
+<li><code>k</code>: Finite nonzero wavenumber with <code>Re k &gt;= 0</code> and <code>Im k &gt;= 0</code>.</li>
+<li><code>kpar</code>: Bloch vector: a number in 1D, <code>dim</code> components otherwise, or a <code>WaveVector</code>.</li>
+<li><code>a</code>: Lattice vectors as rows: the period in 1D, a <code>(dim, dim)</code> array or the side lengths of a rectangular cell, or a <code>Lattice</code>.</li>
+<li><code>r</code>: Shift <code>(x, y, z)</code>.</li>
+<li><code>eta</code>: Ewald split parameter; 0 selects it automatically.</li>
+<li><code>out</code>: Array for the result, as for a NumPy ufunc.</li>
+<li><code>**kwargs</code>: Further ufunc keywords.</li>
+</ul>
+<p><strong>Returns</strong></p>
+<p>The part, complex128 with the broadcast shape of the arguments.</p>
+<p>See the Accuracy section of <code>treams_rs.lattice</code>.</p>
+<h2 id="realsumsw1d"><code>realsumsw1d</code><a class="headerlink" href="#realsumsw1d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">realsumsw1d</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">eta</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">where</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+<p>The real-space part of the Ewald sum over the lattice points <code>R</code> of <code>h_l(k |r + R|) Y_lm(-r - R) exp(i kpar.R)</code>, without the term at <code>r + R = 0</code>. <code>eta</code> sets how the sum divides into a real-space and a reciprocal-space part (the Ewald split); <code>eta = 0</code> picks it automatically. The lattice lies on the z axis: <code>a</code> is the pitch, <code>kpar</code> the Bloch wavenumber and <code>r</code> the shift along z; <code>m = 0</code>.</p>
+<p>Mirrors <code>treams.lattice.realsumsw1d</code>.</p>
+<p>Differences from treams: degrees up to 128; <code>ValueError</code> for non-finite input, <code>k = 0</code> and a cell of zero volume. It also raises <code>ValueError</code> where the sum does not converge and where the split <code>eta</code> is too small for full accuracy.</p>
+<h2 id="realsumsw1d_shift"><code>realsumsw1d_shift</code><a class="headerlink" href="#realsumsw1d_shift" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">realsumsw1d_shift</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">eta</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+<p>The real-space part of the Ewald sum over the lattice points <code>R</code> of <code>h_l(k |r + R|) Y_lm(-r - R) exp(i kpar.R)</code>, without the term at <code>r + R = 0</code>. <code>eta</code> sets how the sum divides into a real-space and a reciprocal-space part (the Ewald split); <code>eta = 0</code> picks it automatically. The lattice lies on the z axis: <code>a</code> is the pitch, <code>kpar</code> the Bloch wavenumber and <code>r</code> a shift <code>(x, y, z)</code>.</p>
+<p>Mirrors <code>treams.lattice.realsumsw1d_shift</code>.</p>
+<p>Differences from treams: degrees up to 128; <code>ValueError</code> for <code>|m| &gt; l</code>, non-finite input, <code>k = 0</code> and a cell of zero volume. It also raises <code>ValueError</code> where the sum does not converge and where the split <code>eta</code> is too small for full accuracy.</p>
+<h2 id="realsumsw2d"><code>realsumsw2d</code><a class="headerlink" href="#realsumsw2d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">realsumsw2d</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">eta</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+<p>The real-space part of the Ewald sum over the lattice points <code>R</code> of <code>h_l(k |r + R|) Y_lm(-r - R) exp(i kpar.R)</code>, without the term at <code>r + R = 0</code>. <code>eta</code> sets how the sum divides into a real-space and a reciprocal-space part (the Ewald split); <code>eta = 0</code> picks it automatically. The lattice lies in the xy plane: the rows of <code>a</code>, shape <code>(2, 2)</code>, are the lattice vectors, <code>kpar</code> has shape <code>(2,)</code> and <code>r</code> is a shift <code>(x, y)</code>.</p>
+<p>Mirrors <code>treams.lattice.realsumsw2d</code>.</p>
+<p>Differences from treams: degrees up to 128; <code>ValueError</code> for <code>|m| &gt; l</code>, non-finite input, <code>k = 0</code> and a cell of zero volume. It also raises <code>ValueError</code> where the sum does not converge and where the split <code>eta</code> is too small for full accuracy.</p>
+<h2 id="realsumsw2d_shift"><code>realsumsw2d_shift</code><a class="headerlink" href="#realsumsw2d_shift" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">realsumsw2d_shift</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">eta</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+<p>The real-space part of the Ewald sum over the lattice points <code>R</code> of <code>h_l(k |r + R|) Y_lm(-r - R) exp(i kpar.R)</code>, without the term at <code>r + R = 0</code>. <code>eta</code> sets how the sum divides into a real-space and a reciprocal-space part (the Ewald split); <code>eta = 0</code> picks it automatically. The lattice lies in the xy plane: the rows of <code>a</code>, shape <code>(2, 2)</code>, are the lattice vectors, <code>kpar</code> has shape <code>(2,)</code> and <code>r</code> is a shift <code>(x, y, z)</code>.</p>
+<p>Mirrors <code>treams.lattice.realsumsw2d_shift</code>.</p>
+<p>Differences from treams: degrees up to 128; <code>ValueError</code> for <code>|m| &gt; l</code>, non-finite input, <code>k = 0</code> and a cell of zero volume. It also raises <code>ValueError</code> where the sum does not converge and where the split <code>eta</code> is too small for full accuracy.</p>
+<h2 id="realsumsw3d"><code>realsumsw3d</code><a class="headerlink" href="#realsumsw3d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">realsumsw3d</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">eta</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+<p>The real-space part of the Ewald sum over the lattice points <code>R</code> of <code>h_l(k |r + R|) Y_lm(-r - R) exp(i kpar.R)</code>, without the term at <code>r + R = 0</code>. <code>eta</code> sets how the sum divides into a real-space and a reciprocal-space part (the Ewald split); <code>eta = 0</code> picks it automatically. The rows of <code>a</code>, shape <code>(3, 3)</code>, are the lattice vectors; <code>kpar</code> and <code>r</code> have shape <code>(3,)</code>.</p>
+<p>Mirrors <code>treams.lattice.realsumsw3d</code>.</p>
+<p>Differences from treams: degrees up to 128; <code>ValueError</code> for <code>|m| &gt; l</code>, non-finite input, <code>k = 0</code> and a cell of zero volume. It also raises <code>ValueError</code> where the sum does not converge and where the split <code>eta</code> is too small for full accuracy.</p>
+<h2 id="reciprocal"><code>reciprocal</code><a class="headerlink" href="#reciprocal" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">reciprocal</span><span class="p">(</span><span class="n">cell</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+<p>Reciprocal lattice vectors as rows, with <code>a_i . b_j = 2 pi delta_ij</code>.</p>
+<p>Cells have shape (..., d, d) with d = 1, 2 or 3 and rows as lattice vectors.</p>
+<p>Mirrors <code>treams.lattice.reciprocal</code>.</p>
+<p>Differences from treams: also one-dimensional cells.</p>
+<h2 id="recsumcw"><code>recsumcw</code><a class="headerlink" href="#recsumcw" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">recsumcw</span><span class="p">(</span><span class="n">dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">m</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">eta</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Reciprocal-space part of the Ewald sum D_m over a 1D or 2D lattice.</p>
+<p>Mirrors <code>treams.lattice.recsumcw</code>. Calls <code>recsumcw1d_shift</code> or <code>recsumcw2d</code>.
+At <code>r = 0</code> the part includes the correction for the dropped term at <code>R = 0</code>, as
+in treams.</p>
+<p><strong>Args</strong></p>
+<ul>
+<li><code>dim</code>: Lattice dimension, 1 or 2.</li>
+<li><code>m</code>: Order, <code>|m|</code> up to 128.</li>
+<li><code>k</code>: Finite nonzero wavenumber with <code>Im k &gt;= 0</code>.</li>
+<li><code>kpar</code>: Bloch vector: a number in 1D, <code>dim</code> components otherwise, or a <code>WaveVector</code>.</li>
+<li><code>a</code>: Lattice vectors as rows: the period in 1D, a <code>(dim, dim)</code> array or the side lengths of a rectangular cell, or a <code>Lattice</code>.</li>
+<li><code>r</code>: Shift <code>(x, y)</code>.</li>
+<li><code>eta</code>: Ewald split parameter; 0 selects it automatically.</li>
+<li><code>out</code>: Array for the result, as for a NumPy ufunc.</li>
+<li><code>**kwargs</code>: Further ufunc keywords.</li>
+</ul>
+<p><strong>Returns</strong></p>
+<p>The part, complex128 with the broadcast shape of the arguments.</p>
+<p>See the Accuracy section of <code>treams_rs.lattice</code>.</p>
+<h2 id="recsumcw1d"><code>recsumcw1d</code><a class="headerlink" href="#recsumcw1d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">recsumcw1d</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">eta</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">where</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+<p>The reciprocal-space part, with the self correction, of the Ewald sum over the lattice points <code>R</code> of <code>H_m(k |r + R|) exp(i m phi) exp(i kpar.R)</code>, where <code>phi</code> is the azimuth of <code>-r - R</code>, without the term at <code>r + R = 0</code>. <code>eta</code> sets how the sum divides into a real-space and a reciprocal-space part (the Ewald split); <code>eta = 0</code> picks it automatically. The lattice lies on the x axis: <code>a</code> is the pitch, <code>kpar</code> the Bloch wavenumber and <code>r</code> the shift along x.</p>
+<p>Mirrors <code>treams.lattice.recsumcw1d</code>.</p>
+<p>Differences from treams: orders <code>|m|</code> up to 128; <code>ValueError</code> for non-finite input, <code>k = 0</code> and a cell of zero volume. It also raises <code>ValueError</code> at a diffraction threshold <code>k = |kpar + G|</code>, with <code>G</code> a reciprocal lattice vector, where the sum does not converge and where the split <code>eta</code> is too small for full accuracy.</p>
+<h2 id="recsumcw1d_shift"><code>recsumcw1d_shift</code><a class="headerlink" href="#recsumcw1d_shift" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">recsumcw1d_shift</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">eta</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+<p>The reciprocal-space part, with the self correction, of the Ewald sum over the lattice points <code>R</code> of <code>H_m(k |r + R|) exp(i m phi) exp(i kpar.R)</code>, where <code>phi</code> is the azimuth of <code>-r - R</code>, without the term at <code>r + R = 0</code>. <code>eta</code> sets how the sum divides into a real-space and a reciprocal-space part (the Ewald split); <code>eta = 0</code> picks it automatically. The lattice lies on the x axis: <code>a</code> is the pitch, <code>kpar</code> the Bloch wavenumber and <code>r</code> a shift <code>(x, y)</code>.</p>
+<p>Mirrors <code>treams.lattice.recsumcw1d_shift</code>.</p>
+<p>Differences from treams: orders <code>|m|</code> up to 128; <code>ValueError</code> for non-finite input, <code>k = 0</code> and a cell of zero volume. It also raises <code>ValueError</code> at a diffraction threshold <code>k = |kpar + G|</code>, with <code>G</code> a reciprocal lattice vector, where the sum does not converge and where the split <code>eta</code> is too small for full accuracy.</p>
+<h2 id="recsumcw2d"><code>recsumcw2d</code><a class="headerlink" href="#recsumcw2d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">recsumcw2d</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">eta</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+<p>The reciprocal-space part, with the self correction, of the Ewald sum over the lattice points <code>R</code> of <code>H_m(k |r + R|) exp(i m phi) exp(i kpar.R)</code>, where <code>phi</code> is the azimuth of <code>-r - R</code>, without the term at <code>r + R = 0</code>. <code>eta</code> sets how the sum divides into a real-space and a reciprocal-space part (the Ewald split); <code>eta = 0</code> picks it automatically. The lattice lies in the xy plane: the rows of <code>a</code>, shape <code>(2, 2)</code>, are the lattice vectors; <code>kpar</code> and <code>r</code> have shape <code>(2,)</code>.</p>
+<p>Mirrors <code>treams.lattice.recsumcw2d</code>.</p>
+<p>Differences from treams: orders <code>|m|</code> up to 128; <code>ValueError</code> for non-finite input, <code>k = 0</code> and a cell of zero volume. It also raises <code>ValueError</code> at a diffraction threshold <code>k = |kpar + G|</code>, with <code>G</code> a reciprocal lattice vector, where the sum does not converge and where the split <code>eta</code> is too small for full accuracy.</p>
+<h2 id="recsumsw"><code>recsumsw</code><a class="headerlink" href="#recsumsw" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">recsumsw</span><span class="p">(</span><span class="n">dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">l</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">m</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">kpar</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">eta</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">out</span><span class="p">:</span> <span class="n">Any</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SumResult</span>
+</code></pre></div>
+<p>Reciprocal-space part of the Ewald sum D_lm over a 1D, 2D or 3D lattice.</p>
+<p>Mirrors <code>treams.lattice.recsumsw</code>. Calls <code>recsumsw1d_shift</code>,
+<code>recsumsw2d_shift</code> or <code>recsumsw3d</code>. At <code>r = 0</code> the part includes the
+correction for the dropped term at <code>R = 0</code>, as in treams.</p>
+<p><strong>Args</strong></p>
+<ul>
+<li><code>dim</code>: Lattice dimension, 1, 2 or 3.</li>
+<li><code>l</code>: Degree, 0 to 128.</li>
+<li><code>m</code>: Order, <code>|m| &lt;= l</code>.</li>
+<li><code>k</code>: Finite nonzero wavenumber with <code>Re k &gt;= 0</code> and <code>Im k &gt;= 0</code>.</li>
+<li><code>kpar</code>: Bloch vector: a number in 1D, <code>dim</code> components otherwise, or a <code>WaveVector</code>.</li>
+<li><code>a</code>: Lattice vectors as rows: the period in 1D, a <code>(dim, dim)</code> array or the side lengths of a rectangular cell, or a <code>Lattice</code>.</li>
+<li><code>r</code>: Shift <code>(x, y, z)</code>.</li>
+<li><code>eta</code>: Ewald split parameter; 0 selects it automatically.</li>
+<li><code>out</code>: Array for the result, as for a NumPy ufunc.</li>
+<li><code>**kwargs</code>: Further ufunc keywords.</li>
+</ul>
+<p><strong>Returns</strong></p>
+<p>The part, complex128 with the broadcast shape of the arguments.</p>
+<p>See the Accuracy section of <code>treams_rs.lattice</code>.</p>
+<h2 id="recsumsw1d"><code>recsumsw1d</code><a class="headerlink" href="#recsumsw1d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">recsumsw1d</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">eta</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">where</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+<p>The reciprocal-space part, with the self correction, of the Ewald sum over the lattice points <code>R</code> of <code>h_l(k |r + R|) Y_lm(-r - R) exp(i kpar.R)</code>, without the term at <code>r + R = 0</code>. <code>eta</code> sets how the sum divides into a real-space and a reciprocal-space part (the Ewald split); <code>eta = 0</code> picks it automatically. The lattice lies on the z axis: <code>a</code> is the pitch, <code>kpar</code> the Bloch wavenumber and <code>r</code> the shift along z; <code>m = 0</code>.</p>
+<p>Mirrors <code>treams.lattice.recsumsw1d</code>.</p>
+<p>Differences from treams: degrees up to 128; <code>ValueError</code> for non-finite input, <code>k = 0</code> and a cell of zero volume. It also raises <code>ValueError</code> at a diffraction threshold <code>k = |kpar + G|</code>, with <code>G</code> a reciprocal lattice vector, where the sum does not converge and where the split <code>eta</code> is too small for full accuracy.</p>
+<h2 id="recsumsw1d_shift"><code>recsumsw1d_shift</code><a class="headerlink" href="#recsumsw1d_shift" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">recsumsw1d_shift</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">eta</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+<p>The reciprocal-space part, with the self correction, of the Ewald sum over the lattice points <code>R</code> of <code>h_l(k |r + R|) Y_lm(-r - R) exp(i kpar.R)</code>, without the term at <code>r + R = 0</code>. <code>eta</code> sets how the sum divides into a real-space and a reciprocal-space part (the Ewald split); <code>eta = 0</code> picks it automatically. The lattice lies on the z axis: <code>a</code> is the pitch, <code>kpar</code> the Bloch wavenumber and <code>r</code> a shift <code>(x, y, z)</code>.</p>
+<p>Mirrors <code>treams.lattice.recsumsw1d_shift</code>.</p>
+<p>Differences from treams: degrees up to 128; <code>ValueError</code> for <code>|m| &gt; l</code>, non-finite input, <code>k = 0</code> and a cell of zero volume. It also raises <code>ValueError</code> at a diffraction threshold <code>k = |kpar + G|</code>, with <code>G</code> a reciprocal lattice vector, where the sum does not converge and where the split <code>eta</code> is too small for full accuracy.</p>
+<h2 id="recsumsw2d"><code>recsumsw2d</code><a class="headerlink" href="#recsumsw2d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">recsumsw2d</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">eta</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+<p>The reciprocal-space part, with the self correction, of the Ewald sum over the lattice points <code>R</code> of <code>h_l(k |r + R|) Y_lm(-r - R) exp(i kpar.R)</code>, without the term at <code>r + R = 0</code>. <code>eta</code> sets how the sum divides into a real-space and a reciprocal-space part (the Ewald split); <code>eta = 0</code> picks it automatically. The lattice lies in the xy plane: the rows of <code>a</code>, shape <code>(2, 2)</code>, are the lattice vectors, <code>kpar</code> has shape <code>(2,)</code> and <code>r</code> is a shift <code>(x, y)</code>.</p>
+<p>Mirrors <code>treams.lattice.recsumsw2d</code>.</p>
+<p>Differences from treams: degrees up to 128; <code>ValueError</code> for <code>|m| &gt; l</code>, non-finite input, <code>k = 0</code> and a cell of zero volume. It also raises <code>ValueError</code> at a diffraction threshold <code>k = |kpar + G|</code>, with <code>G</code> a reciprocal lattice vector, where the sum does not converge and where the split <code>eta</code> is too small for full accuracy.</p>
+<h2 id="recsumsw2d_shift"><code>recsumsw2d_shift</code><a class="headerlink" href="#recsumsw2d_shift" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">recsumsw2d_shift</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">eta</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+<p>The reciprocal-space part, with the self correction, of the Ewald sum over the lattice points <code>R</code> of <code>h_l(k |r + R|) Y_lm(-r - R) exp(i kpar.R)</code>, without the term at <code>r + R = 0</code>. <code>eta</code> sets how the sum divides into a real-space and a reciprocal-space part (the Ewald split); <code>eta = 0</code> picks it automatically. The lattice lies in the xy plane: the rows of <code>a</code>, shape <code>(2, 2)</code>, are the lattice vectors, <code>kpar</code> has shape <code>(2,)</code> and <code>r</code> is a shift <code>(x, y, z)</code>.</p>
+<p>Mirrors <code>treams.lattice.recsumsw2d_shift</code>.</p>
+<p>Differences from treams: degrees up to 128; <code>ValueError</code> for <code>|m| &gt; l</code>, non-finite input, <code>k = 0</code> and a cell of zero volume. It also raises <code>ValueError</code> at a diffraction threshold <code>k = |kpar + G|</code>, with <code>G</code> a reciprocal lattice vector, where the sum does not converge and where the split <code>eta</code> is too small for full accuracy.</p>
+<h2 id="recsumsw3d"><code>recsumsw3d</code><a class="headerlink" href="#recsumsw3d" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">recsumsw3d</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">kpar</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">eta</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+<p>The reciprocal-space part, with the self correction, of the Ewald sum over the lattice points <code>R</code> of <code>h_l(k |r + R|) Y_lm(-r - R) exp(i kpar.R)</code>, without the term at <code>r + R = 0</code>. <code>eta</code> sets how the sum divides into a real-space and a reciprocal-space part (the Ewald split); <code>eta = 0</code> picks it automatically. The rows of <code>a</code>, shape <code>(3, 3)</code>, are the lattice vectors; <code>kpar</code> and <code>r</code> have shape <code>(3,)</code>.</p>
+<p>Mirrors <code>treams.lattice.recsumsw3d</code>.</p>
+<p>Differences from treams: degrees up to 128; <code>ValueError</code> for <code>|m| &gt; l</code>, non-finite input, <code>k = 0</code> and a cell of zero volume. It also raises <code>ValueError</code> at a diffraction threshold <code>k = |kpar + G|</code>, with <code>G</code> a reciprocal lattice vector, where the sum does not converge and where the split <code>eta</code> is too small for full accuracy.</p>
+<h2 id="volume"><code>volume</code><a class="headerlink" href="#volume" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">volume</span><span class="p">(</span><span class="n">cell</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+<p>Signed volume (area, length) of cells whose rows are lattice vectors.</p>
+<p>Cells have shape (..., d, d) with d = 1, 2 or 3; integer cells stay integer.</p>
+<p>Mirrors <code>treams.lattice.volume</code>.</p>
+<p>Differences from treams: also one-dimensional cells.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../pw/" class="md-footer__link md-footer__link--prev" aria-label="Previous: treams_rs.pw">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                treams_rs.pw
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../coeffs/" class="md-footer__link md-footer__link--next" aria-label="Next: treams_rs.coeffs">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                treams_rs.coeffs
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      treams-rs contributors, MIT license
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://github.com/yaugenst/treams-rs" target="_blank" rel="noopener" title="treams-rs on GitHub" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://pypi.org/project/treams-rs/" target="_blank" rel="noopener" title="treams-rs on PyPI" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 444.7a20.4 20.4 0 1 1 0-40.7 20.4 20.4 0 1 1 0 40.7M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.6-183.4a20.4 20.4 0 1 1 0 40.8 20.4 20.4 0 1 1 0-40.8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.instant", "navigation.instant.progress", "navigation.tracking", "navigation.sections", "navigation.indexes", "navigation.path", "navigation.footer", "navigation.top", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

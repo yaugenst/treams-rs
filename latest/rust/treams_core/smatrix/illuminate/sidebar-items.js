@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["PARALLEL_SCAN_ROWS","PARALLEL_SNAPSHOT_ROWS","WORKER_SNAPSHOT_ROWS"],"fn":["illuminate","illuminate_value","illumination_fields"],"struct":["IlluminateGradient","IlluminateResidual"],"type":["InternalFields"]};

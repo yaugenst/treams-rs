@@ -1,0 +1,62 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="IEEE 754 subnormals for the numerical work, whatever the caller’s floating-point mode. treams-rs extension."><title>treams_core::fpenv - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="treams_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module fpenv</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../treams_core/index.html">treams_<wbr>core</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module fpenv</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#soundness" title="Soundness">Soundness</a></li></ul><h3><a href="#modules">Module Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate treams_<wbr>core</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">treams_core</a></div><h1>Module <span>fpenv</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/treams_core/fpenv.rs.html#1-640">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>IEEE 754 subnormals for the numerical work, whatever the caller’s floating-point mode.
+treams-rs extension.</p>
+<p>The kernels assume gradual underflow. Some callers flush subnormals to
+zero: XLA sets flush-to-zero and denormals-are-zero on the thread that runs a
+computation, also while a <code>jax.pure_callback</code> runs,
+<code>torch.set_flush_denormal(True)</code> sets them on the calling thread, and Linux
+threads inherit the mode of their creator. Flushing breaks algorithms that
+scale through the subnormal range: faer’s complex reciprocal of an LU pivot
+<code>z</code> with <code>max(|Re z|, |Im z|) &lt;= 1 &lt; |z|</code> forms <code>f64::MIN_POSITIVE / |z|^2</code>,
+so a flushed scalar solve of <code>1 + 0.1i</code> returns zero.</p>
+<p><a href="fn.ieee.html" title="fn treams_core::fpenv::ieee"><code>ieee</code></a> runs work with subnormals on the calling thread and then restores
+the caller’s flushing bits; every Python entry point of the bindings runs its
+whole body in it. <code>flushing</code> does the opposite, for tests. What precedes
+the body stays in the caller’s mode: <code>PyO3</code> reads a <code>float32</code> subnormal as
+zero on a flushing thread, and <code>float64</code> values that the Python layer
+computes from subnormal inputs flush before the call into Rust.</p>
+<p><a href="fn.ieee.html" title="fn treams_core::fpenv::ieee"><code>ieee</code></a> guards the calling thread only. The workers of the thread pool
+(<a href="../threads/index.html" title="mod treams_core::threads"><code>crate::threads</code></a>) clear their flushing bits once, as each one starts
+(<code>keep_subnormals_on_worker</code>), so they keep subnormals whatever the mode of
+the thread that builds the pool; Linux threads would otherwise inherit their
+creator’s mode for good. treams-rs never uses Rayon’s global pool, whose
+workers would keep the mode of the thread that started it.</p>
+<p>This is the only module that reads or writes the control register: MXCSR
+on x86-64 (flush-to-zero, bit 15, and denormals-are-zero, bit 6) and FPCR on
+<code>AArch64</code> (FZ, bit 24, which XLA sets, and FIZ, bit 0, defined by
+<code>FEAT_AFP</code>). On other targets both functions only run their work.</p>
+<h2 id="soundness"><a class="doc-anchor" href="#soundness">§</a>Soundness</h2>
+<p>Rust assumes the default floating-point environment everywhere, and its
+standard library documents changing flush-to-zero or denormals-are-zero as
+undefined behaviour even when the change is undone (<code>_mm_setcsr</code> in
+<code>core::arch::x86_64</code>): the compiler does not model the control register, so
+it may move floating-point arithmetic across the instructions that write it.
+A flushing caller has already left that assumption when it calls Rust
+code. <a href="fn.ieee.html" title="fn treams_core::fpenv::ieee"><code>ieee</code></a> cannot formally remove the violation, but it keeps the work
+between its two register writes by data dependence rather than by code
+layout. Each write is an <code>asm!</code> block without <code>nomem</code>, <code>readonly</code> or <code>pure</code>,
+which the Rust Reference treats like a call to an unknown function that may
+read and write memory, and it takes a pointer operand:</p>
+<ul>
+<li>The clearing write takes a pointer to the closure, so for the compiler it
+may read and replace every captured value. Arithmetic on the inputs can
+only start after it, whether they live in registers or in memory.</li>
+<li>The restoring write takes a pointer to the result, so for the compiler it
+reads the result and may replace it. The result is complete before the
+write, and code after it reads the result back instead of recomputing it.</li>
+<li>Accesses to memory visible outside the function, such as <code>NumPy</code> buffers,
+and calls with side effects stay on their side of either write.</li>
+</ul>
+<p>This relies on the specified meaning of <code>asm!</code> operands, which no
+optimization may see through, not on <a href="https://doc.rust-lang.org/1.94.0/core/hint/fn.black_box.html" title="fn core::hint::black_box"><code>core::hint::black_box</code></a>, which is
+documented as best effort only. Operations whose operands are all
+compile-time constants are not anchored: LLVM usually folds them with IEEE
+rules, but one that it leaves to run time may run outside the window, so
+guarded work must not rely on subnormal results of constant expressions.
+<code>guarded_register_arithmetic_stays_inside</code> fails at opt-level 1 when either
+pointer operand is removed, and <code>tests/bindings/test_float_environment.py</code>
+compares every scalar binding and ufunc loop on flushing threads bit for bit
+with callers that keep subnormals.</p>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="control/index.html" title="mod treams_core::fpenv::control">control</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Restore.html" title="struct treams_core::fpenv::Restore">Restore</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Restores the flushing bits a thread had before <a href="fn.with_flush.html" title="fn treams_core::fpenv::with_flush"><code>with_flush</code></a> changed them.</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.ieee.html" title="fn treams_core::fpenv::ieee">ieee</a></dt><dd>Run <code>work</code> with IEEE 754 subnormals on the current thread.</dd><dt><a class="fn" href="fn.keep_subnormals_on_worker.html" title="fn treams_core::fpenv::keep_subnormals_on_worker">keep_<wbr>subnormals_<wbr>on_<wbr>worker</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Clear the current thread’s flushing bits for the rest of its life.</dd><dt><a class="fn" href="fn.swap_flush.html" title="fn treams_core::fpenv::swap_flush">swap_<wbr>flush</a><span title="Restricted Visibility">&nbsp;🔒</span> <sup title="unsafe function">⚠</sup></dt><dd>Set the current thread’s flushing bits to <code>flush &amp; FLUSH</code>, keeping every
+other bit, and return the flushing bits it had. A write, when needed, may
+read and write <code>*data</code> for the compiler.</dd><dt><a class="fn" href="fn.with_flush.html" title="fn treams_core::fpenv::with_flush">with_<wbr>flush</a><span title="Restricted Visibility">&nbsp;🔒</span> <sup title="unsafe function">⚠</sup></dt><dd>Run <code>work</code> with the flushing bits <code>flush &amp; FLUSH</code> on the current thread,
+then restore the caller’s flushing bits, also while unwinding a panic.</dd></dl></section></div></main></body></html>

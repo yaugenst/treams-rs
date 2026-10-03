@@ -1,0 +1,5 @@
+Transmission T = 0.8435481584
+Derivatives of T in 1/nm
+ parameter  value/nm        jax.grad   central diff.
+    radius       100   -0.0078690576   -0.0078690576
+ thickness        10   -0.0079329717   -0.0079329717

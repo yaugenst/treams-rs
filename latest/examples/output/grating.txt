@@ -1,0 +1,5 @@
+Real part of E_x at x = 0 (rows: y, columns: z)
+    -0.705071    -0.944121    -0.988146    -0.761953
+          nan          nan          nan          nan
+          nan          nan          nan          nan
+     0.698716     0.818856      0.71492     0.450867

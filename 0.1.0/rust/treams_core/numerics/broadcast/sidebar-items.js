@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["element","map","pullback","size"],"trait":["Cotangent"]};
