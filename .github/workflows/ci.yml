@@ -16,6 +16,9 @@ permissions:
 env:
   ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
   ACTIONLINT_VERSION: 1.7.12
+  # Development builds skip debug info, which only backtraces read; debug
+  # assertions and overflow checks are separate profile settings and stay on.
+  CARGO_PROFILE_DEV_DEBUG: "0"
   FORCE_COLOR: "1"
   # Keep the same property-test budget in every compatibility lane.
   HYPOTHESIS_PROFILE: ci
