@@ -101,6 +101,14 @@ jobs:
               raise SystemExit(
                   f"release tag {os.environ['RELEASE_TAG']!r} must be {expected_tag!r}"
               )
+          # The released docs and the tag carry these files unchanged.
+          changelog = Path("CHANGELOG.md").read_text()
+          dated = rf"^## {re.escape(version)} \(\d{{4}}-\d{{2}}-\d{{2}}\)$"
+          if re.search(dated, changelog, re.M) is None:
+              raise SystemExit(f"CHANGELOG.md needs a dated '## {version} (YYYY-MM-DD)' entry")
+          citation = Path("CITATION.cff").read_text()
+          if f"\nversion: {version}\n" not in citation or "\ndate-released: " not in citation:
+              raise SystemExit(f"CITATION.cff needs version {version} and date-released")
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
               print(f"version={version}", file=output)
           PY

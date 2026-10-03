@@ -102,8 +102,8 @@ tar -xzf benchmarks/results/linux-core-qualification-20260919.tar.gz
 They create `benchmarks/results/linux-core-performance-20260919/`,
 `benchmarks/linux-qualification-report/` (open `index.html`),
 `benchmarks/results/linux-core-correctness-20260919/` and
-`benchmarks/results/linux-core-correctness-frozen-20260919/`. Git does not track
-these extracted directories; delete them when you are done and keep the
+`benchmarks/results/linux-core-correctness-frozen-20260919/`. Git ignores these
+extracted directories; delete them when you are done and keep the
 archives. Archive digests and file counts are in the two `linux-core-*.json`
 records.
 

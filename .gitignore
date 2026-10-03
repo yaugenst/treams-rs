@@ -9,5 +9,8 @@ __pycache__/
 .ruff_cache/
 .hypothesis/
 /benchmarks/results/local/
+# Extracted benchmark archives; see benchmarks/README.md.
+/benchmarks/linux-qualification-report/
+/benchmarks/results/linux-core-*-20260919/
 .coverage
 coverage.xml

@@ -1,10 +1,11 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## Unreleased
+
+## 0.1.0 (2026-10-03)
 
 First public release of treams-rs: electromagnetic T-matrix scattering with a
 Rust numerical core, a Python interface and analytic first-order derivatives.
-This entry describes the release being prepared; it is not a publication notice.
 
 ### Capabilities
 

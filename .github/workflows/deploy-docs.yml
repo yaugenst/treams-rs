@@ -44,6 +44,10 @@ jobs:
             echo "source_revision must be a full commit SHA" >&2
             exit 1
           fi
+          if [[ "$GITHUB_REF" != refs/heads/main ]]; then
+            echo "Deploy docs must run from main" >&2
+            exit 1
+          fi
           test "$(git rev-parse --verify "$SOURCE_REVISION^{commit}")" = "$SOURCE_REVISION"
           git rev-parse --verify "refs/tags/v$DOCS_VERSION^{commit}" > /dev/null
           test "$(gh api "repos/$GH_REPO/releases/tags/v$DOCS_VERSION" \
