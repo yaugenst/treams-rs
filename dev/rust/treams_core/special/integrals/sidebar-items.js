@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["BROADCAST","COTANGENT","PARALLEL"],"fn":["incgamma","incgamma_array","intkambe","intkambe_array"],"mod":["double","gamma","kambe"],"struct":["IncgammaResidual","IntkambeResidual"]};

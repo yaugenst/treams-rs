@@ -1,0 +1,6503 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Benchmark sources, methods and archived measurements of individual operations.">
+      
+      
+      
+        <link rel="canonical" href="https://yaugenst.github.io/treams-rs/dev/performance/evidence/">
+      
+      
+        <link rel="prev" href="../platform-comparison/">
+      
+      
+        <link rel="next" href="../../reference/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/favicon.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Benchmark evidence - treams-rs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#benchmark-evidence" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="treams-rs" class="md-header__button md-logo" aria-label="treams-rs" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            treams-rs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Benchmark evidence
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Follow the system color scheme"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Follow the system color scheme" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/yaugenst/treams-rs" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    yaugenst/treams-rs
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="treams-rs" class="md-nav__button md-logo" aria-label="treams-rs" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="logo">
+
+    </a>
+    treams-rs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/yaugenst/treams-rs" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    yaugenst/treams-rs
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../coming-from-treams/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coming from treams
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Coming from treams
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../coming-from-treams/names/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Name map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../coming-from-treams/conventions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conventions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../coming-from-treams/differences/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differences from treams 0.4.7
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../guide/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/particles-and-waves/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Particles and waves
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/clusters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clusters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/large-clusters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Large clusters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/periodic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Periodic arrays
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/planar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Planar layers and S-matrices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/numerical-namespaces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Numerical namespaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/io/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    HDF5 and Gmsh
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Threads and process pools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/api-discovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API discovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../examples/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sphere/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single sphere
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster of spheres
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chain of spheres
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/grid/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grid of spheres
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/crystal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Photonic crystal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/slab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chiral slab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/array_spheres/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Array of spheres on a slab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/band_structure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Band structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/cylinder/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single cylinder
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/cylindrical_chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chain of spheres in cylindrical waves
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/cylindrical_cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chain and cylinder
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/cylindrical_crystal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cylinder crystal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/grating/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grating
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/cylindrical_array/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Array of spheres from cylindrical waves
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sphere_radius_optimization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sphere radius optimization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/array_transmission_gradient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Array transmission gradient
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../differentiation/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differentiation
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Differentiation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../differentiation/frameworks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Framework adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../differentiation/custom-records/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../differentiation/gradient-checks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gradient checks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../design/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/python-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/pullbacks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analytic pullbacks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/adapters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Framework adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/floating-point/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Floating-point environment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/numerics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Numerical choices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/parallelism/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parallelism
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/formal-proofs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Formal proofs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../validation/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validation
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_8" id="__nav_8_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Validation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../validation/capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../validation/numerical-limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Numerical and platform limits
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../validation/published-applications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Published applications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_9" id="__nav_9_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Performance
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../large-problems/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Requested illuminations and larger clusters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../platform-comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mac and Linux benchmark comparison
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmark evidence
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmark evidence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#evidence-provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evidence provenance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automatic-dispatch-overhead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic-dispatch overhead
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Automatic-dispatch overhead">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#measured-source-and-library-identities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measured source and library identities
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#redacted-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Redacted paths
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#archived-per-kernel-measurements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Archived per-kernel measurements
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Archived per-kernel measurements">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#axisymmetric-ebcm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Axisymmetric EBCM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#finite-sphere-clusters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Finite sphere clusters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#batched-spherical-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Batched spherical fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#periodic-sphere-arrays-and-adjoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Periodic sphere arrays and adjoints
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#complete-periodic-s-matrices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complete periodic S matrices
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multipole-rotations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multipole rotations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cylindrical-to-spherical-conversion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cylindrical-to-spherical conversion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plane-fields-and-direct-numpy-buffer-transfer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plane fields and direct NumPy buffer transfer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plane-to-spherical-illumination" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plane-to-spherical illumination
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#complete-cylindrical-arrays" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complete cylindrical arrays
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cylindrical-plane-illumination-and-phase-reuse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cylindrical plane illumination and phase reuse
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#compact-planar-multilayers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compact planar multilayers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#periodic-spherical-to-cylindrical-conversion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Periodic spherical-to-cylindrical conversion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dense-internal-illumination" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dense internal illumination
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#compact-plane-permutations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compact plane permutations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plane-translation-phases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plane translation phases
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#oriented-chirality-forms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Oriented chirality forms
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#heterogeneous-particle-clusters-and-block-adjoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Heterogeneous particle clusters and block adjoints
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#broadcast-bessel-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Broadcast Bessel functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#heterogeneous-cylindrical-clusters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Heterogeneous cylindrical clusters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scalar-overhead-and-numpy-ufuncs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scalar overhead and NumPy ufuncs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#public-angular-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Public angular functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wigner-elements-euler-pullbacks-and-public-ewald-integrals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wigner elements, Euler pullbacks and public Ewald integrals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cylindrical-axial-field-derivatives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cylindrical axial field derivatives
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shared-axial-derivatives-of-finite-and-periodic-cylindrical-expansions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shared axial derivatives of finite and periodic cylindrical expansions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coordinate-transformations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coordinate transformations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#local-wave-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Local wave functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coefficient-namespaces-and-integral-adjoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coefficient namespaces and integral adjoints
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lattice-geometry-and-material-branches" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lattice geometry and material branches
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lattice-sums-at-explicit-small-splits-pre-release-timings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lattice sums at explicit small splits (pre-release timings)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../reference/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../reference/python/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_10_2" id="__nav_10_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_10_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/treams_rs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/special/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.special
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/sw/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.sw
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/cw/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.cw
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/pw/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.pw
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/lattice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.lattice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/coeffs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.coeffs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/misc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.misc
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/ebcm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.ebcm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/io/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.io
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/operators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.operators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/iterative/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.iterative
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/parallel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.parallel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/diff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.diff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/advect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.advect
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/jax/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.jax
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/torch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.torch
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/autograd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    treams_rs.autograd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/python/native-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Returned types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/rust/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rust crate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../development/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Source ownership
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/releasing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#evidence-provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evidence provenance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automatic-dispatch-overhead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic-dispatch overhead
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Automatic-dispatch overhead">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#measured-source-and-library-identities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measured source and library identities
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#redacted-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Redacted paths
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#archived-per-kernel-measurements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Archived per-kernel measurements
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Archived per-kernel measurements">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#axisymmetric-ebcm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Axisymmetric EBCM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#finite-sphere-clusters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Finite sphere clusters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#batched-spherical-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Batched spherical fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#periodic-sphere-arrays-and-adjoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Periodic sphere arrays and adjoints
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#complete-periodic-s-matrices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complete periodic S matrices
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multipole-rotations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multipole rotations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cylindrical-to-spherical-conversion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cylindrical-to-spherical conversion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plane-fields-and-direct-numpy-buffer-transfer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plane fields and direct NumPy buffer transfer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plane-to-spherical-illumination" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plane-to-spherical illumination
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#complete-cylindrical-arrays" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complete cylindrical arrays
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cylindrical-plane-illumination-and-phase-reuse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cylindrical plane illumination and phase reuse
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#compact-planar-multilayers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compact planar multilayers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#periodic-spherical-to-cylindrical-conversion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Periodic spherical-to-cylindrical conversion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dense-internal-illumination" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dense internal illumination
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#compact-plane-permutations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compact plane permutations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plane-translation-phases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plane translation phases
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#oriented-chirality-forms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Oriented chirality forms
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#heterogeneous-particle-clusters-and-block-adjoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Heterogeneous particle clusters and block adjoints
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#broadcast-bessel-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Broadcast Bessel functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#heterogeneous-cylindrical-clusters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Heterogeneous cylindrical clusters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scalar-overhead-and-numpy-ufuncs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scalar overhead and NumPy ufuncs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#public-angular-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Public angular functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wigner-elements-euler-pullbacks-and-public-ewald-integrals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wigner elements, Euler pullbacks and public Ewald integrals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cylindrical-axial-field-derivatives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cylindrical axial field derivatives
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shared-axial-derivatives-of-finite-and-periodic-cylindrical-expansions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shared axial derivatives of finite and periodic cylindrical expansions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coordinate-transformations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coordinate transformations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#local-wave-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Local wave functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coefficient-namespaces-and-integral-adjoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coefficient namespaces and integral adjoints
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lattice-geometry-and-material-branches" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lattice geometry and material branches
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lattice-sums-at-explicit-small-splits-pre-release-timings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lattice sums at explicit small splits (pre-release timings)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Performance
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="benchmark-evidence">Benchmark evidence<a class="headerlink" href="#benchmark-evidence" title="Permanent link">&para;</a></h1>
+<h2 id="evidence-provenance">Evidence provenance<a class="headerlink" href="#evidence-provenance" title="Permanent link">&para;</a></h2>
+<p>Each row is one set of measurements. Dates, commits, hosts and case counts come
+from the linked summary files; "not recorded" means the value is missing.
+Commits are the revisions of the original runs;
+<a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/history-provenance.json"><code>history-provenance.json</code></a> maps them
+to this repository's history. The linked files identify each build with SHA-256
+hashes of the native library, Python sources and benchmark scripts. Files under
+<code>benchmarks/results/</code> keep
+their recorded measurements; identifying data and archive metadata were redacted
+(<a href="#redacted-paths">redacted paths</a>).</p>
+<table>
+<thead>
+<tr>
+<th>Measurement set</th>
+<th>Date</th>
+<th>Source commit</th>
+<th>Host</th>
+<th style="text-align: right;">Cases</th>
+<th>Outcome</th>
+<th>Summary / manifest</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Linux core correctness</td>
+<td>2026-09-19</td>
+<td><code>2843a70</code></td>
+<td>AMD Ryzen 9 9950X, Linux, Python 3.13.1</td>
+<td style="text-align: right;">615</td>
+<td>All pass</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/linux-core-qualification.json"><code>linux-core-qualification.json</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/linux-core-qualification.md">summary</a></td>
+</tr>
+<tr>
+<td>Linux core performance</td>
+<td>2026-09-19 to 2026-09-20</td>
+<td><code>2470fbe</code></td>
+<td>AMD Ryzen 9 9950X, Linux, Python 3.13.1</td>
+<td style="text-align: right;">1,300 planned, 769 timed</td>
+<td>All measured; broad-grid median 5.12×; 4 slower cases (2 recorded internal illuminations at a solver switch point, 1 scalar recorded <code>tl_vcw_r</code> call, 1 matrix-free illumination case at 32 columns)</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/linux-core-performance.json"><code>linux-core-performance.json</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/linux-core-qualification.md">summary</a></td>
+</tr>
+<tr>
+<td>Reference replay grid</td>
+<td>2026-09-12</td>
+<td>not recorded</td>
+<td>AMD Ryzen 9 9950X, Linux, Python 3.13.1, CPUs 8–11</td>
+<td style="text-align: right;">527</td>
+<td>527 runtime and 525 RSS checks pass; minimum 1.02×</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/complete-qualification.json"><code>complete-qualification.json</code></a></td>
+</tr>
+<tr>
+<td>macOS dispatch grid</td>
+<td>2026-09-12</td>
+<td>not recorded</td>
+<td>Apple M3, macOS 26.6.2, Python 3.13.12</td>
+<td style="text-align: right;">30</td>
+<td>All pass; minimum 1.30×, largest RSS ratio 0.695</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/mac-qualification.json"><code>mac-qualification.json</code></a></td>
+</tr>
+<tr>
+<td>Mac and Linux comparison</td>
+<td>not recorded (by 2026-09-12)</td>
+<td><code>7421ca9</code> (Linux)</td>
+<td>Apple M3 and AMD Ryzen 9 9950X</td>
+<td style="text-align: right;">736 per platform</td>
+<td>Every outcome kept; median 5.17× (M3) and 5.04× (Ryzen); 11 slower Mac cases</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/comparison-plan.json"><code>comparison-plan.json</code></a>, <a href="../platform-comparison/">platform comparison</a></td>
+</tr>
+<tr>
+<td>Requested illumination</td>
+<td>2026-09-12</td>
+<td>not recorded</td>
+<td>AMD Ryzen 9 9950X (CPUs 8–11) and Apple M3</td>
+<td style="text-align: right;">9</td>
+<td>All complete; matrix-free gradient memory 30× below the full T-matrix at 512 spheres</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/results/illumination-linux-n512-l1-p1.json"><code>illumination-linux-n512-l1-p1.json</code></a> and the other <code>illumination-*.json</code>, <a href="../large-problems/">large problems</a></td>
+</tr>
+<tr>
+<td>Published applications</td>
+<td>sources retrieved 2026-09-12</td>
+<td>not recorded</td>
+<td>macOS 26.6.2 arm64, Python 3.13.12</td>
+<td style="text-align: right;">5 spectra, 300 thermal frequencies</td>
+<td>Within the stated tolerances; thermal absorption within 0.577% of the author data</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/papers/qualification.json"><code>papers/qualification.json</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/papers/thermal-result.json"><code>papers/thermal-result.json</code></a>, <a href="../../validation/published-applications/">published applications</a></td>
+</tr>
+<tr>
+<td>Public cluster recheck (macOS)</td>
+<td>not recorded</td>
+<td><code>43bb7fe</code></td>
+<td>macOS 26.6.2 arm64, Python 3.13.12</td>
+<td style="text-align: right;">2</td>
+<td>Both pass; spherical cluster 7.20×, cylindrical cluster 1.56×, lower peak memory (RSS ratios 0.729 and 0.701)</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/agent-usability/qualification.json"><code>agent-usability/qualification.json</code></a></td>
+</tr>
+<tr>
+<td>Fractional Legendre check</td>
+<td>not recorded</td>
+<td>not recorded</td>
+<td>not recorded</td>
+<td style="text-align: right;">532</td>
+<td>530 finite cases within 2.17e-13 relative of 70-digit values; 2 expected overflows</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/results/fractional-legendre-physical.json"><code>fractional-legendre-physical.json</code></a></td>
+</tr>
+<tr>
+<td>LU scheduling probe</td>
+<td>not recorded</td>
+<td>not recorded</td>
+<td>AMD Ryzen 9950X, 16 Rayon workers on CPUs 0–15</td>
+<td style="text-align: right;">35 configurations</td>
+<td>Bounded worker counts 1.99× to 83.9× faster per stage than the full pool, in 7 selected sizes</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/results/cpu-parallelism.json"><code>cpu-parallelism.json</code></a>, <a href="../../design/numerics/">numerics</a></td>
+</tr>
+<tr>
+<td>Pre-release speed comparison (not a validation run)</td>
+<td>2026-09-26 to 2026-09-30</td>
+<td>baseline <code>5dadf1d</code></td>
+<td>shared 4-CPU cloud VM, one thread</td>
+<td style="text-align: right;">556 cases of 203 workloads</td>
+<td>Geometric-mean time ratio against <code>5dadf1d</code>: 0.77 forward and 0.68 reverse without lattice sums, 0.48 and 0.35 for lattice sums; <code>recsumcw1d</code> about 4% slower</td>
+<td>not archived; workloads in <a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/scripts/benchmark_cluster.py"><code>benchmark_cluster.py</code></a></td>
+</tr>
+</tbody>
+</table>
+<p>The retained report does not record run dates for both platforms in the Mac and
+Linux comparison.
+<a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/correction-plan.json"><code>correction-plan.json</code></a>, created on
+2026-09-12, uses it as its baseline, so the comparison ran on or before that day.</p>
+<p>The pre-release comparison alternated optimized builds of a later revision and
+<code>5dadf1d</code>, then rechecked suspected slowdowns by CPU time and instruction counts.
+Among the largest gains (forward / reverse) are field evaluation 17× / 8.6×,
+EBCM 8.4× / 5.0×, cylindrical
+expansion 6.3× / 5.4×, cylindrical periodic arrays 4.4× / 3.2×, Wigner 3j 2.3×
+and <code>intkambe</code> pullbacks 1.9×. The single-point 1D cylindrical reciprocal sum
+(<code>recsumcw1d</code>) is the only slowdown beyond noise: the lattice accuracy checks
+require extra Ewald shell, sheet and method tracking. Explicit lattice
+splits below the automatic one can take longer because they sum more shells and
+check their cancellation (<a href="#lattice-sums-at-explicit-small-splits-pre-release-timings">last section</a>).</p>
+<h2 id="automatic-dispatch-overhead">Automatic-dispatch overhead<a class="headerlink" href="#automatic-dispatch-overhead" title="Permanent link">&para;</a></h2>
+<p>A 2026-10-03 check compared eight NumPy calls before and after automatic
+autodiff selection: sphere scattering and cross sections at degrees 1 and 10,
+one-point fields at degree 3, a two-sphere solve, and two-channel interface and
+slab construction. Both versions used the same native library.</p>
+<table>
+<thead>
+<tr>
+<th>Frameworks imported before timing</th>
+<th style="text-align: right;">Added time in the seven smallest calls</th>
+<th style="text-align: right;">Calls exceeding the 10% timing limit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>None</td>
+<td style="text-align: right;">0.3–2.8 µs</td>
+<td style="text-align: right;">3 of 8</td>
+</tr>
+<tr>
+<td>Advect, JAX, PyTorch and Autograd</td>
+<td style="text-align: right;">2.0–9.7 µs</td>
+<td style="text-align: right;">7 of 8</td>
+</tr>
+</tbody>
+</table>
+<p>For example, slab construction changed from 19.3 to 22.0 µs without framework
+imports, and from 19.1 to 28.8 µs with all four imported. The two-sphere solve
+stayed within the timing limit in both conditions. All recorded values agreed
+exactly. These timings cover small forward calls, not gradient computation or
+large workloads; memory was not measured.</p>
+<p>The check used <a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/scripts/compare_builds.py"><code>compare_builds.py</code></a> on Linux,
+an AMD Ryzen 9 9950X and Python 3.13.1: five paired rounds, three samples of at
+least 20 ms per call, alternating measurement order, one native/BLAS thread
+and CPU affinity 4–5. Imports and input setup were outside the timed calls.
+Reported times are medians of each round's fastest sample; the limit uses the
+median paired time ratio.
+The raw rounds and source snapshots are retained privately. Earlier benchmark
+results above remain unchanged.</p>
+<h3 id="measured-source-and-library-identities">Measured source and library identities<a class="headerlink" href="#measured-source-and-library-identities" title="Permanent link">&para;</a></h3>
+<p>The baseline was <code>e3e759f1bc46d1df35bb1dbb6d9c99a91fb691be</code>; the candidate
+was the automatic-dispatch source snapshot, including its traversal
+optimization and reviewed fixes. SHA-256 fingerprints identify these measured
+builds, independently of later source changes:</p>
+<div class="highlight"><pre><span></span><code>Baseline Python: 5fbd9d6ef41fbc04633607ab473ed5f1753d1759e1013f42a611c684fb9e0c08
+Candidate Python: 839a44d639e7c3aa01004915066df57c9cc6a84e34938c766197e30c6781d596
+Shared native: 9e8a39cb2fc8459b5069a65ffc349c9eee71024ced6464524e55f52f9b8ed3c5
+</code></pre></div>
+<h2 id="redacted-paths">Redacted paths<a class="headerlink" href="#redacted-paths" title="Permanent link">&para;</a></h2>
+<p>The distributed evidence has privacy-only redactions documented in
+<a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/privacy-provenance.json"><code>benchmarks/privacy-provenance.json</code></a>.
+Numerical values, timings, outcomes and numerical array bytes are unchanged;
+archive owner metadata is normalized and distributed-file checksums are updated.
+Original commit identifiers and measured source/library fingerprints describe
+the historical runs. Sanitized source snapshots report separate content hashes.
+No measurement was rerun for this cleanup.</p>
+<h2 id="archived-per-kernel-measurements">Archived per-kernel measurements<a class="headerlink" href="#archived-per-kernel-measurements" title="Permanent link">&para;</a></h2>
+<p>These measurements time individual numerical operations. Each belongs to the build
+named in its result file, which may differ from the current source. Unless a
+section says otherwise, the host is an AMD Ryzen 9 9950X (16 physical cores)
+with Linux x86-64, Python 3.13.1, treams 0.4.5 and an optimized treams-rs
+build with faer and Rayon. Both packages get the same thread budget, each runs
+in its own process, and the result is compared with treams before timing at
+<code>rtol=2e-9, atol=1e-12</code>. Result file names refer to
+<a href="https://github.com/yaugenst/treams-rs/tree/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/results"><code>benchmarks/results/</code></a>. Sections without a result
+file summarize timings that were not archived.</p>
+<p>Reproduce a workload with
+<code>uv run --no-sync python scripts/benchmark_cluster.py --workload &lt;name&gt; ...</code>
+after <code>just build-ext-release</code>.</p>
+<h3 id="axisymmetric-ebcm">Axisymmetric EBCM<a class="headerlink" href="#axisymmetric-ebcm" title="Permanent link">&para;</a></h3>
+<p>For r(theta)=0.3(1+0.23 cos²(theta)), k0=1.3, inner eps=3.1+0.2i,
+mu=1.2+0.1i, kappa=0.07 and vacuum outside, the complete singular Q integral is
+compared with treams at rtol=2e-9, atol=1e-12, using the treams surface
+integral, which omits a radial area factor (<code>radial_area_factor=False</code>). treams-rs uses 96
+Gauss-Legendre nodes; treams uses adaptive SciPy quadrature. Four threads, seven
+samples after warmup. The reverse pass covers every sampled radius and slope,
+and all complex wavenumbers and impedances; its peak RSS stays at the forward peak.
+Timings include the Python call and saving the residual (the data kept for the
+reverse pass), not shape and basis setup. The timings were not archived. On a
+shared four-CPU host, parallel evaluation at quadrature nodes with shared radial
+functions and solid harmonics brings the degree-4 forward from 5.4 to 0.74 ms and forward plus
+reverse from 8.5 to 1.8 ms; the table shows the build without them.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Degree</th>
+<th style="text-align: right;">Modes</th>
+<th style="text-align: right;">treams ms</th>
+<th style="text-align: right;">Rust ms</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">Rust reverse ms</th>
+<th style="text-align: right;">treams / Rust peak MiB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">30</td>
+<td style="text-align: right;">284.26</td>
+<td style="text-align: right;">3.54</td>
+<td style="text-align: right;">80.3x</td>
+<td style="text-align: right;">1.99</td>
+<td style="text-align: right;">83.87 / 42.18</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">48</td>
+<td style="text-align: right;">727.40</td>
+<td style="text-align: right;">5.90</td>
+<td style="text-align: right;">123.4x</td>
+<td style="text-align: right;">3.00</td>
+<td style="text-align: right;">84.93 / 42.45</td>
+</tr>
+</tbody>
+</table>
+<p>At degree 6 the strict comparison fails on six of 9,216 entries, by up to
+4.98e-10. All six have m=0 and odd l_out+l_in, so their integrands are odd
+under theta -&gt; pi-theta on this equatorially symmetric surface and their exact
+integrals vanish (below 8e-82 at 80 digits). The largest integral of the
+absolute integrand is about 7.31e5, and double-precision epsilon times it is
+1.62e-10: treams-rs residuals at 48, 96 and 192 nodes lie between 0.04 and
+2.43 times this floor, and treams leaves up to 6.62e-10. This is a rounding
+floor in both packages, so the tolerance stays and no degree-6 speedup is
+claimed. Reproduce it with
+<code>uv run --no-sync --with mpmath python scripts/qualify_ebcm_cancellation.py</code>;
+<a href="https://github.com/yaugenst/treams-rs/blob/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/results/ebcm-l6-cancellation.json">the cancellation diagnostic</a>
+holds all eight m=0 entries, their high-precision values, quadrature samples
+and condition estimates. Workload: <code>--workload ebcm --particles 1 --lmax 4
+--samples 96 --threads 4</code>.</p>
+<h3 id="finite-sphere-clusters">Finite sphere clusters<a class="headerlink" href="#finite-sphere-clusters" title="Permanent link">&para;</a></h3>
+<p>Chains of spheres with radii 0.15–0.25, spacing 0.8, relative permittivity
+4+0.1i and vacuum wavenumber 1.3. Timings cover particle coefficients,
+translations and the full dense interacting T-matrix, and treams-rs keeps
+data for the pullback; they exclude imports. Peak RSS includes imports, memory
+retained for reuse and the benchmark's own memory. Seven samples after warmup,
+without fixed CPU placement or frequency. Raw samples: <code>benchmarks/results/release-*.json</code>.
+With packed in-place LU and four threads, dimension 240 takes 2.19 ms against
+89.95 ms (41.0x; 46.6 against 75.0 MiB) and dimension 960 takes 35.63 ms
+against 1641.15 ms (46.1x; 100.9 against 159.0 MiB), in
+<code>benchmarks/results/packed-lu-cluster-d{240,960}.json</code>. Dense output and LU
+need O(D²) memory and the factorization O(D³) time. Workload:
+<code>--particles 16 --lmax 3 --threads 4</code>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Spheres</th>
+<th style="text-align: right;">lmax</th>
+<th style="text-align: right;">Matrix dimension</th>
+<th style="text-align: right;">Threads</th>
+<th style="text-align: right;">treams ms</th>
+<th style="text-align: right;">Rust ms</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">treams / Rust peak MiB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">240</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">88.23</td>
+<td style="text-align: right;">3.01</td>
+<td style="text-align: right;">29.3×</td>
+<td style="text-align: right;">71.8 / 44.2</td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">480</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">389.64</td>
+<td style="text-align: right;">13.91</td>
+<td style="text-align: right;">28.0×</td>
+<td style="text-align: right;">90.3 / 57.2</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">560</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">686.49</td>
+<td style="text-align: right;">22.88</td>
+<td style="text-align: right;">30.0×</td>
+<td style="text-align: right;">98.4 / 65.1</td>
+</tr>
+<tr>
+<td style="text-align: right;">32</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">960</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">1677.50</td>
+<td style="text-align: right;">88.36</td>
+<td style="text-align: right;">19.0×</td>
+<td style="text-align: right;">154.9 / 113.2</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">240</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">90.63</td>
+<td style="text-align: right;">1.96</td>
+<td style="text-align: right;">46.2×</td>
+<td style="text-align: right;">73.6 / 42.7</td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">480</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">391.17</td>
+<td style="text-align: right;">9.35</td>
+<td style="text-align: right;">41.9×</td>
+<td style="text-align: right;">91.6 / 57.8</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">560</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">691.96</td>
+<td style="text-align: right;">12.69</td>
+<td style="text-align: right;">54.5×</td>
+<td style="text-align: right;">100.2 / 64.5</td>
+</tr>
+<tr>
+<td style="text-align: right;">32</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">960</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">1636.14</td>
+<td style="text-align: right;">43.41</td>
+<td style="text-align: right;">37.7×</td>
+<td style="text-align: right;">156.4 / 113.6</td>
+</tr>
+</tbody>
+</table>
+<h3 id="batched-spherical-fields">Batched spherical fields<a class="headerlink" href="#batched-spherical-fields" title="Permanent link">&para;</a></h3>
+<p>Weighted singular electric fields at four positions, order 3 (120 modes), 2,048
+samples and four threads, against <code>treams.efield(...) @ coefficients</code>. treams-rs
+contracts the amplitudes at each sample, so it never builds the
+sample-by-component-by-mode matrix; its reverse pass recomputes local wave
+derivatives and keeps no dense Jacobian. Basis setup is outside the timings.</p>
+<table>
+<thead>
+<tr>
+<th>Workload</th>
+<th style="text-align: right;">treams ms</th>
+<th style="text-align: right;">Rust ms</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">Rust reverse ms</th>
+<th style="text-align: right;">treams / Rust peak MiB</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Weighted field</td>
+<td style="text-align: right;">822.27</td>
+<td style="text-align: right;">40.82</td>
+<td style="text-align: right;">20.14x</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">96.94 / 40.98</td>
+<td><code>benchmarks/results/fields-n4-l3-p2048-t4.json</code></td>
+</tr>
+<tr>
+<td>Weighted field, shared spherical/cylindrical path</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">40.64</td>
+<td style="text-align: right;">20.24x</td>
+<td style="text-align: right;">71.11</td>
+<td style="text-align: right;">— / 41.28</td>
+<td><code>shared-fields-n4-l3-p2048-t4.json</code></td>
+</tr>
+<tr>
+<td>Full operator, (2048, 3, 120) array</td>
+<td style="text-align: right;">856.08</td>
+<td style="text-align: right;">45.47</td>
+<td style="text-align: right;">18.83x</td>
+<td style="text-align: right;">75.11</td>
+<td style="text-align: right;">97.68 / 64.20</td>
+<td><code>field-operator-n4-l3-p2048-t4.json</code></td>
+</tr>
+<tr>
+<td>Weighted field, shared operator code</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">41.86</td>
+<td style="text-align: right;">19.60x</td>
+<td style="text-align: right;">70.65</td>
+<td style="text-align: right;">— / 41.63</td>
+<td><code>field-geometry-n4-l3-p2048-t4.json</code></td>
+</tr>
+<tr>
+<td>Cylindrical, 112 modes</td>
+<td style="text-align: right;">502.92</td>
+<td style="text-align: right;">47.57</td>
+<td style="text-align: right;">10.57x</td>
+<td style="text-align: right;">64.24</td>
+<td style="text-align: right;">94.11 / 41.64</td>
+<td><code>cylindrical-fields*-n4-l3-p2048-t4.json</code></td>
+</tr>
+</tbody>
+</table>
+<p>Post-import baselines of the first row are 64.00 MiB for treams and 40.22 MiB
+for treams-rs. The cylindrical case uses orders -3 to 3, axial labels 0.2 and
+-0.3 and both helicities; without sharing the radial value and its first two
+derivatives between adjacent orders it takes 138.96 ms. On a shared four-core
+machine (16 spheres at order 4, 4,000 samples, one thread), evaluating each
+scaled radial function once per sample, position, wavenumber and order brings
+weighted fields from 4.61 s to 0.26 s forward and from 12.3 s to 1.08 s forward
+plus reverse, with values equal bit for bit. Workloads: <code>--workload field --samples 2048</code>,
+<code>--workload field-operator</code>, <code>--workload cylindrical-field</code>.</p>
+<h3 id="periodic-sphere-arrays-and-adjoints">Periodic sphere arrays and adjoints<a class="headerlink" href="#periodic-sphere-arrays-and-adjoints" title="Permanent link">&para;</a></h3>
+<p>A square grid of spheres with spacing 0.8, the particle parameters above and
+Bloch vector (0.1, 0.15). Timings cover local coefficients, the 2D Ewald
+coupling and the full interacting response matrix, keeping the data for every
+pullback; basis setup is excluded. The complete reverse pass (dense adjoint
+solve, particle pullbacks, positions, wavenumbers, Bloch vector and lattice)
+takes 146.59 and 749.60 ms for four and nine spheres at four threads, peaking at
+43.4 and 60.0 MiB; this build computes the Ewald derivatives per polarization.
+Raw results: <code>periodic-n4-l3-t1.json</code>, <code>periodic-adjoint-n4-l3-t4.json</code> and
+<code>periodic-adjoint-n9-l3-t4.json</code>. Workload: <code>--workload periodic --particles 4
+--lmax 3 --threads 4</code>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Spheres</th>
+<th style="text-align: right;">lmax</th>
+<th style="text-align: right;">Threads</th>
+<th style="text-align: right;">treams ms</th>
+<th style="text-align: right;">Rust ms</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">treams / Rust peak MiB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">103.57</td>
+<td style="text-align: right;">49.24</td>
+<td style="text-align: right;">2.10x</td>
+<td style="text-align: right;">89.2 / 41.6</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">118.94</td>
+<td style="text-align: right;">14.06</td>
+<td style="text-align: right;">8.46x</td>
+<td style="text-align: right;">89.5 / 40.7</td>
+</tr>
+<tr>
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">571.90</td>
+<td style="text-align: right;">70.05</td>
+<td style="text-align: right;">8.16x</td>
+<td style="text-align: right;">184.5 / 49.8</td>
+</tr>
+</tbody>
+</table>
+<h3 id="complete-periodic-s-matrices">Complete periodic S matrices<a class="headerlink" href="#complete-periodic-s-matrices" title="Permanent link">&para;</a></h3>
+<p>The <code>array</code> workload adds plane-wave incidence and radiation into ten ports
+(the zeroth and four first diffraction orders, both polarizations); the full S
+matrix is compared with treams. Reverse covers the channel and radiation
+pullbacks, the periodic solve and all particle pullbacks. Sharing Ewald
+derivatives between polarizations of equal wavenumber brings the
+four-sphere, four-thread reverse from 141.24 to 71.30 ms, about 4.7 forward
+evaluations, with no mode-by-parameter Jacobian. The nine-sphere case peaks at
+60.5 MiB through reverse. Raw samples: <code>array-before-n4-l3-t4.json</code> and
+<code>array-n*-l3-t*.json</code>. Workload: <code>--workload array --particles 9 --lmax 3
+--threads 4</code>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Spheres</th>
+<th style="text-align: right;">lmax</th>
+<th style="text-align: right;">Threads</th>
+<th style="text-align: right;">treams ms</th>
+<th style="text-align: right;">Rust ms</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">Rust reverse ms</th>
+<th style="text-align: right;">treams / Rust peak MiB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">105.41</td>
+<td style="text-align: right;">50.35</td>
+<td style="text-align: right;">2.09x</td>
+<td style="text-align: right;">254.38</td>
+<td style="text-align: right;">90.6 / 43.3</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">117.41</td>
+<td style="text-align: right;">15.27</td>
+<td style="text-align: right;">7.69x</td>
+<td style="text-align: right;">71.30</td>
+<td style="text-align: right;">90.8 / 42.8</td>
+</tr>
+<tr>
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">570.15</td>
+<td style="text-align: right;">73.00</td>
+<td style="text-align: right;">7.81x</td>
+<td style="text-align: right;">351.90</td>
+<td style="text-align: right;">187.9 / 52.4</td>
+</tr>
+</tbody>
+</table>
+<h3 id="multipole-rotations">Multipole rotations<a class="headerlink" href="#multipole-rotations" title="Permanent link">&para;</a></h3>
+<p>Two spherical positions and all degrees through 8 (320 modes), four threads: the
+complete rotation, including the angular blocks, takes 0.510 ms against
+5.597 ms in treams (10.98x). The reverse pass takes 0.753 ms using the kept
+small-d blocks; forward peak RSS is 42.27 against 67.03 MiB. Raw samples:
+<code>rotation-n2-l8-t4.json</code>. Workload: <code>--workload rotation --particles 2 --lmax 8
+--threads 4</code>.</p>
+<h3 id="cylindrical-to-spherical-conversion">Cylindrical-to-spherical conversion<a class="headerlink" href="#cylindrical-to-spherical-conversion" title="Permanent link">&para;</a></h3>
+<p>One common position, spherical lmax=12 (336 modes), 32 axial wavenumbers between
+-0.7 and 0.7 and cylindrical mmax=12 (1,600 modes), four threads, seven samples.
+The full 336-by-1,600 matrix takes 3.34 ms against 23.13 ms in treams
+(<strong>6.92x</strong>); the pullback for positions and complex wavenumbers takes 5.80 ms.
+Forward peak RSS is 73.9 MiB for treams and 55.9 MiB for treams-rs. treams-rs
+skips the azimuthal orders that vanish at coincident transverse positions and
+keeps adjacent orders for the position derivatives; without the skip, the
+forward takes 20.48 ms and the reverse 23.63 ms. This covers coincident positions
+only. The timings were not archived.</p>
+<h3 id="plane-fields-and-direct-numpy-buffer-transfer">Plane fields and direct NumPy buffer transfer<a class="headerlink" href="#plane-fields-and-direct-numpy-buffer-transfer" title="Permanent link">&para;</a></h3>
+<p>128 plane modes (64 transverse vectors, both polarizations), 4,096 Cartesian
+samples with propagating and evanescent waves at k0=1.3, four threads, seven
+samples. Timings include input conversion, output transfer and saving data for
+the pullback; no output Jacobian is kept. Contracting polarization cotangents (the
+gradients with respect to the outputs) over all samples before differentiating
+each mode brings the weighted reverse from 6.10 to 3.58 ms. Handing the Rust
+buffer to NumPy without a copy brings the full operator from 13.32 ms and
+89.4 MiB to the row below. The reverse pass accepts any cotangent memory layout,
+using one copy to make the data contiguous. For multipole field operators (four
+positions, lmax=3, 2,048 points) the same transfer gives 823.02 / 42.83 ms (19.2x), 75.81 ms
+reverse and 97.1 / 53.5 MiB forward peak RSS, against 64.2 MiB for treams-rs
+with a copy. The timings were not archived.</p>
+<table>
+<thead>
+<tr>
+<th>Output</th>
+<th style="text-align: right;">treams forward</th>
+<th style="text-align: right;">Rust forward</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">Rust reverse</th>
+<th style="text-align: right;">Forward peak RSS, treams / Rust</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Weighted plane field</td>
+<td style="text-align: right;">139.37 ms</td>
+<td style="text-align: right;">1.95 ms</td>
+<td style="text-align: right;">71.5x</td>
+<td style="text-align: right;">3.58 ms</td>
+<td style="text-align: right;">88.3 / 42.1 MiB</td>
+</tr>
+<tr>
+<td>Full plane field operator</td>
+<td style="text-align: right;">137.13 ms</td>
+<td style="text-align: right;">2.70 ms</td>
+<td style="text-align: right;">50.7x</td>
+<td style="text-align: right;">9.76 ms</td>
+<td style="text-align: right;">88.1 / 65.7 MiB</td>
+</tr>
+</tbody>
+</table>
+<h3 id="plane-to-spherical-illumination">Plane-to-spherical illumination<a class="headerlink" href="#plane-to-spherical-illumination" title="Permanent link">&para;</a></h3>
+<p>Two spherical positions, lmax=8 (320 modes), and 64 transverse vectors with both
+polarizations (128 plane modes) at k0=1.3, including evanescent directions; four
+threads, seven samples. treams takes 14.07 ms and treams-rs 0.598 ms
+(<strong>23.6x</strong>); the reverse pass for all positions and complex wavevectors takes
+1.23 ms. Forward peak RSS is 67.5 / 40.2 MiB. treams-rs shares the normalized
+direction across multipoles, runs incident modes in parallel and hands the
+output to NumPy without keeping it in the residual. Reusing the phase of each
+position across its multipoles gives 0.494 ms against 14.143 ms (<strong>28.6x</strong>) with
+1.163 ms reverse. The timings were not archived.</p>
+<h3 id="complete-cylindrical-arrays">Complete cylindrical arrays<a class="headerlink" href="#complete-cylindrical-arrays" title="Permanent link">&para;</a></h3>
+<p>One-dimensional arrays along x with kz=0.2, k0=1.3, radii 0.15–0.25,
+permittivity 4+0.1j, spacing 0.8 and period 0.8N; four threads, seven samples.
+Each evaluation covers particle T-matrices, Ewald coupling, the periodic solve
+and all four plane-wave blocks for ten ports; reverse takes arbitrary complex
+cotangents. Both packages use the Ewald split eta=0.7: at its automatic split,
+treams differs from the converged nine-cylinder answer by about 8.4e-8 in the
+S matrix, while treams-rs stays stable as eta changes, and a regression test
+checks it against the converged reference. Sharing Ewald evaluations between
+polarizations of equal wavenumber brings the four-cylinder case at the
+automatic split from 18.42 to 9.38 ms forward and from 45.84 to 22.99 ms
+reverse. The timings were not archived. Workload: <code>--workload cylindrical-array
+--particles 9 --lmax 3 --threads 4 --repeats 7</code>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Cylinders</th>
+<th style="text-align: right;">mmax</th>
+<th style="text-align: right;">Modes</th>
+<th style="text-align: right;">treams ms</th>
+<th style="text-align: right;">Rust ms</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">Rust reverse ms</th>
+<th style="text-align: right;">treams / Rust peak MiB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">88</td>
+<td style="text-align: right;">2101.29</td>
+<td style="text-align: right;">8.26</td>
+<td style="text-align: right;">254.4x</td>
+<td style="text-align: right;">21.13</td>
+<td style="text-align: right;">69.1 / 41.6</td>
+</tr>
+<tr>
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">126</td>
+<td style="text-align: right;">2982.63</td>
+<td style="text-align: right;">16.64</td>
+<td style="text-align: right;">179.2x</td>
+<td style="text-align: right;">45.15</td>
+<td style="text-align: right;">70.9 / 43.8</td>
+</tr>
+</tbody>
+</table>
+<h3 id="cylindrical-plane-illumination-and-phase-reuse">Cylindrical plane illumination and phase reuse<a class="headerlink" href="#cylindrical-plane-illumination-and-phase-reuse" title="Permanent link">&para;</a></h3>
+<p>Four positions, mmax=12 (200 cylindrical modes), kz=0.2, and 128 transverse
+vectors with both polarizations (256 plane modes); four threads, seven samples.
+treams-rs takes 0.220 ms against 6.376 ms (<strong>28.9x</strong>); the reverse pass for
+positions and transverse wavevectors takes 0.446 ms, with axial labels fixed.
+Forward peak RSS is 39.9 against 67.7 MiB. Without reusing the phase of each position
+across its multipoles, the forward takes 0.377 ms and the reverse 0.537 ms. The
+timings were not archived. Workload: <code>--workload cylindrical-plane-expansion
+--particles 4 --lmax 12 --samples 128 --threads 4 --repeats 7</code>.</p>
+<h3 id="compact-planar-multilayers">Compact planar multilayers<a class="headerlink" href="#compact-planar-multilayers" title="Permanent link">&para;</a></h3>
+<p>Four interior layers with alternating permittivities 2.3+0.1j and 1.7+0.05j in
+vacuum, thicknesses 0.1–0.4, k0=1.3, transverse qx=0.1–0.8 and qy=0.2; four
+threads, seven samples. Both forward timings call the public slab constructor
+and return the complete four-block dense array. Reverse timings start from the
+compact <code>diff.layer_stack</code> cotangent and cover all medium wavenumbers,
+impedances, transverse components and thicknesses. treams-rs solves each
+channel on its own and composes each layer's reflectionless propagation in
+closed form, as a diagonal phase scaling of the stack below; the forward
+blocks remain equal bit for bit to the general composition. Its solve and residual
+grow linearly with the channel count, while the dense output still costs
+quadratic time and memory. Slab bases with partial polarization use the
+general projected composition. The timings were not archived. Workload:
+<code>--workload slab --layers 4 --channels 512 --threads 4 --repeats 7</code>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Channels</th>
+<th style="text-align: right;">Plane modes</th>
+<th style="text-align: right;">treams ms</th>
+<th style="text-align: right;">Rust ms</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">Compact Rust reverse ms</th>
+<th style="text-align: right;">treams / Rust peak MiB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;">256</td>
+<td style="text-align: right;">84.37</td>
+<td style="text-align: right;">2.81</td>
+<td style="text-align: right;">30.0x</td>
+<td style="text-align: right;">1.16</td>
+<td style="text-align: right;">88.9 / 52.0</td>
+</tr>
+<tr>
+<td style="text-align: right;">512</td>
+<td style="text-align: right;">1024</td>
+<td style="text-align: right;">2152.16</td>
+<td style="text-align: right;">23.58</td>
+<td style="text-align: right;">91.3x</td>
+<td style="text-align: right;">3.28</td>
+<td style="text-align: right;">378.2 / 187.9</td>
+</tr>
+</tbody>
+</table>
+<h3 id="periodic-spherical-to-cylindrical-conversion">Periodic spherical-to-cylindrical conversion<a class="headerlink" href="#periodic-spherical-to-cylindrical-conversion" title="Permanent link">&para;</a></h3>
+<p>One common position, lmax=mmax=12, 336 spherical inputs and 1,600 cylindrical
+outputs across 32 axial diffraction orders, wavenumber 1.3, period 200 and Bloch
+component 0.2; four threads, seven samples. treams-rs takes <strong>1.158 ms</strong> against
+<strong>24.266 ms</strong> (<strong>21.0x</strong>). Its reverse pass takes <strong>6.114 ms</strong> and covers both
+positions, complex medium wavenumbers, per-output axial wavenumbers and the
+period. Forward peak RSS is <strong>48.5 MiB</strong> against <strong>73.6 MiB</strong>, and forward plus
+reverse peaks at 65.1 MiB; the residual holds geometry only. The timing covers
+conversion only and was not archived. Workload: <code>--workload periodic-conversion
+--particles 1 --lmax 12 --samples 32 --threads 4 --repeats 7</code>.</p>
+<h3 id="dense-internal-illumination">Dense internal illumination<a class="headerlink" href="#dense-internal-illumination" title="Permanent link">&para;</a></h3>
+<p>Two general dense S matrices, four threads, seven samples. Random complex
+reflections scale as 0.1/sqrt(N), with identity transmission plus similar
+perturbations; seed 81. All four fields are compared with treams; building the
+S matrices is outside the timings. Each sample is a batch of at least 20 ms
+that includes freeing the returned fields and residuals. Ordinary illumination
+uses its input blocks without copies and factors the operator in one LU buffer.
+Recorded illumination also copies the inputs, so the pullback survives later
+changes to the Python arrays; at 1,024 modes this costs
+about 332 MiB against 259 MiB for treams' forward-only call. Raw results:
+<code>benchmarks/results/internal-{forward,adjoint}-l{128,512}-p{1,8}.json</code>.
+<code>just bench-performance</code> reruns these eight cases and the two plane permutation
+cases below into <code>benchmarks/results/local/geometry-recheck-*.json</code>. Here lmax
+is only a size argument: the dense matrix has 2*lmax modes.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Modes</th>
+<th style="text-align: right;">RHS columns</th>
+<th style="text-align: right;">treams ms</th>
+<th style="text-align: right;">Rust forward ms</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">treams / Rust peak MiB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">256</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">3.54</td>
+<td style="text-align: right;">0.87</td>
+<td style="text-align: right;">4.07x</td>
+<td style="text-align: right;">82.6 / 56.6</td>
+</tr>
+<tr>
+<td style="text-align: right;">256</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">4.19</td>
+<td style="text-align: right;">1.51</td>
+<td style="text-align: right;">2.79x</td>
+<td style="text-align: right;">83.0 / 57.5</td>
+</tr>
+<tr>
+<td style="text-align: right;">1024</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">62.09</td>
+<td style="text-align: right;">34.04</td>
+<td style="text-align: right;">1.82x</td>
+<td style="text-align: right;">259.2 / 234.0</td>
+</tr>
+<tr>
+<td style="text-align: right;">1024</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">63.52</td>
+<td style="text-align: right;">30.49</td>
+<td style="text-align: right;">2.08x</td>
+<td style="text-align: right;">259.4 / 235.1</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Modes</th>
+<th style="text-align: right;">RHS columns</th>
+<th style="text-align: right;">treams forward ms</th>
+<th style="text-align: right;">Rust recorded forward ms</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">Rust reverse ms</th>
+<th style="text-align: right;">Rust forward / through-reverse peak MiB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">256</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">3.94</td>
+<td style="text-align: right;">0.93</td>
+<td style="text-align: right;">4.23x</td>
+<td style="text-align: right;">0.30</td>
+<td style="text-align: right;">65.6 / 85.6</td>
+</tr>
+<tr>
+<td style="text-align: right;">256</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">3.82</td>
+<td style="text-align: right;">1.11</td>
+<td style="text-align: right;">3.43x</td>
+<td style="text-align: right;">0.50</td>
+<td style="text-align: right;">65.2 / 85.2</td>
+</tr>
+<tr>
+<td style="text-align: right;">1024</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">61.40</td>
+<td style="text-align: right;">40.97</td>
+<td style="text-align: right;">1.50x</td>
+<td style="text-align: right;">29.96</td>
+<td style="text-align: right;">332.1 / 420.6</td>
+</tr>
+<tr>
+<td style="text-align: right;">1024</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">66.26</td>
+<td style="text-align: right;">41.26</td>
+<td style="text-align: right;">1.61x</td>
+<td style="text-align: right;">33.34</td>
+<td style="text-align: right;">332.4 / 423.8</td>
+</tr>
+</tbody>
+</table>
+<h3 id="compact-plane-permutations">Compact plane permutations<a class="headerlink" href="#compact-plane-permutations" title="Permanent link">&para;</a></h3>
+<p>Cyclic Cartesian-axis transforms return both output polarizations for each
+input mode, shape (2, N), against <code>treams.pw.permute_xyz</code> broadcast to the same
+shape; this is not a dense N-by-N operator. Four threads, seven batched samples
+including output and residual cleanup. The residual keeps only the vectors and
+discrete labels. Raw results: <code>benchmarks/results/plane-permutation-l{64,512}.json</code>.
+The full plane-field operator (128 modes, 4,096 samples) with the same shared
+polarization arithmetic takes 1.81 ms against 138.43 ms (76.55x), with 9.77 ms
+reverse and 67.5 against 89.5 MiB forward peak RSS
+(<code>plane-transform-check-field-n128.json</code>).</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Modes</th>
+<th style="text-align: right;">treams us</th>
+<th style="text-align: right;">Rust us</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">Rust reverse us</th>
+<th style="text-align: right;">treams / Rust forward peak MiB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;">7.52</td>
+<td style="text-align: right;">5.41</td>
+<td style="text-align: right;">1.39x</td>
+<td style="text-align: right;">16.78</td>
+<td style="text-align: right;">65.0 / 42.2</td>
+</tr>
+<tr>
+<td style="text-align: right;">1024</td>
+<td style="text-align: right;">170.23</td>
+<td style="text-align: right;">34.68</td>
+<td style="text-align: right;">4.91x</td>
+<td style="text-align: right;">77.78</td>
+<td style="text-align: right;">65.2 / 43.4</td>
+</tr>
+</tbody>
+</table>
+<h3 id="plane-translation-phases">Plane translation phases<a class="headerlink" href="#plane-translation-phases" title="Permanent link">&para;</a></h3>
+<p>Compact exp(i k.r) tables at 4,096 displacements with propagating and
+evanescent wavevectors, against the treams <code>pw.translate</code> ufunc; both packages
+receive precomputed vectors. The context keeps only positions and wavevectors,
+and the table goes to NumPy without a copy. Reading contiguous cotangents without
+copying brings the large forward-plus-reverse peak from 235.1 to 172.3 MiB and
+reverse from 79.33 to 64.42 ms; noncontiguous inputs are copied. This covers only
+the phase calculation. The timings were not archived. Workload: <code>--workload plane-phases
+--particles 16 --lmax 32 --samples 4096 --threads 4</code> (plane modes =
+2·particles·lmax; the smaller case uses 8 and 8).</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Plane modes</th>
+<th style="text-align: right;">treams ms</th>
+<th style="text-align: right;">Rust ms</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">Rust reverse ms</th>
+<th style="text-align: right;">treams / Rust forward peak MiB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;">7.81</td>
+<td style="text-align: right;">1.81</td>
+<td style="text-align: right;">4.31x</td>
+<td style="text-align: right;">7.95</td>
+<td style="text-align: right;">90.5 / 50.2</td>
+</tr>
+<tr>
+<td style="text-align: right;">1024</td>
+<td style="text-align: right;">72.69</td>
+<td style="text-align: right;">22.53</td>
+<td style="text-align: right;">3.23x</td>
+<td style="text-align: right;">64.42</td>
+<td style="text-align: right;">258.9 / 108.0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="oriented-chirality-forms">Oriented chirality forms<a class="headerlink" href="#oriented-chirality-forms" title="Permanent link">&para;</a></h3>
+<p>Compact signed-helicity up/down/cross coefficients averaged from -0.2 to 0.7
+along x, with propagating and evanescent waves. The reference builds Cartesian
+polarizations with <code>treams.special.vpw_A</code> and contracts their inner products and
+exponential averages; it is the equivalent Cartesian calculation, not treams'
+xy-only chirality method. Outputs have shape (3, N). Reverse covers both real
+transverse components, complex normal components and the interval ends; the
+residual keeps only the input geometry. Raw results:
+<code>benchmarks/results/oriented-chirality-l{64,512}.json</code>. Workload:
+<code>--workload oriented-chirality --particles 1 --lmax 512 --threads 4</code>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Modes</th>
+<th style="text-align: right;">Reference us</th>
+<th style="text-align: right;">Rust us</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">Rust reverse us</th>
+<th style="text-align: right;">Reference / Rust forward peak MiB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;">54.72</td>
+<td style="text-align: right;">24.45</td>
+<td style="text-align: right;">2.24x</td>
+<td style="text-align: right;">114.67</td>
+<td style="text-align: right;">65.3 / 42.8</td>
+</tr>
+<tr>
+<td style="text-align: right;">1024</td>
+<td style="text-align: right;">619.42</td>
+<td style="text-align: right;">65.88</td>
+<td style="text-align: right;">9.40x</td>
+<td style="text-align: right;">280.72</td>
+<td style="text-align: right;">65.3 / 43.4</td>
+</tr>
+</tbody>
+</table>
+<h3 id="heterogeneous-particle-clusters-and-block-adjoints">Heterogeneous particle clusters and block adjoints<a class="headerlink" href="#heterogeneous-particle-clusters-and-block-adjoints" title="Permanent link">&para;</a></h3>
+<p>Spheres with alternating cutoffs 3 and 4, radii 0.15–0.25, permittivity
+4+0.1j, vacuum wavenumber 1.3 and spacing 0.8; local particle construction is
+outside the timings, and both packages return the complete interacting matrix.
+The Rust calculation takes the local arrays separately and keeps their block
+structure. Its reverse pass returns only the local diagonal-block gradients plus
+every position and both embedding-wavenumber cotangents; the 624-mode process
+peaks at 107.1 MiB through reverse. For homogeneous clusters with lmax=3, 240
+modes take 2.48 ms against 90.32 ms (36.42x), 2.34 ms reverse and 46.1/50.9 MiB;
+960 modes take 37.50 ms against 1678.25 ms (44.75x), 63.31 ms reverse and
+102.6/177.5 MiB. Raw results: <code>particle-cluster{-public,}-n{4,16}-l3.json</code> and
+<code>block-adjoint-cluster-n{8,32}-l3.json</code>. Workloads: <code>--workload particle-cluster</code>
+or <code>--workload particle-cluster-public</code> with <code>--particles 16 --lmax 3 --threads 4</code>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Particles</th>
+<th style="text-align: right;">Modes</th>
+<th>Path</th>
+<th style="text-align: right;">treams ms</th>
+<th style="text-align: right;">Rust ms</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">Rust reverse ms</th>
+<th style="text-align: right;">treams / Rust forward peak MiB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">156</td>
+<td>Native block path</td>
+<td style="text-align: right;">35.43</td>
+<td style="text-align: right;">3.24</td>
+<td style="text-align: right;">10.95x</td>
+<td style="text-align: right;">0.91</td>
+<td style="text-align: right;">71.3 / 44.0</td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">624</td>
+<td>Native block path</td>
+<td style="text-align: right;">734.82</td>
+<td style="text-align: right;">17.51</td>
+<td style="text-align: right;">41.96x</td>
+<td style="text-align: right;">22.74</td>
+<td style="text-align: right;">109.2 / 68.5</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">156</td>
+<td>Public cluster + solve</td>
+<td style="text-align: right;">35.67</td>
+<td style="text-align: right;">3.97</td>
+<td style="text-align: right;">8.99x</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">71.7 / 45.1</td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">624</td>
+<td>Public cluster + solve</td>
+<td style="text-align: right;">737.35</td>
+<td style="text-align: right;">23.76</td>
+<td style="text-align: right;">31.03x</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">107.9 / 86.3</td>
+</tr>
+</tbody>
+</table>
+<h3 id="broadcast-bessel-functions">Broadcast Bessel functions<a class="headerlink" href="#broadcast-bessel-functions" title="Permanent link">&para;</a></h3>
+<p>Cylindrical Hankel H1 of order 3 at 128 or 4,096 complex arguments with real
+part 0.6–8.0 and imaginary part 0.2; values and first derivatives are compared
+with <code>treams.special</code>. Four threads, seven batched samples including cleanup.
+Parallel evaluation starts at 64 values. Ordinary forward calls use their inputs
+without copying and save no pullback data; a 128-value run without these changes
+fails the runtime check (65.59 against 61.08 us). treams-rs peaks at 39.8–41.0 MiB
+against 64.9–65.4 MiB. Small differences between recorded and ordinary forward
+times come from run-to-run scheduling. The ufunc table in the next section
+measures a later build of the same functions. Raw results:
+<code>benchmarks/results/bessel{,-derivative}{,-forward}-n{128,4096}.json</code>.
+Workload: <code>--workload bessel-forward --samples 4096 --particles 1 --lmax 3
+--threads 4</code>; the other workload names match the file names.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Values</th>
+<th>Operation</th>
+<th>Path</th>
+<th style="text-align: right;">treams us</th>
+<th style="text-align: right;">Rust us</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">Rust reverse us</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">128</td>
+<td>H1</td>
+<td>Public forward</td>
+<td style="text-align: right;">60.86</td>
+<td style="text-align: right;">32.13</td>
+<td style="text-align: right;">1.89x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td style="text-align: right;">4096</td>
+<td>H1</td>
+<td>Public forward</td>
+<td style="text-align: right;">1905.60</td>
+<td style="text-align: right;">550.44</td>
+<td style="text-align: right;">3.46x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td style="text-align: right;">128</td>
+<td>H1 derivative</td>
+<td>Public forward</td>
+<td style="text-align: right;">93.62</td>
+<td style="text-align: right;">39.13</td>
+<td style="text-align: right;">2.39x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td style="text-align: right;">4096</td>
+<td>H1 derivative</td>
+<td>Public forward</td>
+<td style="text-align: right;">3035.05</td>
+<td style="text-align: right;">936.35</td>
+<td style="text-align: right;">3.24x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td style="text-align: right;">128</td>
+<td>H1</td>
+<td>Recorded</td>
+<td style="text-align: right;">61.54</td>
+<td style="text-align: right;">28.52</td>
+<td style="text-align: right;">2.16x</td>
+<td style="text-align: right;">36.16</td>
+</tr>
+<tr>
+<td style="text-align: right;">4096</td>
+<td>H1</td>
+<td>Recorded</td>
+<td style="text-align: right;">1911.90</td>
+<td style="text-align: right;">554.59</td>
+<td style="text-align: right;">3.45x</td>
+<td style="text-align: right;">935.10</td>
+</tr>
+<tr>
+<td style="text-align: right;">128</td>
+<td>H1 derivative</td>
+<td>Recorded</td>
+<td style="text-align: right;">93.36</td>
+<td style="text-align: right;">48.76</td>
+<td style="text-align: right;">1.91x</td>
+<td style="text-align: right;">62.43</td>
+</tr>
+<tr>
+<td style="text-align: right;">4096</td>
+<td>H1 derivative</td>
+<td>Recorded</td>
+<td style="text-align: right;">3034.26</td>
+<td style="text-align: right;">882.62</td>
+<td style="text-align: right;">3.44x</td>
+<td style="text-align: right;">1389.10</td>
+</tr>
+</tbody>
+</table>
+<h3 id="heterogeneous-cylindrical-clusters">Heterogeneous cylindrical clusters<a class="headerlink" href="#heterogeneous-cylindrical-clusters" title="Permanent link">&para;</a></h3>
+<p>Alternating azimuthal cutoffs 3 and 4, two fixed axial channels (0.2, 0.4) and
+four threads; local cylinder construction is outside the timings, and the
+public path includes cluster construction and the interaction solve. The
+512-mode native run peaks at 83.0 MiB through reverse. Parallel cylindrical
+translation contractions bring its reverse from 59.38 to 25.60 ms and the
+128-mode reverse from 3.01 to 1.30 ms. Raw data:
+<code>benchmarks/results/cylindrical-particle-cluster{,-public}-n{4,16}-l3.json</code>;
+<code>just bench-performance</code> reruns all four into <code>benchmarks/results/local/</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Particles / modes</th>
+<th>Path</th>
+<th style="text-align: right;">Upstream ms</th>
+<th style="text-align: right;">Rust ms</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">Reverse ms</th>
+<th>Upstream / Rust forward RSS MiB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4 / 128</td>
+<td>Native blocks</td>
+<td style="text-align: right;">4.161</td>
+<td style="text-align: right;">1.373</td>
+<td style="text-align: right;">3.03x</td>
+<td style="text-align: right;">1.298</td>
+<td>70.5 / 42.5</td>
+</tr>
+<tr>
+<td>16 / 512</td>
+<td>Native blocks</td>
+<td style="text-align: right;">67.254</td>
+<td style="text-align: right;">20.640</td>
+<td style="text-align: right;">3.26x</td>
+<td style="text-align: right;">25.596</td>
+<td>96.1 / 59.3</td>
+</tr>
+<tr>
+<td>4 / 128</td>
+<td>Public API</td>
+<td style="text-align: right;">4.255</td>
+<td style="text-align: right;">1.336</td>
+<td style="text-align: right;">3.18x</td>
+<td style="text-align: right;">—</td>
+<td>70.2 / 43.9</td>
+</tr>
+<tr>
+<td>16 / 512</td>
+<td>Public API</td>
+<td style="text-align: right;">67.142</td>
+<td style="text-align: right;">23.677</td>
+<td style="text-align: right;">2.84x</td>
+<td style="text-align: right;">—</td>
+<td>96.8 / 70.2</td>
+</tr>
+</tbody>
+</table>
+<h3 id="scalar-overhead-and-numpy-ufuncs">Scalar overhead and NumPy ufuncs<a class="headerlink" href="#scalar-overhead-and-numpy-ufuncs" title="Permanent link">&para;</a></h3>
+<p>Scalar Python arguments at z=1.3+0.2i take a direct native path without
+temporary arrays; arrays (Re z = 0.6..8, Im z = 0.2) use NumPy ufunc loops, which
+keep NumPy's output allocation, masks, broadcasting and overlap handling. Order
+is 3. The complex Hankel derivative gets its adjacent orders from one sequence
+evaluation, using the <a href="https://dlmf.nist.gov/10.6.ii">Bessel derivative recurrence</a>.
+All twelve cases pass their correctness, runtime and forward-RSS checks;
+treams-rs peaks at 39.2–41.3 MiB against 64.2–65.2 MiB. The recorded scalar
+value is faster by only 1.06x, so recheck it on the target host. Raw files:
+<code>benchmarks/results/ufunc-bessel{,-derivative}{,-forward}-n{1,128,4096}.json</code>;
+<code>just bench-performance</code> reruns all twelve into <code>benchmarks/results/local/</code>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Values</th>
+<th>Operation</th>
+<th>Path</th>
+<th style="text-align: right;">Upstream us</th>
+<th style="text-align: right;">Rust us</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">Reverse us</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>Value</td>
+<td>Ordinary</td>
+<td style="text-align: right;">0.957</td>
+<td style="text-align: right;">0.596</td>
+<td style="text-align: right;">1.61x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td style="text-align: right;">128</td>
+<td>Value</td>
+<td>Ordinary</td>
+<td style="text-align: right;">61.576</td>
+<td style="text-align: right;">35.080</td>
+<td style="text-align: right;">1.76x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td style="text-align: right;">4096</td>
+<td>Value</td>
+<td>Ordinary</td>
+<td style="text-align: right;">1901.426</td>
+<td style="text-align: right;">553.620</td>
+<td style="text-align: right;">3.43x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td style="text-align: right;">1</td>
+<td>Derivative</td>
+<td>Ordinary</td>
+<td style="text-align: right;">1.067</td>
+<td style="text-align: right;">1.004</td>
+<td style="text-align: right;">1.06x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td style="text-align: right;">128</td>
+<td>Derivative</td>
+<td>Ordinary</td>
+<td style="text-align: right;">95.156</td>
+<td style="text-align: right;">24.925</td>
+<td style="text-align: right;">3.82x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td style="text-align: right;">4096</td>
+<td>Derivative</td>
+<td>Ordinary</td>
+<td style="text-align: right;">3091.247</td>
+<td style="text-align: right;">554.712</td>
+<td style="text-align: right;">5.57x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td style="text-align: right;">1</td>
+<td>Value</td>
+<td>Recorded</td>
+<td style="text-align: right;">0.910</td>
+<td style="text-align: right;">0.859</td>
+<td style="text-align: right;">1.06x</td>
+<td style="text-align: right;">0.796</td>
+</tr>
+<tr>
+<td style="text-align: right;">128</td>
+<td>Value</td>
+<td>Recorded</td>
+<td style="text-align: right;">61.387</td>
+<td style="text-align: right;">29.670</td>
+<td style="text-align: right;">2.07x</td>
+<td style="text-align: right;">26.041</td>
+</tr>
+<tr>
+<td style="text-align: right;">4096</td>
+<td>Value</td>
+<td>Recorded</td>
+<td style="text-align: right;">2009.643</td>
+<td style="text-align: right;">564.970</td>
+<td style="text-align: right;">3.56x</td>
+<td style="text-align: right;">575.693</td>
+</tr>
+<tr>
+<td style="text-align: right;">1</td>
+<td>Derivative</td>
+<td>Recorded</td>
+<td style="text-align: right;">1.081</td>
+<td style="text-align: right;">0.876</td>
+<td style="text-align: right;">1.23x</td>
+<td style="text-align: right;">0.812</td>
+</tr>
+<tr>
+<td style="text-align: right;">128</td>
+<td>Derivative</td>
+<td>Recorded</td>
+<td style="text-align: right;">94.985</td>
+<td style="text-align: right;">33.888</td>
+<td style="text-align: right;">2.80x</td>
+<td style="text-align: right;">31.131</td>
+</tr>
+<tr>
+<td style="text-align: right;">4096</td>
+<td>Derivative</td>
+<td>Recorded</td>
+<td style="text-align: right;">3216.664</td>
+<td style="text-align: right;">567.114</td>
+<td style="text-align: right;">5.67x</td>
+<td style="text-align: right;">582.907</td>
+</tr>
+</tbody>
+</table>
+<h3 id="public-angular-functions">Public angular functions<a class="headerlink" href="#public-angular-functions" title="Permanent link">&para;</a></h3>
+<p>Integer-degree Legendre, pi and tau functions at degree 6 and order 2, with a
+scalar argument 0.3+0.1j and arrays over [-0.8,0.8]+0.1j; four threads. They
+use NumPy loops, a direct scalar path and the same factored recurrences forward
+and in reverse; tau shares one sine-power factor between adjacent Legendre
+orders. Recording includes saving the pullback data and freeing the result;
+each reverse pass uses a fresh record. All 50 runtime checks of this
+<code>just bench-performance</code> run pass, and the ordinary forward and recorded
+special-function and particle paths pass their peak-RSS checks. treams-rs peaks
+at 40.3–41.7 MiB against 64.1–65.2 MiB. The 18 <code>angular-*.json</code> files in
+<a href="https://github.com/yaugenst/treams-rs/tree/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/results">raw results</a> record every sample, native-extension
+hash, Python and NumPy version, thread setting and reverse peak RSS. Units are
+microseconds.</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th style="text-align: right;">Count</th>
+<th style="text-align: right;">Upstream forward</th>
+<th style="text-align: right;">Rust forward</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">Rust reverse</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Legendre ordinary</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.802</td>
+<td style="text-align: right;">0.290</td>
+<td style="text-align: right;">2.76x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>Legendre ordinary</td>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;">6.192</td>
+<td style="text-align: right;">3.545</td>
+<td style="text-align: right;">1.75x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>Legendre ordinary</td>
+<td style="text-align: right;">4096</td>
+<td style="text-align: right;">362.485</td>
+<td style="text-align: right;">46.219</td>
+<td style="text-align: right;">7.84x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>Legendre recorded</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.780</td>
+<td style="text-align: right;">0.430</td>
+<td style="text-align: right;">1.82x</td>
+<td style="text-align: right;">0.402</td>
+</tr>
+<tr>
+<td>Legendre recorded</td>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;">6.267</td>
+<td style="text-align: right;">4.643</td>
+<td style="text-align: right;">1.35x</td>
+<td style="text-align: right;">6.061</td>
+</tr>
+<tr>
+<td>Legendre recorded</td>
+<td style="text-align: right;">4096</td>
+<td style="text-align: right;">363.316</td>
+<td style="text-align: right;">71.860</td>
+<td style="text-align: right;">5.06x</td>
+<td style="text-align: right;">98.387</td>
+</tr>
+<tr>
+<td>Pi ordinary</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.837</td>
+<td style="text-align: right;">0.335</td>
+<td style="text-align: right;">2.50x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>Pi ordinary</td>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;">9.155</td>
+<td style="text-align: right;">6.732</td>
+<td style="text-align: right;">1.36x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>Pi ordinary</td>
+<td style="text-align: right;">4096</td>
+<td style="text-align: right;">652.243</td>
+<td style="text-align: right;">69.679</td>
+<td style="text-align: right;">9.36x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>Pi recorded</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.815</td>
+<td style="text-align: right;">0.487</td>
+<td style="text-align: right;">1.67x</td>
+<td style="text-align: right;">0.465</td>
+</tr>
+<tr>
+<td>Pi recorded</td>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;">9.161</td>
+<td style="text-align: right;">7.882</td>
+<td style="text-align: right;">1.16x</td>
+<td style="text-align: right;">11.552</td>
+</tr>
+<tr>
+<td>Pi recorded</td>
+<td style="text-align: right;">4096</td>
+<td style="text-align: right;">651.226</td>
+<td style="text-align: right;">71.144</td>
+<td style="text-align: right;">9.15x</td>
+<td style="text-align: right;">111.898</td>
+</tr>
+<tr>
+<td>Tau ordinary</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.879</td>
+<td style="text-align: right;">0.362</td>
+<td style="text-align: right;">2.43x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>Tau ordinary</td>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;">12.946</td>
+<td style="text-align: right;">8.792</td>
+<td style="text-align: right;">1.47x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>Tau ordinary</td>
+<td style="text-align: right;">4096</td>
+<td style="text-align: right;">856.314</td>
+<td style="text-align: right;">86.509</td>
+<td style="text-align: right;">9.90x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>Tau recorded</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.850</td>
+<td style="text-align: right;">0.492</td>
+<td style="text-align: right;">1.73x</td>
+<td style="text-align: right;">0.455</td>
+</tr>
+<tr>
+<td>Tau recorded</td>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;">12.955</td>
+<td style="text-align: right;">9.976</td>
+<td style="text-align: right;">1.30x</td>
+<td style="text-align: right;">15.271</td>
+</tr>
+<tr>
+<td>Tau recorded</td>
+<td style="text-align: right;">4096</td>
+<td style="text-align: right;">855.324</td>
+<td style="text-align: right;">88.387</td>
+<td style="text-align: right;">9.68x</td>
+<td style="text-align: right;">142.593</td>
+</tr>
+</tbody>
+</table>
+<h3 id="wigner-elements-euler-pullbacks-and-public-ewald-integrals">Wigner elements, Euler pullbacks and public Ewald integrals<a class="headerlink" href="#wigner-elements-euler-pullbacks-and-public-ewald-integrals" title="Permanent link">&para;</a></h3>
+<p>Wigner degree 6, row 1, column -2, outer Euler angles 0.2 and -0.1; the polar
+argument is 0.7+0.1j for scalars and spans [0.3,1.3]+0.1j for arrays. The 3j
+case uses degrees (6,6,6) and orders (1,-2,1); the incomplete gamma degree is
+1.5; the Kambe integral has order -2 and eta=0.7+0.1j. Individual Wigner
+elements use the <a href="https://dlmf.nist.gov/18.9.E2">Jacobi recurrence</a> without a
+full angular matrix; the ufuncs run large strided arrays in parallel and keep
+masked and in-place behavior. Wigner residuals keep only labels and Euler
+arguments, and the scalar 3j path skips NumPy dispatch. All 68 runtime checks
+of this run pass (50 angular and baseline workloads and 18 Wigner and Ewald
+cases). The angular table above records the run of commit <code>4f41708</code>; this
+68-case run refreshed the raw JSON files. treams-rs peaks at 39.9–41.5 MiB
+against 64.2–65.8 MiB. Native hashes, samples and reverse measurements are in
+the <a href="https://github.com/yaugenst/treams-rs/tree/5947c78e5b88a364952fb554548e53b40321abe9/benchmarks/results">raw results</a>. Units are microseconds.</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th style="text-align: right;">Count</th>
+<th style="text-align: right;">Upstream forward</th>
+<th style="text-align: right;">Rust forward</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">Rust reverse</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>wigner-forward</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">1.510</td>
+<td style="text-align: right;">1.236</td>
+<td style="text-align: right;">1.22x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>wigner-forward</td>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;">40.153</td>
+<td style="text-align: right;">14.328</td>
+<td style="text-align: right;">2.80x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>wigner-forward</td>
+<td style="text-align: right;">4096</td>
+<td style="text-align: right;">2256.407</td>
+<td style="text-align: right;">135.234</td>
+<td style="text-align: right;">16.69x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>wigner-small-forward</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">1.124</td>
+<td style="text-align: right;">0.970</td>
+<td style="text-align: right;">1.16x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>wigner-small-forward</td>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;">39.366</td>
+<td style="text-align: right;">12.470</td>
+<td style="text-align: right;">3.16x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>wigner-small-forward</td>
+<td style="text-align: right;">4096</td>
+<td style="text-align: right;">2127.653</td>
+<td style="text-align: right;">119.326</td>
+<td style="text-align: right;">17.83x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>wigner3j-forward</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">1.302</td>
+<td style="text-align: right;">0.292</td>
+<td style="text-align: right;">4.47x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>wigner3j-forward</td>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;">28.319</td>
+<td style="text-align: right;">16.130</td>
+<td style="text-align: right;">1.76x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>wigner3j-forward</td>
+<td style="text-align: right;">4096</td>
+<td style="text-align: right;">1003.028</td>
+<td style="text-align: right;">141.485</td>
+<td style="text-align: right;">7.09x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>incgamma-forward</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.672</td>
+<td style="text-align: right;">0.314</td>
+<td style="text-align: right;">2.14x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>incgamma-forward</td>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;">20.111</td>
+<td style="text-align: right;">15.654</td>
+<td style="text-align: right;">1.28x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>incgamma-forward</td>
+<td style="text-align: right;">4096</td>
+<td style="text-align: right;">1085.018</td>
+<td style="text-align: right;">164.622</td>
+<td style="text-align: right;">6.59x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>intkambe-forward</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.835</td>
+<td style="text-align: right;">0.374</td>
+<td style="text-align: right;">2.23x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>intkambe-forward</td>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;">24.098</td>
+<td style="text-align: right;">22.111</td>
+<td style="text-align: right;">1.09x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>intkambe-forward</td>
+<td style="text-align: right;">4096</td>
+<td style="text-align: right;">1358.198</td>
+<td style="text-align: right;">204.507</td>
+<td style="text-align: right;">6.64x</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>wigner</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">1.428</td>
+<td style="text-align: right;">0.718</td>
+<td style="text-align: right;">1.99x</td>
+<td style="text-align: right;">0.742</td>
+</tr>
+<tr>
+<td>wigner</td>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;">39.724</td>
+<td style="text-align: right;">24.048</td>
+<td style="text-align: right;">1.65x</td>
+<td style="text-align: right;">22.380</td>
+</tr>
+<tr>
+<td>wigner</td>
+<td style="text-align: right;">4096</td>
+<td style="text-align: right;">2357.991</td>
+<td style="text-align: right;">144.681</td>
+<td style="text-align: right;">16.30x</td>
+<td style="text-align: right;">274.425</td>
+</tr>
+</tbody>
+</table>
+<h3 id="cylindrical-axial-field-derivatives">Cylindrical axial field derivatives<a class="headerlink" href="#cylindrical-axial-field-derivatives" title="Permanent link">&para;</a></h3>
+<p>Four particles at order 3, four threads. The ordinary reverse and the optional
+per-mode axial reverse both pass the accuracy, forward-runtime and forward-RSS
+checks. The forward is the same for both, and recording adds no axial
+derivative table; the axial reverse computes one more derivative per mode in
+about the same time. The build at <code>ce0bde4</code> measured 3.172/47.935 ms forward and
+4.197/62.601 ms reverse at 128/2,048 samples; successive short runs vary by a
+few percent, so these differences show no change. These four cases ran
+separately from the 68-case run above. Times in milliseconds:</p>
+<table>
+<thead>
+<tr>
+<th>Reverse requested</th>
+<th style="text-align: right;">Samples</th>
+<th style="text-align: right;">Upstream forward</th>
+<th style="text-align: right;">Rust forward</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">Rust reverse</th>
+<th style="text-align: right;">Rust / upstream RSS MiB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Existing</td>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;">32.071</td>
+<td style="text-align: right;">3.120</td>
+<td style="text-align: right;">10.28x</td>
+<td style="text-align: right;">4.045</td>
+<td style="text-align: right;">44.8 / 67.7</td>
+</tr>
+<tr>
+<td>Existing</td>
+<td style="text-align: right;">2048</td>
+<td style="text-align: right;">503.039</td>
+<td style="text-align: right;">49.549</td>
+<td style="text-align: right;">10.15x</td>
+<td style="text-align: right;">66.882</td>
+<td style="text-align: right;">44.9 / 96.4</td>
+</tr>
+<tr>
+<td>All + axial</td>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;">33.642</td>
+<td style="text-align: right;">3.094</td>
+<td style="text-align: right;">10.87x</td>
+<td style="text-align: right;">4.180</td>
+<td style="text-align: right;">43.8 / 67.7</td>
+</tr>
+<tr>
+<td>All + axial</td>
+<td style="text-align: right;">2048</td>
+<td style="text-align: right;">504.578</td>
+<td style="text-align: right;">48.038</td>
+<td style="text-align: right;">10.50x</td>
+<td style="text-align: right;">65.684</td>
+<td style="text-align: right;">44.3 / 96.3</td>
+</tr>
+</tbody>
+</table>
+<h3 id="shared-axial-derivatives-of-finite-and-periodic-cylindrical-expansions">Shared axial derivatives of finite and periodic cylindrical expansions<a class="headerlink" href="#shared-axial-derivatives-of-finite-and-periodic-cylindrical-expansions" title="Permanent link">&para;</a></h3>
+<p>Four or sixteen particles, two axial groups, order 3 and four threads; every
+case passes its accuracy, forward-runtime and peak-RSS checks. Periodic cases
+use the Ewald split eta=0.7 in both packages: at period 12.8 the automatic
+treams split differs from the converged result by up to 0.007466 in this
+matrix, while explicit eta=0.5/0.8/1.0 and the treams-rs automatic split agree
+with treams-rs to about 1.5e-11. A scalar regression test covers periods 7.2
+and 12.8. The <code>-axial</code> cases run the same forward and also request the grouped
+axial gradient in reverse, which reuses the Ewald derivatives without an axial
+Jacobian. These eight cases ran separately from the other runs. The complete
+four-cylinder array without and with the grouped axial derivative takes 4.729
+and 4.511 ms forward, 12.138 and 11.760 ms reverse, and peaks at 42.5 and
+43.9 MiB, in one short run on one host (<code>cylindrical-array-{before,after}-axial.json</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Workload</th>
+<th style="text-align: right;">Particles</th>
+<th style="text-align: right;">Upstream forward ms</th>
+<th style="text-align: right;">Rust forward ms</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">Rust reverse ms</th>
+<th style="text-align: right;">Rust / upstream RSS MiB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>expansion</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">2.319</td>
+<td style="text-align: right;">0.583</td>
+<td style="text-align: right;">3.98x</td>
+<td style="text-align: right;">0.606</td>
+<td style="text-align: right;">41.9 / 67.1</td>
+</tr>
+<tr>
+<td>expansion</td>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">38.088</td>
+<td style="text-align: right;">10.762</td>
+<td style="text-align: right;">3.54x</td>
+<td style="text-align: right;">10.599</td>
+<td style="text-align: right;">48.2 / 74.8</td>
+</tr>
+<tr>
+<td>expansion-axial</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">2.313</td>
+<td style="text-align: right;">0.592</td>
+<td style="text-align: right;">3.91x</td>
+<td style="text-align: right;">0.640</td>
+<td style="text-align: right;">42.4 / 66.8</td>
+</tr>
+<tr>
+<td>expansion-axial</td>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">37.895</td>
+<td style="text-align: right;">10.523</td>
+<td style="text-align: right;">3.60x</td>
+<td style="text-align: right;">10.716</td>
+<td style="text-align: right;">48.0 / 74.8</td>
+</tr>
+<tr>
+<td>periodic</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">1522.719</td>
+<td style="text-align: right;">8.786</td>
+<td style="text-align: right;">173.32x</td>
+<td style="text-align: right;">19.316</td>
+<td style="text-align: right;">43.5 / 67.6</td>
+</tr>
+<tr>
+<td>periodic</td>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">16303.387</td>
+<td style="text-align: right;">88.316</td>
+<td style="text-align: right;">184.60x</td>
+<td style="text-align: right;">238.705</td>
+<td style="text-align: right;">50.4 / 86.0</td>
+</tr>
+<tr>
+<td>periodic-axial</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">1510.388</td>
+<td style="text-align: right;">9.131</td>
+<td style="text-align: right;">165.41x</td>
+<td style="text-align: right;">20.026</td>
+<td style="text-align: right;">43.4 / 66.8</td>
+</tr>
+<tr>
+<td>periodic-axial</td>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">16334.604</td>
+<td style="text-align: right;">88.576</td>
+<td style="text-align: right;">184.41x</td>
+<td style="text-align: right;">238.965</td>
+<td style="text-align: right;">50.3 / 85.8</td>
+</tr>
+</tbody>
+</table>
+<h3 id="coordinate-transformations">Coordinate transformations<a class="headerlink" href="#coordinate-transformations" title="Permanent link">&para;</a></h3>
+<p>All eight point and eight vector-frame conversions use NumPy gufuncs with
+analytic pullbacks, support component strides, broadcasting and output buffers,
+and apply factored rotations without temporary matrices. The run passes 128
+performance checks, 48 of them coordinate comparisons at 1, 128 and 65,536
+points; each requires a forward speedup ≥ 1 and no higher forward peak RSS.
+The forward-only helpers of both packages return the result directly and free
+it inside the timing; recorded operations also return data for the pullback, and the
+JSON field <code>forward_records_adjoint</code> says which. Sub-microsecond scalar
+differences are sensitive to machine noise. Raw samples, RSS and binary
+identities: <code>coordinate-*-n*.json</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Transform</th>
+<th style="text-align: right;">1 point</th>
+<th style="text-align: right;">128 points</th>
+<th style="text-align: right;">65,536 points</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>car2sph</td>
+<td style="text-align: right;">1.08x</td>
+<td style="text-align: right;">1.21x</td>
+<td style="text-align: right;">2.31x</td>
+</tr>
+<tr>
+<td>sph2car</td>
+<td style="text-align: right;">1.04x</td>
+<td style="text-align: right;">1.33x</td>
+<td style="text-align: right;">2.87x</td>
+</tr>
+<tr>
+<td>car2pol</td>
+<td style="text-align: right;">1.08x</td>
+<td style="text-align: right;">1.51x</td>
+<td style="text-align: right;">4.23x</td>
+</tr>
+<tr>
+<td>vsph2car</td>
+<td style="text-align: right;">1.01x</td>
+<td style="text-align: right;">1.31x</td>
+<td style="text-align: right;">2.96x</td>
+</tr>
+<tr>
+<td>vpol2car</td>
+<td style="text-align: right;">1.07x</td>
+<td style="text-align: right;">1.43x</td>
+<td style="text-align: right;">5.04x</td>
+</tr>
+</tbody>
+</table>
+<h3 id="local-wave-functions">Local wave functions<a class="headerlink" href="#local-wave-functions" title="Permanent link">&para;</a></h3>
+<p>The run passes all 191 runtime checks and all 187 applicable forward-RSS checks;
+the four recorded internal-illumination cases keep owned input copies and are
+not compared with the forward-only treams memory. It used
+<code>taskset -c 8-11 just bench-performance</code>, giving both packages the same four
+physical cores and four BLAS/Rayon threads; diagnostic runs on busier cores are
+kept next to the final results. When both isolated medians are below 1 ms, the
+two packages also alternate in one process over 14 paired samples of at least
+20 ms each, and the speedup is the median paired ratio. The smallest speedup is
+1.013x (scalar plane M wave). The wave kernels share normalized angular
+recurrences, fetch adjacent cylindrical Bessel values together, reuse plane
+polarizations for constant directions and normalize with an algebraic complex
+square root, with scaled fallbacks for extreme magnitudes. Recorded
+illumination copies its eight input blocks as independent tasks from 128 modes
+when Rayon has more than one thread (on one thread: serially below 512 modes,
+on the worker from there) and finishes the copies before solving; with two
+tasks from 512 modes, the 510-mode (order 255) case copied 33 MB serially at
+0.85x of the treams forward-only call (<code>snapshot-*</code>, <code>serial-*</code> and
+<code>parallel-copy-*</code> files). Final results: <code>wave-&lt;function&gt;-n&lt;size&gt;.json</code> and
+<code>wave-adjoint-final-&lt;function&gt;-n&lt;size&gt;.json</code>, each with the native binary hash.</p>
+<table>
+<thead>
+<tr>
+<th>Forward function</th>
+<th style="text-align: right;">1 sample</th>
+<th style="text-align: right;">128 samples</th>
+<th style="text-align: right;">4,096 samples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sph_harm</td>
+<td style="text-align: right;">1.32x</td>
+<td style="text-align: right;">3.94x</td>
+<td style="text-align: right;">15.05x</td>
+</tr>
+<tr>
+<td>vsw_rA</td>
+<td style="text-align: right;">1.73x</td>
+<td style="text-align: right;">4.59x</td>
+<td style="text-align: right;">20.36x</td>
+</tr>
+<tr>
+<td>vcw_rA</td>
+<td style="text-align: right;">1.30x</td>
+<td style="text-align: right;">2.33x</td>
+<td style="text-align: right;">9.90x</td>
+</tr>
+<tr>
+<td>vpw_A</td>
+<td style="text-align: right;">1.06x</td>
+<td style="text-align: right;">3.35x</td>
+<td style="text-align: right;">21.75x</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Recorded function</th>
+<th style="text-align: right;">128 samples</th>
+<th style="text-align: right;">4,096 samples</th>
+<th style="text-align: right;">Reverse at 4,096 samples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>vsw_rA</td>
+<td style="text-align: right;">4.40x</td>
+<td style="text-align: right;">26.88x</td>
+<td style="text-align: right;">0.644 ms</td>
+</tr>
+<tr>
+<td>vcw_rA</td>
+<td style="text-align: right;">2.20x</td>
+<td style="text-align: right;">10.58x</td>
+<td style="text-align: right;">0.677 ms</td>
+</tr>
+<tr>
+<td>vpw_A</td>
+<td style="text-align: right;">2.08x</td>
+<td style="text-align: right;">18.83x</td>
+<td style="text-align: right;">0.191 ms</td>
+</tr>
+</tbody>
+</table>
+<h3 id="coefficient-namespaces-and-integral-adjoints">Coefficient namespaces and integral adjoints<a class="headerlink" href="#coefficient-namespaces-and-integral-adjoints" title="Permanent link">&para;</a></h3>
+<p>The run passes all 257 runtime checks and all 253 applicable forward-RSS checks
+on the same four-core Linux setup, with the four recorded internal-illumination
+cases exempt from the memory check. The smallest speedup is 1.006x for scalar
+<code>cw.rotate</code>. Cylindrical coefficient arrays switch to Rayon at 64 elements,
+scalar Python numbers skip NumPy dispatch, and plane phases evaluate one
+exponential and one sine/cosine pair. Paired timing calibrates each package's
+batch to at least 20 ms on its own, so the slower package is not oversampled;
+91 cases kept the batch sizes of the preceding calibration at the same native
+SHA-256 and 166 used independent sizes, as the manifest records. Failed
+baselines and targeted rechecks stay next to the passing results. The result
+manifest and native SHA-256 are in <code>benchmarks/coefficient-qualification.json</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Forward function</th>
+<th style="text-align: right;">1 sample</th>
+<th style="text-align: right;">128 samples</th>
+<th style="text-align: right;">4,096 samples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tl_vcw</td>
+<td style="text-align: right;">1.822x</td>
+<td style="text-align: right;">1.299x</td>
+<td style="text-align: right;">2.569x</td>
+</tr>
+<tr>
+<td>tl_vcw_r</td>
+<td style="text-align: right;">2.427x</td>
+<td style="text-align: right;">1.368x</td>
+<td style="text-align: right;">4.606x</td>
+</tr>
+<tr>
+<td>cw.translate</td>
+<td style="text-align: right;">2.195x</td>
+<td style="text-align: right;">1.510x</td>
+<td style="text-align: right;">4.272x</td>
+</tr>
+<tr>
+<td>pw.permute_xyz</td>
+<td style="text-align: right;">3.592x</td>
+<td style="text-align: right;">1.367x</td>
+<td style="text-align: right;">10.028x</td>
+</tr>
+<tr>
+<td>pw.translate</td>
+<td style="text-align: right;">2.223x</td>
+<td style="text-align: right;">1.226x</td>
+<td style="text-align: right;">1.236x</td>
+</tr>
+</tbody>
+</table>
+<h3 id="lattice-geometry-and-material-branches">Lattice geometry and material branches<a class="headerlink" href="#lattice-geometry-and-material-branches" title="Permanent link">&para;</a></h3>
+<p>The run passes 42 geometry cases and 257 regression cases: 299 runtime checks
+and 295 applicable forward-RSS checks, on CPUs 8–11 with four BLAS/Rayon
+threads. The smallest margin is 1.005x for scalar <code>cw.rotate</code>, and the largest
+applicable RSS ratio is 0.912. Circular diffraction enumeration runs 7.915x,
+64.034x and 256.860x faster at radius 1, 4 and 16; tests check complete
+enumeration in skew cells separately. The geometry results are
+<code>geometry-&lt;operation&gt;-n&lt;size&gt;.json</code>, and the 257 rechecks of the coefficient
+cases use the <code>geometry-recheck-</code> prefix; <code>benchmarks/geometry-qualification.json</code>
+records all 299 paths and their native binary hash. Mac diagnostic results keep
+their own file names and platform metadata.</p>
+<table>
+<thead>
+<tr>
+<th>Forward operation</th>
+<th style="text-align: right;">1 sample</th>
+<th style="text-align: right;">128 samples</th>
+<th style="text-align: right;">4,096 samples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>volume2</td>
+<td style="text-align: right;">1.033x</td>
+<td style="text-align: right;">2.978x</td>
+<td style="text-align: right;">44.687x</td>
+</tr>
+<tr>
+<td>volume3</td>
+<td style="text-align: right;">1.047x</td>
+<td style="text-align: right;">2.647x</td>
+<td style="text-align: right;">25.899x</td>
+</tr>
+<tr>
+<td>reciprocal2</td>
+<td style="text-align: right;">1.026x</td>
+<td style="text-align: right;">6.004x</td>
+<td style="text-align: right;">8.677x</td>
+</tr>
+<tr>
+<td>reciprocal3</td>
+<td style="text-align: right;">1.034x</td>
+<td style="text-align: right;">3.121x</td>
+<td style="text-align: right;">3.577x</td>
+</tr>
+<tr>
+<td>refractive_index</td>
+<td style="text-align: right;">3.213x</td>
+<td style="text-align: right;">3.466x</td>
+<td style="text-align: right;">1.955x</td>
+</tr>
+<tr>
+<td>wave_vec_z</td>
+<td style="text-align: right;">1.904x</td>
+<td style="text-align: right;">3.197x</td>
+<td style="text-align: right;">1.607x</td>
+</tr>
+</tbody>
+</table>
+<h2 id="lattice-sums-at-explicit-small-splits-pre-release-timings">Lattice sums at explicit small splits (pre-release timings)<a class="headerlink" href="#lattice-sums-at-explicit-small-splits-pre-release-timings" title="Permanent link">&para;</a></h2>
+<p>These timings compare <code>5dadf1d</code>, a pre-release commit without the cancellation
+checks of explicit Ewald splits below every automatic split, with the later
+pre-release commit that adds them
+(<a href="../../validation/numerical-limits/#explicit-splits-below-the-automatic-one">numerical limits</a>).
+They were not rerun.</p>
+<p>Timed as a whole against <code>5dadf1d</code> (release, one thread, unit cells), 1D
+spherical sums on the axis of degree 0 to 8 at k = 0.42, eta = 0.14 and 0.2 and
+Bloch vectors of 0, 0.1 and 0.25 take 0.07 to 0.52 ms each, 0.8 to 2.6 times as
+long, and up to 9 times at degrees 6 to 8 at the shift 0.1, where <code>5dadf1d</code>
+returned some in 0.02 ms and up to 7e-8 of max(|S|, 1) off; at a zero Bloch
+vector and the shift 0.5, odd degrees vanish exactly at once. 2D spherical
+sums of degree up to 6 at k = 1.3 and eta = 0.25 take 0.8 times as long in all.
+3D sums of degree up to 3 at k = 1.3 and eta = 0.25 and 0.2, and a quarter of the
+2D sums at 0.2, failed with "did not converge" at <code>5dadf1d</code>; with the checks,
+the 3D sums converge in about 0.1 and 0.24 s each on average.</p>
+<p>Sums and Ewald parts that fail to converge sum to the grown shell limit first
+(release): 3D sums fail within about 2.4 s, the 3D real-space part of degree 3 at
+k = 0.7 + 0.1i after 28 s at eta = 0.03, 2D sums and parts within 2.5 s.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../platform-comparison/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Mac and Linux benchmark comparison">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Mac and Linux benchmark comparison
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../../reference/" class="md-footer__link md-footer__link--next" aria-label="Next: Reference">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Reference
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      treams-rs contributors, MIT license
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://github.com/yaugenst/treams-rs" target="_blank" rel="noopener" title="treams-rs on GitHub" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://pypi.org/project/treams-rs/" target="_blank" rel="noopener" title="treams-rs on PyPI" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 444.7a20.4 20.4 0 1 1 0-40.7 20.4 20.4 0 1 1 0 40.7M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.6-183.4a20.4 20.4 0 1 1 0 40.8 20.4 20.4 0 1 1 0-40.8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.instant.progress", "navigation.tracking", "navigation.sections", "navigation.indexes", "navigation.path", "navigation.footer", "navigation.top", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

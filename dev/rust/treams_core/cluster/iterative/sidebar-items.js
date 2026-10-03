@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["apply_block"],"struct":["IterativeGradient","IterativeResidual","IterativeSolution","IterativeSphereCluster"]};

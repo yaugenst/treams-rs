@@ -1,0 +1,254 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="The numerical core of treams-rs: special functions, lattice sums, wave expansions, T-matrices and S-matrices, each with an analytic pullback, in Rust and without Python."><title>treams_core - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="treams_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate treams_core</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../treams_core/index.html">treams_<wbr>core</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#layers" title="Layers">Layers</a></li><li><a href="#conventions" title="Conventions">Conventions</a><ul><li><a href="#numbers-and-labels" title="Numbers and labels">Numbers and labels</a></li><li><a href="#names" title="Names">Names</a></li><li><a href="#gradients-of-complex-values" title="Gradients of complex values">Gradients of complex values</a></li><li><a href="#errors" title="Errors">Errors</a></li><li><a href="#parallelism-and-reproducibility" title="Parallelism and reproducibility">Parallelism and reproducibility</a></li><li><a href="#floating-point-environment" title="Floating-point environment">Floating-point environment</a></li><li><a href="#lints" title="Lints">Lints</a></li></ul></li><li><a href="#glossary" title="Glossary">Glossary</a></li><li><a href="#tests" title="Tests">Tests</a></li><li><a href="#module-map" title="Module map">Module map</a></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#constants" title="Constants">Constants</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>treams_<wbr>core</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/treams_core/lib.rs.html#1-391">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>The numerical core of treams-rs: special functions, lattice sums, wave expansions,
+T-matrices and S-matrices, each with an analytic pullback, in Rust and without Python.</p>
+<p>A pullback turns the gradient of a real loss with respect to a result into the
+gradients with respect to the inputs; the <a href="#glossary">glossary</a> defines it with the
+related terms.</p>
+<p><code>treams-core</code> is an internal crate. The Python package <code>treams_rs</code> calls it through
+the bindings crate <code>treams-py</code>, which Python imports as <code>treams_rs._native</code>; neither
+crate is published on crates.io. The user documentation, with examples and the
+design rationale, is at <a href="../../">https://yaugenst.github.io/treams-rs/latest/</a>.</p>
+<p>Upstream: <a href="https://github.com/tfp-photonics/treams">treams</a> 0.4.7 at commit <code>1f5d0d6</code>.
+The kernels follow its formulas, conventions and mode order. Each module names the
+treams functions it mirrors, and the <a href="#module-map">module map</a> pairs every module
+with its <code>treams_rs</code> and treams namespaces.</p>
+<h2 id="layers"><a class="doc-anchor" href="#layers">§</a>Layers</h2>
+<p>The modules form six layers:</p>
+<div><table><thead><tr><th>Layer</th><th>Modules</th><th>Contents</th></tr></thead><tbody>
+<tr><td>L0</td><td><code>numerics</code>, <a href="linalg/index.html" title="mod treams_core::linalg"><code>linalg</code></a>, <a href="fpenv/index.html" title="mod treams_core::fpenv"><code>fpenv</code></a>, <a href="threads/index.html" title="mod treams_core::threads"><code>threads</code></a></td><td>Numerical support</td></tr>
+<tr><td>L1</td><td><a href="special/index.html" title="mod treams_core::special"><code>special</code></a></td><td>Special functions</td></tr>
+<tr><td>L2</td><td><a href="lattice/index.html" title="mod treams_core::lattice"><code>lattice</code></a></td><td>Lattice sums and lattice geometry</td></tr>
+<tr><td>L3</td><td><a href="basis/index.html" title="mod treams_core::basis"><code>basis</code></a>, <a href="sw/index.html" title="mod treams_core::sw"><code>sw</code></a>, <a href="cw/index.html" title="mod treams_core::cw"><code>cw</code></a>, <a href="pw/index.html" title="mod treams_core::pw"><code>pw</code></a>, <a href="rotation/index.html" title="mod treams_core::rotation"><code>rotation</code></a>, <a href="channels/index.html" title="mod treams_core::channels"><code>channels</code></a>, <a href="vectorwaves/index.html" title="mod treams_core::vectorwaves"><code>vectorwaves</code></a>, <a href="fields/index.html" title="mod treams_core::fields"><code>fields</code></a></td><td>Wave families</td></tr>
+<tr><td>L4</td><td><a href="coeffs/index.html" title="mod treams_core::coeffs"><code>coeffs</code></a>, <a href="tmatrix/index.html" title="mod treams_core::tmatrix"><code>tmatrix</code></a>, <a href="ebcm/index.html" title="mod treams_core::ebcm"><code>ebcm</code></a>, <a href="cluster/index.html" title="mod treams_core::cluster"><code>cluster</code></a></td><td>Scattering by particles</td></tr>
+<tr><td>L5</td><td><a href="smatrix/index.html" title="mod treams_core::smatrix"><code>smatrix</code></a></td><td>Planar and periodic S-matrices</td></tr>
+</tbody></table>
+</div>
+<p>Production code of a module uses its own layer and the layers below it, never a
+layer above. Modules of one layer may use each other: <a href="cw/fn.to_sw.html" title="fn treams_core::cw::to_sw"><code>cw::to_sw()</code></a> builds
+spherical modes, and <a href="tmatrix/fn.sphere.html" title="fn treams_core::tmatrix::sphere"><code>tmatrix::sphere()</code></a> takes the Mie coefficients of <a href="coeffs/index.html" title="mod treams_core::coeffs"><code>coeffs</code></a>.
+Any module may use the root items <a href="type.Complex.html" title="type treams_core::Complex"><code>Complex</code></a>, <a href="enum.Error.html" title="enum treams_core::Error"><code>Error</code></a>, <a href="type.Result.html" title="type treams_core::Result"><code>Result</code></a> and
+<a href="constant.MAX_DEGREE.html" title="constant treams_core::MAX_DEGREE"><code>MAX_DEGREE</code></a>. Tests may use any module.</p>
+<p><a href="rotation/index.html" title="mod treams_core::rotation"><code>rotation</code></a> and <a href="channels/index.html" title="mod treams_core::channels"><code>channels</code></a> share one residual or gradient type across both
+multipole families (<a href="rotation/struct.RotationResidual.html" title="struct treams_core::rotation::RotationResidual"><code>rotation::RotationResidual</code></a>, <a href="channels/struct.ChannelGradient.html" title="struct treams_core::channels::ChannelGradient"><code>channels::ChannelGradient</code></a>),
+so they stay at the top level instead of inside <a href="sw/index.html" title="mod treams_core::sw"><code>sw</code></a> and <a href="cw/index.html" title="mod treams_core::cw"><code>cw</code></a>.</p>
+<p>A directory module keeps its files private and re-exports their items, so callers
+write <code>sw::expansion</code> and <code>smatrix::tr</code>. Three modules keep their own path:
+<a href="special/coordinates/index.html" title="mod treams_core::special::coordinates"><code>special::coordinates</code></a>, <code>numerics::broadcast</code> and <code>numerics::parallel</code>.</p>
+<h2 id="conventions"><a class="doc-anchor" href="#conventions">§</a>Conventions</h2><h3 id="numbers-and-labels"><a class="doc-anchor" href="#numbers-and-labels">§</a>Numbers and labels</h3>
+<ul>
+<li><a href="type.Complex.html" title="type treams_core::Complex"><code>Complex</code></a> is <code>num_complex::Complex64</code>, which <code>NumPy</code> calls <code>complex128</code>. Every
+kernel takes and returns double precision.</li>
+<li>The degree is <code>l</code> and the order is <code>m</code>; <code>lmax</code> and <code>mmax</code> bound them. “Order” also
+names the order of a Bessel function, never a degree.</li>
+<li><a href="constant.MAX_DEGREE.html" title="constant treams_core::MAX_DEGREE"><code>MAX_DEGREE</code></a> = 128 bounds the degree <code>l</code> and the size of cylindrical orders <code>m</code>.
+Translations couple degrees up to <code>special::MAX_ORDER</code> = 256, and Wigner and Kambe
+labels reach <a href="special/constant.MAX_LABEL.html" title="constant treams_core::special::MAX_LABEL"><code>special::MAX_LABEL</code></a> = 260. treams has no such limits.</li>
+<li><code>pol: u8</code> is the polarization index, 0 or 1, and <code>helicity: bool</code> selects the
+convention that treams calls <code>poltype</code>. With <code>helicity</code> true, pol 1 is positive and
+pol 0 negative helicity; with <code>helicity</code> false, pol 1 is TM (the N multipoles) and
+pol 0 TE (the M multipoles). Bases list pol 1 before pol 0, as treams does.</li>
+<li><a href="special/enum.Radial.html" title="enum treams_core::special::Radial"><code>special::Radial</code></a> is the treams <code>modetype</code>: <code>Regular</code> is <code>'regular'</code>, and
+<code>Singular</code> is <code>'singular'</code>, the outgoing Hankel function of the first kind. The
+bindings pass it as <code>singular: bool</code>.</li>
+<li>A basis entry <code>(pidx, mode)</code> holds the position index (treams <code>pidx</code>) and the mode
+label, <a href="sw/struct.Mode.html" title="struct treams_core::sw::Mode"><code>sw::Mode</code></a> or <a href="cw/struct.Mode.html" title="struct treams_core::cw::Mode"><code>cw::Mode</code></a>. <code>positions</code> are Cartesian expansion centres.</li>
+<li>A matrix between two bases maps coefficients of the <code>source</code> basis to the
+<code>destination</code> basis. Translations take the displacement <code>destination - source</code>;
+lattice sums run over <code>source - destination</code>, and each lattice path says where it
+negates the displacement.</li>
+<li>Lattice sums take the Bloch vector <code>kpar</code>, the Ewald split parameter <code>eta</code>, the
+lattice <code>vectors</code> (treams <code>a</code>) and the <code>shift</code> (treams <code>r</code>).</li>
+<li>Planar inputs: <code>ks</code> holds the two helicity wavenumbers of each medium, <code>kzs</code> the
+normal wavenumbers, <code>zs</code> the impedances and <code>q</code> the transverse wavevectors.
+<a href="smatrix/fn.chirality_density.html" title="fn treams_core::smatrix::chirality_density"><code>smatrix::chirality_density</code></a> and <a href="smatrix/fn.oriented_chirality.html" title="fn treams_core::smatrix::oriented_chirality"><code>smatrix::oriented_chirality</code></a> use the
+argument names of their native functions: <code>normal</code> for the normal wavenumbers
+and, in <a href="smatrix/fn.oriented_chirality.html" title="fn treams_core::smatrix::oriented_chirality"><code>smatrix::oriented_chirality</code></a>, <code>transverse</code> for the transverse
+wavevectors. The <a href="smatrix/index.html" title="mod treams_core::smatrix"><code>smatrix</code></a> module docs give the order of the sides and of the
+four S-matrix blocks.</li>
+</ul>
+<h3 id="names"><a class="doc-anchor" href="#names">§</a>Names</h3>
+<ul>
+<li>Items inside <a href="sw/index.html" title="mod treams_core::sw"><code>sw</code></a>, <a href="cw/index.html" title="mod treams_core::cw"><code>cw</code></a> and <a href="pw/index.html" title="mod treams_core::pw"><code>pw</code></a> carry no family prefix; other modules name
+them by path, as in <code>sw::Mode</code>, <code>cw::Basis</code> and <code>pw::expansion</code>. A module that
+serves both families prefixes the family: <code>rotation::sw_rotate</code>,
+<code>channels::cw_periodic_to_pw</code>.</li>
+<li>A forward function carries the treams name or the name of its operation:
+<code>coeffs::mie</code>, <code>cluster::interaction</code>, <code>smatrix::tr</code>. Suffixes mark the variants:
+<code>_array</code> for an elementwise forward over arrays that returns a residual
+(<code>special::bessel_array</code>), <code>_matrix</code> for a matrix that changes the wave family
+(<code>cw::to_sw_matrix</code>), and <code>_value</code> for the forward that returns only the value of
+a forward with a residual (<code>smatrix::tr_value</code>). Matrices between two bases of one
+family are nouns: <code>sw::expansion</code>, <code>sw::lattice_expansion</code>, <code>rotation::sw_rotation</code>.</li>
+<li>A forward <code>X</code> that supports gradients returns <code>(value, XResidual)</code> when its
+pullback does not read the value. When the pullback reads it, the forward returns
+only the residual, which lends the value through an accessor such as <code>value()</code>:
+<a href="coeffs/fn.mie.html" title="fn treams_core::coeffs::mie"><code>coeffs::mie</code></a>, <a href="smatrix/fn.tr.html" title="fn treams_core::smatrix::tr"><code>smatrix::tr</code></a> and <a href="linalg/fn.solve.html" title="fn treams_core::linalg::solve"><code>linalg::solve</code></a> work this way.
+<code>XResidual::pullback(self, cotangent)</code> returns an <code>XGradient</code> with one field per
+differentiable input, or an array of gradients in argument order. The residual
+name drops the suffixes <code>_array</code>, <code>_matrix</code> and <code>_value</code>:
+<code>sw::polar_translation_array</code> returns a <a href="sw/struct.PolarTranslationResidual.html" title="struct treams_core::sw::PolarTranslationResidual"><code>sw::PolarTranslationResidual</code></a>, and
+<code>cw::to_sw_matrix</code> a <a href="cw/struct.ToSwResidual.html" title="struct treams_core::cw::ToSwResidual"><code>cw::ToSwResidual</code></a>.</li>
+<li>The <code>record</code> methods of <a href="cluster/struct.InteractionFactor.html" title="struct treams_core::cluster::InteractionFactor"><code>cluster::InteractionFactor</code></a> and
+<a href="cluster/struct.IterativeSphereCluster.html" title="struct treams_core::cluster::IterativeSphereCluster"><code>cluster::IterativeSphereCluster</code></a> return residuals named after their native
+context classes. <a href="cluster/struct.IlluminateResidual.html" title="struct treams_core::cluster::IlluminateResidual"><code>cluster::IlluminateResidual</code></a> matches <code>IlluminateContext</code>, which
+<code>diff.illuminate</code> also returns. <a href="cluster/struct.IterativeResidual.html" title="struct treams_core::cluster::IterativeResidual"><code>cluster::IterativeResidual</code></a> matches
+<code>IterativeContext</code>.</li>
+<li>Family twins share one residual: <a href="rotation/fn.sw_rotation.html" title="fn treams_core::rotation::sw_rotation"><code>rotation::sw_rotation</code></a> and
+<a href="rotation/fn.cw_rotation.html" title="fn treams_core::rotation::cw_rotation"><code>rotation::cw_rotation</code></a> return <a href="rotation/struct.RotationResidual.html" title="struct treams_core::rotation::RotationResidual"><code>rotation::RotationResidual</code></a>, and
+<a href="cluster/fn.particle_cluster.html" title="fn treams_core::cluster::particle_cluster"><code>cluster::particle_cluster</code></a> and <a href="cluster/fn.cylindrical_particle_cluster.html" title="fn treams_core::cluster::cylindrical_particle_cluster"><code>cluster::cylindrical_particle_cluster</code></a> return
+<a href="cluster/struct.ParticleClusterResidual.html" title="struct treams_core::cluster::ParticleClusterResidual"><code>cluster::ParticleClusterResidual</code></a>. <a href="linalg/fn.solve_owned.html" title="fn treams_core::linalg::solve_owned"><code>linalg::solve_owned</code></a>, which reuses the
+operator’s buffer, returns the <a href="linalg/struct.SolveResidual.html" title="struct treams_core::linalg::SolveResidual"><code>linalg::SolveResidual</code></a> of <a href="linalg/fn.solve.html" title="fn treams_core::linalg::solve"><code>linalg::solve</code></a>.</li>
+<li>The pullbacks of <a href="linalg/struct.EigResidual.html" title="struct treams_core::linalg::EigResidual"><code>linalg::EigResidual</code></a> and <a href="smatrix/struct.BandsResidual.html" title="struct treams_core::smatrix::BandsResidual"><code>smatrix::BandsResidual</code></a> take one
+cotangent per output and name each after its output: <code>values</code> and <code>vectors</code>, and
+<code>wavenumbers</code> and <code>vectors</code>.</li>
+</ul>
+<h3 id="gradients-of-complex-values"><a class="doc-anchor" href="#gradients-of-complex-values">§</a>Gradients of complex values</h3>
+<p>A loss <code>L</code> changes by <code>dL = Re Σ conj(g)·dx</code> when a value changes by <code>dx</code>, where <code>g</code>
+is the cotangent of that value. For a complex value <code>x = a + i b</code>, the cotangent is
+<code>∂L/∂a + i ∂L/∂b</code>, and real inputs get real gradients. A pullback through a
+holomorphic map <code>y = f(x)</code> therefore multiplies by the conjugate derivative:
+<code>g_x = conj(f'(x)) g_y</code>.</p>
+<h3 id="errors"><a class="doc-anchor" href="#errors">§</a>Errors</h3>
+<p>Every fallible function returns <a href="type.Result.html" title="type treams_core::Result"><code>Result</code></a>, whose <a href="enum.Error.html" title="enum treams_core::Error"><code>Error</code></a> says why it failed:
+<a href="enum.Error.html#variant.InvalidInput" title="variant treams_core::Error::InvalidInput"><code>InvalidInput</code></a> for input outside the domain,
+<a href="enum.Error.html#variant.SpecialFunction" title="variant treams_core::Error::SpecialFunction"><code>SpecialFunction</code></a>, <a href="enum.Error.html#variant.NonFinite" title="variant treams_core::Error::NonFinite"><code>NonFinite</code></a> and
+<a href="enum.Error.html#variant.NotConverged" title="variant treams_core::Error::NotConverged"><code>NotConverged</code></a> for numerical failures,
+<a href="enum.Error.html#variant.Singular" title="variant treams_core::Error::Singular"><code>Singular</code></a> for a singular linear system, and
+<a href="enum.Error.html#variant.OutOfMemory" title="variant treams_core::Error::OutOfMemory"><code>OutOfMemory</code></a> when the system refuses the memory of a large
+output or workspace. The bindings raise <code>OutOfMemory</code> as Python <code>MemoryError</code> and
+every other variant as <code>ValueError</code>, with the displayed message. treams returns NaN
+or emits <code>NumPy</code> warnings in the numerical cases.</p>
+<p>Dense coupling, T-matrix, expansion and field outputs, decomposition vectors,
+and LU, SVD and eigenvalue workspaces are reserved fallibly, through
+<code>numerics::zeros</code>, <code>numerics::filled</code>, <code>numerics::reserve</code> and the LU workspace of
+<a href="linalg/index.html" title="mod treams_core::linalg"><code>linalg</code></a>, so a refused request returns <code>OutOfMemory</code> instead of aborting the
+process. This is not a process-wide guarantee: input copies, matrix products,
+gradient buffers and other allocations can still abort when refused.</p>
+<h3 id="parallelism-and-reproducibility"><a class="doc-anchor" href="#parallelism-and-reproducibility">§</a>Parallelism and reproducibility</h3>
+<p>Rayon runs independent items in parallel, on the pool of <a href="threads/index.html" title="mod treams_core::threads"><code>threads</code></a>, once their
+number reaches a threshold; <a href="numerics/parallel/index.html"><code>numerics::parallel</code></a>
+lists every threshold. The elementwise evaluations and the helpers there keep every
+output in index order. A pullback that adds over items splits them into chunks
+fixed by the item count, or into blocks fixed by the shape, and adds the partial
+sums in order, so the thread count sets how many workers run the chunks but never
+the order of the additions. The docs of these residuals, and of
+<code>numerics::broadcast</code> for the elementwise ones, say how they add; the thread count
+changes the result of none of them:</p>
+<ul>
+<li>Outputs in index order, or sums in a fixed order: the elementwise residuals of
+<a href="special/index.html" title="mod treams_core::special"><code>special</code></a> and <a href="lattice/struct.SumResidual.html" title="struct treams_core::lattice::SumResidual"><code>lattice::SumResidual</code></a>, <a href="sw/struct.PolarTranslationResidual.html" title="struct treams_core::sw::PolarTranslationResidual"><code>sw::PolarTranslationResidual</code></a>,
+<a href="sw/struct.ExpansionResidual.html" title="struct treams_core::sw::ExpansionResidual"><code>sw::ExpansionResidual</code></a>, <a href="sw/struct.LatticeExpansionFromTableResidual.html" title="struct treams_core::sw::LatticeExpansionFromTableResidual"><code>sw::LatticeExpansionFromTableResidual</code></a>,
+<a href="cw/struct.PolarTranslationResidual.html" title="struct treams_core::cw::PolarTranslationResidual"><code>cw::PolarTranslationResidual</code></a>, <a href="cw/struct.ExpansionResidual.html" title="struct treams_core::cw::ExpansionResidual"><code>cw::ExpansionResidual</code></a>,
+<a href="cw/struct.LatticeExpansionResidual.html" title="struct treams_core::cw::LatticeExpansionResidual"><code>cw::LatticeExpansionResidual</code></a>, <a href="rotation/struct.RotationResidual.html" title="struct treams_core::rotation::RotationResidual"><code>rotation::RotationResidual</code></a>,
+<a href="pw/struct.PhasesResidual.html" title="struct treams_core::pw::PhasesResidual"><code>pw::PhasesResidual</code></a>, <a href="pw/struct.PermutationResidual.html" title="struct treams_core::pw::PermutationResidual"><code>pw::PermutationResidual</code></a>,
+<a href="vectorwaves/struct.VectorWaveResidual.html" title="struct treams_core::vectorwaves::VectorWaveResidual"><code>vectorwaves::VectorWaveResidual</code></a>, <a href="ebcm/struct.QmatResidual.html" title="struct treams_core::ebcm::QmatResidual"><code>ebcm::QmatResidual</code></a>,
+<a href="coeffs/struct.MieResidual.html" title="struct treams_core::coeffs::MieResidual"><code>coeffs::MieResidual</code></a>, <a href="coeffs/struct.MieCylResidual.html" title="struct treams_core::coeffs::MieCylResidual"><code>coeffs::MieCylResidual</code></a>,
+<a href="tmatrix/struct.SphereResidual.html" title="struct treams_core::tmatrix::SphereResidual"><code>tmatrix::SphereResidual</code></a>, <a href="tmatrix/struct.CylinderResidual.html" title="struct treams_core::tmatrix::CylinderResidual"><code>tmatrix::CylinderResidual</code></a>,
+<a href="tmatrix/struct.MetricResidual.html" title="struct treams_core::tmatrix::MetricResidual"><code>tmatrix::MetricResidual</code></a>, <a href="cluster/struct.InteractionResidual.html" title="struct treams_core::cluster::InteractionResidual"><code>cluster::InteractionResidual</code></a>,
+<a href="cluster/struct.IlluminateResidual.html" title="struct treams_core::cluster::IlluminateResidual"><code>cluster::IlluminateResidual</code></a> and <a href="cluster/struct.SphereClusterResidual.html" title="struct treams_core::cluster::SphereClusterResidual"><code>cluster::SphereClusterResidual</code></a>.</li>
+<li>Partial sums over fixed chunks or blocks, added in order:
+<a href="sw/struct.LatticeExpansionResidual.html" title="struct treams_core::sw::LatticeExpansionResidual"><code>sw::LatticeExpansionResidual</code></a>, <a href="sw/struct.PeriodicToCwResidual.html" title="struct treams_core::sw::PeriodicToCwResidual"><code>sw::PeriodicToCwResidual</code></a>,
+<a href="cw/struct.ToSwResidual.html" title="struct treams_core::cw::ToSwResidual"><code>cw::ToSwResidual</code></a>, <a href="pw/struct.ExpansionResidual.html" title="struct treams_core::pw::ExpansionResidual"><code>pw::ExpansionResidual</code></a>, <a href="pw/struct.FieldResidual.html" title="struct treams_core::pw::FieldResidual"><code>pw::FieldResidual</code></a>,
+<a href="channels/struct.SphericalChannelsResidual.html" title="struct treams_core::channels::SphericalChannelsResidual"><code>channels::SphericalChannelsResidual</code></a>, <a href="channels/struct.CylindricalChannelsResidual.html" title="struct treams_core::channels::CylindricalChannelsResidual"><code>channels::CylindricalChannelsResidual</code></a>,
+<a href="fields/struct.FieldResidual.html" title="struct treams_core::fields::FieldResidual"><code>fields::FieldResidual</code></a>, <a href="fields/struct.OperatorResidual.html" title="struct treams_core::fields::OperatorResidual"><code>fields::OperatorResidual</code></a>,
+<a href="cluster/struct.IterativeResidual.html" title="struct treams_core::cluster::IterativeResidual"><code>cluster::IterativeResidual</code></a> and <a href="smatrix/struct.LayerStackResidual.html" title="struct treams_core::smatrix::LayerStackResidual"><code>smatrix::LayerStackResidual</code></a>.</li>
+</ul>
+<p>These residuals give the same bits at every thread budget. With a budget of one
+thread (<a href="threads/fn.set_num_threads.html" title="fn treams_core::threads::set_num_threads"><code>threads::set_num_threads</code></a> or <code>TREAMS_RS_NUM_THREADS=1</code>), every result
+repeats bit for bit.</p>
+<h3 id="floating-point-environment"><a class="doc-anchor" href="#floating-point-environment">§</a>Floating-point environment</h3>
+<p>The kernels assume IEEE 754 gradual underflow: subnormal numbers stay subnormal.
+JAX (through XLA) and <code>torch.set_flush_denormal(True)</code> make the calling thread flush
+them to zero, which breaks algorithms that scale through the subnormal range, such
+as faer’s complex reciprocal of an LU pivot. <a href="fpenv/fn.ieee.html" title="fn treams_core::fpenv::ieee"><code>fpenv::ieee</code></a> runs a closure with
+subnormals on the calling thread and restores the caller’s mode afterwards. Its name
+says what the closure gets, the IEEE 754 default arithmetic, and stays short because
+the bindings wrap the body of every Python entry point in it: <code>ieee(|| ...)</code>.
+<code>fpenv::flushing</code> does the opposite, for tests. The <a href="fpenv/index.html" title="mod treams_core::fpenv"><code>fpenv</code></a> module docs explain
+the control registers and why the guard is sound.</p>
+<h3 id="lints"><a class="doc-anchor" href="#lints">§</a>Lints</h3>
+<p>The workspace turns on clippy’s <code>all</code>, <code>pedantic</code> and <code>nursery</code> groups, requires
+docs on every public item, and the checks treat every warning as an error.
+<code>clippy::indexing_slicing</code> stays on, so new code indexes through iterators or checked
+access. A numerical module that validates its indices on entry opts out once, with
+<code>#![allow(clippy::indexing_slicing)] // &lt;why the indices are in range&gt;</code>; the reason
+comment is required. Tests may index freely (<code>clippy.toml</code>).</p>
+<h2 id="glossary"><a class="doc-anchor" href="#glossary">§</a>Glossary</h2>
+<p>A record is a function that returns a value and a context. The context stores what is needed to compute gradients later and can be used once: <code>context.pullback(g)</code> takes the gradient <code>g</code> of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.</p>
+<p>In the Rust core, a function returns <code>(value, XResidual)</code>, and <code>XResidual::pullback(self, cotangent)</code> returns the input gradients as <code>XGradient</code>.</p>
+<div><table><thead><tr><th>Term</th><th>Meaning</th></tr></thead><tbody>
+<tr><td>forward</td><td>A function that computes a value. One that supports gradients returns a residual, beside the value or holding it.</td></tr>
+<tr><td>residual</td><td>What a forward saves for its pullback: <code>XResidual</code> for the forward <code>X</code>. Not the <code>b - A x</code> of a linear system, which the GMRES solver of <a href="linalg/index.html" title="mod treams_core::linalg"><code>linalg</code></a> calls the residual.</td></tr>
+<tr><td>pullback</td><td><code>XResidual::pullback</code>: turns the gradient with respect to the value into the gradients with respect to the inputs. It consumes the residual, so it runs once.</td></tr>
+<tr><td>cotangent</td><td>The gradient of a real-valued loss with respect to one value: the <code>g</code> of the definition above.</td></tr>
+<tr><td>gradient</td><td><code>XGradient</code>: the input gradients that a pullback returns, in the order of the forward’s arguments.</td></tr>
+<tr><td>record</td><td>The Python name of a forward with a residual: a function of <code>treams_rs.diff</code> that returns <code>(value, context)</code>.</td></tr>
+<tr><td>context</td><td>The Python object that holds a residual, named after its record: <code>MieContext</code> for <code>diff.mie</code>.</td></tr>
+<tr><td>jet</td><td>A value carried through the arithmetic with its first derivatives along <code>N</code> directions (<code>numerics::Jet&lt;N&gt;</code>).</td></tr>
+<tr><td><a href="special/struct.RadialJet.html" title="struct treams_core::special::RadialJet"><code>RadialJet</code></a></td><td>A radial function with its first and second derivatives in its one complex argument.</td></tr>
+<tr><td>split (<code>eta</code>)</td><td>The Ewald split parameter, which divides a lattice sum into a real-space and a reciprocal-space part; <code>eta = 0</code> selects it automatically.</td></tr>
+<tr><td>Bloch vector (<code>kpar</code>)</td><td>The wavevector components along a lattice: the term of lattice point <code>R</code> carries the phase <code>exp(i kpar · R)</code>.</td></tr>
+<tr><td>sheet</td><td>The branch of the complex logarithm on which a reciprocal-space term of a lattice sum is evaluated.</td></tr>
+</tbody></table>
+</div>
+<p>The <a href="lattice/index.html#glossary" title="mod treams_core::lattice"><code>lattice</code></a> module docs define the other terms of the lattice
+sums.</p>
+<h2 id="tests"><a class="doc-anchor" href="#tests">§</a>Tests</h2>
+<p>The tests have two tiers:</p>
+<ul>
+<li>A module’s inline <code>tests</code> module checks how that module computes its results:
+fast paths against reference paths, tables and plans, dispatch thresholds, error
+paths, accuracy against reference tables, and private helpers.</li>
+<li><code>src/properties/&lt;domain&gt;.rs</code> checks what the public operations of one domain
+promise: physical laws, analytic identities, and pullbacks against finite
+differences and adjoint pairings. The domains are <code>special</code>, <code>linalg</code>, <code>lattice</code>,
+<code>waves</code>, <code>plane</code>, <code>smatrix</code> and <code>tmatrix</code>, as in the Python suite; <code>lattice</code> is
+the directory <code>src/properties/lattice/</code>.</li>
+</ul>
+<p>A test of one module’s implementation goes inline; a physical, analytic or adjoint
+identity goes into its domain file. Both tiers use crate-private items, so the crate
+has no <code>tests/</code> directory. <code>cargo test -p treams-core</code> runs both.
+<a href="../../development/testing/">Testing</a> on the docs site
+gives the helpers and conventions of both tiers.</p>
+<h2 id="module-map"><a class="doc-anchor" href="#module-map">§</a>Module map</h2>
+<p>Each module mirrors one treams namespace where one exists. A dash marks a module
+without a counterpart.</p>
+<!-- crosswalk:start -->
+<div><table><thead><tr><th>Rust module</th><th>treams_rs namespace</th><th>treams</th><th>Contents</th></tr></thead><tbody>
+<tr><td><a href="special/index.html" title="mod treams_core::special"><code>special</code></a></td><td><code>treams_rs.special</code></td><td><code>treams.special</code></td><td>Bessel, Legendre and Wigner functions, coordinate transforms, incomplete gamma and Kambe integrals</td></tr>
+<tr><td><a href="lattice/index.html" title="mod treams_core::lattice"><code>lattice</code></a></td><td><code>treams_rs.lattice</code>, <code>treams_rs.misc.firstbrillouin*</code></td><td><code>treams.lattice</code>, <code>treams.misc.firstbrillouin*</code></td><td>Lattice sums and lattice geometry</td></tr>
+<tr><td><a href="sw/index.html" title="mod treams_core::sw"><code>sw</code></a></td><td><code>treams_rs.sw</code>, <code>treams_rs.special.tl_vsw_*</code></td><td><code>treams.sw</code>, <code>treams.special.tl_vsw_*</code></td><td>Spherical modes, translation coefficients, expansion matrices and the conversion of chains to cylindrical waves</td></tr>
+<tr><td><a href="cw/index.html" title="mod treams_core::cw"><code>cw</code></a></td><td><code>treams_rs.cw</code>, <code>treams_rs.special.tl_vcw</code></td><td><code>treams.cw</code>, <code>treams.special.tl_vcw</code></td><td>Cylindrical modes, translation coefficients, expansion matrices and the conversion to spherical waves</td></tr>
+<tr><td><a href="pw/index.html" title="mod treams_core::pw"><code>pw</code></a></td><td><code>treams_rs.pw</code>, <code>treams_rs.misc.wave_vec_z</code></td><td><code>treams.pw</code>, <code>treams.misc.wave_vec_z</code></td><td>Plane-wave polarizations, fields and multipole expansions</td></tr>
+<tr><td><a href="basis/index.html" title="mod treams_core::basis"><code>basis</code></a></td><td><code>treams_rs.SphericalBasis</code>, <code>treams_rs.CylindricalBasis</code></td><td><code>treams.SphericalWaveBasis</code>, <code>treams.CylindricalWaveBasis</code></td><td>Multipole bases and the expansion gradients that both families share</td></tr>
+<tr><td><a href="rotation/index.html" title="mod treams_core::rotation"><code>rotation</code></a></td><td><code>treams_rs.sw.rotate</code>, <code>treams_rs.cw.rotate</code>, <code>treams_rs.operators.Rotate</code></td><td><code>treams.sw.rotate</code>, <code>treams.cw.rotate</code>, <code>treams.Rotate</code></td><td>Rotation coefficients and rotation matrices of multipole bases</td></tr>
+<tr><td><a href="channels/index.html" title="mod treams_core::channels"><code>channels</code></a></td><td><code>treams_rs.sw.periodic_to_pw</code>, <code>treams_rs.cw.periodic_to_pw</code></td><td><code>treams.sw.periodic_to_pw</code>, <code>treams.cw.periodic_to_pw</code></td><td>Plane-wave channels of periodic arrays</td></tr>
+<tr><td><a href="vectorwaves/index.html" title="mod treams_core::vectorwaves"><code>vectorwaves</code></a></td><td><code>treams_rs.special.vsh_*</code>, <code>vsw_*</code>, <code>vcw_*</code>, <code>vpw_*</code>, <code>sph_harm</code></td><td><code>treams.special.vsh_*</code>, <code>vsw_*</code>, <code>vcw_*</code>, <code>vpw_*</code>, <code>sph_harm</code></td><td>Vector spherical harmonics and vector spherical, cylindrical and plane waves</td></tr>
+<tr><td><a href="fields/index.html" title="mod treams_core::fields"><code>fields</code></a></td><td><code>treams_rs.operators.efield</code></td><td><code>treams.efield</code></td><td>Electric fields of multipole expansions at sample points</td></tr>
+<tr><td><a href="coeffs/index.html" title="mod treams_core::coeffs"><code>coeffs</code></a></td><td><code>treams_rs.coeffs</code>, <code>treams_rs.Material</code>, <code>treams_rs.misc.refractive_index</code></td><td><code>treams.coeffs</code>, <code>treams.Material</code>, <code>treams.misc.refractive_index</code></td><td>Mie coefficients of multilayer spheres and cylinders, and materials</td></tr>
+<tr><td><a href="tmatrix/index.html" title="mod treams_core::tmatrix"><code>tmatrix</code></a></td><td><code>treams_rs.TMatrix</code>, <code>treams_rs.CylindricalTMatrix</code></td><td><code>treams.TMatrix</code>, <code>treams.TMatrixC</code></td><td>T-matrices of single spheres and cylinders, and the cd, db and chi metrics</td></tr>
+<tr><td><a href="ebcm/index.html" title="mod treams_core::ebcm"><code>ebcm</code></a></td><td><code>treams_rs.ebcm</code></td><td><code>treams.ebcm</code></td><td>Q-matrices of the extended boundary condition method</td></tr>
+<tr><td><a href="cluster/index.html" title="mod treams_core::cluster"><code>cluster</code></a></td><td><code>treams_rs.Cluster</code>, <code>treams_rs.iterative</code></td><td><code>treams.TMatrix.cluster</code>, <code>treams.TMatrix.interaction</code></td><td>Multiple scattering in particle clusters, dense and matrix-free</td></tr>
+<tr><td><a href="smatrix/index.html" title="mod treams_core::smatrix"><code>smatrix</code></a></td><td><code>treams_rs.SMatrix</code>, <code>treams_rs.coeffs.fresnel</code></td><td><code>treams.SMatrices</code>, <code>treams.coeffs.fresnel</code></td><td>Planar S-matrices: interfaces, layer stacks, composition, illumination, transmittance and bands</td></tr>
+<tr><td><a href="linalg/index.html" title="mod treams_core::linalg"><code>linalg</code></a></td><td><code>treams_rs.diff.solve</code>, <code>svdvals</code>, <code>eig</code></td><td>-</td><td>Dense LU, SVD and eigensystems with pullbacks, and restarted GMRES</td></tr>
+<tr><td><code>numerics</code></td><td>-</td><td>-</td><td>Forward-mode jets, broadcasting and parallel thresholds</td></tr>
+<tr><td><a href="fpenv/index.html" title="mod treams_core::fpenv"><code>fpenv</code></a></td><td>-</td><td>-</td><td>A guard that keeps subnormal numbers when the caller flushes them to zero</td></tr>
+<tr><td><a href="threads/index.html" title="mod treams_core::threads"><code>threads</code></a></td><td><code>treams_rs.set_num_threads</code>, <code>threads</code>, <code>thread_info</code></td><td>-</td><td>The thread budget and the fork-safe pool that runs every parallel region</td></tr>
+</tbody></table>
+</div><!-- crosswalk:end --></div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="basis/index.html" title="mod treams_core::basis">basis</a></dt><dd>Multipole bases of modes at expansion positions, and the expansion gradients shared by
+the spherical and cylindrical families.</dd><dt><a class="mod" href="channels/index.html" title="mod treams_core::channels">channels</a></dt><dd>Plane-wave channels of periodic arrays: how the multipoles of a 2D array of spheres
+or a 1D array of cylinders couple to the diffracted plane waves on either side.</dd><dt><a class="mod" href="cluster/index.html" title="mod treams_core::cluster">cluster</a></dt><dd>Multiple scattering in clusters of particles: solves of <code>(I - T C) X = T B</code>.</dd><dt><a class="mod" href="coeffs/index.html" title="mod treams_core::coeffs">coeffs</a></dt><dd>Mie coefficients of multilayer chiral spheres and cylinders, and the materials they
+take.</dd><dt><a class="mod" href="cw/index.html" title="mod treams_core::cw">cw</a></dt><dd>Cylindrical vector waves: mode labels, translation coefficients of mode pairs,
+expansion matrices between bases and over lattices, and the conversion to spherical
+waves.</dd><dt><a class="mod" href="ebcm/index.html" title="mod treams_core::ebcm">ebcm</a></dt><dd>Q-matrices of the extended boundary condition method (EBCM) for particles that are
+symmetric about the z axis, with analytic gradients for the surface and the media.</dd><dt><a class="mod" href="fields/index.html" title="mod treams_core::fields">fields</a></dt><dd>Cartesian spherical and cylindrical vector waves, field sums and field operators.</dd><dt><a class="mod" href="fpenv/index.html" title="mod treams_core::fpenv">fpenv</a></dt><dd>IEEE 754 subnormals for the numerical work, whatever the caller’s floating-point mode.
+treams-rs extension.</dd><dt><a class="mod" href="lattice/index.html" title="mod treams_core::lattice">lattice</a></dt><dd>Lattice sums of outgoing spherical and cylindrical waves, and lattice geometry.</dd><dt><a class="mod" href="linalg/index.html" title="mod treams_core::linalg">linalg</a></dt><dd>Dense linear solves and general complex eigensystems with analytic pullbacks, and
+restarted GMRES. treams-rs extension.</dd><dt><a class="mod" href="numerics/index.html" title="mod treams_core::numerics">numerics</a><span title="Restricted Visibility">&nbsp;🔒</span> </dt><dd>Numerical support without physics: complex helpers, forward-mode jets, broadcasting,
+fallible allocation and the parallel policy. treams-rs extension.</dd><dt><a class="mod" href="pw/index.html" title="mod treams_core::pw">pw</a></dt><dd>Plane waves: polarization vectors, fields, translation phases, cyclic permutations of
+the Cartesian axes, and the expansion of plane waves in regular spherical and
+cylindrical waves.</dd><dt><a class="mod" href="rotation/index.html" title="mod treams_core::rotation">rotation</a></dt><dd>Multipole rotations in the z-y-z convention, with analytic Euler-angle pullbacks.</dd><dt><a class="mod" href="smatrix/index.html" title="mod treams_core::smatrix">smatrix</a></dt><dd>Planar scattering matrices of plane-wave modes and their analytic pullbacks.</dd><dt><a class="mod" href="special/index.html" title="mod treams_core::special">special</a></dt><dd>Special functions: Bessel, Legendre, Ferrers and Wigner functions, solid harmonics,
+incomplete gamma and Kambe integrals, and coordinate transforms.</dd><dt><a class="mod" href="sw/index.html" title="mod treams_core::sw">sw</a></dt><dd>Spherical vector waves: mode labels, translation coefficients of mode pairs, expansion
+matrices between bases and over lattices, and the cylindrical waves radiated by a
+z-periodic chain of spheres.</dd><dt><a class="mod" href="threads/index.html" title="mod treams_core::threads">threads</a></dt><dd>The thread budget and the Rayon pool that runs every parallel region. treams-rs
+extension.</dd><dt><a class="mod" href="tmatrix/index.html" title="mod treams_core::tmatrix">tmatrix</a></dt><dd>T-matrices of single spheres and cylinders, and three helicity measures of a
+T-matrix.</dd><dt><a class="mod" href="vectorwaves/index.html" title="mod treams_core::vectorwaves">vectorwaves</a></dt><dd>Vector waves one at a time: the vector spherical harmonics and the spherical,
+cylindrical and plane vector waves in their local component frames, with pullbacks.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.Error.html" title="enum treams_core::Error">Error</a></dt><dd>A numerical failure, invalid physical input or refused memory.</dd></dl><h2 id="constants" class="section-header">Constants<a href="#constants" class="anchor">§</a></h2><dl class="item-table"><dt><a class="constant" href="constant.MAX_DEGREE.html" title="constant treams_core::MAX_DEGREE">MAX_<wbr>DEGREE</a></dt><dd>The largest multipole degree <code>l</code>, and the largest <code>|m|</code> of a cylindrical mode.</dd></dl><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><dl class="item-table"><dt><a class="type" href="type.Complex.html" title="type treams_core::Complex">Complex</a></dt><dd>Complex double precision used throughout the numerical core.</dd><dt><a class="type" href="type.Result.html" title="type treams_core::Result">Result</a></dt><dd>Numerical result with a typed error.</dd></dl></section></div></main></body></html>

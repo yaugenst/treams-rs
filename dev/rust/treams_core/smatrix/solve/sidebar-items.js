@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["ITERATIVE_MAX_COLUMNS","ITERATIVE_MIN_ROWS","KRYLOV_STEPS"],"enum":["InternalFactor"],"fn":["internal_iteration","internal_operator","is_contraction"],"struct":["AdjointSolve","InternalSolve"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["BATCH"],"fn":["assemble","blocks","expansion","expansion_block","lattice_expansion","lattice_expansion_from_table","validate_expansion"],"struct":["Block","ExpansionResidual","LatticeExpansionFromTableResidual","LatticeExpansionResidual"]};

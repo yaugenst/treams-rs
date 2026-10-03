@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["expansion","field","field_value","permutation","permute_xyz","phases","polarization","to_cw","to_sw","translate","wave_vector_z"],"mod":["expand","field","permute","polarization"],"struct":["ExpansionGradient","ExpansionResidual","FieldGradient","FieldResidual","PermutationResidual","PhasesGradient","PhasesResidual"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["degree","degree_orders","harmonics"],"struct":["Term","TranslationPlan"]};

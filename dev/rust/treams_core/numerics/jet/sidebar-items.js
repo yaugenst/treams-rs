@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"macro":["assignments","scalar_ops"],"struct":["Jet"]};

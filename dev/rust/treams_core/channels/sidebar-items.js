@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["CYLINDRICAL_MEASURE","CYLINDRICAL_SLOTS","K","POSITION","Q","SPHERICAL_MEASURE","SPHERICAL_SLOTS"],"fn":["cw_periodic_to_pw","cylindrical_channels","spherical_channels","sw_periodic_to_pw","validate_channels"],"struct":["ChannelGradient","CylindricalChannel","CylindricalChannelsResidual","SphericalChannel","SphericalChannelsResidual"]};
