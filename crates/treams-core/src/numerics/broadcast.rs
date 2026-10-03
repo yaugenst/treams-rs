@@ -39,11 +39,13 @@ pub(crate) fn map<T: Send>(
     f: impl Fn(usize) -> Result<T> + Sync + Send,
 ) -> Result<Vec<T>> {
     match parallel.chunk(size) {
-        Some(chunk) => (0..size)
-            .into_par_iter()
-            .with_min_len(chunk)
-            .map(f)
-            .collect(),
+        Some(chunk) => crate::threads::install(|| {
+            (0..size)
+                .into_par_iter()
+                .with_min_len(chunk)
+                .map(f)
+                .collect()
+        }),
         None => (0..size).map(f).collect(),
     }
 }
@@ -113,14 +115,16 @@ pub(crate) fn pullback<G: Cotangent, const A: usize>(
     // In parallel: write each output's argument cotangents into its row in
     // place, which indexed iterators split without collecting partial vectors.
     let mut rows = vec![[Complex::default(); A]; size];
-    rows.par_iter_mut()
-        .zip(cotangent)
-        .enumerate()
-        .with_min_len(chunk)
-        .try_for_each(|(i, (row, g))| {
-            *row = f(i, g)?;
-            Ok(())
-        })?;
+    crate::threads::install(|| {
+        rows.par_iter_mut()
+            .zip(cotangent)
+            .enumerate()
+            .with_min_len(chunk)
+            .try_for_each(|(i, (row, g))| {
+                *row = f(i, g)?;
+                Ok(())
+            })
+    })?;
     if A == 1 && lengths != [1; A] {
         // The rows of a single array argument are its gradient already.
         let mut gradient = Some(rows.into_flattened());

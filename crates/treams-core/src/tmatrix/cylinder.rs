@@ -6,7 +6,7 @@
 use crate::{
     Complex, Error, MAX_DEGREE, Result,
     coeffs::{LayerGradient, Material, MieCylResidual, mie_cyl},
-    numerics::{finite, label_bits},
+    numerics::{self, finite, label_bits},
 };
 
 /// What [`cylinder`] saves for its pullback: one boundary solve per `(kz, m)` pair,
@@ -83,10 +83,12 @@ pub fn cylinder(
         solve.insert((label_bits(kz), m), solved.len());
         solved.push((kz, m));
     }
-    let solves = solved
-        .par_iter()
-        .map(|&(kz, m)| mie_cyl(kz, m, k0, radii, materials))
-        .collect::<Result<Vec<_>>>()?;
+    let solves = crate::threads::install(|| {
+        solved
+            .par_iter()
+            .map(|&(kz, m)| mie_cyl(kz, m, k0, radii, materials))
+            .collect::<Result<Vec<_>>>()
+    })?;
     let blocks = labels
         .iter()
         .map(|&(index, kz, m)| {
@@ -101,7 +103,7 @@ pub fn cylinder(
             })
         })
         .collect::<Result<Vec<_>>>()?;
-    let mut value = nalgebra::DMatrix::zeros(2 * blocks.len(), 2 * blocks.len());
+    let mut value = numerics::zeros(2 * blocks.len(), 2 * blocks.len())?;
     for (index, block) in blocks.iter().enumerate() {
         value
             .fixed_view_mut::<2, 2>(2 * index, 2 * index)
@@ -138,24 +140,26 @@ impl CylinderResidual {
             ));
         }
         let solves = &self.solves;
-        let gradients = self
-            .blocks
-            .par_iter()
-            .enumerate()
-            .map(|(index, block)| {
-                let g = cotangent
-                    .fixed_view::<2, 2>(2 * index, 2 * index)
-                    .into_owned();
-                let gradient = solves[block.solve].gradient(&crate::coeffs::to_mode_order(&g))?;
-                // The mirror block depends on its own kz with the opposite sign.
-                let kz = if block.mirrored {
-                    -gradient.kz
-                } else {
-                    gradient.kz
-                };
-                Ok((kz, gradient))
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let gradients = crate::threads::install(|| {
+            self.blocks
+                .par_iter()
+                .enumerate()
+                .map(|(index, block)| {
+                    let g = cotangent
+                        .fixed_view::<2, 2>(2 * index, 2 * index)
+                        .into_owned();
+                    let gradient =
+                        solves[block.solve].gradient(&crate::coeffs::to_mode_order(&g))?;
+                    // The mirror block depends on its own kz with the opposite sign.
+                    let kz = if block.mirrored {
+                        -gradient.kz
+                    } else {
+                        gradient.kz
+                    };
+                    Ok((kz, gradient))
+                })
+                .collect::<Result<Vec<_>>>()
+        })?;
         let mut result = CylinderGradient {
             kzs: vec![0.0; self.kz_count],
             k0: 0.0,

@@ -22,12 +22,14 @@ pub use gmres::{Convergence, GmresOptions};
 pub(crate) use gmres::{gmres, norm};
 
 use faer::{
-    Accum, Conj, MatMut, MatRef, Spec,
-    dyn_stack::{MemBuffer, MemStack},
+    Accum, Conj, Mat, MatMut, MatRef, Spec,
+    diag::Diag,
+    dyn_stack::{MemBuffer, MemStack, StackReq},
     linalg::{
+        evd,
         lu::partial_pivoting::{factor, solve as lu_solve},
         matmul::matmul,
-        solvers::{Eigen, Svd},
+        svd,
     },
     perm::Perm,
     traits::Conjugate,
@@ -36,7 +38,7 @@ use nalgebra::DMatrix;
 
 use crate::{
     Complex, Error, Result,
-    numerics::{finite, ratio},
+    numerics::{self, finite, ratio},
 };
 
 /// Column-major faer view of a nalgebra matrix.
@@ -50,8 +52,9 @@ pub(crate) fn view_mut(matrix: &mut DMatrix<Complex>) -> MatMut<'_, Complex> {
     MatMut::from_column_major_slice_mut(matrix.as_mut_slice(), rows, cols)
 }
 
-/// `out = left right` with the global parallelism. Pass `.adjoint()` views for
-/// conjugate-transposed factors; faer conjugates them inside the product kernel.
+/// `out = left right` on the treams-rs pool ([`crate::threads::product`]). Pass
+/// `.adjoint()` views for conjugate-transposed factors; faer conjugates them inside
+/// the product kernel.
 pub(crate) fn product_into<L, R>(
     out: MatMut<'_, Complex>,
     left: MatRef<'_, L>,
@@ -60,14 +63,17 @@ pub(crate) fn product_into<L, R>(
     L: Conjugate<Canonical = Complex>,
     R: Conjugate<Canonical = Complex>,
 {
-    matmul(
-        out,
-        Accum::Replace,
-        left,
-        right,
-        Complex::new(1.0, 0.0),
-        faer::get_global_parallelism(),
-    );
+    let (m, n, k) = (out.nrows(), out.ncols(), left.ncols());
+    crate::threads::product(m, n, k, |par| {
+        matmul(
+            out,
+            Accum::Replace,
+            left,
+            right,
+            Complex::new(1.0, 0.0),
+            par,
+        );
+    });
 }
 
 /// `left right` in a new matrix; see [`product_into`].
@@ -227,14 +233,20 @@ fn scale_rows(mut matrix: MatMut<'_, Complex>, scales: &[f64]) {
 /// The faer workers of an LU factorization or solve with `rows` rows and `columns`
 /// right-hand sides, on a pool of `budget` threads.
 ///
-/// Recursive LU and triangular solves split the work into panels, one task each. A
-/// pool of up to four threads runs whole: the panels stay wide enough for four
-/// workers. Larger pools get one worker per 512 rows up to four, one per 2048 rows
+/// Solves with fewer than 32 right-hand sides run on one worker. Recursive LU and
+/// triangular solves split the work into panels, one task each. A pool of up to four
+/// threads runs whole: the panels stay wide enough for four workers. Larger pools get one worker per 512 rows up to four, one per 2048 rows
 /// beyond that, and at most one per 16 right-hand sides, because narrower panels cost
 /// more in task overhead than they gain. The constants are tuned up to 8192 rows;
 /// `benches/lu_scheduling.rs` times a factorization and its solves for any worker
 /// count, to check them on other hardware.
 fn lu_threads(rows: usize, columns: usize, budget: usize) -> usize {
+    // Narrow solves: faer's parallel triangular solves and products split the inner
+    // dimension by worker count, which changes the last bits of the solution, and
+    // their O(rows²) work per column gains little from workers.
+    if columns < 32 {
+        return 1;
+    }
     if budget <= 4 {
         return budget;
     }
@@ -245,16 +257,29 @@ fn lu_threads(rows: usize, columns: usize, budget: usize) -> usize {
         .clamp(1, budget)
 }
 
-fn lu_parallelism(rows: usize, columns: usize) -> faer::Par {
-    let configured = faer::get_global_parallelism();
-    if configured.degree() == 1 {
-        return faer::Par::Seq;
+/// The faer workers of an LU call on the treams-rs budget.
+fn lu_workers(rows: usize, columns: usize) -> usize {
+    // Faer takes no parallel branch here (LU and row swaps below 64 rows, products
+    // below its M·N·K threshold, at most 64 right-hand sides in the triangular
+    // solves), so the result is the same without the hand-off to the pool.
+    if rows < 64 && columns <= 64 {
+        return 1;
     }
-    let budget = configured.degree().min(rayon::current_num_threads());
-    match lu_threads(rows, columns, budget) {
-        1 => faer::Par::Seq,
-        threads => faer::Par::rayon(threads),
-    }
+    lu_threads(rows, columns, crate::threads::current_num_threads())
+}
+
+/// A faer workspace of `req`, or [`Error::OutOfMemory`] when the system refuses it or
+/// the requirement overflowed.
+fn scratch(req: StackReq) -> Result<MemBuffer> {
+    MemBuffer::try_new(req).map_err(|_| {
+        // dyn-stack marks an overflowed requirement with alignment 0 and size 0; it
+        // asked for more than usize::MAX bytes.
+        if req.align_bytes() == 0 {
+            Error::out_of_memory(usize::MAX, 2)
+        } else {
+            Error::out_of_memory(req.size_bytes(), 1)
+        }
+    })
 }
 
 /// Packed pivoted LU: overwrite the operator and share its triangular storage.
@@ -269,22 +294,21 @@ impl Lu {
     pub(crate) fn new(mut factors: DMatrix<Complex>) -> Result<Self> {
         let n = factors.nrows();
         let equilibration = equilibrate(&mut factors)?;
-        let par = lu_parallelism(n, n);
-        let mut forward = vec![0usize; n];
-        let mut inverse = vec![0usize; n];
-        factor::lu_in_place(
-            view_mut(&mut factors),
-            &mut forward,
-            &mut inverse,
-            par,
-            MemStack::new(&mut MemBuffer::new(factor::lu_in_place_scratch::<
-                usize,
-                Complex,
-            >(
-                n, n, par, Spec::default()
-            ))),
-            Spec::default(),
-        );
+        let mut forward = numerics::filled(n, 0_usize)?;
+        let mut inverse = numerics::filled(n, 0_usize)?;
+        crate::threads::dense(lu_workers(n, n), |par| -> Result<()> {
+            factor::lu_in_place(
+                view_mut(&mut factors),
+                &mut forward,
+                &mut inverse,
+                par,
+                MemStack::new(&mut scratch(
+                    factor::lu_in_place_scratch::<usize, Complex>(n, n, par, Spec::default()),
+                )?),
+                Spec::default(),
+            );
+            Ok(())
+        })?;
         if factors.diagonal().iter().any(|&z| z == Complex::default()) {
             return Err(Error::Singular);
         }
@@ -300,20 +324,19 @@ impl Lu {
     }
 
     /// Solve `A X = B` in place, with `A` the operator given to [`Lu::new`].
-    pub(crate) fn solve_in_place(&self, rhs: MatMut<'_, Complex>) {
-        self.solve_with(rhs, false);
+    pub(crate) fn solve_in_place(&self, rhs: MatMut<'_, Complex>) -> Result<()> {
+        self.solve_with(rhs, false)
     }
 
     /// Solve `Aᴴ X = B` in place.
-    pub(crate) fn solve_adjoint_in_place(&self, rhs: MatMut<'_, Complex>) {
-        self.solve_with(rhs, true);
+    pub(crate) fn solve_adjoint_in_place(&self, rhs: MatMut<'_, Complex>) -> Result<()> {
+        self.solve_with(rhs, true)
     }
 
     // The factors hold `R A C`. A forward solve scales by the row scales, solves
     // and scales by the column scales; an adjoint solve uses the reverse order.
-    fn solve_with(&self, mut rhs: MatMut<'_, Complex>, adjoint: bool) {
+    fn solve_with(&self, mut rhs: MatMut<'_, Complex>, adjoint: bool) -> Result<()> {
         let (n, columns) = (self.factors.nrows(), rhs.ncols());
-        let par = lu_parallelism(n, columns);
         let scales = self.equilibration.as_ref().map(|scales| {
             if adjoint {
                 (&scales.column, &scales.row)
@@ -325,34 +348,39 @@ impl Lu {
             scale_rows(rhs.as_mut(), before);
         }
         let (factors, permutation) = (view(&self.factors), self.permutation.as_ref());
-        if adjoint {
-            lu_solve::solve_transpose_in_place_with_conj(
-                factors,
-                factors,
-                permutation,
-                Conj::Yes,
-                rhs.as_mut(),
-                par,
-                MemStack::new(&mut MemBuffer::new(
-                    lu_solve::solve_transpose_in_place_scratch::<usize, Complex>(n, columns, par),
-                )),
-            );
-        } else {
-            lu_solve::solve_in_place(
-                factors,
-                factors,
-                permutation,
-                rhs.as_mut(),
-                par,
-                MemStack::new(&mut MemBuffer::new(lu_solve::solve_in_place_scratch::<
-                    usize,
-                    Complex,
-                >(n, columns, par))),
-            );
-        }
+        crate::threads::dense(lu_workers(n, columns), |par| -> Result<()> {
+            if adjoint {
+                lu_solve::solve_transpose_in_place_with_conj(
+                    factors,
+                    factors,
+                    permutation,
+                    Conj::Yes,
+                    rhs.as_mut(),
+                    par,
+                    MemStack::new(&mut scratch(lu_solve::solve_transpose_in_place_scratch::<
+                        usize,
+                        Complex,
+                    >(n, columns, par))?),
+                );
+            } else {
+                lu_solve::solve_in_place(
+                    factors,
+                    factors,
+                    permutation,
+                    rhs.as_mut(),
+                    par,
+                    MemStack::new(&mut scratch(lu_solve::solve_in_place_scratch::<
+                        usize,
+                        Complex,
+                    >(n, columns, par))?),
+                );
+            }
+            Ok(())
+        })?;
         if let Some((_, after)) = scales {
             scale_rows(rhs, after);
         }
+        Ok(())
     }
 }
 
@@ -383,18 +411,99 @@ pub fn solve_owned(operator: DMatrix<Complex>, mut rhs: DMatrix<Complex>) -> Res
         ));
     }
     let lu = Lu::new(operator)?;
-    lu.solve_in_place(view_mut(&mut rhs));
+    lu.solve_in_place(view_mut(&mut rhs))?;
     if rhs.iter().any(|&z| !finite(z)) {
         return Err(Error::Singular);
     }
     Ok(SolveResidual { lu, value: rhs })
 }
 
+/// Eigen- and singular-value decompositions run on the calling thread. faer's
+/// parallel Hessenberg and bidiagonal reductions split inner products by worker
+/// count, so their last bits, and the order of eigenvalues, would follow the
+/// budget. On four workers they gained at most 1.3× (eigenvalues) and 1.7×
+/// (singular values) at n = 768, and nothing below n = 384.
+const DECOMPOSITION: faer::Par = faer::Par::Seq;
+
+/// Thin singular vectors and values. faer's `Svd` reads faer's global parallelism,
+/// so the decomposition is called with [`DECOMPOSITION`] instead.
+#[derive(Debug)]
+struct ThinSvd {
+    u: Mat<Complex>,
+    s: Diag<Complex>,
+    v: Mat<Complex>,
+}
+
+/// Reserve decomposition vectors before initializing their entries.
+fn faer_zeros(rows: usize, columns: usize) -> Result<Mat<Complex>> {
+    let mut matrix = Mat::new();
+    matrix
+        .try_reserve(rows, columns)
+        .map_err(|_| Error::out_of_memory(rows.saturating_mul(columns), size_of::<Complex>()))?;
+    matrix.resize_with(rows, columns, |_, _| Complex::default());
+    Ok(matrix)
+}
+
+fn thin_svd(a: MatRef<'_, Complex>) -> Result<ThinSvd> {
+    let (m, n) = a.shape();
+    let size = m.min(n);
+    let mut factors = ThinSvd {
+        u: faer_zeros(m, size)?,
+        s: Diag::zeros(size),
+        v: faer_zeros(n, size)?,
+    };
+    let thin = svd::ComputeSvdVectors::Thin;
+    let par = DECOMPOSITION;
+    svd::svd(
+        a,
+        factors.s.as_mut(),
+        Some(factors.u.as_mut()),
+        Some(factors.v.as_mut()),
+        par,
+        MemStack::new(&mut scratch(svd::svd_scratch::<Complex>(
+            m,
+            n,
+            thin,
+            thin,
+            par,
+            Spec::default(),
+        ))?),
+        Spec::default(),
+    )
+    .map_err(|err| Error::NotConverged(format!("singular-value decomposition: {err:?}")))?;
+    Ok(factors)
+}
+
+/// Eigenvalues and right eigenvectors, called with an explicit `Par` as [`thin_svd`].
+fn eigen(a: MatRef<'_, Complex>) -> Result<(Diag<Complex>, Mat<Complex>)> {
+    let n = a.nrows();
+    let mut values = Diag::zeros(n);
+    let mut vectors = faer_zeros(n, n)?;
+    let par = DECOMPOSITION;
+    evd::evd_cplx(
+        a,
+        values.as_mut(),
+        None,
+        Some(vectors.as_mut()),
+        par,
+        MemStack::new(&mut scratch(evd::evd_scratch::<Complex>(
+            n,
+            evd::ComputeEigenvectors::No,
+            evd::ComputeEigenvectors::Yes,
+            par,
+            Spec::default(),
+        ))?),
+        Spec::default(),
+    )
+    .map_err(|err| Error::NotConverged(format!("eigendecomposition: {err:?}")))?;
+    Ok((values, vectors))
+}
+
 /// What [`svdvals`] saves for its pullback: the thin singular vectors and the singular
 /// values.
 #[derive(Debug)]
 pub struct SvdvalsResidual {
-    decomposition: Svd<Complex>,
+    decomposition: ThinSvd,
     values: Vec<f64>,
 }
 
@@ -407,10 +516,9 @@ pub fn svdvals(operator: &DMatrix<Complex>) -> Result<SvdvalsResidual> {
     }
     let scale = operator.iter().map(|z| z.norm()).fold(0.0, f64::max);
     let scale = if scale == 0.0 { 1.0 } else { scale };
-    let decomposition = Svd::new_thin(view(&operator.map(|z| z / scale)))
-        .map_err(|err| Error::NotConverged(format!("singular-value decomposition: {err:?}")))?;
+    let decomposition = thin_svd(view(&operator.map(|z| z / scale)))?;
     let values: Vec<_> = (0..operator.nrows().min(operator.ncols()))
-        .map(|i| decomposition.S()[i].re * scale)
+        .map(|i| decomposition.s.as_ref()[i].re * scale)
         .collect();
     if values.iter().any(|x| !x.is_finite()) {
         return Err(Error::NonFinite("non-finite singular values".into()));
@@ -453,12 +561,12 @@ impl SvdvalsResidual {
                 ));
             }
         }
-        let u = self.decomposition.U();
+        let u = self.decomposition.u.as_ref();
         let weighted =
             DMatrix::from_fn(u.nrows(), cotangent.len(), |i, j| u[(i, j)] * cotangent[j]);
         Ok(product_views(
             view(&weighted),
-            self.decomposition.V().adjoint(),
+            self.decomposition.v.as_ref().adjoint(),
         ))
     }
 }
@@ -491,7 +599,7 @@ impl SolveResidual {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&z| !finite(z)) {
             return Err(Error::InvalidInput("invalid linear-solve cotangent".into()));
         }
-        self.lu.solve_adjoint_in_place(view_mut(&mut cotangent));
+        self.lu.solve_adjoint_in_place(view_mut(&mut cotangent))?;
         Ok(cotangent)
     }
 
@@ -525,10 +633,9 @@ pub fn eig(operator: &DMatrix<Complex>) -> Result<EigResidual> {
     }
     let scale = operator.iter().map(|z| z.norm()).fold(0.0, f64::max);
     let scale = if scale == 0.0 { 1.0 } else { scale };
-    let decomposition = Eigen::new(view(&operator.map(|z| z / scale)))
-        .map_err(|err| Error::NotConverged(format!("eigendecomposition: {err:?}")))?;
-    let values: Vec<_> = (0..n).map(|i| decomposition.S()[i] * scale).collect();
-    let mut vectors = DMatrix::from_fn(n, n, |i, j| decomposition.U()[(i, j)]);
+    let (eigenvalues, eigenvectors) = eigen(view(&operator.map(|z| z / scale)))?;
+    let values: Vec<_> = (0..n).map(|i| eigenvalues.as_ref()[i] * scale).collect();
+    let mut vectors = DMatrix::from_fn(n, n, |i, j| eigenvectors[(i, j)]);
     let mut pivots = Vec::with_capacity(n);
     for mut column in vectors.column_iter_mut() {
         let pivot = (0..n)
@@ -637,7 +744,7 @@ impl EigResidual {
         }
         let mut result = product_adjoint_right(&g, &self.vectors);
         let lu = Lu::new(self.vectors)?;
-        lu.solve_adjoint_in_place(view_mut(&mut result));
+        lu.solve_adjoint_in_place(view_mut(&mut result))?;
         if result.iter().any(|&z| !finite(z)) {
             return Err(Error::Singular);
         }
@@ -645,15 +752,16 @@ impl EigResidual {
     }
 }
 
-/// LU scheduling, equilibration and the solve pullback.
+/// LU scheduling and workspaces, equilibration and the solve pullback.
 #[cfg(test)]
 mod tests {
+    use faer::dyn_stack::StackReq;
     use nalgebra::DMatrix;
     use proptest::{prelude::*, test_runner::TestCaseError};
 
-    use super::{SolveGradient, equilibrate, lu_threads, solve_owned};
+    use super::{SolveGradient, equilibrate, faer_zeros, lu_threads, scratch, solve_owned};
     use crate::{
-        Complex,
+        Complex, Error,
         test_support::{ALGEBRA_CASES, complex_matrix, prop_assert_close},
     };
 
@@ -670,8 +778,8 @@ mod tests {
         }
     }
 
-    /// The worker count stays within the pool, uses a pool of up to four threads whole,
-    /// and runs on one worker below 32 right-hand sides on larger pools.
+    /// The worker count stays within the pool, is one below 32 right-hand sides, and
+    /// otherwise uses a pool of up to four threads whole.
     fn check_lu_scheduling(
         rows: usize,
         columns: usize,
@@ -679,10 +787,10 @@ mod tests {
     ) -> Result<(), TestCaseError> {
         let threads = lu_threads(rows, columns, budget);
         prop_assert!((1..=budget).contains(&threads));
-        if budget <= 4 {
-            prop_assert_eq!(threads, budget);
-        } else if columns < 32 {
+        if columns < 32 {
             prop_assert_eq!(threads, 1);
+        } else if budget <= 4 {
+            prop_assert_eq!(threads, budget);
         }
         Ok(())
     }
@@ -848,6 +956,35 @@ mod tests {
         prop_assert_eq!(&scales.row, &swapped.column);
         prop_assert_eq!(&scales.column, &swapped.row);
         Ok(())
+    }
+
+    #[test]
+    fn refused_and_overflowing_workspaces_return_out_of_memory() {
+        let more = format!("cannot allocate more than {} bytes", usize::MAX);
+        let half = StackReq::new::<Complex>(1 << 59);
+        for overflow in [StackReq::new::<Complex>(usize::MAX), half.and(half)] {
+            assert!(
+                matches!(scratch(overflow), Err(Error::OutOfMemory(message)) if message == more),
+                "{overflow:?}"
+            );
+        }
+        // 2^52 bytes, beyond the user address space of every supported system.
+        assert!(matches!(
+            scratch(StackReq::new::<Complex>(1 << 48)),
+            Err(Error::OutOfMemory(message)) if message == "cannot allocate 4503599627370496 bytes"
+        ));
+        assert!(scratch(StackReq::new::<Complex>(4)).is_ok());
+        assert!(matches!(
+            faer_zeros(1 << 24, 1 << 24),
+            Err(Error::OutOfMemory(_))
+        ));
+        assert!(matches!(
+            faer_zeros(usize::MAX, 2),
+            Err(Error::OutOfMemory(_))
+        ));
+        let matrix = faer_zeros(3, 2).unwrap();
+        assert_eq!(matrix.shape(), (3, 2));
+        assert_eq!(matrix[(2, 1)], Complex::default());
     }
 
     #[test]

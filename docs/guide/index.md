@@ -61,6 +61,7 @@ the units, mode ordering and polarization in detail.
 | treams functions such as `sw.translate` | `special`, `sw`, `cw`, `pw`, `lattice`, `coeffs`, `misc`, `ebcm`, `operators` | [Numerical namespaces](numerical-namespaces.md) |
 | HDF5 T-matrix files | `io.save_hdf5`, `io.load_hdf5` (extra `[io]`) | [HDF5 and Gmsh](io.md) |
 | Gradients | `treams_rs.advect`, `.jax`, `.torch`; `diff` records | [Differentiation](../differentiation/index.md) |
+| Fewer threads, process pools, threadpoolctl | `set_num_threads`, `threads`, `thread_info` | [Threads and process pools](threads.md) |
 | The installed API from a program | `python -m treams_rs`, `support_catalog()` | [API discovery](api-discovery.md) |
 
 The [Python reference](../reference/python/index.md) lists every signature.

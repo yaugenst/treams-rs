@@ -47,10 +47,12 @@ python -m treams_rs
 
 ## Threads
 
-The Rust core runs in parallel with Rayon and uses every CPU by default. Set
-`RAYON_NUM_THREADS` before Python imports `treams_rs` to fix the count, for
-example `RAYON_NUM_THREADS=1` for timings on one core. Rayon reads the
-variable once, when it starts its threads.
+The Rust core runs in parallel on its own pool of threads and uses every CPU the
+process may use by default. `tr.set_num_threads(1)` or `with tr.threads(1):`
+fixes the count at any time, for example for timings on one core; before
+Python imports `treams_rs`, `TREAMS_RS_NUM_THREADS` sets the default. Results
+do not depend on the count. [Threads and process pools](../guide/threads.md)
+covers the other variables, `multiprocessing` and threadpoolctl.
 
 ## From a checkout
 

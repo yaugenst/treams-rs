@@ -53,7 +53,8 @@ np.testing.assert_allclose(cross_sections.extinction, 0.6258290233441384, rtol=1
 
 ## What it does not do
 
-- **No GPU.** All computations run on the CPU, in parallel threads.
+- **No GPU.** All computations run on the CPU, in parallel
+  [threads](guide/threads.md).
 - **First-order gradients only.** No forward mode and no second derivatives.
 - **No annotated arrays.** NumPy arithmetic on `.array` returns plain arrays;
   physical metadata lives on the objects. The treams `PhysicsArray` is

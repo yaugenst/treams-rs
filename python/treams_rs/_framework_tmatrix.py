@@ -67,6 +67,8 @@ class TMatrix:
         positions: Any = None,
         polarization: str = "helicity",
     ):
+        if polarization == "parity":
+            array = backend.require_achiral(array, medium)
         self.array, self.basis, self.k0, self.medium = array, basis, k0, medium
         self._backend, self.polarization = backend, polarization
         self.positions = backend.positions(basis, positions)
@@ -151,11 +153,10 @@ class TMatrix:
 
     def with_polarization(self, polarization: str) -> TMatrix:
         """Convert the response convention with a fixed analytic basis transform."""
-        change = self._backend.polarization_change(
-            self.basis, self.polarization, polarization
-        )
         return TMatrix(
-            change @ self.array @ change.T,
+            self._backend.change_polarization(
+                self.array, self.basis, self.polarization, polarization, (0, 1)
+            ),
             basis=self.basis,
             k0=self.k0,
             medium=self.medium,
@@ -243,8 +244,31 @@ class Cluster:
     def solve(self) -> TMatrix:
         """The T-matrix of the coupled particles, for any illumination."""
         b = self._backend
-        local = self._local()
-        result = b.apply(diff.interaction, tuple(local.shape), local, self._coupling())
+        bases = [particle.basis for particle in self.particles]
+        polarization = self.polarization
+
+        # The native cluster keeps the particle blocks separate and builds the
+        # coupling itself; neither the dense local matrix nor the coupling of
+        # _coupling() is formed. It also rejects particles at one position.
+        def record(positions: Any, ks: Any, *blocks: Any) -> Recorded:
+            value, context = diff.particle_cluster(
+                list(blocks), positions, ks, bases=bases, poltype=polarization
+            )
+
+            def pullback(g: Any) -> Any:
+                local, positions, ks = context.pullback(g)
+                return (positions, ks, *local)
+
+            return value, pullback
+
+        size = len(self.basis)
+        result = b.apply(
+            record,
+            (size, size),
+            self.positions,
+            b.ks(self.medium, self.k0),
+            *self._blocks(),
+        )
         return TMatrix(
             result,
             basis=self.basis,
@@ -261,14 +285,16 @@ class Cluster:
         wave = _regular_incident(self, incident)
 
         # The native factor keeps the particle blocks separate; no dense local
-        # matrix or full interacting response is formed.
-        def record(coupling: Any, incident: Any, *blocks: Any) -> Any:
+        # matrix or full interacting response is formed. The positions only
+        # pass through for the check that solve() gets from its native cluster.
+        def record(coupling: Any, incident: Any, positions: Any, *blocks: Any) -> Any:
+            _require_distinct_positions(positions)
             factor = diff.factor_interaction_blocks(list(blocks), coupling)
             value, context = factor.record(np.asarray(incident, dtype=np.complex128))
 
             def pullback(g: Any) -> Any:
                 local, coupling, incident = context.pullback_blocks(g)
-                return (coupling, incident, *local)
+                return (coupling, incident, np.zeros_like(positions), *local)
 
             return value, pullback
 
@@ -277,6 +303,7 @@ class Cluster:
             (len(self.basis), 1),
             self._coupling(),
             wave.coefficients[:, None],
+            self.positions,
             *self._blocks(),
         )[:, 0]
         return Wave(
@@ -289,6 +316,12 @@ class Cluster:
             singular=True,
             polarization=self.polarization,
         )
+
+
+def _require_distinct_positions(positions: Any) -> None:
+    """The native cluster's check: one position per particle."""
+    if len(np.unique(np.asarray(positions), axis=0)) != len(positions):
+        raise ValueError("particle modes must be grouped at distinct positions")
 
 
 class PeriodicResponse:
@@ -366,6 +399,15 @@ class PeriodicResponse:
         tm, b = self.response, self.response._backend
         spherical = isinstance(tm.basis, SphericalBasis)
         alignment = "xy" if spherical else "zx"
+        dimension = 2 if spherical else 1
+        if tuple(self.lattice.shape) != (dimension, dimension) or tuple(
+            self.kpar.shape
+        ) != (dimension,):
+            raise ValueError(
+                "plane ports require a (2, 2) xy lattice and a (2,) Bloch vector "
+                "for spheres, or a (1, 1) period and a (1,) Bloch vector for "
+                "cylinders"
+            )
         if (basis is None) == (orders is None):
             raise ValueError("provide a plane basis or integer diffraction orders")
         if orders is None:

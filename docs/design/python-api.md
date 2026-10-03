@@ -108,5 +108,5 @@ Every native ufunc follows one rule set, checked by
 [`test_ufunc_contract.py`](../../tests/bindings/test_ufunc_contract.py): a
 vectorized call equals the per-element calls bit for bit. Results do not depend on
 the memory layout of the operands (broadcast, reversed, strided, unaligned or
-Fortran-ordered), on masked or aliased outputs, or on which dtype loop serves a
-value-preserving cast. Invalid mode labels raise `ValueError` in every layout.
+Fortran-ordered), on masked or aliased outputs, on the number of threads, or on
+which dtype loop serves a value-preserving cast. Invalid mode labels raise `ValueError` in every layout.

@@ -12,6 +12,7 @@ and tests/test_suite_rules.py enforces the rule for everything collected.
 """
 
 import os
+import sys
 
 import pytest
 from hypothesis import settings
@@ -64,3 +65,30 @@ def category_markers():
 def uncategorized_tests(pytestconfig):
     """Node ids of collected tests that carry none of ``CATEGORIES``."""
     return pytestconfig.stash[_UNCATEGORIZED]
+
+
+_GLOBAL_POOL_UNUSED: list[bool] = []
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Fail the session if native code started Rayon's global pool.
+
+    Every parallel region must run on the treams-rs pool
+    (``treams_core::threads``): the global pool cannot be resized, and a child
+    forked after it started hangs. The probe starts that pool, so it runs once
+    per interpreter, and only when the extension was loaded.
+    """
+    native = sys.modules.get("treams_rs._native")
+    if native is None or not hasattr(native, "rayon_global_pool_unused"):
+        return
+    if not _GLOBAL_POOL_UNUSED:
+        _GLOBAL_POOL_UNUSED.append(native.rayon_global_pool_unused())
+    if not _GLOBAL_POOL_UNUSED[0]:
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
+        reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+        if reporter is not None:
+            reporter.write_line(
+                "FAILED: native code started Rayon's global pool; run parallel "
+                "work inside treams_core::threads::install",
+                red=True,
+            )

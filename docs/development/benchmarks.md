@@ -28,7 +28,7 @@ and exits with an error if any case failed.
   `just build-ext-release`. `just ci`, `just test-py` and `just docs` rebuild
   the development extension, so run `just build-ext-release` again after them.
 - **An idle host.** Run on a machine with nothing else running, with both
-  packages pinned to the same CPUs and given the same number of BLAS and Rayon
+  packages pinned to the same CPUs and given the same number of BLAS and treams-rs
   threads. Hosted CI shares its CPUs, so it never runs the benchmarks.
 
 ## Comparing two builds
@@ -42,6 +42,18 @@ on the same host:
   report it; on a shared machine, runs of one build vary by that much.
 - Report setup, data transfer and warm-up separately when they matter.
 - Do not generalize a crossover measured at one size to every problem size.
+
+`just bench-compare [ref]` does this for changes to the Python sources:
+[`scripts/compare_builds.py`](../../scripts/compare_builds.py) runs the
+Python package of `ref` (default `main`) and of the working tree on the same
+release extension, alternating the two trees process by process. It first
+requires every call to agree to `rtol=1e-12`, then fails a call whose median
+paired ratio exceeds 1.05, or 1.10 below one millisecond. The calls cover the
+NumPy API and the Advect, JAX and PyTorch namespaces at small and large sizes;
+`--match` selects some, `--list` names them all, and `--memory` adds a
+peak-memory comparison. A change to the native sources needs two built trees
+instead: `--baseline <dir>` names the directory that holds the other build's
+`treams_rs` package.
 
 ## Evidence
 

@@ -124,6 +124,8 @@ class Wave(_Fields):
         singular: bool = False,
         polarization: str = "helicity",
     ):
+        if polarization == "parity":
+            coefficients = backend.require_achiral(coefficients, medium)
         self.coefficients, self.basis, self.k0 = coefficients, basis, k0
         self.medium, self._backend, self.singular = medium, backend, singular
         self.polarization = polarization
@@ -204,11 +206,10 @@ class Wave(_Fields):
 
     def with_polarization(self, polarization: str) -> Wave:
         """Change the static multipole polarization convention."""
-        change = self._backend.polarization_change(
-            self.basis, self.polarization, polarization
-        )
         return Wave(
-            change @ self.coefficients,
+            self._backend.change_polarization(
+                self.coefficients, self.basis, self.polarization, polarization, (0,)
+            ),
             basis=self.basis,
             k0=self.k0,
             medium=self.medium,
@@ -446,11 +447,10 @@ class PortWave(HasPorts, _Fields):
 
     def with_polarization(self, polarization: str) -> PortWave:
         """Change the polarization convention with a fixed basis matrix."""
-        change = self._backend.port_change(
-            self.ports.modes, self.polarization, polarization
-        )
         wave = copy(self)
-        wave.coefficients = change @ self.coefficients
+        wave.coefficients = self._backend.change_port_polarization(
+            self.coefficients, self.ports.modes, self.polarization, polarization, (0,)
+        )
         wave.polarization = polarization
         return wave
 

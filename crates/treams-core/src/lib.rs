@@ -21,7 +21,7 @@
 //!
 //! | Layer | Modules | Contents |
 //! |---|---|---|
-//! | L0 | `numerics`, [`linalg`], [`fpenv`] | Numerical support |
+//! | L0 | `numerics`, [`linalg`], [`fpenv`], [`threads`] | Numerical support |
 //! | L1 | [`special`] | Special functions |
 //! | L2 | [`lattice`] | Lattice sums and lattice geometry |
 //! | L3 | [`basis`], [`sw`], [`cw`], [`pw`], [`rotation`], [`channels`], [`vectorwaves`], [`fields`] | Wave families |
@@ -125,23 +125,34 @@
 //! Every fallible function returns [`Result`], whose [`Error`] says why it failed:
 //! [`InvalidInput`](Error::InvalidInput) for input outside the domain,
 //! [`SpecialFunction`](Error::SpecialFunction), [`NonFinite`](Error::NonFinite) and
-//! [`NotConverged`](Error::NotConverged) for numerical failures, and
-//! [`Singular`](Error::Singular) for a singular linear system. The bindings raise every
-//! variant as Python `ValueError` with the displayed message. treams returns NaN or
-//! emits `NumPy` warnings in these cases.
+//! [`NotConverged`](Error::NotConverged) for numerical failures,
+//! [`Singular`](Error::Singular) for a singular linear system, and
+//! [`OutOfMemory`](Error::OutOfMemory) when the system refuses the memory of a large
+//! output or workspace. The bindings raise `OutOfMemory` as Python `MemoryError` and
+//! every other variant as `ValueError`, with the displayed message. treams returns NaN
+//! or emits `NumPy` warnings in the numerical cases.
+//!
+//! Dense coupling, T-matrix, expansion and field outputs, decomposition vectors,
+//! and LU, SVD and eigenvalue workspaces are reserved fallibly, through
+//! `numerics::zeros`, `numerics::filled`, `numerics::reserve` and the LU workspace of
+//! [`linalg`], so a refused request returns `OutOfMemory` instead of aborting the
+//! process. This is not a process-wide guarantee: input copies, matrix products,
+//! gradient buffers and other allocations can still abort when refused.
 //!
 //! ## Parallelism and reproducibility
 //!
-//! Rayon runs independent items in parallel once their number reaches a threshold;
-//! [`numerics::parallel`](numerics/parallel/index.html) lists every threshold. The
-//! elementwise evaluations and the helpers there keep every output in index order, so
-//! the thread count never changes their results. Some pullbacks add partial sums along
-//! Rayon's adaptive work splits instead, and the last bits of their gradients can
-//! change with the thread count and from run to run. The docs of these residuals, and
-//! of `numerics::broadcast` for the elementwise ones, say which case holds:
+//! Rayon runs independent items in parallel, on the pool of [`threads`], once their
+//! number reaches a threshold; [`numerics::parallel`](numerics/parallel/index.html)
+//! lists every threshold. The elementwise evaluations and the helpers there keep every
+//! output in index order. A pullback that adds over items splits them into chunks
+//! fixed by the item count, or into blocks fixed by the shape, and adds the partial
+//! sums in order, so the thread count sets how many workers run the chunks but never
+//! the order of the additions. The docs of these residuals, and of
+//! `numerics::broadcast` for the elementwise ones, say how they add; the thread count
+//! changes the result of none of them:
 //!
-//! - Independent of the thread count: the elementwise residuals of [`special`] and
-//!   [`lattice::SumResidual`], [`sw::PolarTranslationResidual`],
+//! - Outputs in index order, or sums in a fixed order: the elementwise residuals of
+//!   [`special`] and [`lattice::SumResidual`], [`sw::PolarTranslationResidual`],
 //!   [`sw::ExpansionResidual`], [`sw::LatticeExpansionFromTableResidual`],
 //!   [`cw::PolarTranslationResidual`], [`cw::ExpansionResidual`],
 //!   [`cw::LatticeExpansionResidual`], [`rotation::RotationResidual`],
@@ -151,14 +162,16 @@
 //!   [`tmatrix::SphereResidual`], [`tmatrix::CylinderResidual`],
 //!   [`tmatrix::MetricResidual`], [`cluster::InteractionResidual`],
 //!   [`cluster::IlluminateResidual`] and [`cluster::SphereClusterResidual`].
-//! - Last bits depend on the work splits: [`sw::LatticeExpansionResidual`],
-//!   [`sw::PeriodicToCwResidual`], [`cw::ToSwResidual`], [`pw::ExpansionResidual`],
-//!   [`pw::FieldResidual`] (from 4096 entries on), [`channels::SphericalChannelsResidual`],
-//!   [`channels::CylindricalChannelsResidual`], [`fields::FieldResidual`],
-//!   [`fields::OperatorResidual`], [`cluster::IterativeResidual`] (positions and `k0`)
-//!   and [`smatrix::LayerStackResidual`].
+//! - Partial sums over fixed chunks or blocks, added in order:
+//!   [`sw::LatticeExpansionResidual`], [`sw::PeriodicToCwResidual`],
+//!   [`cw::ToSwResidual`], [`pw::ExpansionResidual`], [`pw::FieldResidual`],
+//!   [`channels::SphericalChannelsResidual`], [`channels::CylindricalChannelsResidual`],
+//!   [`fields::FieldResidual`], [`fields::OperatorResidual`],
+//!   [`cluster::IterativeResidual`] and [`smatrix::LayerStackResidual`].
 //!
-//! With one thread (`RAYON_NUM_THREADS=1`) every result repeats bit for bit.
+//! These residuals give the same bits at every thread budget. With a budget of one
+//! thread ([`threads::set_num_threads`] or `TREAMS_RS_NUM_THREADS=1`), every result
+//! repeats bit for bit.
 //!
 //! ## Floating-point environment
 //!
@@ -250,6 +263,7 @@
 //! | [`linalg`] | `treams_rs.diff.solve`, `svdvals`, `eig` | - | Dense LU, SVD and eigensystems with pullbacks, and restarted GMRES |
 //! | `numerics` | - | - | Forward-mode jets, broadcasting and parallel thresholds |
 //! | [`fpenv`] | - | - | A guard that keeps subnormal numbers when the caller flushes them to zero |
+//! | [`threads`] | `treams_rs.set_num_threads`, `threads`, `thread_info` | - | The thread budget and the fork-safe pool that runs every parallel region |
 //! <!-- crosswalk:end -->
 
 // The crosswalk table ends the crate docs: its header names treams_rs without backticks,
@@ -262,6 +276,7 @@
 pub mod fpenv;
 pub mod linalg;
 pub(crate) mod numerics;
+pub mod threads;
 
 // L1: special functions (treams.special).
 pub mod special;
@@ -311,9 +326,10 @@ pub type Complex = num_complex::Complex64;
 /// run once per element, and a literal message keeps formatting code out of them.
 pub const MAX_DEGREE: i32 = 128;
 
-/// A numerical failure or invalid physical input.
+/// A numerical failure, invalid physical input or refused memory.
 ///
-/// The Python bindings raise every variant as `ValueError` with the displayed message.
+/// The Python bindings raise [`OutOfMemory`](Self::OutOfMemory) as `MemoryError` and
+/// every other variant as `ValueError`, each with the displayed message.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// The operation does not accept the input, for example a negative degree or a
@@ -335,11 +351,27 @@ pub enum Error {
     /// singular at the supplied parameters.
     #[error("singular linear system")]
     Singular,
+    /// The system refused memory for an output or workspace. The bindings raise it as
+    /// `MemoryError`.
+    #[error("{0}")]
+    OutOfMemory(String),
 }
 
 impl Error {
+    /// [`OutOfMemory`](Self::OutOfMemory) for `count` elements of `element_bytes` bytes
+    /// each: "cannot allocate 4096 bytes", or "cannot allocate more than
+    /// 18446744073709551615 bytes" (`usize::MAX` on 64-bit targets) when the product
+    /// overflows.
+    #[must_use]
+    pub fn out_of_memory(count: usize, element_bytes: usize) -> Self {
+        Self::OutOfMemory(count.checked_mul(element_bytes).map_or_else(
+            || format!("cannot allocate more than {} bytes", usize::MAX),
+            |bytes| format!("cannot allocate {bytes} bytes"),
+        ))
+    }
+
     /// Whether the evaluation failed numerically ([`SpecialFunction`], [`NonFinite`] or
-    /// [`NotConverged`]) rather than on its input or a singular system.
+    /// [`NotConverged`]) rather than on its input, a singular system or memory.
     ///
     /// Another method may succeed where one fails numerically: the one-dimensional
     /// spherical lattice sums then fall back to their spectral series.

@@ -1,6 +1,6 @@
 //! Hooks for tests and scripts: `build_profile`, `_run_flushing_for_tests`, which
-//! calls Python while this thread flushes subnormals, and the `*_jet` hooks, which
-//! return values with their derivatives.
+//! calls Python while this thread flushes subnormals, `rayon_global_pool_unused`, and
+//! the `*_jet` hooks, which return values with their derivatives.
 use pyo3::prelude::*;
 use treams_core::{
     Complex,
@@ -20,6 +20,19 @@ pub(crate) fn build_profile() -> &'static str {
         } else {
             "release"
         }
+    })
+}
+
+/// Test support only: whether Rayon's global pool was never started in this
+/// process. Every parallel region runs on the treams-rs pool instead. The probe
+/// starts the global pool with one thread, so later calls return `False`.
+#[pyfunction]
+pub(crate) fn rayon_global_pool_unused() -> bool {
+    ieee(|| {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(1)
+            .build_global()
+            .is_ok()
     })
 }
 

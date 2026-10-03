@@ -18,6 +18,7 @@ from pathlib import Path
 
 # Every native, BLAS and OpenMP pool that a benchmark script or collector may start.
 THREAD_VARIABLES = (
+    "TREAMS_RS_NUM_THREADS",
     "RAYON_NUM_THREADS",
     "OMP_NUM_THREADS",
     "OPENBLAS_NUM_THREADS",

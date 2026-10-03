@@ -310,7 +310,8 @@ class Constructors(_BoundToBackend):
             basis=basis,
             materials=(negative_medium, material, positive_medium),
             thickness=thickness,
-        ).with_polarization(polarization)
+            polarization=polarization,
+        )
 
     def interface(
         self,
@@ -327,7 +328,8 @@ class Constructors(_BoundToBackend):
             basis=basis,
             materials=(negative_medium, positive_medium),
             thickness=[],
-        ).with_polarization(polarization)
+            polarization=polarization,
+        )
 
     def multilayer_slab(
         self,
@@ -346,7 +348,8 @@ class Constructors(_BoundToBackend):
             basis=basis,
             materials=(negative_medium, *materials, positive_medium),
             thickness=thicknesses,
-        ).with_polarization(polarization)
+            polarization=polarization,
+        )
 
     def propagation(
         self,
@@ -391,8 +394,12 @@ class Constructors(_BoundToBackend):
         basis: PlaneWavePorts,
         materials: Sequence[Any],
         thickness: Any,
+        polarization: str,
     ) -> SMatrix:
-        """Layer sequence below-to-above, with one thickness per interior medium."""
+        """Layer sequence below-to-above, with one thickness per interior medium.
+
+        Parity ports need every layer achiral, not only the two exteriors.
+        """
         b = self.backend
         media = tuple(as_material(m) for m in materials)
         ports = PortSet.from_basis(basis, b)
@@ -419,9 +426,11 @@ class Constructors(_BoundToBackend):
         array = compact[rows, outgoing, incoming, pol[:, None], pol[None, :]] * b.array(
             (rows == columns).astype(float)
         )
+        if polarization == "parity":
+            array = b.require_achiral(array, *media[1:-1])
         return SMatrix(
             array, ports=ports, k0=k0, media=(media[-1], media[0]), backend=b
-        )
+        ).with_polarization(polarization)
 
 
 class Operations(_BoundToBackend):

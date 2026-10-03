@@ -9,7 +9,7 @@ use super::{Basis, CartesianTranslation, cartesian_translation, transverse_waven
 use crate::{
     Complex, Error, Result,
     basis::validate_wavenumbers,
-    numerics::{broadcast, finite, parallel::Parallel},
+    numerics::{self, broadcast, finite, parallel::Parallel},
     special::Radial,
 };
 use nalgebra::DMatrix;
@@ -123,12 +123,17 @@ impl Couplings {
     }
 
     /// The matrix whose coupled entries take their request's value.
-    fn matrix(&self, destination: &Basis, source: &Basis, values: &[Complex]) -> DMatrix<Complex> {
-        let mut matrix = DMatrix::zeros(destination.modes.len(), source.modes.len());
+    fn matrix(
+        &self,
+        destination: &Basis,
+        source: &Basis,
+        values: &[Complex],
+    ) -> Result<DMatrix<Complex>> {
+        let mut matrix = numerics::zeros(destination.modes.len(), source.modes.len())?;
         self.for_each(destination, source, |i, j, request| {
             matrix[(i, j)] = values[request];
         });
-        matrix
+        Ok(matrix)
     }
 
     /// The cotangents of each request, summed over its entries by source polarization.
@@ -203,7 +208,7 @@ pub fn expansion(
     })?;
     let value = residual
         .couplings
-        .matrix(&residual.destination, &residual.source, &values);
+        .matrix(&residual.destination, &residual.source, &values)?;
     Ok((value, residual))
 }
 
@@ -318,24 +323,26 @@ pub fn lattice_expansion(
         eta,
         couplings,
     };
-    let values = residual
-        .couplings
-        .requests
-        .par_iter()
-        .map(|&(key, _)| {
-            let (_, krho, r, phase) = residual.geometry(key);
-            Ok(crate::lattice::sum(
-                crate::lattice::Family::Cylindrical { m: key.order },
-                krho,
-                &residual.lattice,
-                [r[0], r[1], 0.0],
-                residual.eta,
-            )? * phase)
-        })
-        .collect::<Result<Vec<_>>>()?;
+    let values = crate::threads::install(|| {
+        residual
+            .couplings
+            .requests
+            .par_iter()
+            .map(|&(key, _)| {
+                let (_, krho, r, phase) = residual.geometry(key);
+                Ok(crate::lattice::sum(
+                    crate::lattice::Family::Cylindrical { m: key.order },
+                    krho,
+                    &residual.lattice,
+                    [r[0], r[1], 0.0],
+                    residual.eta,
+                )? * phase)
+            })
+            .collect::<Result<Vec<_>>>()
+    })?;
     let value = residual
         .couplings
-        .matrix(&residual.destination, &residual.source, &values);
+        .matrix(&residual.destination, &residual.source, &values)?;
     Ok((value, residual))
 }
 
@@ -404,42 +411,46 @@ impl LatticeExpansionResidual {
         let g = self
             .couplings
             .gather(&self.destination, &self.source, cotangent);
-        let gradients = self
-            .couplings
-            .requests
-            .par_iter()
-            .zip(g)
-            .map(|(&(key, _), g)| {
-                let kz = f64::from_bits(key.kz);
-                let (k, krho, r, phase) = self.geometry(key);
-                let jet = crate::lattice::derivatives(
-                    crate::lattice::Family::Cylindrical { m: key.order },
-                    krho,
-                    &self.lattice,
-                    [r[0], r[1], 0.0],
-                    self.eta,
-                )?;
-                // Equal wavenumbers share the Ewald jet, but keep independent k cotangents.
-                let total: Complex = g.iter().sum();
-                let scalar_g = total * phase.conj();
-                let spectral = g.map(|g| (jet.k * k / krho).conj() * g * phase.conj());
-                let mut gradient = crate::lattice::SumGradient {
-                    k: Complex::default(),
-                    eta: Complex::default(),
-                    shift: jet.shift.map(|d| (scalar_g.conj() * d).re),
-                    kpar: jet.kpar.map(|d| (scalar_g.conj() * d).re),
-                    vectors: jet.vectors.map(|row| row.map(|d| (scalar_g.conj() * d).re)),
-                };
-                gradient.shift[2] = (total.conj() * (-Complex::i() * kz) * phase * jet.value).re;
-                let axial = if AXIAL {
-                    (total.conj() * phase * (-jet.k * kz / krho - Complex::i() * r[2] * jet.value))
-                        .re
-                } else {
-                    0.0
-                };
-                Ok((spectral, gradient, axial))
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let gradients = crate::threads::install(|| {
+            self.couplings
+                .requests
+                .par_iter()
+                .zip(g)
+                .map(|(&(key, _), g)| {
+                    let kz = f64::from_bits(key.kz);
+                    let (k, krho, r, phase) = self.geometry(key);
+                    let jet = crate::lattice::derivatives(
+                        crate::lattice::Family::Cylindrical { m: key.order },
+                        krho,
+                        &self.lattice,
+                        [r[0], r[1], 0.0],
+                        self.eta,
+                    )?;
+                    // Equal wavenumbers share the Ewald jet, but keep independent k cotangents.
+                    let total: Complex = g.iter().sum();
+                    let scalar_g = total * phase.conj();
+                    let spectral = g.map(|g| (jet.k * k / krho).conj() * g * phase.conj());
+                    let mut gradient = crate::lattice::SumGradient {
+                        k: Complex::default(),
+                        eta: Complex::default(),
+                        shift: jet.shift.map(|d| (scalar_g.conj() * d).re),
+                        kpar: jet.kpar.map(|d| (scalar_g.conj() * d).re),
+                        vectors: jet.vectors.map(|row| row.map(|d| (scalar_g.conj() * d).re)),
+                    };
+                    gradient.shift[2] =
+                        (total.conj() * (-Complex::i() * kz) * phase * jet.value).re;
+                    let axial = if AXIAL {
+                        (total.conj()
+                            * phase
+                            * (-jet.k * kz / krho - Complex::i() * r[2] * jet.value))
+                            .re
+                    } else {
+                        0.0
+                    };
+                    Ok((spectral, gradient, axial))
+                })
+                .collect::<Result<Vec<_>>>()
+        })?;
         let mut result = crate::basis::LatticeExpansionGradient::zeros(
             self.destination.positions.len(),
             self.source.positions.len(),

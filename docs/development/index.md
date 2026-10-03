@@ -42,7 +42,7 @@ halves:
 | Recipe | Checks | Hosted CI |
 |---|---|---|
 | `just ci-rust` | rustfmt, Clippy, the `treams-core` tests and rustdoc, with warnings as errors | once |
-| `just ci-python` | file hygiene, lock files, Ruff format and lint, strict Pyrefly, and the Python tests against a fresh development extension | on Python 3.12 and 3.13, with `HYPOTHESIS_PROFILE=ci` |
+| `just ci-python` | file hygiene, lock files, Ruff format and lint, strict Pyrefly, and the Python tests against a fresh development extension | on Python 3.12 with `TREAMS_RS_NUM_THREADS=1` and on Python 3.13 with every CPU, with `HYPOTHESIS_PROFILE=ci` |
 | `just check-wheel` | builds an optimized wheel and checks it in a clean environment ([clean wheel](#clean-wheel)); not part of `just ci` | after `just ci-python`, on Python 3.12 and 3.13 |
 
 The Python tests include the check that the generated reference pages and
@@ -57,7 +57,7 @@ holds the exact commands.
 
 | Workflow | Runs on | Runs |
 |---|---|---|
-| [CI](../../.github/workflows/ci.yml) | every pull request and push to `main` | `just ci-rust`; `just ci-python` and `just check-wheel` on Python 3.12 and 3.13 |
+| [CI](../../.github/workflows/ci.yml) | every pull request and push to `main` | `just ci-rust`; `just ci-python` and `just check-wheel` on Python 3.12 (one thread) and 3.13 |
 | [Docs](../../.github/workflows/docs.yml) | every pull request and push to `main`, and by hand | `just docs-build` and `just docs-rust`; publishes the site from `main` once [publishing is turned on](releasing.md#documentation-site) |
 | [Formal](../../.github/workflows/formal.yml) | pull requests and pushes that change `formal/`, a Rust file with a Lean model, the `justfile` or the workflow | `just formal` |
 

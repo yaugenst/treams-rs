@@ -59,6 +59,8 @@ class SMatrix(HasPorts):
         backend: Backend,
         polarization: str = "helicity",
     ):
+        if polarization == "parity":
+            array = backend.require_achiral(array, *media)
         self.array, self.ports, self.k0 = array, ports, k0
         self.media, self._backend = media, backend
         self.polarization = polarization
@@ -68,11 +70,10 @@ class SMatrix(HasPorts):
         if polarization == self.polarization:
             return self
 
-        change = self._backend.port_change(
-            self.ports.modes, self.polarization, polarization
-        )
         return SMatrix(
-            change @ self.array @ change.T,
+            self._backend.change_port_polarization(
+                self.array, self.ports.modes, self.polarization, polarization, (2, 3)
+            ),
             ports=self.ports,
             k0=self.k0,
             media=self.media,
@@ -149,11 +150,8 @@ class SMatrix(HasPorts):
             b.medium_key(incident.medium, incident.k0),
         )
         if incident.polarization != self.polarization:
-            value = (
-                b.port_change(
-                    self.ports.modes, incident.polarization, self.polarization
-                )
-                @ value
+            value = b.change_port_polarization(
+                value, self.ports.modes, incident.polarization, self.polarization, (0,)
             )
         return value
 

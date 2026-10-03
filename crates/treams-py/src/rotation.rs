@@ -27,8 +27,11 @@ impl RotationContext {
 fn finish_rotation(
     py: Python<'_>,
     residual: treams_core::rotation::RotationResidual,
-) -> (C2<'_>, RotationContext) {
-    (matrix(py, residual.value()), RotationContext::new(residual))
+) -> PyResult<(C2<'_>, RotationContext)> {
+    Ok((
+        matrix(py, residual.value())?,
+        RotationContext::new(residual),
+    ))
 }
 
 /// Record the rotation matrix of a spherical basis: `rotation::sw_rotation`.
@@ -47,7 +50,7 @@ pub(crate) fn rotation(
         let residual = detached(py, move || {
             treams_core::rotation::sw_rotation(&destination, &source, angles)
         })?;
-        Ok(finish_rotation(py, residual))
+        finish_rotation(py, residual)
     })
 }
 
@@ -67,6 +70,6 @@ pub(crate) fn cylindrical_rotation(
         let residual = detached(py, move || {
             treams_core::rotation::cw_rotation(&destination, &source, angles)
         })?;
-        Ok(finish_rotation(py, residual))
+        finish_rotation(py, residual)
     })
 }

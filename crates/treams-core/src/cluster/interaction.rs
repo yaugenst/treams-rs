@@ -17,7 +17,7 @@ use crate::{
         Lu, product, product_adjoint_right, product_adjoint_right_into, product_into,
         product_views, view, view_mut,
     },
-    numerics::finite,
+    numerics::{self, finite},
 };
 
 /// Block-diagonal local T-matrix; a dense local matrix is a single block.
@@ -58,11 +58,8 @@ impl LocalMatrix {
     }
 
     /// The dense matrix, with zeros off the diagonal blocks.
-    fn to_dense(&self) -> DMatrix<Complex> {
-        if let [block] = self.blocks.as_slice() {
-            return block.clone();
-        }
-        let mut result = DMatrix::zeros(self.dimension(), self.dimension());
+    fn to_dense(&self) -> Result<DMatrix<Complex>> {
+        let mut result = numerics::zeros(self.dimension(), self.dimension())?;
         let mut offset = 0;
         for block in &self.blocks {
             result
@@ -70,14 +67,18 @@ impl LocalMatrix {
                 .copy_from(block);
             offset += block.nrows();
         }
-        result
+        Ok(result)
     }
 
     /// `T right`, or `Tᴴ right` if `adjoint`.
-    pub(crate) fn apply(&self, right: &DMatrix<Complex>, adjoint: bool) -> DMatrix<Complex> {
-        let mut result = DMatrix::zeros(self.dimension(), right.ncols());
+    pub(crate) fn apply(
+        &self,
+        right: &DMatrix<Complex>,
+        adjoint: bool,
+    ) -> Result<DMatrix<Complex>> {
+        let mut result = numerics::zeros(self.dimension(), right.ncols())?;
         self.apply_into(&mut result, right, adjoint);
-        result
+        Ok(result)
     }
 
     fn apply_into(&self, result: &mut DMatrix<Complex>, right: &DMatrix<Complex>, adjoint: bool) {
@@ -126,7 +127,7 @@ fn operator(local: &LocalMatrix, coupling: &DMatrix<Complex>) -> Result<DMatrix<
             "invalid cluster coupling matrix".into(),
         ));
     }
-    let mut operator = -local.apply(coupling, false);
+    let mut operator = -local.apply(coupling, false)?;
     operator.set_diagonal(&(operator.diagonal().add_scalar(Complex::new(1.0, 0.0))));
     Ok(operator)
 }
@@ -176,7 +177,7 @@ impl InteractionFactor {
     /// Solve `(I - T C) scattered = T incident` for only the supplied columns.
     pub fn solve(&self, incident: &DMatrix<Complex>) -> Result<DMatrix<Complex>> {
         self.validate(incident)?;
-        self.solve_system(self.local.apply(incident, false))
+        self.solve_system(self.local.apply(incident, false)?)
     }
 
     /// Solve like [`solve`](Self::solve) and keep what the pullback needs. The
@@ -192,7 +193,7 @@ impl InteractionFactor {
 
     /// `(I - T C)⁻¹ rhs`; a non-finite solution means a numerically singular operator.
     fn solve_system(&self, mut rhs: DMatrix<Complex>) -> Result<DMatrix<Complex>> {
-        self.lu.solve_in_place(view_mut(&mut rhs));
+        self.lu.solve_in_place(view_mut(&mut rhs))?;
         if rhs.iter().any(|z| !finite(*z)) {
             return Err(Error::Singular);
         }
@@ -248,7 +249,7 @@ fn solve_interacting(
     coupling: DMatrix<Complex>,
 ) -> Result<InteractionResidual> {
     let factor = InteractionFactor::factorize(local, coupling)?;
-    let value = factor.solve_system(factor.local.to_dense())?;
+    let value = factor.solve_system(factor.local.to_dense()?)?;
     Ok(InteractionResidual { factor, value })
 }
 
@@ -323,7 +324,7 @@ impl InteractionResidual {
         let mut response = product(&adjoint, &value);
         response.set_diagonal(&(response.diagonal().add_scalar(Complex::new(1.0, 0.0))));
         adjoint.copy_from(cotangent);
-        lu.solve_adjoint_in_place(view_mut(&mut adjoint));
+        lu.solve_adjoint_in_place(view_mut(&mut adjoint))?;
         drop(lu);
         let local_gradient = local_gradient(&local, &adjoint, &response);
         // Both remaining square buffers can be reused: response becomes T^H Y,
@@ -388,8 +389,8 @@ impl IlluminateResidual {
         }
         let factor = &*self.factor;
         let mut adjoint = cotangent.clone();
-        factor.lu.solve_adjoint_in_place(view_mut(&mut adjoint));
-        let incident = factor.local.apply(&adjoint, true);
+        factor.lu.solve_adjoint_in_place(view_mut(&mut adjoint))?;
+        let incident = factor.local.apply(&adjoint, true)?;
         let response = &self.incident + product(&factor.coupling, &self.value);
         let local = factor.local.block_gradients(&adjoint, &response);
         let coupling = product_adjoint_right(&incident, &self.value);

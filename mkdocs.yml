@@ -28,6 +28,7 @@ nav:
       - guide/planar.md
       - guide/numerical-namespaces.md
       - guide/io.md
+      - guide/threads.md
       - guide/api-discovery.md
   - Examples:
       - examples/index.md
@@ -59,6 +60,7 @@ nav:
       - design/adapters.md
       - design/floating-point.md
       - design/numerics.md
+      - design/parallelism.md
       - design/formal-proofs.md
   - Validation:
       - validation/index.md
@@ -86,6 +88,7 @@ nav:
           - reference/python/io.md
           - reference/python/operators.md
           - reference/python/iterative.md
+          - reference/python/parallel.md
           - reference/python/diff.md
           - reference/python/testing.md
           - reference/python/advect.md

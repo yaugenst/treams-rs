@@ -9,7 +9,12 @@ use nalgebra::DMatrix;
 use rayon::prelude::*;
 
 use super::{AddGradient, AddResidual, Blocks, InterfaceGradient, InterfaceResidual};
-use crate::{Complex, Error, Result, linalg::product, numerics::finite, pw::wave_vector_z};
+use crate::{
+    Complex, Error, Result,
+    linalg::product,
+    numerics::{finite, parallel::try_fold_ordered},
+    pw::wave_vector_z,
+};
 
 /// One interior layer: propagation across it, then the interface above it.
 #[derive(Debug)]
@@ -35,9 +40,10 @@ struct Channel {
 /// What [`layer_stack`] saves for its pullback: the solves of every transverse
 /// wavevector, each on its own, without a dense matrix over all of them.
 ///
-/// The pullback adds the medium and thickness gradients of all wavevectors with Rayon's
-/// `try_fold` and `try_reduce`, so their last bits can change with the thread count and
-/// from run to run. Each `q` gradient belongs to one wavevector and does not.
+/// The pullback adds the medium and thickness gradients of all wavevectors in chunks of
+/// consecutive wavevectors fixed by their count, and the chunk sums in chunk order
+/// (`numerics::parallel::try_fold_ordered`), so the thread count does not change them.
+/// Each `q` gradient belongs to one wavevector, which writes it in place.
 #[derive(Debug)]
 pub struct LayerStackResidual {
     ks: Vec<[Complex; 2]>,
@@ -142,38 +148,39 @@ pub fn layer_stack(
     {
         return Err(Error::InvalidInput("layers require at least two media, matching impedances, nonempty transverse channels and nonnegative interior thicknesses".into()));
     }
-    let results: Vec<_> = q
-        .par_iter()
-        .map(|&q| -> Result<_> {
-            let mut steps = Vec::with_capacity(thickness.len());
-            let (mut value, initial) =
-                super::interface([ks[0], ks[1]], [zs[0], zs[1]], q, axis, fixed_q)?;
-            for (layer, &d) in thickness.iter().enumerate() {
-                let medium = layer + 1;
-                // Outgoing normal wavenumbers keep |phase| <= 1 for d >= 0.
-                let normal = ks[medium].map(|k| wave_vector_z(q[0].into(), q[1].into(), k));
-                let phase = normal.map(|kz| (Complex::i() * (kz * d)).exp());
-                let (spaced, below) = propagate(value, phase);
-                let (matching, interface) = super::interface(
-                    [ks[medium], ks[medium + 1]],
-                    [zs[medium], zs[medium + 1]],
-                    q,
-                    axis,
-                    fixed_q,
-                )?;
-                let boundary;
-                (value, boundary) = super::add(spaced, matching)?;
-                steps.push(Step {
-                    normal,
-                    phase,
-                    below,
-                    boundary,
-                    interface,
-                });
-            }
-            Ok((value, Channel { initial, steps }))
-        })
-        .collect::<Result<_>>()?;
+    let results: Vec<_> = crate::threads::install(|| {
+        q.par_iter()
+            .map(|&q| -> Result<_> {
+                let mut steps = Vec::with_capacity(thickness.len());
+                let (mut value, initial) =
+                    super::interface([ks[0], ks[1]], [zs[0], zs[1]], q, axis, fixed_q)?;
+                for (layer, &d) in thickness.iter().enumerate() {
+                    let medium = layer + 1;
+                    // Outgoing normal wavenumbers keep |phase| <= 1 for d >= 0.
+                    let normal = ks[medium].map(|k| wave_vector_z(q[0].into(), q[1].into(), k));
+                    let phase = normal.map(|kz| (Complex::i() * (kz * d)).exp());
+                    let (spaced, below) = propagate(value, phase);
+                    let (matching, interface) = super::interface(
+                        [ks[medium], ks[medium + 1]],
+                        [zs[medium], zs[medium + 1]],
+                        q,
+                        axis,
+                        fixed_q,
+                    )?;
+                    let boundary;
+                    (value, boundary) = super::add(spaced, matching)?;
+                    steps.push(Step {
+                        normal,
+                        phase,
+                        below,
+                        boundary,
+                        interface,
+                    });
+                }
+                Ok((value, Channel { initial, steps }))
+            })
+            .collect::<Result<_>>()
+    })?;
     let (values, channels) = results.into_iter().unzip();
     Ok((
         values,
@@ -210,8 +217,9 @@ impl LayerStackGradient {
         }
     }
 
-    /// Add the gradient of the interface between `medium` and the medium above it.
-    fn add_interface(&mut self, medium: usize, channel: usize, gradient: InterfaceGradient) {
+    /// Add the gradient of the interface between `medium` and the medium above it; its
+    /// transverse-wavevector part goes to `q`, the gradient of the channel's `q`.
+    fn add_interface(&mut self, medium: usize, q: &mut [f64; 2], gradient: InterfaceGradient) {
         let InterfaceGradient {
             ks: gk,
             z: gz,
@@ -223,7 +231,7 @@ impl LayerStackGradient {
             }
             self.zs[medium + side] += gz[side];
         }
-        for (target, g) in self.q[channel].iter_mut().zip(gq) {
+        for (target, g) in q.iter_mut().zip(gq) {
             *target += g;
         }
     }
@@ -248,59 +256,117 @@ impl LayerStackResidual {
                 "invalid compact layer-stack cotangent".into(),
             ));
         }
-        let fixed_q = self.fixed_q;
-        let zero = || LayerStackGradient {
-            ks: vec![[Complex::default(); 2]; self.ks.len()],
-            zs: vec![Complex::default(); self.ks.len()],
-            q: vec![[0.0; 2]; self.q.len()],
-            thickness: vec![0.0; self.ks.len() - 2],
-        };
-        self.channels
-            .into_par_iter()
+        let Self {
+            ks,
+            q,
+            thickness,
+            channels,
+            fixed_q,
+        } = self;
+        // Each channel writes its own `q` gradient in place; the partial sums carry only
+        // the medium and thickness gradients that all channels share.
+        let mut q_gradients = vec![[0.0; 2]; q.len()];
+        let items: Vec<_> = channels
+            .into_iter()
             .zip(cotangent)
-            .enumerate()
-            .try_fold(
-                zero,
-                |mut result, (i, (channel, mut cotangent))| -> Result<_> {
-                    let q = self.q[i];
-                    for (layer, step) in channel.steps.into_iter().enumerate().rev() {
-                        let medium = layer + 1;
-                        let AddGradient {
-                            lower: spaced_g,
-                            upper: interface_g,
-                        } = step.boundary.pullback(&cotangent)?;
-                        let interface_g = step.interface.pullback(&interface_g)?;
-                        result.add_interface(medium, i, interface_g);
-                        let (previous, phase_g) =
-                            propagate_pullback(spaced_g, &step.below, step.phase);
-                        let d = self.thickness[layer];
-                        for (pol, (&phase, &normal)) in
-                            step.phase.iter().zip(&step.normal).enumerate()
-                        {
-                            let phase_g = phase_g[pol];
-                            // phase = exp(i kz d): dphase = i phase (d dkz + kz dd).
-                            let slope = Complex::i() * phase;
-                            result.thickness[layer] += (phase_g.conj() * slope * normal).re;
-                            let normal_g = phase_g * (slope * d).conj();
-                            // kz = sqrt(k^2 - |q|^2): dkz = (k dk - q . dq) / kz.
-                            result.ks[medium][pol] +=
-                                normal_g * (self.ks[medium][pol] / normal).conj();
-                            if !fixed_q {
-                                for (target, &q) in result.q[i].iter_mut().zip(&q) {
-                                    *target -= (normal_g.conj() * q / normal).re;
-                                }
+            .zip(&mut q_gradients)
+            .collect();
+        let mut result = try_fold_ordered(
+            items,
+            true,
+            || LayerStackGradient {
+                ks: vec![[Complex::default(); 2]; ks.len()],
+                zs: vec![Complex::default(); ks.len()],
+                q: Vec::new(),
+                thickness: vec![0.0; ks.len() - 2],
+            },
+            |mut result, i, ((channel, mut cotangent), q_gradient)| -> Result<_> {
+                let wavevector = q[i];
+                for (layer, step) in channel.steps.into_iter().enumerate().rev() {
+                    let medium = layer + 1;
+                    let AddGradient {
+                        lower: spaced_g,
+                        upper: interface_g,
+                    } = step.boundary.pullback(&cotangent)?;
+                    let interface_g = step.interface.pullback(&interface_g)?;
+                    result.add_interface(medium, q_gradient, interface_g);
+                    let (previous, phase_g) = propagate_pullback(spaced_g, &step.below, step.phase);
+                    let d = thickness[layer];
+                    for (pol, (&phase, &normal)) in step.phase.iter().zip(&step.normal).enumerate()
+                    {
+                        let phase_g = phase_g[pol];
+                        // phase = exp(i kz d): dphase = i phase (d dkz + kz dd).
+                        let slope = Complex::i() * phase;
+                        result.thickness[layer] += (phase_g.conj() * slope * normal).re;
+                        let normal_g = phase_g * (slope * d).conj();
+                        // kz = sqrt(k^2 - |q|^2): dkz = (k dk - q . dq) / kz.
+                        result.ks[medium][pol] += normal_g * (ks[medium][pol] / normal).conj();
+                        if !fixed_q {
+                            for (target, &component) in q_gradient.iter_mut().zip(&wavevector) {
+                                *target -= (normal_g.conj() * component / normal).re;
                             }
                         }
-                        cotangent = previous;
                     }
-                    let initial_g = channel.initial.pullback(&cotangent)?;
-                    result.add_interface(0, i, initial_g);
-                    Ok(result)
-                },
-            )
-            .try_reduce(zero, |mut a, b| {
-                a.add(&b);
-                Ok(a)
+                    cotangent = previous;
+                }
+                let initial_g = channel.initial.pullback(&cotangent)?;
+                result.add_interface(0, q_gradient, initial_g);
+                Ok(result)
+            },
+            |mut total, partial| {
+                total.add(&partial);
+                total
+            },
+        )?;
+        result.q = q_gradients;
+        Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Blocks, layer_stack};
+    use crate::{
+        Complex,
+        test_support::{assert_same_bits_on_pools, bits, patterned},
+    };
+
+    /// The medium and thickness gradients add in chunks fixed by the channel count:
+    /// with more channels than chunks, every gradient repeats bit for bit on every pool
+    /// size.
+    #[test]
+    fn pullback_does_not_depend_on_the_thread_count() {
+        let c = Complex::new;
+        let ks = vec![
+            [c(1.0, 0.0); 2],
+            [c(1.7, 0.02), c(1.8, 0.01)],
+            [c(1.3, 0.0), c(1.35, 0.0)],
+            [c(2.1, 0.05); 2],
+            [c(1.0, 0.0); 2],
+        ];
+        let zs = [
+            c(1.0, 0.0),
+            c(0.7, 0.01),
+            c(0.8, 0.0),
+            c(0.6, 0.02),
+            c(1.0, 0.0),
+        ];
+        let thickness = [0.3, 0.45, 0.2];
+        let channels = 100_u32;
+        let q: Vec<[f64; 2]> = (0..channels)
+            .map(|j| {
+                let t = f64::from(j);
+                [0.9 * (0.7 * t).sin(), 0.8 * (1.3 * t).cos()]
             })
+            .collect();
+        let g: Vec<Blocks> = (0..channels)
+            .map(|j| [0.0, 0.25, 0.5, 0.75].map(|seed| patterned(2, 2, f64::from(j) + seed)))
+            .collect();
+        assert_same_bits_on_pools(|| {
+            let (_, residual) =
+                layer_stack(ks.clone(), &zs, q.clone(), &thickness, 2, false).unwrap();
+            let g = residual.pullback(g.clone()).unwrap();
+            bits(&[&g.ks, &g.zs, &g.q, &g.thickness])
+        });
     }
 }

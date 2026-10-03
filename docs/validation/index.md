@@ -93,5 +93,6 @@ its build.
 | Published applications | Electron-beam spectra, treams paper spectra and thermal radiation | Within the stated tolerances of the author data, for example all 300 thermal absorption values within 0.577% | [Published applications](published-applications.md), [`benchmarks/papers/`](../../benchmarks/papers/) |
 | Lean proofs | The five statements above, over exact arithmetic | Proved; Rust tests compare `cube`, `degrees` and `harmonics` with model outputs | [formal proofs](../design/formal-proofs.md) |
 | Floating-point environment | Every scalar binding and ufunc loop, records with their pullbacks, solves and a slab on a thread that flushes subnormals to zero | Equal to the results of an IEEE thread, bit for bit | [`test_float_environment.py`](../../tests/bindings/test_float_environment.py), [`float_environment.py`](../../scripts/float_environment.py), [floating-point environment](../design/floating-point.md) |
+| Thread count | Values and gradients of every parallel reduction, dense solves and decompositions, a cluster solve and ufuncs at one, two and three threads; the Python suite on one thread and on every CPU | Equal at every thread count, bit for bit | [`test_thread_pool.py`](../../tests/bindings/test_thread_pool.py), [parallelism](../design/parallelism.md) |
 
 [Testing](../development/testing.md) explains how to add a test.

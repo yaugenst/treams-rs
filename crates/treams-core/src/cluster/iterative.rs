@@ -13,7 +13,7 @@ use crate::{
     cluster::SphereClusterGradient,
     coeffs::{Matrix2, MieResidual, mie, to_mode_order},
     linalg::{Convergence, GmresOptions, gmres, view},
-    numerics::finite,
+    numerics::{finite, parallel::try_fold_ordered},
     special::Radial,
     sw::{self, TranslationPlan},
 };
@@ -126,29 +126,31 @@ impl IterativeSphereCluster {
     fn coupling(&self, input: &[Complex], columns: usize, adjoint: bool) -> Result<Vec<Complex>> {
         let modes = self.modes_per_particle();
         let particles = self.positions.len();
-        let rows: Vec<Vec<Complex>> = (0..particles)
-            .into_par_iter()
-            .map(|i| -> Result<Vec<Complex>> {
-                // Rows of particle `i`, column-major over the input columns.
-                let mut output = vec![Complex::default(); modes * columns];
-                for j in (0..particles).filter(|&j| j != i) {
-                    let (to, from) = if adjoint { (j, i) } else { (i, j) };
-                    let displacement = std::array::from_fn(|axis| {
-                        self.positions[to][axis] - self.positions[from][axis]
-                    });
-                    let block = self.plan.evaluate(
-                        Complex::new(self.k0, 0.0),
-                        displacement,
-                        Radial::Singular,
-                    )?;
-                    for (column, output) in output.chunks_exact_mut(modes).enumerate() {
-                        let source = &input[column * self.dimension + j * modes..][..modes];
-                        apply_block(&block, source, output, adjoint);
+        let rows: Vec<Vec<Complex>> = crate::threads::install(|| {
+            (0..particles)
+                .into_par_iter()
+                .map(|i| -> Result<Vec<Complex>> {
+                    // Rows of particle `i`, column-major over the input columns.
+                    let mut output = vec![Complex::default(); modes * columns];
+                    for j in (0..particles).filter(|&j| j != i) {
+                        let (to, from) = if adjoint { (j, i) } else { (i, j) };
+                        let displacement = std::array::from_fn(|axis| {
+                            self.positions[to][axis] - self.positions[from][axis]
+                        });
+                        let block = self.plan.evaluate(
+                            Complex::new(self.k0, 0.0),
+                            displacement,
+                            Radial::Singular,
+                        )?;
+                        for (column, output) in output.chunks_exact_mut(modes).enumerate() {
+                            let source = &input[column * self.dimension + j * modes..][..modes];
+                            apply_block(&block, source, output, adjoint);
+                        }
                     }
-                }
-                Ok(output)
-            })
-            .collect::<Result<_>>()?;
+                    Ok(output)
+                })
+                .collect::<Result<_>>()
+        })?;
         let mut output = vec![Complex::default(); self.dimension * columns];
         for (i, rows) in rows.iter().enumerate() {
             for (column, values) in rows.chunks_exact(modes).enumerate() {
@@ -275,11 +277,10 @@ impl IterativeResidual {
     /// of a real loss with respect to the solution.
     ///
     /// One adjoint GMRES solve per column gives `Y = (I - T C)⁻ᴴ G`; each particle pair
-    /// then contributes to the position and `k0` gradients. Those contributions are
-    /// added with a Rayon `try_reduce`, whose grouping follows the work splits, so with
-    /// more than one thread the last bits of the position and `k0` gradients can change
-    /// with the thread count and between runs. The radius and permittivity gradients
-    /// add in particle order.
+    /// then contributes to the position and `k0` gradients. Those contributions add in
+    /// chunks of particles fixed by the particle count, and the chunk sums in chunk
+    /// order; the radius and permittivity gradients add in particle order. The thread
+    /// count changes none of the gradients.
     pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<IterativeGradient> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&z| !finite(z)) {
             return Err(Error::InvalidInput("invalid illumination cotangent".into()));
@@ -319,8 +320,10 @@ impl IterativeSphereCluster {
     /// `(Tᴴ Y) Xᴴ` for `local_adjoint = Tᴴ Y` and the solution `value = X`, summed one
     /// particle-pair block at a time.
     ///
-    /// The per-particle sums combine in a Rayon `try_reduce`, so the last bits depend
-    /// on the thread count and the work splits.
+    /// Chunks of consecutive particles `i`, fixed by the particle count, add their
+    /// pairs `(i, j)` in order into one partial sum each, and the partial sums add in
+    /// chunk order (`numerics::parallel::try_fold_ordered`), so the thread count does
+    /// not change the result.
     fn pair_gradients(
         &self,
         local_adjoint: &DMatrix<Complex>,
@@ -328,11 +331,11 @@ impl IterativeSphereCluster {
     ) -> Result<(Vec<[f64; 3]>, f64)> {
         let modes = self.modes_per_particle();
         let particles = self.positions.len();
-        (0..particles)
-            .into_par_iter()
-            .map(|i| -> Result<(Vec<[f64; 3]>, f64)> {
-                let mut positions = vec![[0.0; 3]; particles];
-                let mut k0 = 0.0;
+        try_fold_ordered(
+            (0..particles).collect(),
+            true,
+            || (vec![[0.0; 3]; particles], 0.0),
+            |(mut positions, mut k0): (Vec<[f64; 3]>, f64), _, i: usize| -> Result<_> {
                 let mut cotangent = vec![Complex::default(); modes * modes];
                 for j in (0..particles).filter(|&j| j != i) {
                     // The rows of particle i against the columns of particle j,
@@ -364,16 +367,14 @@ impl IterativeSphereCluster {
                     }
                 }
                 Ok((positions, k0))
-            })
-            .try_reduce(
-                || (vec![[0.0; 3]; particles], 0.0),
-                |(mut a, ak), (b, bk)| {
-                    for (a, b) in a.iter_mut().flatten().zip(b.iter().flatten()) {
-                        *a += b;
-                    }
-                    Ok((a, ak + bk))
-                },
-            )
+            },
+            |(mut positions, k0), (partial, partial_k0)| {
+                for (a, b) in positions.iter_mut().flatten().zip(partial.iter().flatten()) {
+                    *a += b;
+                }
+                (positions, k0 + partial_k0)
+            },
+        )
     }
 
     /// Radius, permittivity and wavenumber gradients through the Mie coefficients,
@@ -450,7 +451,10 @@ mod tests {
         coeffs::Material,
         linalg::GmresOptions,
         sw,
-        test_support::{EXPENSIVE_CASES, dot, patterned, prop_assert_close, re_dot},
+        test_support::{
+            EXPENSIVE_CASES, assert_same_bits_on_pools, bits, dot, patterned, prop_assert_close,
+            re_dot,
+        },
     };
 
     fn options() -> GmresOptions {
@@ -716,5 +720,38 @@ mod tests {
         );
         assert!(op.solve(&DMatrix::zeros(5, 1), options()).is_err());
         assert!(op.solve(&DMatrix::zeros(6, 0), options()).is_err());
+    }
+
+    /// The pair gradients add in chunks fixed by the particle count: with more
+    /// particles than chunks, the solve and every gradient repeat bit for bit on every
+    /// pool size.
+    #[test]
+    fn pullback_does_not_depend_on_the_thread_count() {
+        // A 6 x 4 x 3 grid of weakly scattering spheres of slightly different radii.
+        let positions: Vec<[f64; 3]> = (0..72_u32)
+            .map(|i| [i % 6, i / 6 % 4, i / 24].map(|n| 1.1 * f64::from(n)))
+            .collect();
+        let radii: Vec<f64> = (0..72_u32)
+            .map(|i| 0.2 + 0.05 * f64::from(i).sin())
+            .collect();
+        let epsilon = vec![Complex::new(2.25, 0.01); positions.len()];
+        let cluster =
+            Arc::new(IterativeSphereCluster::new(1, 1.0, &radii, &epsilon, &positions).unwrap());
+        let incident = patterned(cluster.dimension(), 1, 0.4);
+        let g = patterned(cluster.dimension(), 1, 1.1);
+        assert_same_bits_on_pools(|| {
+            let residual = cluster.record(incident.clone(), options()).unwrap();
+            let solution = residual.solution().value.clone();
+            let gradient = residual.pullback(&g).unwrap();
+            let cluster = &gradient.cluster;
+            bits(&[
+                &solution,
+                &cluster.k0,
+                &cluster.radii,
+                &cluster.epsilon,
+                &cluster.positions,
+                &gradient.incident,
+            ])
+        });
     }
 }

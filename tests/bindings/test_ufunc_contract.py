@@ -953,7 +953,7 @@ def test_wrapper_batch_errors_raise_while_numpy_releases_the_gil(threads, tmp_pa
         capture_output=True,
         text=True,
         timeout=600,
-        env=dict(os.environ, RAYON_NUM_THREADS=threads),
+        env=dict(os.environ, TREAMS_RS_NUM_THREADS=threads),
         check=False,
     )
     assert result.returncode == 0, result.stderr
@@ -991,7 +991,7 @@ def test_parallel_batches_raise_their_first_failing_element():
         capture_output=True,
         text=True,
         timeout=600,
-        env=dict(os.environ, RAYON_NUM_THREADS="4"),
+        env=dict(os.environ, TREAMS_RS_NUM_THREADS="4"),
         check=False,
     )
     assert result.returncode == 0, result.stderr

@@ -15,7 +15,10 @@ use crate::coeffs::Material;
 use crate::special::Radial;
 use crate::sw::{self, TranslationPlan};
 use crate::tmatrix::{SphereResidual, sphere};
-use crate::{Complex, Error, Result, numerics::finite};
+use crate::{
+    Complex, Error, Result,
+    numerics::{self, finite},
+};
 
 /// What [`sphere_cluster`] saves for its pullback: the Mie residual of each sphere,
 /// the translation plan between two spheres, the positions and the interaction solve.
@@ -157,41 +160,45 @@ fn cluster_parts(
     validate_spheres(k0, radii, epsilon, positions)?;
     let modes = sw::modes(lmax)?;
     let modes_per_particle = modes.len();
-    let (blocks, spheres): (Vec<_>, Vec<_>) = radii
-        .par_iter()
-        .zip(epsilon)
-        .map(|(&radius, &epsilon)| sphere(lmax, k0, &[radius], &vacuum_sphere(epsilon)))
-        .collect::<Result<Vec<_>>>()?
-        .into_iter()
-        .unzip();
+    let (blocks, spheres): (Vec<_>, Vec<_>) = crate::threads::install(|| {
+        radii
+            .par_iter()
+            .zip(epsilon)
+            .map(|(&radius, &epsilon)| sphere(lmax, k0, &[radius], &vacuum_sphere(epsilon)))
+            .collect::<Result<Vec<_>>>()
+    })?
+    .into_iter()
+    .unzip();
     let dimension = modes_per_particle
         .checked_mul(spheres.len())
         .ok_or_else(|| Error::InvalidInput("cluster is too large".into()))?;
-    let mut coupling = DMatrix::zeros(dimension, dimension);
+    let mut coupling = numerics::zeros(dimension, dimension)?;
     let plan = TranslationPlan::between(&modes, &modes, true)?;
     // Each worker owns complete source-particle columns; no locks or dense pair copies.
-    coupling
-        .as_mut_slice()
-        .par_chunks_mut(dimension * modes_per_particle)
-        .enumerate()
-        .try_for_each(|(j, columns)| -> Result<()> {
-            for i in 0..spheres.len() {
-                if i == j {
-                    continue;
+    crate::threads::install(|| {
+        coupling
+            .as_mut_slice()
+            .par_chunks_mut(dimension * modes_per_particle)
+            .enumerate()
+            .try_for_each(|(j, columns)| -> Result<()> {
+                for i in 0..spheres.len() {
+                    if i == j {
+                        continue;
+                    }
+                    let displacement =
+                        std::array::from_fn(|axis| positions[i][axis] - positions[j][axis]);
+                    let values =
+                        plan.evaluate(Complex::new(k0, 0.0), displacement, Radial::Singular)?;
+                    for col in 0..modes_per_particle {
+                        let start = col * dimension + i * modes_per_particle;
+                        columns[start..start + modes_per_particle].copy_from_slice(
+                            &values[col * modes_per_particle..(col + 1) * modes_per_particle],
+                        );
+                    }
                 }
-                let displacement =
-                    std::array::from_fn(|axis| positions[i][axis] - positions[j][axis]);
-                let values =
-                    plan.evaluate(Complex::new(k0, 0.0), displacement, Radial::Singular)?;
-                for col in 0..modes_per_particle {
-                    let start = col * dimension + i * modes_per_particle;
-                    columns[start..start + modes_per_particle].copy_from_slice(
-                        &values[col * modes_per_particle..(col + 1) * modes_per_particle],
-                    );
-                }
-            }
-            Ok(())
-        })?;
+                Ok(())
+            })
+    })?;
     Ok(ClusterParts {
         blocks,
         spheres,
@@ -228,35 +235,36 @@ impl SphereClusterResidual {
         let (k0, plan, positions) = (self.k0, &self.plan, &self.positions);
         // Each sphere's Mie pullback and the couplings into it run in parallel; the
         // gradients are summed in sphere order.
-        let parts = self
-            .spheres
-            .into_par_iter()
-            .zip(local)
-            .enumerate()
-            .map(|(i, (sphere, local))| {
-                let gradient = sphere.pullback(&local)?;
-                let mut block = DMatrix::zeros(modes_per_particle, modes_per_particle);
-                let pairs = (0..n)
-                    .filter(|&j| j != i)
-                    .map(|j| {
-                        block.copy_from(&coupling.view(
-                            (i * modes_per_particle, j * modes_per_particle),
-                            (modes_per_particle, modes_per_particle),
-                        ));
-                        let displacement =
-                            std::array::from_fn(|axis| positions[i][axis] - positions[j][axis]);
-                        plan.pullback(
-                            Complex::new(k0, 0.0),
-                            displacement,
-                            Radial::Singular,
-                            block.as_slice(),
-                        )
-                        .map(|(position, k)| (position, k.re))
-                    })
-                    .collect::<Result<Vec<_>>>()?;
-                Ok((gradient, pairs))
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let parts = crate::threads::install(|| {
+            self.spheres
+                .into_par_iter()
+                .zip(local)
+                .enumerate()
+                .map(|(i, (sphere, local))| {
+                    let gradient = sphere.pullback(&local)?;
+                    let mut block = DMatrix::zeros(modes_per_particle, modes_per_particle);
+                    let pairs = (0..n)
+                        .filter(|&j| j != i)
+                        .map(|j| {
+                            block.copy_from(&coupling.view(
+                                (i * modes_per_particle, j * modes_per_particle),
+                                (modes_per_particle, modes_per_particle),
+                            ));
+                            let displacement =
+                                std::array::from_fn(|axis| positions[i][axis] - positions[j][axis]);
+                            plan.pullback(
+                                Complex::new(k0, 0.0),
+                                displacement,
+                                Radial::Singular,
+                                block.as_slice(),
+                            )
+                            .map(|(position, k)| (position, k.re))
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+                    Ok((gradient, pairs))
+                })
+                .collect::<Result<Vec<_>>>()
+        })?;
         let mut result = SphereClusterGradient {
             k0: 0.0,
             radii: vec![0.0; n],

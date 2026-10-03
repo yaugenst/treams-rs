@@ -1,9 +1,14 @@
 //! What every context shares: the `context!` macro, the one-use residual, the
-//! cotangent error, core errors as `ValueError`, the radial flag and GIL release.
+//! cotangent error, core errors as `ValueError` or `MemoryError`, the radial flag and
+//! GIL release.
 use nalgebra::DMatrix;
 use num_complex::Complex64;
-use pyo3::{exceptions::PyValueError, marker::Ungil, prelude::*};
-use treams_core::special::Radial;
+use pyo3::{
+    exceptions::{PyMemoryError, PyValueError},
+    marker::Ungil,
+    prelude::*,
+};
+use treams_core::{Error, special::Radial};
 
 use crate::convert::{Cotangent, matrix_cotangent};
 
@@ -93,9 +98,13 @@ fn consumed() -> PyErr {
     PyValueError::new_err("pullback residual has already been consumed")
 }
 
-/// Raise every core error variant as `ValueError` with the error's message.
-pub(crate) fn error(error: treams_core::Error) -> PyErr {
-    PyValueError::new_err(error.to_string())
+/// Raise a core error with its message: `OutOfMemory` as `MemoryError`, every other
+/// variant as `ValueError`.
+pub(crate) fn error(error: Error) -> PyErr {
+    match error {
+        Error::OutOfMemory(message) => PyMemoryError::new_err(message),
+        error => PyValueError::new_err(error.to_string()),
+    }
 }
 
 /// Singular (outgoing Hankel H1) radial functions for `true`, regular ones for `false`.
@@ -107,7 +116,8 @@ pub(crate) const fn radial(singular: bool) -> Radial {
     }
 }
 
-/// Run fallible native work with the GIL released; core errors raise `ValueError`.
+/// Run fallible native work with the GIL released; core errors raise as [`error`]
+/// maps them.
 pub(crate) fn detached<T>(
     py: Python<'_>,
     work: impl Ungil + FnOnce() -> treams_core::Result<T>,

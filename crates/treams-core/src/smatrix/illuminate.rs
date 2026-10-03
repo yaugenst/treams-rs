@@ -60,9 +60,9 @@ pub fn illuminate(
     // blocks concurrently before the solve takes the workers.
     let store = |blocks: [MatRef<'_, Complex>; 4]| {
         let [a, b, c, d] = blocks;
-        let ((a, b), (c, d)) = rayon::join(
-            || rayon::join(|| StoredBlock::copy_view(a), || StoredBlock::copy_view(b)),
-            || rayon::join(|| StoredBlock::copy_view(c), || StoredBlock::copy_view(d)),
+        let ((a, b), (c, d)) = crate::threads::join(
+            || crate::threads::join(|| StoredBlock::copy_view(a), || StoredBlock::copy_view(b)),
+            || crate::threads::join(|| StoredBlock::copy_view(c), || StoredBlock::copy_view(d)),
         );
         [a, b, c, d]
     };
@@ -72,13 +72,13 @@ pub fn illuminate(
     // faults fewer pages depends on the size and on whether the residual is pulled back
     // or dropped; copying on the calling thread below 512 rows and on the worker from
     // 512 rows faults fewer pages in both the forward and the pullback.
-    let threshold = if rayon::current_num_threads() > 1 {
+    let threshold = if crate::threads::current_num_threads() > 1 {
         PARALLEL_SNAPSHOT_ROWS
     } else {
         WORKER_SNAPSHOT_ROWS
     };
     let (lower, upper) = if lower[0].nrows() >= threshold {
-        rayon::join(|| store(lower), || store(upper))
+        crate::threads::join(|| store(lower), || store(upper))
     } else {
         (
             lower.map(StoredBlock::copy_view),
@@ -139,11 +139,13 @@ fn illumination_fields(
         || lower.iter().chain(&upper).any(|a| a.shape() != (n, n))
         || incoming.iter().any(|a| a.shape() != (n, p))
         || if n >= PARALLEL_SCAN_ROWS {
-            lower
-                .par_iter()
-                .chain(upper.par_iter())
-                .chain(incoming.par_iter())
-                .any(nonfinite)
+            crate::threads::install(|| {
+                lower
+                    .par_iter()
+                    .chain(upper.par_iter())
+                    .chain(incoming.par_iter())
+                    .any(nonfinite)
+            })
         } else {
             lower.iter().chain(&upper).chain(&incoming).any(nonfinite)
         }

@@ -8,7 +8,9 @@
 //!   [`material`], with their [`helicity_ks`];
 //! - fixtures [`patterned`], [`rotate`], [`spherical_basis`] and [`cylindrical_basis`];
 //! - the `key: values` text tables of [`table`];
-//! - [`prop_assert_close!`], which reports both compared values and their distance.
+//! - [`prop_assert_close!`], which reports both compared values and their distance;
+//! - [`assert_same_bits_on_pools`], which runs a computation on pools of one to four
+//!   threads and compares the [`bits`] of its results.
 //!
 //! `docs/development/testing.md` describes the test layout and conventions.
 
@@ -348,6 +350,92 @@ fn distance_separates_collections_of_different_lengths() {
     assert!(short.distance(&vec![1.0, 0.0]).is_infinite());
     assert!(Vec::<f64>::new().distance(&short).is_infinite());
     assert!((vec![3.0, 0.0].distance(&vec![0.0, 4.0]) - 5.0).abs() < 1e-15);
+}
+
+/// The floats of a value as bit patterns, for results that must repeat bit for bit
+/// rather than to a tolerance.
+pub(crate) trait Bits {
+    /// Append the bit pattern of every float in `self` to `out`, in order, with the
+    /// real part of a complex value before its imaginary part.
+    fn bits(&self, out: &mut Vec<u64>);
+}
+
+impl Bits for f64 {
+    fn bits(&self, out: &mut Vec<u64>) {
+        out.push(self.to_bits());
+    }
+}
+
+impl Bits for Complex {
+    fn bits(&self, out: &mut Vec<u64>) {
+        out.extend([self.re.to_bits(), self.im.to_bits()]);
+    }
+}
+
+impl<T: Bits, const N: usize> Bits for [T; N] {
+    fn bits(&self, out: &mut Vec<u64>) {
+        self.as_slice().bits(out);
+    }
+}
+
+impl<T: Bits> Bits for [T] {
+    fn bits(&self, out: &mut Vec<u64>) {
+        for value in self {
+            value.bits(out);
+        }
+    }
+}
+
+impl<T: Bits> Bits for Vec<T> {
+    fn bits(&self, out: &mut Vec<u64>) {
+        self.as_slice().bits(out);
+    }
+}
+
+impl<T: Bits + nalgebra::Scalar> Bits for DMatrix<T> {
+    fn bits(&self, out: &mut Vec<u64>) {
+        self.as_slice().bits(out);
+    }
+}
+
+/// The bit patterns of `values` in order, such as the fields of a gradient.
+pub(crate) fn bits(values: &[&dyn Bits]) -> Vec<u64> {
+    let mut out = Vec::new();
+    for value in values {
+        value.bits(&mut out);
+    }
+    out
+}
+
+/// Run `run` on Rayon pools of one to four threads and assert that it returns the same
+/// nonempty bits on each.
+///
+/// The parallel regions of the crate run in place on such a pool and take its size as
+/// the thread count: one thread takes the calling-thread paths, and more threads split
+/// the work as a budget of that size does. `run` should do the whole computation, the
+/// forward with the pullback, so that every parallel region runs on the pool.
+pub(crate) fn assert_same_bits_on_pools(run: impl Fn() -> Vec<u64> + Sync) {
+    let runs = [1, 2, 3, 4].map(|threads| {
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build()
+            .unwrap();
+        let bits = pool.install(|| {
+            assert_eq!(crate::threads::current_num_threads(), threads);
+            run()
+        });
+        (threads, bits)
+    });
+    let (_, reference) = &runs[0];
+    assert!(!reference.is_empty());
+    for (threads, bits) in &runs {
+        assert_eq!(bits.len(), reference.len(), "{threads} threads");
+        let first = bits.iter().zip(reference).position(|(a, b)| a != b);
+        assert_eq!(
+            first, None,
+            "the bits of {threads} threads and one thread differ"
+        );
+    }
 }
 
 /// Rows of a `key: values` text table, each split at whitespace and commas into

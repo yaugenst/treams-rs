@@ -412,7 +412,7 @@ pub(crate) fn bands<'py>(
         // keeps both for the pullback.
         Ok((
             residual.wavenumbers().to_vec().into_pyarray(py),
-            matrix(py, residual.vectors()),
+            matrix(py, residual.vectors())?,
             BandsContext::new(residual),
         ))
     })

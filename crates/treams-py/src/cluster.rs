@@ -64,7 +64,7 @@ pub(crate) fn sphere_cluster<'py>(
         })?;
         // A C-ordered copy: the residual keeps the interacting T-matrix.
         Ok((
-            matrix(py, residual.value()),
+            matrix(py, residual.value())?,
             SphereClusterContext::new(residual),
         ))
     })
@@ -105,7 +105,7 @@ pub(crate) fn interaction<'py>(
         let residual = detached(py, move || core_cluster::interaction(local, coupling))?;
         // A C-ordered copy: the residual keeps the interacting T-matrix.
         Ok((
-            matrix(py, residual.value()),
+            matrix(py, residual.value())?,
             InteractionContext::new(residual),
         ))
     })
@@ -156,7 +156,7 @@ fn record_particle_cluster<'py>(
         .collect::<PyResult<Vec<_>>>()?;
     let residual = detached(py, move || cluster(local))?;
     Ok((
-        matrix(py, residual.value()),
+        matrix(py, residual.value())?,
         ParticleClusterContext::new(residual),
     ))
 }
@@ -282,7 +282,7 @@ impl InteractionFactor {
             let incident = from_array(incident, "incident")?;
             let residual = detached(py, || self.factor.record(incident))?;
             Ok((
-                matrix(py, residual.value()),
+                matrix(py, residual.value())?,
                 IlluminateContext::new(residual, self.blocked),
             ))
         })

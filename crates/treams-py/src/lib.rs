@@ -39,14 +39,13 @@
 //!   them for the native work, argument checks included, and then restores the
 //!   caller's mode. `tests/bindings/test_float_environment.py` scans these sources
 //!   and fails on any other body, and `scripts/float_environment.py` compares every
-//!   scalar binding and ufunc loop on a flushing thread with an ordinary one. Start
-//!   the Rayon pool lazily inside such a call, never eagerly: its workers keep the
-//!   mode of the thread that starts them, and children forked after a started pool
-//!   hang in their first parallel call.
+//!   scalar binding and ufunc loop on a flushing thread with an ordinary one. The
+//!   pool of `treams_core::threads` starts lazily, in the first parallel region;
+//!   its workers keep subnormals whatever the mode of the thread that starts them.
 //! - **The GIL.** Native work runs with the GIL released, through
-//!   `context::detached`, which also turns core errors into `ValueError`. Calls of
-//!   about a microsecond keep the GIL, because releasing and taking it back would
-//!   cost a noticeable share of them: the 0-d records `*_record_scalar`
+//!   `context::detached`, which also raises core errors as `context::error` maps
+//!   them. Calls of about a microsecond keep the GIL, because releasing and taking
+//!   it back would cost a noticeable share of them: the 0-d records `*_record_scalar`
 //!   (`broadcast::record_held`), the Python-scalar fast paths of
 //!   `ufunc/fast_paths.rs`, `plane_polarization`, the `dimension` getters and
 //!   `build_profile`. Odd orders of `intkambe_record_scalar` sum incomplete-gamma
@@ -54,7 +53,9 @@
 //! - **Unsafe code.** The workspace denies `unsafe_code`. In this crate only
 //!   `ufunc/ffi.rs` (the `NumPy` C interface and all raw-pointer access to
 //!   operands) and `ufunc/loops.rs` (the inner loops that `NumPy` calls) allow it,
-//!   with a `SAFETY` comment on every block. In treams-core only `fpenv` does.
+//!   with a `SAFETY` comment on every block. `threads.rs` allows it for one item,
+//!   the unmangled `treams_rs_num_threads` that threadpoolctl looks up. In
+//!   treams-core only `fpenv` does.
 //! - **The stub and its tests.** `_native.pyi` declares every export with its
 //!   parameters. `tests/bindings/test_native_contexts.py` compares the stub with
 //!   the module and runs one `CASES` entry per context method: deterministic
@@ -63,8 +64,10 @@
 //!   the module, keeps the dtype rows and core signature of every ufunc in
 //!   `REGISTRY_ROWS`, and runs one case per ufunc. `scripts/float_environment.py`
 //!   calls every scalar binding that the stub declares.
-//! - **Errors.** Every core `Error` raises `ValueError` with its message
-//!   (`context::error`), and so does every input check of this crate. A cotangent of the
+//! - **Errors.** A core `Error` raises with its message (`context::error`):
+//!   `OutOfMemory` as `MemoryError`, every other variant as `ValueError`. Every
+//!   input check of this crate raises `ValueError`, and a C-order copy that the
+//!   system refuses (`convert::matrix`) raises `MemoryError`. A cotangent of the
 //!   wrong shape or with a non-finite entry raises "cotangent must be finite with
 //!   shape (2, 2, 3, 3)"; an input error names its argument, as in "points must
 //!   have shape (N, 3)".
@@ -180,6 +183,7 @@ mod convert;
 
 // L0: numerical support.
 mod linalg;
+mod threads;
 
 // L1: special functions (treams.special).
 mod coordinates;
@@ -216,13 +220,16 @@ mod ufunc;
 
 use pyo3::prelude::*;
 
-#[pymodule]
+// Free-threaded CPython keeps the GIL enabled until the module is audited for it.
+#[pymodule(gil_used = true)]
 mod _native {
     use pyo3::prelude::*;
 
     // One `use` per binding file, in the order of the `mod` declarations.
     #[pymodule_export]
     use super::linalg::{EigContext, SolveContext, SvdvalsContext, eig, solve, svdvals};
+    #[pymodule_export]
+    use super::threads::{after_fork, set_num_threads, thread_info};
 
     #[pymodule_export]
     use super::coordinates::{
@@ -308,7 +315,8 @@ mod _native {
     #[pymodule_export]
     use super::testing::{
         build_profile, cartesian_translation_jet, cylindrical_cartesian_translation_jet,
-        cylindrical_radial_jet, run_flushing_for_tests, spherical_wave_jet,
+        cylindrical_radial_jet, rayon_global_pool_unused, run_flushing_for_tests,
+        spherical_wave_jet,
     };
 
     #[pymodule_export]

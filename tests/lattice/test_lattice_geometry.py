@@ -1,7 +1,8 @@
 """Lattice geometry through treams_rs.lattice against treams.lattice.
 
-Checks the volume and reciprocal cell gufuncs, cube and cubeedge, and the
-enumeration and pairing of the diffraction orders that the plane-wave basis uses.
+Checks the volume and reciprocal cell gufuncs, cube and cubeedge with the
+MemoryError of a cube beyond the address space, and the enumeration and pairing
+of the diffraction orders that the plane-wave basis uses.
 """
 
 import numpy as np
@@ -78,6 +79,17 @@ def test_geometry_invalid_input_and_empty_batch():
     assert lattice.volume(np.empty((0, 2, 2))).shape == (0,)
     assert lattice.reciprocal(np.empty((0, 2, 2))).shape == (0, 2, 2)
     assert lattice.diffr_orders_circle(np.eye(2), -1).shape == (0, 2)
+
+
+@pytest.mark.interface
+def test_cube_beyond_the_address_space_raises_memory_error():
+    # (2 * 10**5 + 1)**3 points of three int64 coordinates: 1.9e17 bytes, beyond the
+    # address space of every supported system, so the request fails at once.
+    message = r"^cannot allocate 192002880014400024 bytes$"
+    with pytest.raises(MemoryError, match=message):
+        lattice.cube(3, 10**5)
+    # The module keeps working after the refusal.
+    assert_array_equal(lattice.cube(1, 1), [[-1], [0], [1]])
 
 
 @pytest.mark.reference

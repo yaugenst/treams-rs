@@ -10,7 +10,7 @@ use super::{Basis, plan::TranslationPlan};
 use crate::{
     Complex, Error, Result,
     basis::{ExpansionGradient, LatticeExpansionGradient, validate_wavenumbers},
-    numerics::finite,
+    numerics::{self, finite},
     special::Radial,
 };
 use nalgebra::DMatrix;
@@ -144,28 +144,31 @@ impl ExpansionResidual {
             return Err(Error::InvalidInput("invalid expansion cotangent".into()));
         }
         // Blocks run in parallel; their gradients are summed in block order.
-        let gradients = self
-            .blocks
-            .par_iter()
-            .map(|block| {
-                let mut gradients = [([0.0; 3], Complex::default()); 2];
-                if self.radial == Radial::Singular && block.displacement.iter().all(|&x| x == 0.0) {
-                    return Ok(gradients);
-                }
-                for (pol, gradient) in gradients.iter_mut().enumerate() {
-                    let g = block.gather(cotangent, Some(pol));
-                    if g.iter().any(|&z| z != Complex::default()) {
-                        *gradient = block.plan.pullback(
-                            self.ks[pol],
-                            block.displacement,
-                            self.radial,
-                            &g,
-                        )?;
+        let gradients = crate::threads::install(|| {
+            self.blocks
+                .par_iter()
+                .map(|block| {
+                    let mut gradients = [([0.0; 3], Complex::default()); 2];
+                    if self.radial == Radial::Singular
+                        && block.displacement.iter().all(|&x| x == 0.0)
+                    {
+                        return Ok(gradients);
                     }
-                }
-                Ok(gradients)
-            })
-            .collect::<Result<Vec<_>>>()?;
+                    for (pol, gradient) in gradients.iter_mut().enumerate() {
+                        let g = block.gather(cotangent, Some(pol));
+                        if g.iter().any(|&z| z != Complex::default()) {
+                            *gradient = block.plan.pullback(
+                                self.ks[pol],
+                                block.displacement,
+                                self.radial,
+                                &g,
+                            )?;
+                        }
+                    }
+                    Ok(gradients)
+                })
+                .collect::<Result<Vec<_>>>()
+        })?;
         let mut result = ExpansionGradient::zeros(
             self.destination.positions.len(),
             self.source.positions.len(),
@@ -190,9 +193,14 @@ fn blocks(
     normalized_harmonics: bool,
 ) -> Result<Vec<Block>> {
     let mut plans = HashMap::new();
+    let (destination_groups, source_groups) = (destination.groups(), source.groups());
     let mut blocks = Vec::new();
-    let source_groups = source.groups();
-    for (p, (rows, to)) in destination.groups() {
+    // A saturated count fails the reservation.
+    numerics::reserve(
+        &mut blocks,
+        destination_groups.len().saturating_mul(source_groups.len()),
+    )?;
+    for (p, (rows, to)) in destination_groups {
         let position = destination.positions[p];
         for (&q, (cols, from)) in &source_groups {
             let key = (to.clone(), from.clone());
@@ -250,7 +258,7 @@ fn assemble(
     batch: usize,
     evaluate: impl Fn(&TranslationPlan, Complex, [f64; 3]) -> Result<Option<Vec<Complex>>> + Sync,
 ) -> Result<DMatrix<Complex>> {
-    let mut value = DMatrix::zeros(destination.modes.len(), source.modes.len());
+    let mut value = numerics::zeros(destination.modes.len(), source.modes.len())?;
     let mut rest = blocks;
     while !rest.is_empty() {
         let mut size = 0;
@@ -264,19 +272,21 @@ fn assemble(
             .max(1);
         let (current, next) = rest.split_at(count);
         rest = next;
-        let values = current
-            .par_iter()
-            .map(|block| {
-                let first = evaluate(&block.plan, ks[0], block.displacement)?;
-                // Equal wavenumbers share one evaluation between the polarizations.
-                let second = if ks[0] == ks[1] {
-                    None
-                } else {
-                    Some(evaluate(&block.plan, ks[1], block.displacement)?)
-                };
-                Ok((first, second))
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let values = crate::threads::install(|| {
+            current
+                .par_iter()
+                .map(|block| {
+                    let first = evaluate(&block.plan, ks[0], block.displacement)?;
+                    // Equal wavenumbers share one evaluation between the polarizations.
+                    let second = if ks[0] == ks[1] {
+                        None
+                    } else {
+                        Some(evaluate(&block.plan, ks[1], block.displacement)?)
+                    };
+                    Ok((first, second))
+                })
+                .collect::<Result<Vec<_>>>()
+        })?;
         for (block, (first, second)) in current.iter().zip(values) {
             let Some(second) = second else {
                 if let Some(first) = first {
@@ -335,8 +345,8 @@ pub fn lattice_expansion(
 /// What [`lattice_expansion`] saves for its pullback: the bases, the wavenumbers, the
 /// lattice, the split and the blocks, whose angular plans every position pair shares.
 ///
-/// Rayon adds the lattice-sum gradients along its work splits, so the last bits of the
-/// pullback can change with the thread count and from run to run.
+/// The pullback runs the blocks in order and adds the lattice-sum gradients of each
+/// block's harmonics in harmonic order, so the thread count does not change it.
 #[derive(Debug)]
 pub struct LatticeExpansionResidual {
     destination: Basis,
@@ -449,7 +459,7 @@ pub fn lattice_expansion_from_table(
     }
     let blocks = blocks(destination, source, helicity, true)?;
     let shape = (destination.modes.len(), source.modes.len());
-    let mut value = DMatrix::zeros(shape.0, shape.1);
+    let mut value = numerics::zeros(shape.0, shape.1)?;
     for block in &blocks {
         let offset = (block.destination * table_shape[1] + block.source) * channels * harmonics;
         for channel in 0..channels {

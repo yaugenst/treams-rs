@@ -4,14 +4,13 @@
 #![allow(clippy::indexing_slicing)] // Validated three-component vectors and polarizations.
 
 use nalgebra::DMatrix;
-use rayon::prelude::*;
 
 use super::polarization::{polarization, polarization_jet};
 use crate::{
     Complex, Error, Result,
     numerics::{
         Jet, finite,
-        parallel::{PARALLEL_ENTRIES, try_fill_chunks, try_map},
+        parallel::{PARALLEL_ENTRIES, try_fill_chunks, try_fold_ordered, try_map},
     },
 };
 
@@ -192,11 +191,13 @@ impl PhasesResidual {
 /// What [`field`] saves for its pullback: its inputs, for weighted fields or for the
 /// matrix that samples every mode.
 ///
-/// Below 4096 points times modes (`PARALLEL_ENTRIES`) the pullback adds the modes in
-/// order on the calling thread. From there on, Rayon's `try_fold` and `try_reduce` add
-/// the per-mode point gradients, so their last bits can change with the thread count and
-/// from run to run. Each amplitude and wavevector gradient belongs to one mode and does
-/// not.
+/// The pullback splits the longer of the point and mode axes into at most 32 blocks,
+/// fixed by the shape, as [`PhasesResidual::pullback`] does. Each block writes the
+/// gradients of its own points or modes and a partial sum of the gradients of the
+/// other axis, and the partial sums add in block order; a mode's polarization pulls
+/// back once, from its total over all points. The blocks run in parallel from 4096
+/// points times modes (`PARALLEL_ENTRIES`), and in the same order on the calling thread
+/// below, so the thread count does not change the result.
 #[derive(Debug)]
 pub struct FieldResidual {
     vectors: Vec<[Complex; 3]>,
@@ -315,86 +316,272 @@ impl FieldResidual {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&v| !finite(v)) {
             return Err(Error::InvalidInput("invalid plane-field cotangent".into()));
         }
-        let fixed_vectors = self.fixed_vectors;
-        let zero = || FieldGradient {
+        let (samples, modes) = (self.points.len(), self.vectors.len());
+        let mut gradient = FieldGradient {
             coefficients: vec![Complex::default(); self.coefficients.as_ref().map_or(0, Vec::len)],
-            points: vec![[0.0; 3]; self.points.len()],
-            vectors: vec![[Complex::default(); 3]; self.vectors.len()],
+            points: vec![[0.0; 3]; samples],
+            vectors: vec![[Complex::default(); 3]; modes],
         };
-        if self.points.is_empty() {
-            return Ok(zero());
+        if samples == 0 {
+            return Ok(gradient);
         }
-        let contract = |mut result: FieldGradient, (j, &vector)| -> Result<_> {
-            let electric = if fixed_vectors {
-                polarization(vector, self.polarizations[j], self.helicity)?.map(Jet::<3>::constant)
-            } else {
-                polarization_jet::<3>(vector, self.polarizations[j], self.helicity)?
-            };
-            let coefficient = self
-                .coefficients
-                .as_ref()
-                .map_or(Complex::new(1.0, 0.0), |c| c[j]);
-            let fixed = fixed_vectors;
-            // Each sample's three Cartesian cotangents, contiguous in the column.
-            let column = cotangent.column(if self.coefficients.is_some() { 0 } else { j });
-            let (samples, _) = column.as_slice().as_chunks::<3>();
-            // Accumulate through references into the result, which the loop can
-            // keep in registers, in the same order as indexing it would.
-            let FieldGradient {
-                coefficients,
-                points,
-                vectors,
-            } = &mut result;
-            // Amplitude cotangents are empty for an operator.
-            let mut coefficient_gradient = coefficients.get_mut(j);
-            let vector_gradient = &mut vectors[j];
-            let mut polarization_cotangent = [Complex::default(); 3];
-            for ((&point, rows), point_gradient) in self.points.iter().zip(samples).zip(points) {
-                let phase = phase(vector, point);
-                let weighted_phase = coefficient * phase;
-                let paired: Complex = (0..3).map(|a| rows[a].conj() * electric[a].value).sum();
-                if let Some(gradient) = coefficient_gradient.as_deref_mut() {
-                    *gradient += (phase * paired).conj();
-                }
-                let paired_field = weighted_phase * paired * Complex::i();
-                for axis in 0..3 {
-                    point_gradient[axis] += (paired_field * vector[axis]).re;
-                    if !fixed {
-                        vector_gradient[axis] += (paired_field * point[axis]).conj();
-                        polarization_cotangent[axis] += rows[axis] * weighted_phase.conj();
+        // The blocks of `PhasesResidual::pullback`; one block adds in the order of a
+        // plain loop over modes and points.
+        let parallel = samples * modes >= PARALLEL_ENTRIES;
+        let block = samples.max(modes).div_ceil(32).max(16);
+        if modes >= samples {
+            // Blocks of modes write the amplitude and wavevector gradients of their
+            // modes and add into partial point gradients. An operator has no amplitude
+            // gradients, so its blocks get none.
+            let mut coefficient_blocks = gradient.coefficients.chunks_mut(block);
+            let blocks: Vec<_> = gradient
+                .vectors
+                .chunks_mut(block)
+                .map(|vectors| (vectors, coefficient_blocks.next()))
+                .collect();
+            gradient.points = try_fold_ordered(
+                blocks,
+                parallel,
+                || vec![[0.0; 3]; samples],
+                |mut points, b, (vectors, mut coefficients)| -> Result<_> {
+                    for (offset, vector) in vectors.iter_mut().enumerate() {
+                        let j = b * block + offset;
+                        let mode = self.mode(j)?;
+                        let mut sums = ModeSums::default();
+                        let rows = self.rows(cotangent, j);
+                        self.contract(&mode, &self.points, rows, &mut points, &mut sums);
+                        let coefficient = coefficients.as_deref_mut().map(|c| &mut c[offset]);
+                        self.finish(&mode, &sums, coefficient, vector);
                     }
-                }
+                    Ok(points)
+                },
+                |mut total, partial| {
+                    for (a, b) in total.iter_mut().flatten().zip(partial.iter().flatten()) {
+                        *a += b;
+                    }
+                    total
+                },
+            )?;
+        } else {
+            // Blocks of points write the gradients of their points and add into partial
+            // sums of every mode, which finish once all blocks are added.
+            let terms = (0..modes)
+                .map(|j| self.mode(j))
+                .collect::<Result<Vec<_>>>()?;
+            let blocks: Vec<_> = gradient.points.chunks_mut(block).collect();
+            let sums = try_fold_ordered(
+                blocks,
+                parallel,
+                || vec![ModeSums::default(); modes],
+                |mut sums, b, point_gradients| -> Result<_> {
+                    let range = b * block..b * block + point_gradients.len();
+                    let points = &self.points[range.clone()];
+                    for (j, (mode, sums)) in terms.iter().zip(&mut sums).enumerate() {
+                        let rows = &self.rows(cotangent, j)[range.clone()];
+                        self.contract(mode, points, rows, point_gradients, sums);
+                    }
+                    Ok(sums)
+                },
+                |mut total, partial| {
+                    for (total, partial) in total.iter_mut().zip(&partial) {
+                        total.add(partial);
+                    }
+                    total
+                },
+            )?;
+            let mut coefficients = gradient.coefficients.iter_mut();
+            for ((mode, sums), vector) in terms.iter().zip(&sums).zip(&mut gradient.vectors) {
+                self.finish(mode, sums, coefficients.next(), vector);
             }
-            // The polarization is the same at every sample: pull it back once per mode.
-            if !fixed {
-                for (axis, gradient) in vector_gradient.iter_mut().enumerate() {
-                    *gradient += (0..3)
-                        .map(|a| polarization_cotangent[a] * electric[a].derivative[axis].conj())
-                        .sum::<Complex>();
-                }
-            }
-            Ok(result)
-        };
-        if self.points.len() * self.vectors.len() < PARALLEL_ENTRIES {
-            return self.vectors.iter().enumerate().try_fold(zero(), contract);
         }
-        self.vectors
-            .par_iter()
-            .enumerate()
-            .try_fold(zero, contract)
-            .try_reduce(zero, |mut a, b| {
-                for (a, b) in a
-                    .coefficients
-                    .iter_mut()
-                    .chain(a.vectors.iter_mut().flatten())
-                    .zip(b.coefficients.iter().chain(b.vectors.iter().flatten()))
-                {
-                    *a += b;
+        Ok(gradient)
+    }
+
+    /// The wavevector, polarization jet and amplitude of plane mode `j`.
+    fn mode(&self, j: usize) -> Result<ModeTerms> {
+        let vector = self.vectors[j];
+        let electric = if self.fixed_vectors {
+            polarization(vector, self.polarizations[j], self.helicity)?.map(Jet::<3>::constant)
+        } else {
+            polarization_jet::<3>(vector, self.polarizations[j], self.helicity)?
+        };
+        let coefficient = self
+            .coefficients
+            .as_ref()
+            .map_or(Complex::new(1.0, 0.0), |c| c[j]);
+        Ok(ModeTerms {
+            vector,
+            electric,
+            coefficient,
+        })
+    }
+
+    /// The three Cartesian cotangents of each sample, contiguous in the cotangent
+    /// column of mode `j`, or in the one column of a weighted field.
+    fn rows<'c>(&self, cotangent: &'c DMatrix<Complex>, j: usize) -> &'c [[Complex; 3]] {
+        let length = 3 * self.points.len();
+        let column = if self.coefficients.is_some() { 0 } else { j };
+        cotangent.as_slice()[column * length..][..length]
+            .as_chunks::<3>()
+            .0
+    }
+
+    /// Add the terms of `mode` at `points`, whose cotangents are `rows`, to the point
+    /// gradients `point_gradients` and to the mode's `sums`, in point order.
+    fn contract(
+        &self,
+        mode: &ModeTerms,
+        points: &[[f64; 3]],
+        rows: &[[Complex; 3]],
+        point_gradients: &mut [[f64; 3]],
+        sums: &mut ModeSums,
+    ) {
+        let (weighted, fixed) = (self.coefficients.is_some(), self.fixed_vectors);
+        let ModeTerms {
+            vector,
+            electric,
+            coefficient,
+        } = *mode;
+        // Accumulate through references into the sums, which the loop can keep in
+        // registers, in the same order as indexing them would.
+        let ModeSums {
+            coefficient: coefficient_gradient,
+            vector: vector_gradient,
+            polarization: polarization_cotangent,
+        } = sums;
+        for ((&point, rows), point_gradient) in points.iter().zip(rows).zip(point_gradients) {
+            let phase = phase(vector, point);
+            let weighted_phase = coefficient * phase;
+            let paired: Complex = (0..3).map(|a| rows[a].conj() * electric[a].value).sum();
+            if weighted {
+                *coefficient_gradient += (phase * paired).conj();
+            }
+            let paired_field = weighted_phase * paired * Complex::i();
+            for axis in 0..3 {
+                point_gradient[axis] += (paired_field * vector[axis]).re;
+                if !fixed {
+                    vector_gradient[axis] += (paired_field * point[axis]).conj();
+                    polarization_cotangent[axis] += rows[axis] * weighted_phase.conj();
                 }
-                for (a, b) in a.points.iter_mut().flatten().zip(b.points.iter().flatten()) {
-                    *a += b;
+            }
+        }
+    }
+
+    /// Write the amplitude gradient `coefficient` (none for an operator) and the
+    /// wavevector gradient `vector` of `mode` from its sums over all points.
+    fn finish(
+        &self,
+        mode: &ModeTerms,
+        sums: &ModeSums,
+        coefficient: Option<&mut Complex>,
+        vector: &mut [Complex; 3],
+    ) {
+        if let Some(coefficient) = coefficient {
+            *coefficient = sums.coefficient;
+        }
+        *vector = sums.vector;
+        // The polarization is the same at every point: pull it back once per mode.
+        if !self.fixed_vectors {
+            for (axis, gradient) in vector.iter_mut().enumerate() {
+                *gradient += (0..3)
+                    .map(|a| sums.polarization[a] * mode.electric[a].derivative[axis].conj())
+                    .sum::<Complex>();
+            }
+        }
+    }
+}
+
+/// What the field pullback needs of one plane mode at every point.
+#[derive(Clone, Copy)]
+struct ModeTerms {
+    /// The complex wavevector.
+    vector: [Complex; 3],
+    /// The polarization, with its derivatives in the wavevector unless it is fixed.
+    electric: [Jet<3>; 3],
+    /// The amplitude; one for an operator.
+    coefficient: Complex,
+}
+
+/// Sums over points of one plane mode's amplitude, wavevector and polarization
+/// cotangents; the last two stay zero when the wavevectors are fixed.
+#[derive(Clone, Copy, Default)]
+struct ModeSums {
+    coefficient: Complex,
+    vector: [Complex; 3],
+    polarization: [Complex; 3],
+}
+
+impl ModeSums {
+    /// Add the sums over other points.
+    fn add(&mut self, other: &Self) {
+        self.coefficient += other.coefficient;
+        for (a, b) in self
+            .vector
+            .iter_mut()
+            .chain(&mut self.polarization)
+            .zip(other.vector.iter().chain(&other.polarization))
+        {
+            *a += b;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::field;
+    use crate::{
+        Complex,
+        numerics::parallel::PARALLEL_ENTRIES,
+        test_support::{assert_same_bits_on_pools, bits, patterned},
+    };
+
+    /// Field pullbacks add their partial sums in blocks fixed by the shape: blocks of
+    /// modes and blocks of points, for weighted fields and operators, with and without
+    /// wavevector derivatives, give gradients that repeat bit for bit on every pool
+    /// size once the blocks run in parallel.
+    #[test]
+    fn pullbacks_do_not_depend_on_the_thread_count() {
+        for (samples, modes) in [(30_u32, 200_u32), (300, 20)] {
+            let vectors: Vec<[Complex; 3]> = (0..modes)
+                .map(|j| {
+                    let t = f64::from(j);
+                    let (theta, phi) = (1.55 + 1.3 * (0.61 * t).sin(), 2.3 * t);
+                    [
+                        Complex::new(1.2 * theta.sin() * phi.cos(), 0.0),
+                        Complex::new(1.2 * theta.sin() * phi.sin(), 0.0),
+                        Complex::new(1.2 * theta.cos(), 0.01),
+                    ]
+                })
+                .collect();
+            let polarizations: Vec<u8> = (0..modes).map(|j| u8::from(j % 2 == 0)).collect();
+            let points: Vec<[f64; 3]> = (0..samples)
+                .map(|i| {
+                    let t = f64::from(i);
+                    [(0.37 * t).sin(), (0.53 * t).cos(), 0.8 * (0.71 * t).sin()]
+                })
+                .collect();
+            assert!(points.len() * vectors.len() >= PARALLEL_ENTRIES);
+            for weighted in [true, false] {
+                let coefficients =
+                    weighted.then(|| patterned(vectors.len(), 1, 0.3).as_slice().to_vec());
+                let columns = if weighted { 1 } else { vectors.len() };
+                let g = patterned(3 * points.len(), columns, 0.8);
+                for fixed_vectors in [false, true] {
+                    assert_same_bits_on_pools(|| {
+                        let (_, residual) = field(
+                            vectors.clone(),
+                            polarizations.clone(),
+                            points.clone(),
+                            coefficients.clone(),
+                            true,
+                            fixed_vectors,
+                        )
+                        .unwrap();
+                        let g = residual.pullback(&g).unwrap();
+                        bits(&[&g.coefficients, &g.points, &g.vectors])
+                    });
                 }
-                Ok(a)
-            })
+            }
+        }
     }
 }

@@ -5,7 +5,7 @@
 //! in `bessel::J`. A const generic argument must be a single identifier unless
 //! it is braced, so the ufunc tables import the constants they pass.
 
-/// Inner-loop sizes from which elementwise kernels run on the Rayon pool. A call
+/// Inner-loop sizes from which elementwise kernels run on the treams-rs pool. A call
 /// must amortize task dispatch and the collected output buffer, so the tiers
 /// follow the per-element cost of each kernel family.
 pub(super) mod parallel_from {

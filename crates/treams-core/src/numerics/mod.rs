@@ -1,11 +1,13 @@
-//! Numerical support without physics: complex helpers, forward-mode jets, broadcasting and
-//! the parallel policy. treams-rs extension.
+//! Numerical support without physics: complex helpers, forward-mode jets, broadcasting,
+//! fallible allocation and the parallel policy. treams-rs extension.
 
 pub(crate) mod broadcast;
 pub(crate) mod jet;
+mod memory;
 pub(crate) mod parallel;
 
 pub(crate) use jet::Jet;
+pub(crate) use memory::{filled, reserve, zeros};
 
 use crate::Complex;
 

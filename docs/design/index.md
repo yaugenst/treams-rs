@@ -74,7 +74,9 @@ module without a counterpart.
 - **Bindings:** conversion between NumPy arrays and Rust types, releasing the GIL
   during numerical work, the floating-point guard of every entry point (see
   [floating-point environment](floating-point.md)) and the context objects that hold
-  one-use pullback data. Every Rust error becomes a `ValueError`.
+  one-use pullback data. A Rust error becomes a `ValueError`, except
+  `Error::OutOfMemory`, which becomes a `MemoryError`. Some allocation paths
+  still abort on failure ([memory limits](parallelism.md#audit-and-open-work)).
 - **Python package:** physical metadata and meaning: bases, `k0`, media,
   polarization conventions, lattices, Bloch vectors, the names of results and
   which numerical call a physics method makes.
