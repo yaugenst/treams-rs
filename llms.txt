@@ -23,7 +23,7 @@ Use `--format json` or `--format markdown` to list all documented functions and 
 - [treams workflows in treams-rs](docs/coming-from-treams/index.md): treams workflows next to their treams-rs equivalents, the concept map and the pitfalls for treams users.
 - [Name map](docs/coming-from-treams/names.md): The treams names that treams-rs spells differently, member by member, and the keyword changes.
 - [Conventions](docs/coming-from-treams/conventions.md): Units, time convention, polarization, mode ordering, planar sides, field normalization, branches and label bounds, as in treams.
-- [Differences from treams 0.4.5](docs/coming-from-treams/differences.md): Where treams-rs and treams 0.4.5 give different results, why, and the tests that show it.
+- [Differences from treams 0.4.7](docs/coming-from-treams/differences.md): Where treams-rs and treams 0.4.7 give different results, why, and the tests that show it.
 
 ## User guide
 

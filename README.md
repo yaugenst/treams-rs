@@ -62,7 +62,10 @@ pip install "treams-rs[io]"       # HDF5 T-matrix files
 Wheels cover CPython 3.12–3.15 on Linux (glibc 2.17 or newer, x86-64 and
 arm64), macOS (Intel and Apple silicon) and Windows (x86-64), and need no Rust
 toolchain. Standard PyPI installs of the `torch` and `io` extras on CPython
-3.15 are outside the 0.1.0 release qualification. See
+3.15 are outside the 0.1.0 release qualification. NumPy 2.3 and newer have
+Linux wheels only for glibc 2.27 or newer; with an older glibc, use CPython 3.12
+or 3.13 and `pip install treams-rs "numpy<2.3"`. JAX and PyTorch have no Intel
+macOS wheels; use the `advect` or `autograd` extra there. See
 [Install](https://yaugenst.github.io/treams-rs/latest/getting-started/install/)
 for optional dependencies and source builds.
 
@@ -86,7 +89,7 @@ print(scattered.efield([[0.1, 0.2, 1.2]]))
 
 Pass framework values to the same physics API: treams-rs selects the adapter
 automatically. This gives the gradient of the scattering cross section with
-respect to the sphere radius (install `treams-rs[advect]`):
+respect to the sphere radius (`pip install "treams-rs[advect]"`):
 
 ```python exec
 from advect import grad

@@ -27,7 +27,7 @@ assert np.array_equal(serial, reference)  # bit for bit
 | Control | Effect |
 |---|---|
 | `tr.set_num_threads(n)` | Thread limit for later parallel calls in this process. A step already running finishes with its previous limit. `None` restores the default. |
-| `with tr.threads(n):` | The same, restored when the block ends. The limit applies to the whole process, not one Python thread. |
+| `with tr.threads(n):` | The same, restored when the block ends. The limit applies to the whole process, not one Python thread. Blocks in different Python threads must not overlap: each restores the limit it saw on entry, in exit order. For a thread pool, call `tr.set_num_threads(k)` once before starting the workers. |
 | `tr.get_num_threads()`, `tr.thread_info()` | The thread limit, where it came from, the CPUs available, the pool size, and settings that were ignored. Neither starts the pool. |
 | `TREAMS_RS_NUM_THREADS` | Default thread limit for treams-rs alone. |
 | `RAYON_NUM_THREADS` | Default when `TREAMS_RS_NUM_THREADS` is unset. |

@@ -89,7 +89,7 @@ def test_slab_reference(poltype, q, materials):
     basis = PlaneWavePorts.default(q)
     oracle_basis = treams.PlaneWaveBasisByComp.default(q)
     value = SMatrix.slab(0.4, basis, 1.7, materials, poltype)
-    # treams 0.4.5's parity interface uses a 2x2 mask for every basis size.
+    # treams before 0.4.6 masks the parity interface with a fixed 2x2 block.
     expected = treams.SMatrices.slab(0.4, oracle_basis, 1.7, materials, "helicity")
     if poltype == "parity":
         expected = expected.changepoltype("parity")

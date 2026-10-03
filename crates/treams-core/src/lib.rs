@@ -10,7 +10,7 @@
 //! crate is published on crates.io. The user documentation, with examples and the
 //! design rationale, is at <https://yaugenst.github.io/treams-rs/latest/>.
 //!
-//! Upstream: [treams](https://github.com/tfp-photonics/treams) 0.4.5 at commit `1f5d0d6`.
+//! Upstream: [treams](https://github.com/tfp-photonics/treams) 0.4.7 at commit `1f5d0d6`.
 //! The kernels follow its formulas, conventions and mode order. Each module names the
 //! treams functions it mirrors, and the [module map](#module-map) pairs every module
 //! with its `treams_rs` and treams namespaces.

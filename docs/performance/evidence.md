@@ -8,9 +8,11 @@ description: Benchmark sources, methods and archived measurements of individual 
 
 Each row is one set of measurements. Dates, commits, hosts and case counts come
 from the linked summary files; "not recorded" means the value is missing.
-Commits refer to this repository's pre-release history. The linked files identify
-each build with SHA-256 hashes of the native library, Python sources and
-benchmark scripts. Files under `benchmarks/results/` keep
+Commits are the revisions of the original runs;
+[`history-provenance.json`](../../benchmarks/history-provenance.json) maps them
+to this repository's history. The linked files identify each build with SHA-256
+hashes of the native library, Python sources and benchmark scripts. Files under
+`benchmarks/results/` keep
 their recorded measurements; identifying data and archive metadata were redacted
 ([redacted paths](#redacted-paths)).
 

@@ -6,8 +6,10 @@ description: The Mac and Linux benchmark comparison of treams-rs and treams 0.4.
 
 This comparison measured treams 0.4.5 and treams-rs on an Apple M3 and an AMD
 Ryzen 9 9950X. The Linux results belong to the treams-rs build at
-source commit `7421ca9`. The median speedups over the 527-case reference grid
-are 5.17× on the M3 and 5.04× on the Ryzen. The
+source commit `7421ca9`, the revision of the original run
+([`history-provenance.json`](../../benchmarks/history-provenance.json) maps it
+to this repository's history). The median speedups over the 527-case reference
+grid are 5.17× on the M3 and 5.04× on the Ryzen. The
 Linux-only measurements of 2026-09-19 and 2026-09-20 are summarized in
 [Linux core validation](../../benchmarks/linux-core-qualification.md); macOS
 results come only from this comparison and the

@@ -6,7 +6,7 @@
 
 Run from the checkout: uv run --no-sync python scripts/qualify_papers.py
 Provenance and the limits of each comparison:
-https://yaugenst.github.io/treams-rs/validation/published-applications/
+https://yaugenst.github.io/treams-rs/latest/validation/published-applications/
 """
 
 import argparse

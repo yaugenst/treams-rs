@@ -3341,6 +3341,10 @@ Restores the previous budget on exit, like
 thread-local: other Python threads that call treams-rs inside the block use
 it too. Alternating between two budgets reuses their pools.
 
+Blocks in different Python threads must not overlap: each restores the
+budget it saw on entry, in exit order. For a thread pool, call
+``set_num_threads(k)`` once before starting the workers.
+
 **Examples**
 
 ```pycon

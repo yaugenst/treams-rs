@@ -67,4 +67,4 @@ In the Rust core, a function returns `(value, XResidual)`, and
 | Special-function records | `diff.bessel`, `angular`, `incgamma`, `intkambe`, `coordinates`, `vector_coordinates`, `vector_wave`, `sph_harm` | `bessel_record`, `angular_record`, `incgamma_record`, `intkambe_record`, `coordinates_record`, `vector_coordinates_record`, `vector_wave_record` | `special::bessel_array`, `angular_array`, `incgamma_array`, `intkambe_array`, `special::coordinates::{point, vector}`, `vectorwaves::vector_wave_array` | `special.jv`, `lpmv`, `incgamma`, `intkambe`, `car2sph`, `vsw_*`, `sph_harm` |
 | Records | `diff.*` functions return `(value, context)`; solver objects have `record` methods | functions returning `(value, <Name>Context)` | forward functions returning `(value, XResidual)` | none |
 | Errors | `ValueError` | `ValueError` | `Error::{InvalidInput, SpecialFunction, NonFinite, NotConverged, Singular}` | NaN results or NumPy warnings |
-| Framework adapters | `treams_rs.advect`, `treams_rs.jax`, `treams_rs.torch` | none | none | none |
+| Framework adapters | `treams_rs.advect`, `treams_rs.jax`, `treams_rs.torch`, `treams_rs.autograd` | none | none | none |

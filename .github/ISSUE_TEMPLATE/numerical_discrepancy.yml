@@ -9,7 +9,7 @@ body:
       options:
         - label: >-
             I checked the
-            [Differences from treams](https://yaugenst.github.io/treams-rs/coming-from-treams/differences/)
+            [Differences from treams](https://yaugenst.github.io/treams-rs/latest/coming-from-treams/differences/)
             page, and it does not explain this discrepancy.
           required: true
   - type: input
