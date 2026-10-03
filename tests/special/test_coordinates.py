@@ -235,6 +235,16 @@ def test_coordinate_empty_and_axis_contexts():
 
 
 @pytest.mark.interface
+@pytest.mark.parametrize("kind", ["car2sph", "sph2car"])
+def test_complex_points_raise_instead_of_losing_the_imaginary_part(kind):
+    points = [[0.4 + 0.1j, -0.3, 0.2]]
+    with pytest.raises(TypeError, match="real points"):
+        diff.coordinates(points, kind=kind)
+    with pytest.raises(TypeError, match="real points"):
+        diff.vector_coordinates([1.0, 0.0, 0.0], points, kind=kind)
+
+
+@pytest.mark.interface
 @pytest.mark.reference
 def test_overflowing_spherical_radius_is_infinite_with_exact_angles():
     # As in treams: the radius overflows, the angles stay exact.

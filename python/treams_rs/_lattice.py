@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast, overload, override
+from typing import TYPE_CHECKING, Any, cast, overload, override
 
 import numpy as np
 
@@ -21,6 +21,7 @@ __all__ = [
     "Lattice",
     "WaveVector",
     "cell_geometry",
+    "framework_cell",
     "geometry_inputs",
     "infer_dimension",
     "on_diffraction_orders",
@@ -454,14 +455,16 @@ def geometry_inputs(
 
 
 def infer_dimension(a: ArrayLike, kpar: ArrayLike) -> int:
-    """Lattice dimension: the specified Bloch components, capped by the cell size."""
-    components = np.atleast_1d(kpar)
+    """Lattice dimension: the specified Bloch components, capped by the cell size.
+
+    Only the shapes of arrays are read, so framework arrays stay unconverted.
+    """
     dim = (
-        int(np.count_nonzero(~np.isnan(components)))
+        int(np.count_nonzero(~np.isnan(np.atleast_1d(kpar))))
         if isinstance(kpar, WaveVector)
-        else components.size
+        else math.prod(np.shape(kpar))
     )
-    return min(dim, np.atleast_2d(a).shape[0] if np.ndim(a) != 1 else np.size(a))
+    return min(dim, (np.shape(a) or (1,))[0])
 
 
 def periodic_geometry(
@@ -497,3 +500,29 @@ def sum_cell(
         if a.shape == (dim,):
             a = np.diag(a)
     return a, kpar
+
+
+def framework_cell(
+    backend: Any, a: Any, kpar: Any, spherical: bool, dim: int | None = None
+) -> tuple[Any, Any]:
+    """Framework (lattice, Bloch) inputs, resolved as in ``geometry_inputs``.
+
+    Lattice/WaveVector metadata gives the components of the cell's alignment,
+    and a 2D/3D diagonal expands into rows that keep its derivatives. ``dim``
+    defaults to the inferred dimension.
+    """
+    if not isinstance(a, Lattice):
+        a = backend.array(a)
+    if not isinstance(kpar, WaveVector):
+        kpar = backend.array(kpar)
+    dim = infer_dimension(a, kpar) if dim is None else dim
+    alignment = periodic_alignment(dim, spherical)
+    if isinstance(a, Lattice):
+        a = backend.array(np.asarray(Lattice(a, alignment)))
+    if isinstance(kpar, WaveVector):
+        kpar = backend.array([kpar["xyz".index(axis)] for axis in alignment])
+    if a.ndim == 0:
+        a = a.reshape(1, 1)
+    elif dim > 1 and a.shape == (dim,):
+        a = a[:, None] * backend.array(np.eye(dim))
+    return a, kpar.reshape(1) if kpar.ndim == 0 else kpar

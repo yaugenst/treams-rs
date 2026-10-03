@@ -164,9 +164,22 @@ def wignersmalld(
     return wignerd(backend, l, m, k, 0.0, theta, 0.0, out, where=where)
 
 
+def _is_complex(value: Any) -> bool:
+    if isinstance(value, (list, tuple)):
+        return any(map(_is_complex, value))
+    return "complex" in str(getattr(value, "dtype", type(value)))
+
+
+def _points(backend: Any, points: Any) -> Any:
+    # Check before the float64 cast, which drops imaginary parts in JAX.
+    if _is_complex(points):
+        raise TypeError("coordinate conversions require real points")
+    return backend.array(points)
+
+
 def coordinates(backend: Any, points: Any, out: Any = None, *, function: str) -> Any:
     require_no_out(out)
-    value = backend.array(points)
+    value = _points(backend, points)
     return backend.apply(
         partial(diff.coordinates, function=function), value.shape, value, real=True
     )
@@ -176,7 +189,7 @@ def vector_coordinates(
     backend: Any, vector: Any, points: Any, out: Any = None, *, function: str
 ) -> Any:
     require_no_out(out)
-    vector, point = backend.array(vector, complex_=True), backend.array(points)
+    vector, point = backend.array(vector, complex_=True), _points(backend, points)
     return backend.apply(
         partial(diff.vector_coordinates, function=function),
         np.broadcast_shapes(vector.shape, point.shape),

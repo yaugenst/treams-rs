@@ -119,9 +119,7 @@ import numpy as np
 from . import _native
 from ._autodiff_functions import require_no_out as _require_no_out
 from ._autodiff_functions import transparent_function as _transparent_function
-from ._lattice import Lattice as _Lattice
-from ._lattice import WaveVector as _WaveVector
-from ._lattice import periodic_alignment as _periodic_alignment
+from ._lattice import framework_cell as _framework_cell
 from ._lattice import sum_cell as _sum_cell
 
 if TYPE_CHECKING:
@@ -966,23 +964,15 @@ def _framework_sum(
     degree, order = np.asarray(values.get("l", 0)), np.asarray(values.get("m", 0))
     shell = np.asarray(values["i"] if part == "direct" else 0)
 
-    # Resolve static metadata without converting a moving period or Bloch vector.
-    a, kpar = values["a"], values["kpar"]
-    alignment = _periodic_alignment(dim, spherical)
-    if isinstance(a, _Lattice):
-        a = np.asarray(_Lattice(a, alignment))
-    if isinstance(kpar, _WaveVector):
-        kpar = tuple(kpar["xyz".index(axis)] for axis in alignment)
     k = backend.array(values["k"], complex_=True)
-    kpar, a, r = (backend.array(value) for value in (kpar, a, values["r"]))
+    a, kpar = _framework_cell(backend, values["a"], values["kpar"], spherical, dim)
+    r = backend.array(values["r"])
     eta = backend.array(values.get("eta", 0), complex_=True)
     if dim == 1:
         if kpar.shape[-1:] != (1,):
             kpar = kpar[..., None]
         if a.shape[-2:] != (1, 1):
             a = a[..., None, None]
-    elif a.shape == (dim,):
-        a = a[:, None] * backend.array(np.eye(dim))
     if not shift:
         if dim == 1:
             zero = r * 0

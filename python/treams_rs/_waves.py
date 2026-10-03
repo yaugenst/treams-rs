@@ -670,7 +670,13 @@ def plane_wave_angle(
     material = one_of("medium", medium, "material", material, 1)
     poltype = one_of("polarization", polarization, "poltype", poltype, None)
     backend = backend_for(theta, phi, pol, k0, material)
-    xp = np if backend is None else backend.xp
+    xp = np
+    if backend is not None:
+        # PyTorch trigonometric functions reject Python numbers; complex angles
+        # stay complex so the plane wave rejects them.
+        xp = backend.xp
+        theta = backend.array(theta, complex_=True)
+        phi = backend.array(phi, complex_=True)
     return plane_wave(
         [xp.sin(theta) * xp.cos(phi), xp.sin(theta) * xp.sin(phi), xp.cos(theta)],
         pol,

@@ -217,6 +217,28 @@ def test_default_precision_root_sphere_gradient():
     assert_allclose(gradient.numpy(), expected_gradient, rtol=2e-7)
 
 
+@pytest.mark.parametrize("parameter", ["k0", "medium"])
+def test_plane_wave_angle_with_float_angles_and_tensor_parameter(parameter):
+    def objective(x):
+        k0, medium = (x, 2.0) if parameter == "k0" else (1.2, tr.Material(x))
+        wave = tr.plane_wave_angle(0.3, 0.2, "positive_helicity", k0=k0, medium=medium)
+        return wave.efield([[0.1, 0.2, 1.3]]).real.sum()
+
+    x = torch.tensor(1.5, dtype=torch.float64, requires_grad=True)
+    value = objective(x)
+    (gradient,) = torch.autograd.grad(value, x)
+    step = 1e-5
+    expected_gradient = (objective(1.5 + step) - objective(1.5 - step)) / (2 * step)
+    assert_allclose(value.detach().numpy(), objective(1.5), rtol=1e-12)
+    assert_allclose(gradient.numpy(), expected_gradient, rtol=2e-7)
+
+
+def test_plane_wave_angle_rejects_complex_angles():
+    k0 = torch.tensor(1.5, dtype=torch.float64)
+    with pytest.raises(ValueError, match="real direction"):
+        tr.plane_wave_angle(0.3 + 0.1j, 0.2, "positive_helicity", k0=k0)
+
+
 def test_requested_illumination_matches_full_response_and_all_gradients():
     local = np.array([[0.2 + 0.1j, 0.03j], [0.05, 0.3 - 0.1j]])
     coupling = np.array([[0.0, 0.1 + 0.2j], [-0.03j, 0.0]])

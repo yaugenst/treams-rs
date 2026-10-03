@@ -133,3 +133,31 @@ def test_latticeinteraction_methods_preserve_gradients(
     expected = (objective(tr, 0.2 + step) - objective(tr, 0.2 - step)) / (2 * step)
     assert_allclose(value, objective(tr, 0.2), rtol=1e-12)
     assert_allclose(gradient, expected, rtol=2e-5, atol=1e-8)
+
+
+@pytest.mark.parametrize(
+    "cell", ["lattice", "diagonal", "wavevector", "moving_diagonal"]
+)
+def test_periodic_solves_accept_lattice_metadata(engine, cell):
+    def objective(api, x):
+        radius = 0.2 if cell == "moving_diagonal" else x
+        lattice, kpar = {
+            "lattice": (tr.Lattice.square(0.9), [0, 0]),
+            "diagonal": ([0.9, 0.95], [0, 0]),
+            "wavevector": (np.eye(2) * 0.9, tr.WaveVector([0, 0])),
+            "moving_diagonal": ([x + 0.7, x + 0.75], [0, 0]),
+        }[cell]
+        particle = api.sphere_tmatrix(k0=2.0, lmax=1, radius=radius, material=3 + 0.1j)
+        response = api.solve_periodic(particle, lattice=lattice, kpar=kpar)
+        incident = api.plane_wave([0, 0, 1], "positive_helicity", k0=2.0)
+        power = response.to_smatrix(api.PlaneWavePorts.default([0, 0])).power(
+            incident, side="negative"
+        )
+        coupled = particle.latticeinteraction.solve(lattice, kpar)
+        return power.transmission + (abs(coupled) ** 2).sum()
+
+    value, gradient = engine.value_and_grad(objective, 0.2)
+    step = 1e-6
+    expected = (objective(tr, 0.2 + step) - objective(tr, 0.2 - step)) / (2 * step)
+    assert_allclose(value, objective(tr, 0.2), rtol=1e-12)
+    assert_allclose(gradient, expected, rtol=2e-5, atol=1e-8)
