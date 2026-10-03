@@ -37,7 +37,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python:
+        # intel-smoke reuses this list.
+        python: &pythons
           - version: "3.12"
             artifact: py312
             profiles: base advect autograd io
@@ -70,9 +71,11 @@ jobs:
             interpreter: versioned
             manylinux: "2_17"
             container_home: /root
+          # Built on Apple silicon, where Intel runners are scarce and slow;
+          # intel-smoke installs and tests each wheel on an Intel runner.
           - name: macOS Intel
             artifact: macos-x86_64
-            runner: macos-15-intel
+            runner: macos-latest
             target: x86_64
             interpreter: python
             manylinux: auto
@@ -159,10 +162,13 @@ jobs:
           uv run --script scripts/wheel_build_paths.py check "${homes[@]}" dist/wheelhouse/treams_rs-*.whl
 
       - name: Smoke-test installed wheel
+        # intel-smoke tests the macOS Intel wheels on Intel hardware.
+        if: matrix.platform.artifact != 'macos-x86_64'
         env:
           SMOKE_PROFILES: ${{ matrix.python.profiles }}
           SKIPPED_PROFILES: ${{ matrix.python.skipped }}
-        run: |
+        # intel-smoke runs the same script.
+        run: &smoke |
           wheel_count=$(find dist/wheelhouse -maxdepth 1 -name 'treams_rs-*.whl' | wc -l)
           test "$wheel_count" -eq 1
           if [[ -n "$SKIPPED_PROFILES" ]]; then
@@ -221,6 +227,49 @@ jobs:
           name: treams-rs-distribution-${{ matrix.platform.artifact }}-${{ matrix.python.artifact }}
           path: dist/wheelhouse/treams_rs-*.whl
           if-no-files-found: error
+
+  intel-smoke:
+    name: macOS Intel smoke test / Python ${{ matrix.python.version }}
+    needs: wheelhouse
+    # Report on every Intel wheel that was built, even if an unrelated leg failed.
+    if: ${{ !cancelled() }}
+    runs-on: macos-15-intel
+    env:
+      PYTHON_VERSION: ${{ matrix.python.version }}
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        python: *pythons
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.source_revision || github.sha }}
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python.version }}
+          allow-prereleases: true
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          version-file: pyproject.toml
+
+      # A download by name extracts into `path` itself.
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: treams-rs-distribution-macos-x86_64-${{ matrix.python.artifact }}
+          path: dist/wheelhouse
+
+      - name: Smoke-test installed wheel
+        env:
+          SMOKE_PROFILES: ${{ matrix.python.profiles }}
+          SKIPPED_PROFILES: ${{ matrix.python.skipped }}
+        run: *smoke
 
   sdist:
     name: Source distribution

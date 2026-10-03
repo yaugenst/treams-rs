@@ -14,8 +14,9 @@ The release build targets CPython 3.12–3.15 on Linux with glibc 2.17 or newer
 plus one source distribution. The Python classifiers and `license-files` in
 [`pyproject.toml`](../../pyproject.toml) define the expected distributions.
 Publication requires that every configured wheel builds and passes its
-installation checks. PyPy, free-threaded CPython, musllinux, Windows ARM64,
-abi3 wheels and conda are outside this release.
+installation checks. The Intel macOS wheels are built on Apple-silicon runners
+and checked on Intel runners. PyPy, free-threaded CPython, musllinux, Windows
+ARM64, abi3 wheels and conda are outside this release.
 
 ## Repository setup
 
