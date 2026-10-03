@@ -11,6 +11,7 @@ pytestmark = pytest.mark.gradients
 
 torch = pytest.importorskip("torch")
 
+import treams_rs as tr  # noqa: E402
 from treams_rs import SphericalBasis, diff  # noqa: E402
 from treams_rs import torch as ad  # noqa: E402
 
@@ -141,11 +142,11 @@ def test_read_only_numpy_constants_are_accepted_without_warning():
 
 
 @pytest.mark.interface
-@pytest.mark.parametrize("dtype", [torch.float32, torch.complex64, torch.int64])
+@pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16, torch.int64])
 def test_rejects_unsupported_dynamic_dtypes(dtype):
     # The message of the NumPy-side check, which names the dtype and the remedy.
     message = re.escape(
-        "require float64 or complex128 parameters; "
+        "require float32, float64, complex64 or complex128 parameters; "
         f"received {str(dtype).removeprefix('torch.')}. Cast the parameter explicitly"
     )
     with pytest.raises(TypeError, match=message):
@@ -161,14 +162,59 @@ def test_rejects_unsupported_dynamic_dtypes(dtype):
             ],
             materials=(3.0, 2.0),
         )
-    # Dtypes that NumPy lacks get the same message under their Torch name.
-    bfloat16 = torch.bfloat16
-    message = re.escape(
-        "require float64 or complex128 parameters; "
-        "received bfloat16. Cast the parameter explicitly"
-    )
-    with pytest.raises(TypeError, match=message):
-        ad.solve(torch.eye(2, dtype=bfloat16), torch.ones((2, 1), dtype=bfloat16))
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.complex64])
+def test_single_precision_native_inputs_and_repeated_pullbacks(dtype):
+    seen = []
+
+    def record(a, b):
+        seen.append((a.dtype, b.dtype))
+        return diff.solve(a, b)
+
+    a = torch.tensor([[2.0, 0.1], [0.2, 1.5]], dtype=dtype, requires_grad=True)
+    b = torch.tensor([[0.4], [0.7]], dtype=dtype, requires_grad=True)
+    if dtype == torch.complex64:
+        a = (a + 0.1j).detach().requires_grad_()
+        b = (b + 0.3j).detach().requires_grad_()
+    output = ad.wrap(record)(a, b)
+    assert output.dtype == torch.complex128  # native solve is complex-valued
+    weight = np.array([[0.3 + 0.2j], [-0.1j]])
+    reference_a = a.detach().numpy().astype(np.complex128)
+    reference_b = b.detach().numpy().astype(np.complex128)
+    expected, context = diff.solve(reference_a, reference_b)
+    expected_gradients = context.pullback(weight)
+    assert_allclose(output.detach().numpy(), expected, rtol=1e-14)
+    for repeat in (True, False):
+        gradients = torch.autograd.grad(
+            output, (a, b), torch.tensor(weight), retain_graph=repeat
+        )
+        for actual, expected_gradient in zip(
+            gradients, expected_gradients, strict=True
+        ):
+            assert actual.dtype == dtype
+            if dtype == torch.float32:
+                expected_gradient = expected_gradient.real
+            assert_allclose(actual.numpy(), expected_gradient, rtol=2e-7, atol=1e-9)
+    native_dtype = np.float64 if dtype == torch.float32 else np.complex128
+    assert seen == [(native_dtype, native_dtype)] * 2
+
+
+def test_default_precision_root_sphere_gradient():
+    def objective(radius):
+        sphere = tr.sphere_tmatrix(k0=2.0, lmax=2, radius=radius, material=3.0)
+        wave = tr.plane_wave([0, 0, 1], "positive_helicity", k0=2.0)
+        return sphere.cross_sections(wave).scattering
+
+    radius = torch.tensor(0.2, requires_grad=True)
+    value = objective(radius)
+    (gradient,) = torch.autograd.grad(value, radius)
+    assert value.dtype == torch.float64
+    assert gradient.dtype == radius.dtype
+    step = 1e-5
+    expected_gradient = (objective(0.2 + step) - objective(0.2 - step)) / (2 * step)
+    assert_allclose(value.detach().numpy(), objective(0.2), rtol=2e-7)
+    assert_allclose(gradient.numpy(), expected_gradient, rtol=2e-7)
 
 
 def test_requested_illumination_matches_full_response_and_all_gradients():

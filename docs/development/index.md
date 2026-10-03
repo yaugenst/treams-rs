@@ -12,7 +12,7 @@ in the 0.12 series, [just](https://just.systems/) and Rust 1.94.0, pinned in
 for the complete reference suite. From the repository root:
 
 ```sh
-uv sync --locked --no-install-project --group dev --extra jax
+uv sync --locked --no-install-project --group dev --extra jax --extra autograd
 just build-ext
 uv run --no-sync pre-commit install
 ```
@@ -20,7 +20,7 @@ uv run --no-sync pre-commit install
 - `uv sync` installs the development tools and the test references: treams
   0.4.7, SciPy and mpmath. treams-rs itself needs only NumPy. Historical
   comparisons against treams 0.4.5 retain that version in their evidence.
-- JAX and PyTorch are optional; without them their adapter tests skip.
+- JAX, PyTorch and HIPS Autograd are optional; without them their adapter tests skip.
 - `just build-ext` compiles the extension into `.venv`. Run it again after
   every change under `crates/`.
 
@@ -131,7 +131,7 @@ with a release build as described in [benchmarks](benchmarks.md).
 
 Run `just check-wheel` after a change to packaging or to public imports. It
 builds an optimized wheel and installs it into a clean environment without
-SciPy or treams. There it checks the core and Advect behavior, compares native
+SciPy or treams. There it checks the core, Advect and HIPS Autograd behavior, compares native
 results on threads that flush subnormals with those of ordinary threads bit for
 bit, and checks the optional HDF5 interchange. It also scans the archive for
 local paths.

@@ -1,8 +1,8 @@
 """Complete physical workflows retain native first-order derivatives in each backend.
 
-The three engines compose the same native pullbacks. Advect, a hard test
-dependency, is checked against central finite differences once per scenario;
-JAX and PyTorch must then reproduce Advect's values and gradients to rounding,
+The engines compose the same native pullbacks. Advect, a hard test dependency,
+is checked against central finite differences once per scenario; JAX, PyTorch
+and Autograd must then reproduce Advect's values and gradients to rounding,
 and physical invariants are checked through each engine's own derivatives.
 """
 
@@ -18,7 +18,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from numpy.testing import assert_allclose, assert_array_equal
 
-# Scenarios take the namespace they run in as `tr`: treams_rs.advect, .jax or .torch,
+# Scenarios take the namespace they run in as `tr`: .advect, .jax, .torch or .autograd,
 # or treams_rs itself in the has_core checks, which import it as `core`.
 import treams_rs as core
 from treams_rs import diff
@@ -35,13 +35,22 @@ pytestmark = pytest.mark.gradients
 FIELDS = ("efield", "hfield", "dfield", "bfield", "gfield", "ffield")
 
 
+def real(value):
+    """Autograd requires its NumPy function rather than an ArrayBox property."""
+    if type(value).__module__.startswith("autograd."):
+        import autograd.numpy as anp
+
+        return anp.real(value)
+    return value.real
+
+
 class Engine:
     """A framework namespace and first-order evaluation of real objectives."""
 
-    def __init__(self, name):
+    def __init__(self, name, *, root_api=False):
         self.name = name
         self.framework = importlib.import_module(name)
-        self.tr = importlib.import_module(f"treams_rs.{name}")
+        self.tr = core if root_api else importlib.import_module(f"treams_rs.{name}")
         self._objectives = {}
 
     def value_and_grad(self, function, x):
@@ -60,7 +69,9 @@ class Engine:
                 self._objectives[function] = jax.jit(jax.value_and_grad(objective))
             value, gradient = self._objectives[function](x)
             return np.asarray(value), np.asarray(gradient)
-        value, gradient = advect.value_and_grad(functools.partial(function, self.tr))(x)
+        value, gradient = self.framework.value_and_grad(
+            functools.partial(function, self.tr)
+        )(x)
         return np.asarray(value), np.asarray(gradient)
 
     @staticmethod
@@ -68,7 +79,7 @@ class Engine:
         return value.detach().numpy() if hasattr(value, "detach") else np.asarray(value)
 
 
-@pytest.fixture(scope="module", params=["advect", "jax", "torch"])
+@pytest.fixture(scope="module", params=["advect", "jax", "torch", "autograd"])
 def engine(request):
     pytest.importorskip(request.param)
     scope = jax_x64() if request.param == "jax" else contextlib.nullcontext()
@@ -110,7 +121,7 @@ def sphere_permittivity(tr, epsilon):
 @scenario(1.2)
 def plane_frequency_on_axis(tr, k0):
     wave = tr.plane_wave([0, 0, 1], "positive_helicity", k0=k0)
-    return wave.efield([[0.1, 0.2, 1.3]]).real.sum()
+    return real(wave.efield([[0.1, 0.2, 1.3]])).sum()
 
 
 @scenario(0.2, name="cluster_requested_illumination", solve=False)
@@ -174,7 +185,7 @@ def complex_index_plane(tr, index, *, direction):
     medium = tr.Material(index + 0.1j, index + 0.1j)
     wave = tr.plane_wave(direction, "positive_helicity", k0=1.2, medium=medium)
     coefficients = wave.in_basis(core.SphericalBasis.default(1)).coefficients
-    return wave.efield([[0.2, 0.4, 0.7]]).real.sum() + coefficients.real.sum()
+    return real(wave.efield([[0.2, 0.4, 0.7]])).sum() + real(coefficients).sum()
 
 
 @pytest.mark.interface
@@ -398,7 +409,7 @@ def partial_parity_propagation(tr, distance):
         medium=2.3,
         polarization="parity",
     )
-    return (sm.array.real**2).sum()
+    return (real(sm.array) ** 2).sum()
 
 
 @scenario(0.3, name="interleaved_parity_propagation")
@@ -1214,20 +1225,23 @@ def test_propagation_cascade_and_parity(engine):
 
 
 @pytest.mark.interface
-def test_high_level_jax_rejects_reduced_precision_without_detaching():
+@pytest.mark.parametrize("enable_x64", [False, True])
+def test_high_level_jax_float32_preserves_gradient(enable_x64):
     jax = pytest.importorskip("jax")
-    from treams_rs import jax as tr
-
-    with jax_x64(jax):
-        operation = jax.jit(
-            lambda radius: (
-                tr.sphere_tmatrix(k0=1.2, lmax=1, radius=radius, material=3.0).array
-            )
-        )
-        with pytest.raises(TypeError, match="float64"):
-            operation(jax.numpy.asarray(0.2, dtype=jax.numpy.float32))
-        with jax.enable_x64(False), pytest.raises(ValueError, match="jax_enable_x64"):
-            tr.sphere_tmatrix(k0=1.2, lmax=1, radius=0.2, material=3.0)
+    objective = functools.partial(LOSSLESS_CROSS_SECTIONS["scattering", False], core)
+    with jax.enable_x64(enable_x64):
+        radius = jax.numpy.asarray(0.2, dtype=jax.numpy.float32)
+        value, gradient = jax.jit(jax.value_and_grad(objective))(radius)
+        assert gradient.dtype == jax.numpy.float32
+        assert value.dtype == (jax.numpy.float64 if enable_x64 else jax.numpy.float32)
+        reference_radius = float(radius)
+        step = 1e-5
+        finite_difference = (
+            objective(reference_radius + step) - objective(reference_radius - step)
+        ) / (2 * step)
+        assert_allclose(value, objective(reference_radius), rtol=2e-6)
+        assert_allclose(gradient, finite_difference, rtol=2e-6)
+        assert jax.config.x64_enabled is enable_x64
 
 
 @pytest.mark.interface

@@ -40,7 +40,9 @@ __all__ = [
     "Record",
     "apply_pullback",
     "input_array",
+    "native_array",
     "require_float64",
+    "require_inexact",
     "run_record",
 ]
 
@@ -70,6 +72,26 @@ def require_float64(dtype: np.dtype[Any] | str) -> None:
             "native adapters require float64 or complex128 parameters; "
             f"received {dtype}. Cast the parameter explicitly before calling."
         )
+
+
+def require_inexact(dtype: np.dtype[Any] | str) -> None:
+    """Validate supported real/complex precision before framework coercion."""
+    if dtype not in tuple(
+        map(np.dtype, ("float32", "float64", "complex64", "complex128"))
+    ):
+        raise TypeError(
+            "native adapters require float32, float64, complex64 or complex128 "
+            f"parameters; received {dtype}. Cast the parameter explicitly before calling."
+        )
+
+
+def native_array(value: object) -> Array:
+    """Promote supported floating-point inputs to the native double precision."""
+    array = np.asarray(value)
+    require_inexact(array.dtype)
+    return np.asarray(
+        array, dtype=np.complex128 if np.iscomplexobj(array) else np.float64
+    )
 
 
 def run_record(

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, cast
 import numpy as np
 
 from . import diff
+from ._dispatch import autodiff_method, backend_for, namespace
 from ._tmatrix import CylindricalTMatrix, TMatrix, interaction_coupling, solve_columns
 from ._validation import check_particle_positions
 from ._waves import check_compatible
@@ -89,8 +90,40 @@ class ScatteringFactor:
     ):
         self._local, self._factor = local, factor
 
-    def scatter(self, incident: ArrayLike | PlaneWave | Wave) -> Wave:
+    def scatter(self, incident: ArrayLike | PlaneWave | Wave) -> Any:
         """Solve one source or a (modes, illuminations) batch with the stored LU factors."""
+        backend = backend_for(incident)
+        if backend is not None:
+            from ._framework_tmatrix import _regular_incident
+            from ._framework_waves import Wave as FrameworkWave
+            from ._promotion import promote
+
+            local = promote(self._local, backend)
+            wave = _regular_incident(local, incident)
+            vector = wave.coefficients.ndim == 1
+            columns = wave.coefficients[:, None] if vector else wave.coefficients
+
+            def record(values: Any) -> Any:
+                value, context = self._factor.record(values)
+
+                # The cluster and its LU factors are constant; only incident
+                # columns need gradients from this block-local record.
+                def pullback(g: Any) -> tuple[Any]:
+                    return (context.pullback_blocks(g)[2],)
+
+                return value, pullback
+
+            scattered = backend.apply(record, tuple(columns.shape), columns)
+            return FrameworkWave(
+                scattered[:, 0] if vector else scattered,
+                basis=local.basis,
+                k0=local.k0,
+                medium=local.medium,
+                backend=backend,
+                positions=local.positions,
+                singular=True,
+                polarization=local.polarization,
+            )
         return self._local._outgoing(
             solve_columns(self._factor, self._local._incident(incident))
         )
@@ -146,9 +179,19 @@ class Cluster(DelegatesToLocal[TMatrix | CylindricalTMatrix]):
         assert abs(cross.absorption) < 1e-12  # lossless materials
 
     For fields alone, use ``system.scatter(incident).efield(points)`` and add
-    the incident field. For geometry/material gradients choose an explicit
-    framework namespace and construct changing quantities inside the objective.
+    the incident field. For geometry/material gradients, construct changing
+    quantities inside the objective; their framework is selected automatically.
     """
+
+    def __new__(cls, particles: Any = None, *, positions: Any = None) -> Any:
+        backend = backend_for(particles, positions)
+        if backend is None:
+            return super().__new__(cls)
+        from ._promotion import promote
+
+        return namespace(backend).Cluster(
+            [promote(particle, backend) for particle in particles], positions=positions
+        )
 
     def __init__(
         self,
@@ -183,6 +226,7 @@ class Cluster(DelegatesToLocal[TMatrix | CylindricalTMatrix]):
             self._local, diff.factor_interaction_blocks(self._blocks, coupling)
         )
 
+    @autodiff_method
     def scatter(self, incident: ArrayLike | PlaneWave | Wave) -> Wave:
         """Compute only the requested outgoing waves, including particle interactions."""
         return self.factor().scatter(incident)

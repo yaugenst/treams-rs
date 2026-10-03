@@ -87,6 +87,10 @@ Mirrors ``treams.cw.rotate``. ``phi`` rotates about the z axis.
 complex128 array with the broadcast shape of the label and coordinate
 arguments. Python numbers give one complex number.
 
+Autodiff:
+    Mode matching is held fixed. Axial labels may move together, but changing
+    whether ``kz == qz`` is a discrete transition without a derivative.
+
 ## `to_sw`
 
 ```python
@@ -150,6 +154,12 @@ zero displacement is 0, as in treams.
 
 complex128 array with the broadcast shape of the label and coordinate
 arguments. Python numbers give one complex number.
+
+Autodiff:
+    Mode matching is held fixed. To differentiate the shared axial
+    wavenumber, use the same varying parameter for ``kz`` and ``qz``. The
+    phase derivative is credited to the source ``qz``. Independent changes
+    that break ``kz == qz`` are discontinuous and have no derivative.
 
 ## `translate_periodic`
 

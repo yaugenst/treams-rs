@@ -79,7 +79,7 @@ np.testing.assert_allclose(cross_sections.extinction, 0.6258290233441384, rtol=1
 | [Coming from treams](coming-from-treams/index.md) | Workflows, the name map, conventions and differences from treams |
 | [User guide](guide/index.md) | Particles, clusters, periodic arrays, planar stacks and numerical functions |
 | [Examples](examples/index.md) | The treams gallery in treams-rs, plus gradient-based design |
-| [Differentiation](differentiation/index.md) | Gradients through Advect, JAX, PyTorch and `diff` |
+| [Differentiation](differentiation/index.md) | Gradients through Advect, JAX, PyTorch, HIPS Autograd and `diff` |
 | [Design](design/index.md) | Why treams-rs is built the way it is |
 | [Validation](validation/index.md) | How the results are tested, and their limits |
 | [Performance](performance/index.md) | Timings and memory against treams |

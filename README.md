@@ -17,7 +17,8 @@ treams-rs computes electromagnetic scattering with T-matrices: spheres,
 cylinders and layered or chiral particles, finite clusters, periodic arrays and
 planar stacks, with their fields, cross sections and power. A T-matrix is the
 linear map from the multipole coefficients of an incident wave to those of the
-scattered wave. Advect, JAX and PyTorch use its analytic gradients directly.
+scattered wave. Advect, JAX, PyTorch and HIPS Autograd use its analytic gradients
+through the ordinary `treams_rs` API.
 
 ## Relationship to treams
 
@@ -45,7 +46,7 @@ The 0.1.0 core wheel targets are CPython 3.12–3.15 on Linux (glibc 2.17 or
 newer, x86-64 and arm64), macOS (Intel and Apple silicon), and Windows
 (x86-64). Installing a wheel needs no Rust toolchain.
 
-Extras add optional packages: `[advect]`, `[jax]` and `[torch]` for gradients,
+Extras add optional packages: `[advect]`, `[jax]`, `[torch]` and `[autograd]` for gradients,
 and `[io]` for HDF5 files. Standard PyPI installs of the `torch` and `io`
 extras on CPython 3.15 are outside the 0.1.0 release qualification. See
 [Install](https://yaugenst.github.io/treams-rs/latest/getting-started/install/)
@@ -69,12 +70,13 @@ print(scattered.efield([[0.1, 0.2, 1.2]]))
 
 ## Differentiation
 
-The same physics in `treams_rs.advect` gives the gradient of the scattering
-cross section with respect to the sphere radius (install `treams-rs[advect]`):
+Pass framework values to the same physics API: treams-rs selects the adapter
+automatically. This gives the gradient of the scattering cross section with
+respect to the sphere radius (install `treams-rs[advect]`):
 
 ```python exec
 from advect import grad
-from treams_rs import advect as tr
+import treams_rs as tr
 
 
 def scattering(radius):
@@ -86,8 +88,11 @@ def scattering(radius):
 print(grad(scattering)(0.2))
 ```
 
-`treams_rs.jax` and `treams_rs.torch` work the same way with `jax.grad` and
-`torch.autograd`. Rust computes each derivative analytically; see
+The same `scattering` function works with `jax.grad`, `torch.autograd` and
+`autograd.grad`. Optional adapters load only when needed; Python and NumPy
+inputs retain NumPy behavior. Rust computes each derivative analytically.
+The adapters support first-order CPU gradients, with framework-specific dtype
+and transform requirements; see
 [Differentiation](https://yaugenst.github.io/treams-rs/latest/differentiation/).
 
 ## Documentation
@@ -101,7 +106,7 @@ The [documentation](https://yaugenst.github.io/treams-rs/latest/) covers:
 - [User guide](https://yaugenst.github.io/treams-rs/latest/guide/): particles, clusters,
   periodic arrays, planar stacks and numerical functions.
 - [Differentiation](https://yaugenst.github.io/treams-rs/latest/differentiation/):
-  gradients through Advect, JAX, PyTorch and the `diff` module.
+  gradients through Advect, JAX, PyTorch, HIPS Autograd and the `diff` module.
 - [Examples](https://yaugenst.github.io/treams-rs/latest/examples/): the treams gallery
   in treams-rs, plus gradient-based design.
 - [Validation](https://yaugenst.github.io/treams-rs/latest/validation/): tests against

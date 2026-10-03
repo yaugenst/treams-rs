@@ -89,10 +89,23 @@ class Constructors(_BoundToBackend):
     _name = "_api"
 
     def plane_wave(
-        self, direction: Any, pol: Any, *, k0: Any, medium: Any = 1.0
+        self,
+        direction: Any,
+        pol: Any,
+        *,
+        k0: Any,
+        medium: Any = 1.0,
+        polarization: str = "helicity",
     ) -> PlaneWave:
-        """Fixed-direction plane wave with dynamic frequency, medium and amplitudes."""
-        return PlaneWave(direction, pol, k0=k0, medium=medium, backend=self.backend)
+        """Plane wave with dynamic real direction, frequency, medium and amplitudes."""
+        return PlaneWave(
+            direction,
+            pol,
+            k0=k0,
+            medium=medium,
+            backend=self.backend,
+            polarization=polarization,
+        )
 
     def smatrix(
         self,
@@ -129,14 +142,20 @@ class Constructors(_BoundToBackend):
         polarization: str = "helicity",
         positions: Any = None,
     ) -> Wave:
-        """Multipole wave with one coefficient per basis mode, shape (modes,)."""
+        """Multipole coefficients of shape (modes,) or (modes, illuminations)."""
         kind = check_kind(kind)
         if kind not in ("regular", "singular"):
             raise ValueError("kind must be 'regular' or 'singular'")
         b = self.backend
         array = b.array(coefficients, complex_=True)
-        if array.shape != (len(basis),):
-            raise ValueError("one coefficient is required per basis mode")
+        if (
+            array.ndim not in (1, 2)
+            or array.shape[0] != len(basis)
+            or (array.ndim == 2 and array.shape[1] == 0)
+        ):
+            raise ValueError(
+                "wave coefficients require shape (modes,) or (modes, illuminations)"
+            )
         return Wave(
             array,
             basis=basis,

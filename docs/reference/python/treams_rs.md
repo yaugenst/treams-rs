@@ -64,12 +64,12 @@ Choose the physical workflow:
   follow ``ports.pol`` (1 means positive helicity, 0 means negative); inspect that
   array instead of assuming the order.
 
-Sensitivity and optimization use an explicit framework namespace. With the
-``[advect]`` extra installed:
+Sensitivity and optimization use the same API: framework inputs select their
+adapter automatically. With the ``[advect]`` extra installed:
 
 ```python
 import advect as ad
-import treams_rs.advect as tr
+import treams_rs as tr
 
 def objective(radius):
     particle = tr.sphere_tmatrix(k0=2.0, lmax=2, radius=radius, material=3.0)
@@ -83,9 +83,12 @@ Construct changing geometry/materials inside the objective and keep traced
 values as framework arrays (``advect.numpy``); convert to float/NumPy only after
 differentiation. Rust computes analytic gradients with respect to continuous
 geometry, material and frequency; mode cutoffs, integer labels and topology stay
-fixed. CPU, first-order reverse mode only. JAX and PyTorch have explicit
-optional namespaces. The root NumPy namespace does not trace; ``diff`` returns
-each value with a context whose ``pullback`` gives the input gradients.
+fixed. Advect, JAX, PyTorch and HIPS Autograd support CPU, first-order reverse
+mode with their documented dtype and transform limits. Plain Python and NumPy
+inputs retain NumPy behavior, without loading optional frameworks. Explicit
+``advect``, ``jax``, ``torch`` and ``autograd`` namespaces remain available for
+framework-specific record helpers. ``diff`` returns each value with a context
+whose ``pullback`` gives the input gradients.
 
 Offline help: ``python -m treams_rs`` shows this quickstart;
 ``python -m treams_rs sphere_tmatrix`` or ``python -m treams_rs advect`` shows
@@ -158,8 +161,8 @@ assert abs(cross.absorption) < 1e-12  # lossless materials
 ```
 
 For fields alone, use ``system.scatter(incident).efield(points)`` and add
-the incident field. For geometry/material gradients choose an explicit
-framework namespace and construct changing quantities inside the objective.
+the incident field. For geometry/material gradients, construct changing
+quantities inside the objective; their framework is selected automatically.
 
 ### `Cluster.basis`
 
@@ -426,8 +429,8 @@ The treams counterpart is ``treams.TMatrixC``. Rows and columns follow
 ``basis``, a CylindricalBasis with fixed real axial wavenumbers kz. Use
 ``cylinder_tmatrix`` for concentric infinite cylinders and ``Cluster`` for
 parallel cylinders. Cross widths have length units. ``scatter(incident)``
-returns the scattered Wave; ``array`` and ``@`` give the coefficients. For
-gradients use ``treams_rs.advect``, ``jax`` or ``torch``.
+returns the scattered Wave; ``array`` and ``@`` give the coefficients.
+Framework-valued inputs select their differentiation adapter automatically.
 
 The treams-rs names come first. The treams names (``xw``, ``poltype``,
 ``changepoltype``, ...) follow at the end of the class and call them.
@@ -883,7 +886,7 @@ in that order.
 ### `Material.__init__`
 
 ```python
-Material(epsilon: MaterialLike=1, mu: complex=1, kappa: complex=0)
+Material(epsilon: Any=1, mu: Any=1, kappa: Any=0)
 ```
 
 ### `Material.from_refractive_index`
@@ -982,7 +985,7 @@ Radial wavevectors on the same outgoing branch as kzs.
 ### `Material.epsilon`
 
 ```python
-Material.epsilon: complex
+Material.epsilon: Any
 ```
 
 Relative permittivity.
@@ -990,7 +993,7 @@ Relative permittivity.
 ### `Material.mu`
 
 ```python
-Material.mu: complex
+Material.mu: Any
 ```
 
 Relative permeability.
@@ -998,7 +1001,7 @@ Relative permeability.
 ### `Material.kappa`
 
 ```python
-Material.kappa: complex
+Material.kappa: Any
 ```
 
 Chirality parameter, dimensionless.
@@ -1063,10 +1066,14 @@ reciprocal lattice; use a diffraction basis to construct such sources.
 ### `PeriodicResponse.to_smatrix`
 
 ```python
-PeriodicResponse.to_smatrix(basis: PlaneWavePorts) -> SMatrix
+PeriodicResponse.to_smatrix(basis: PlaneWavePorts | None=None, *, diffraction_orders: ArrayLike | None=None, orders: ArrayLike | None=None) -> SMatrix
 ```
 
-Convert the solved response to matching up/down diffraction ports.
+Convert to a fixed plane basis or explicit integer diffraction orders.
+
+Spherical arrays take orders with shape (groups, 2), cylindrical arrays
+a vector of orders within one axial sector. Each order includes both
+helicities. ``orders`` is an alias of ``diffraction_orders``.
 
 ### `PeriodicResponse.to_cylindrical`
 
@@ -2228,7 +2235,7 @@ ScatteringFactor(local: TMatrix | CylindricalTMatrix, factor: _native.Interactio
 ### `ScatteringFactor.scatter`
 
 ```python
-ScatteringFactor.scatter(incident: ArrayLike | PlaneWave | Wave) -> Wave
+ScatteringFactor.scatter(incident: ArrayLike | PlaneWave | Wave) -> Any
 ```
 
 Solve one source or a (modes, illuminations) batch with the stored LU factors.
@@ -2406,8 +2413,8 @@ The treams counterpart is ``treams.TMatrix``. Build one with
 ``sphere_tmatrix``, ``multilayer_sphere_tmatrix`` or ``Cluster.solve``, or
 from a square array. Rows and columns follow ``basis``, a SphericalBasis.
 ``scatter(incident)`` returns the scattered Wave; ``array`` and ``@`` give
-the coefficients. For gradients use ``treams_rs.advect``, ``jax`` or
-``torch``.
+the coefficients. Framework-valued inputs select their differentiation
+adapter automatically.
 
 The treams-rs names come first. The treams names (``xs``, ``cd``,
 ``poltype``, ``changepoltype``, ...) follow at the end of the class and
@@ -2760,9 +2767,9 @@ The treams counterpart is the PhysicsArray that ``treams.spherical_wave``
 and the other wave functions return. ``kind`` is the radial kind of
 multipoles (regular or singular) or the direction of plane-wave ports (up
 or down). Fields use weighted Rust kernels and never form the full
-sample-by-mode operator. Use ``coefficients`` for numerical work and the
-framework namespaces for gradients. A batch keeps one illumination per
-column.
+sample-by-mode operator. Use ``coefficients`` for numerical work;
+framework-valued inputs retain their gradients. A batch keeps one
+illumination per column.
 
 The treams-rs names come first. The treams names (``material``,
 ``poltype``, ``modetype``, ``expand``, ...) follow at the end of the class
@@ -3158,7 +3165,8 @@ material is the layer permittivity or Material(epsilon, mu, kappa).
 Exterior media default to vacuum. Pass a physical plane wave to
 ``network.power(incident)`` for named transmission, reflection and absorption
 fractions; its direction selects the illuminated side. For derivatives use
-``treams_rs.advect.slab`` inside ``advect.value_and_grad``.
+this same function inside your autodiff framework's gradient calculation;
+the thickness, frequency or material selects its adapter automatically.
 
 A lossy chiral layer distinguishes the two helicities:
 
@@ -3232,7 +3240,7 @@ is the exterior, vacuum by default. lmax is the fixed multipole cutoff.
 Use ``response.cross_sections(plane_wave(...))`` for named scattering,
 extinction and absorption areas, ``response.average_cross_sections`` for
 rotational/polarization averages, or ``response.scatter(wave).efield(xyz)``
-for scattered fields. Use treams_rs.advect/jax/torch for traced parameters.
+for scattered fields. Framework-valued parameters retain their gradients.
 
 ## `spherical_wave`
 

@@ -44,6 +44,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from . import _lattice, _modes, _native, diff, lattice
+from . import _wave_functions as _autodiff
+from ._autodiff_functions import transparent_function as _transparent_function
 from ._bases import SphericalBasis as _SphericalBasis
 from ._polarization import is_helicity as _is_helicity
 
@@ -363,3 +365,19 @@ def periodic_to_cw(
         else _native.sw_periodic_to_cw_p
     )
     return function(kz, m, pol, l, mu, qol, k, area, *args, **kwargs)
+
+
+# Keep native NumPy semantics while selecting a derivative adapter for framework
+# inputs. The callbacks share the existing Rust records with the physics API.
+
+translate = _transparent_function(translate, _autodiff.sw_translate, module=__name__)
+rotate = _transparent_function(rotate, _autodiff.sw_rotate, module=__name__)
+translate_periodic = _transparent_function(
+    translate_periodic, _autodiff.sw_translate_periodic, module=__name__
+)
+periodic_to_cw = _transparent_function(
+    periodic_to_cw, _autodiff.sw_periodic_to_cw, module=__name__
+)
+periodic_to_pw = _transparent_function(
+    periodic_to_pw, _autodiff.periodic_to_pw, module=__name__
+)

@@ -68,6 +68,7 @@ the language, and `tests/api/test_docs.py` enforces it:
 | ```` ```python exec ```` | runs as a test |
 | ```` ```python exec jax ```` | runs as a test, skipped without JAX |
 | ```` ```python exec torch ```` | runs as a test, skipped without PyTorch |
+| ```` ```python exec autograd ```` | runs as a test, skipped without HIPS Autograd |
 | ```` ```python no-exec ```` | does not run: fragments and treams code |
 
 `FENCE_MODES` in the hook is the one list of modes; the hook removes the mode
@@ -100,7 +101,7 @@ The reference comes from the API catalog rather than from a MkDocs plugin such
 as mkdocstrings. One source then serves the site, `llms.txt` and
 `python -m treams_rs --format markdown`. The catalog reads the installed
 package, so it includes native ufuncs, whose signatures exist only at run time,
-and the adapter modules without JAX or PyTorch installed.
+and the adapter modules without their optional frameworks installed.
 
 ## Examples gallery
 

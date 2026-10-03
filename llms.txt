@@ -61,8 +61,8 @@ Use `--format json` or `--format markdown` to list all documented functions and 
 ## Differentiation
 
 - [Differentiation](docs/differentiation/index.md): How a record returns a value and a context, and how context.pullback returns the input gradients in argument order.
-- [Framework adapters](docs/differentiation/frameworks.md): Differentiate physics objects with Advect, JAX or PyTorch, with their transforms, dtypes and limits.
-- [Custom records](docs/differentiation/custom-records.md): Wrap a diff record for JAX or PyTorch, and find the record, adapter function and physics object for each family.
+- [Framework adapters](docs/differentiation/frameworks.md): Differentiate the ordinary API with Advect, JAX, PyTorch or HIPS Autograd, with their transforms, dtypes and limits.
+- [Custom records](docs/differentiation/custom-records.md): Wrap a diff record for JAX, PyTorch or HIPS Autograd, and find the record and physics object for each family.
 - [Gradient checks](docs/differentiation/gradient-checks.md): Check the pullback of a record or the gradient of a scalar objective against finite differences with treams_rs.testing.
 
 ## Design
@@ -70,7 +70,7 @@ Use `--format json` or `--format markdown` to list all documented functions and 
 - [Design](docs/design/index.md): The layers of treams-rs, their responsibilities and their treams counterparts.
 - [Python API design](docs/design/python-api.md): Physics objects, names and metadata in the Python API.
 - [Analytic pullbacks](docs/design/pullbacks.md): Analytic first derivatives, one-use gradient contexts and the complex-gradient convention.
-- [Framework adapters](docs/design/adapters.md): Shared physics classes, native calls and gradients in Advect, JAX and PyTorch.
+- [Framework adapters](docs/design/adapters.md): Lazy input dispatch, shared physics classes, native calls and gradients in Advect, JAX, PyTorch and HIPS Autograd.
 - [Floating-point environment](docs/design/floating-point.md): How native calculations preserve subnormal numbers when callers flush them to zero.
 - [Numerical choices](docs/design/numerics.md): Numerical choices of the Rust core - equilibrated LU, LU worker counts, Wigner 3j, Ewald sums, branches, EBCM and parallel thresholds.
 - [Parallelism](docs/design/parallelism.md): The treams-rs thread pool, reproducible results and remaining work.
@@ -112,6 +112,7 @@ Use `--format json` or `--format markdown` to list all documented functions and 
 - [`treams_rs.advect`](docs/reference/python/advect.md): Advect adapter: physics objects and records differentiated by Advect, on the CPU and in first-order reverse mode only.
 - [`treams_rs.jax`](docs/reference/python/jax.md): JAX adapter: physics objects and records as JAX operations on the CPU, in first-order reverse mode only, with jit and sequential vmap.
 - [`treams_rs.torch`](docs/reference/python/torch.md): PyTorch adapter: physics objects and records as autograd operations on the CPU, in first-order reverse mode only.
+- [`treams_rs.autograd`](docs/reference/python/autograd.md): HIPS Autograd adapter: physics objects and native records on the CPU.
 - [Returned types](docs/reference/python/native-types.md): Objects that public records and solvers return: native contexts and factors, and Python helper objects.
 - [Rust crate](docs/reference/rust.md): The rustdoc of treams-core, the internal Rust crate that holds the numerical code.
 - [Glossary](docs/reference/glossary.md): One name per concept, with the treams-rs Python name, the native name, the Rust name and the treams name side by side.

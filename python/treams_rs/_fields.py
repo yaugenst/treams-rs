@@ -12,6 +12,7 @@ from ._bases import (
     PlaneWavePorts,
     SphericalBasis,
 )
+from ._dispatch import autodiff_method
 from ._material import Material, as_material
 from ._polarization import check_poltype_medium, resolve_poltype
 from ._validation import check_k0
@@ -227,26 +228,32 @@ class WaveFields:
             pol=pol,
         )
 
+    @autodiff_method
     def efield(self, r: ArrayLike) -> NDArray[np.complex128]:
         """Cartesian electric samples (..., 3), or (..., 3, illuminations) for a batch."""
         return self._samples("E", r)
 
+    @autodiff_method
     def hfield(self, r: ArrayLike) -> NDArray[np.complex128]:
         """Cartesian magnetic samples (..., 3), or (..., 3, illuminations) for a batch."""
         return self._samples("H", r)
 
+    @autodiff_method
     def dfield(self, r: ArrayLike) -> NDArray[np.complex128]:
         """Cartesian displacement samples (..., 3), or (..., 3, illuminations)."""
         return self._samples("D", r)
 
+    @autodiff_method
     def bfield(self, r: ArrayLike) -> NDArray[np.complex128]:
         """Cartesian flux-density samples (..., 3), or (..., 3, illuminations)."""
         return self._samples("B", r)
 
+    @autodiff_method
     def gfield(self, pol: int, r: ArrayLike) -> NDArray[np.complex128]:
         """Riemann-Silberstein G samples (..., 3[, illuminations]), upstream scaling."""
         return self._samples("G", r, pol)
 
+    @autodiff_method
     def ffield(self, pol: int, r: ArrayLike) -> NDArray[np.complex128]:
         """Riemann-Silberstein F samples (..., 3[, illuminations]) with chiral weights."""
         return self._samples("F", r, pol)

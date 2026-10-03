@@ -12,6 +12,21 @@ description: 'Objects that public records and solvers return: native contexts an
 Private classes that public methods return, such as the solver of
 `TMatrix.interaction`.
 
+### `_InteractionFactor`
+
+Prepared coupling for differentiable incident-column solves.
+
+The coupling is reused. Each solve records its own native factorization so
+its derivative remains connected to the local response and the coupling.
+
+#### `_InteractionFactor.solve`
+
+```python
+_InteractionFactor.solve(incident: Any) -> Any
+```
+
+Scattered coefficients for a vector or a batch of incident columns.
+
 ### `_Interaction`
 
 #### `_Interaction.solve`
@@ -88,6 +103,18 @@ _PeriodicInteraction.illuminate(incident: ArrayLike | PlaneWave | Wave, lattice:
 ```
 
 Compute requested periodic response columns without the full effective T matrix.
+
+### `_ClusterFactor`
+
+Reuse a differentiable cluster's prepared coupling and particle blocks.
+
+#### `_ClusterFactor.scatter`
+
+```python
+_ClusterFactor.scatter(incident: Any) -> Wave
+```
+
+Solve incident columns with a fresh native differentiation record.
 
 ## Native contexts and factors
 

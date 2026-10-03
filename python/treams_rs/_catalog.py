@@ -704,7 +704,7 @@ def support_catalog() -> dict[str, Any]:
             b"".join(name.encode() + b"\0" + data for name, data in sources.items())
         ).hexdigest(),
         "rules": {
-            "numeric_precision": "float64 / complex128; metadata also uses integer and boolean arrays",
+            "numeric_precision": "native float64 / complex128; framework outputs follow adapter precision; metadata uses integer and boolean arrays",
             "native_pairing": "dL = Re(sum(conj(g) * dx))",
             "derivative_order": 1,
             "static_parameters": "mode counts, integer labels, topology; see each operation's docstring",
@@ -729,7 +729,7 @@ def support_catalog() -> dict[str, Any]:
                     (ast.get_docstring(trees[name]) or "").partition("\n\n")[0].split()
                 ),
             }
-            for name in ("advect", "jax", "torch")
+            for name in ("advect", "jax", "torch", "autograd")
         },
         "modules": {
             f"treams_rs.{stem}": ast.get_docstring(tree) or ""

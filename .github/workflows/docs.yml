@@ -71,7 +71,7 @@ jobs:
       - name: Install package dependencies and documentation tools
         if: inputs.version != ''
         run: |
-          uv sync --locked --no-install-project --group dev --group docs --extra jax --python 3.13
+          uv sync --locked --no-install-project --group dev --group docs --extra jax --extra autograd --python 3.13
           torch_version="$(
             uv export --locked --extra torch --no-emit-project --no-hashes \
               --no-header --no-annotate | sed -n 's/^torch==\([^ ;]*\).*/\1/p'

@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from . import _native
+from ._dispatch import backend_for as _backend_for
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
@@ -65,6 +66,15 @@ def refractive_index(
         Array with the broadcast shape of the arguments plus a last axis of
         length 2: float64 for real indices, complex128 otherwise.
     """
+    backend = _backend_for(epsilon, mu, kappa)
+    if backend is not None:
+        epsilon, mu, kappa = (
+            backend.array(v, complex_=True) for v in (epsilon, mu, kappa)
+        )
+        index = backend.xp.sqrt(epsilon * mu)
+        return backend.upper_half(
+            backend.stack((index - kappa, index + kappa), axis=-1)
+        )
     return _native.refractive_indices(epsilon, mu, kappa)
 
 
@@ -82,6 +92,10 @@ def wave_vec_z(kx: ArrayLike, ky: ArrayLike, k: ArrayLike) -> NDArray[np.complex
     Returns:
         complex128 array with the broadcast shape of the arguments.
     """
+    backend = _backend_for(kx, ky, k)
+    if backend is not None:
+        kx, ky, k = (backend.array(v, complex_=True) for v in (kx, ky, k))
+        return backend.upper_half(backend.xp.sqrt(k * k - kx * kx - ky * ky))
     return _native.wave_vector_z(kx, ky, k)
 
 

@@ -7,7 +7,9 @@ description: The numerical namespaces special, sw, cw, pw, lattice, coeffs, misc
 These modules keep the function and argument names of treams, so a call such
 as `treams.sw.translate(...)` runs as
 `treams_rs.sw.translate(...)` with the same arguments. They take and return
-NumPy arrays, and most broadcast like NumPy ufuncs. The
+NumPy arrays, and most broadcast like NumPy ufuncs. Differentiable functions
+also accept Advect, JAX, PyTorch and HIPS Autograd values directly, selecting
+their native derivative adapter without another treams-rs import. The
 [differences page](../coming-from-treams/differences.md) lists every case where
 a result differs from treams; the
 [Python reference](../reference/python/index.md) lists every signature.
@@ -35,9 +37,26 @@ np.testing.assert_allclose(
 )
 ```
 
-Bessel, Hankel and wave functions return complex128, also for real inputs. An
+On the NumPy path, Bessel, Hankel and wave functions return complex128, also
+for real inputs. Framework results follow their adapter's precision. An
 evaluation that treams returns as NaN raises `ValueError`; see
 [deliberate differences](../coming-from-treams/differences.md#deliberate-differences).
+
+For example, HIPS Autograd differentiates a Bessel function through the same
+namespace. The integer order stays fixed:
+
+```python exec autograd
+import autograd.numpy as anp
+from autograd import grad
+from treams_rs import special
+
+derivative = grad(lambda x: anp.real(special.jv(0, x)))(0.8)
+assert anp.allclose(derivative, -special.jv(1, 0.8).real)
+```
+
+NumPy calls retain their ufunc options. Differentiated calls do not accept
+mutable `out` or masked `where` outputs; use the framework's array operations
+after the call. See [framework support](../differentiation/frameworks.md).
 
 ## sw
 

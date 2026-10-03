@@ -1,11 +1,11 @@
 ---
-description: Wrap a diff record for JAX or PyTorch, and find the record, adapter function and physics object for each family.
+description: Wrap a diff record for JAX, PyTorch or HIPS Autograd, and find the record and physics object for each family.
 ---
 
 # Custom records
 
-`treams_rs.jax.wrap` and `treams_rs.torch.wrap` turn any record into a function
-that the framework differentiates. Use them for the `diff` records that the
+`treams_rs.jax.wrap`, `treams_rs.torch.wrap` and `treams_rs.autograd.wrap` turn
+any record into a function that the framework differentiates. Use them for the `diff` records that the
 physics objects do not call, or to combine several records into one operation.
 
 ```python exec jax
@@ -48,15 +48,15 @@ A record for `wrap` follows these rules:
   terms.
 - Each gradient has the shape of its input. The adapter keeps the real part of
   the gradient of a real input.
-- Gradients follow the [pairing](index.md#rules) of the `diff` records. JAX
-  pairs complex numbers without the conjugate, so the JAX adapter conjugates the
+- Gradients follow the [pairing](index.md#rules) of the `diff` records. JAX and
+  HIPS Autograd pair complex numbers without the conjugate, so their adapters conjugate the
   cotangents and the gradients around the pullback; a record never converts.
 - The record is deterministic and free of side effects: no messages, no state
   changes, no random numbers. JAX may skip or repeat the call.
 
 The JAX `wrap(record, *examples)` runs the record once on the examples to learn
 the output shapes and dtypes. Later calls must use the same input shapes and
-dtypes, and the examples must be valid physical inputs. The PyTorch
+dtypes, and the examples must be valid physical inputs. The PyTorch and HIPS Autograd
 `wrap(record)` needs no examples: it learns the outputs on each call.
 
 ## Fixed configuration in closures
@@ -142,38 +142,46 @@ guesses which inputs are differentiable.
 ## Records by family
 
 Every `diff` record has the same name in `treams_rs.advect`, except the reusable
-factors. JAX and PyTorch offer five records directly: `solve`, `interaction`,
+factors. JAX, PyTorch and HIPS Autograd offer five records directly: `solve`, `interaction`,
 `illuminate`, `sphere` and `bessel`; `wrap` covers the others. The
 [API reference](../reference/python/index.md) lists every signature and gradient
 order.
 
-| Family | `diff` record | Advect function | JAX and PyTorch | Physics object |
+The adapter columns below describe explicit namespaces such as `tr.jax`.
+[Differentiable numerical functions](../guide/numerical-namespaces.md) also
+select their adapter through ordinary calls such as `tr.special.jv(...)`.
+
+| Family | `diff` record | Advect function | JAX, PyTorch and HIPS Autograd | Physics object |
 |---|---|---|---|---|
 | Sphere T-matrix | `sphere` | `sphere` | `sphere` | `sphere_tmatrix`, `multilayer_sphere_tmatrix` |
 | Mie coefficients | `mie`, `mie_cyl` | `mie`, `mie_cyl` | `wrap` | none |
 | Cylinder T-matrix | `cylinder` | `cylinder` | `wrap` | `cylinder_tmatrix`, `multilayer_cylinder_tmatrix` |
 | Sphere cluster (dense) | `sphere_cluster` | `sphere_cluster` | `wrap` | none (same result: `Cluster(...).solve()`) |
-| Heterogeneous cluster | `particle_cluster` | `particle_cluster` | `wrap` | none (same result: `Cluster(...).solve()`) |
-| Interaction and illumination | `interaction`, `illuminate` | `interaction`, `illuminate` | `interaction`, `illuminate` | `Cluster.solve()`, `Cluster.scatter()` |
-| Reusable factors | `factor_interaction`, `factor_interaction_blocks`, `sphere_cluster_factor`; their `InteractionFactor.record` | none | `wrap` of `factor.record` | none |
+| Heterogeneous cluster | `particle_cluster` | `particle_cluster` | `wrap` | `Cluster(...).solve()` |
+| Interaction and illumination | `interaction`, `illuminate` | `interaction`, `illuminate` | `interaction`, `illuminate` | `TMatrix.interaction`, `TMatrix.latticeinteraction` |
+| Reusable factors | `factor_interaction`, `factor_interaction_blocks`, `sphere_cluster_factor`; their `InteractionFactor.record` | none | `wrap` of `factor.record` | `Cluster.factor()`, `TMatrix.interaction.factor()`, `TMatrix.latticeinteraction.factor(...)`; see below |
 | Matrix-free sphere cluster | `iterative.SphereCluster.record` | none | none | none |
 | Fields | `field`, `field_operator`, `plane_field` | `field`, `hfield`, `gfield`, `ffield`, `field_operator`, `plane_field` | `wrap` | `efield`, `hfield`, `dfield`, `bfield`, `gfield`, `ffield` of waves |
-| Expansion and translation | `expansion`, `spherical_translation`, `cylindrical_translation`, `plane_expansion`, `plane_phases` | the same names | `wrap` | `in_basis` of waves |
-| Rotation and permutation | `rotation`, `plane_permutation` | `rotation`, `plane_permutation` | `wrap` | none |
+| Expansion and translation | `expansion`, `spherical_translation`, `cylindrical_translation`, `plane_expansion`, `plane_phases` | the same names | `wrap` | `in_basis` of waves and T-matrices; `TMatrix.translate(...)` |
+| Rotation and permutation | `rotation`, `plane_permutation` | `rotation`, `plane_permutation` | `wrap` | `TMatrix.rotate(...)` for rotations |
 | Periodic expansion | `lattice_expansion` | `lattice_expansion` | `wrap` | `solve_periodic(...)` |
-| Lattice sums and tables | `lattice_sum`, `lattice_expansion_from_table`, `periodic_to_cw` | the same names | `wrap` | none |
+| Lattice sums and tables | `lattice_sum`, `lattice_expansion_from_table` | the same names | `wrap` | none |
+| Spherical chain to cylindrical modes | `periodic_to_cw` | `periodic_to_cw` | `wrap` | `PeriodicResponse.to_cylindrical(...)` |
 | Radiation channels | `spherical_channels`, `cylindrical_channels` | the same names | `wrap` | `PeriodicResponse.to_smatrix(...)` |
 | Interfaces and stacks | `fresnel`, `interface_coefficients`, `propagation_matrix`, `layer_stack` | the same names | `wrap` | `interface`, `slab`, `multilayer_slab`, `propagation`, `stack` |
 | S-matrix networks | `smatrix_add`, `smatrix_illuminate`, `smatrix_tr`, `smatrix_from_array`, `smatrix_periodic`, `bands` | the same names, and `smatrix_cd` | `wrap` | `cascade`, `scatter`, `power`, `bands` of `SMatrix` |
-| Chirality and response metrics | `chirality_density`, `oriented_chirality`, `tmatrix_metric` | the same names | `wrap` | none |
+| Chirality densities | `chirality_density`, `oriented_chirality` | the same names | `wrap` | none |
+| Response metrics | `tmatrix_metric` | `tmatrix_metric` | `wrap` | `TMatrix.circular_dichroism`, `duality_breaking`, `electromagnetic_chirality` |
 | Axisymmetric EBCM | `ebcm_qmat` | `ebcm_qmat` | `wrap` | none |
 | Special functions | `bessel`, `incgamma`, `intkambe`, `angular`, `wignerd`, `sph_harm`, `vector_wave` | the same names | `bessel`; `wrap` | none |
 | Coordinates | `coordinates`, `vector_coordinates` | the same names | `wrap` | none |
 | Linear algebra | `solve`, `eig`, `svdvals` | `solve`, `eig`, `svdvals` | `solve`; `wrap` | none |
 
-`Cluster.solve()` builds its result from `interaction` and `expansion`.
-`Cluster.scatter()` factors the interaction internally for one solve; reuse of
-a factor across solves needs the factor records.
+`Cluster.solve()` records the coupled particle blocks with `particle_cluster`.
+`Cluster.scatter()` factors the interaction for the requested incident columns.
+Framework factor helpers reuse prepared coupling, but each differentiated solve
+records a new native factorization. Reuse of native LU factors across solves is
+available through NumPy factors and the explicit factor records.
 
 The Advect functions `interface_coefficients` and `propagation_matrix` return
 coefficient arrays; `interface` and `propagation` build physical S-matrices.

@@ -29,10 +29,11 @@ version.
 
 ## How it works
 
-- `treams_rs.advect` provides the same constructors as `treams_rs`, but its
-  objects keep Advect arrays, so `advect.value_and_grad(efficiency)` returns
-  Q and dQ/dr. [Framework adapters](../differentiation/frameworks.md) lists
-  the JAX and PyTorch equivalents.
+- `treams_rs` selects Advect from the traced radius, so
+  `advect.value_and_grad(efficiency)` returns Q and dQ/dr. The constant incident
+  wave composes with the differentiated sphere automatically.
+  [Framework adapters](../differentiation/frameworks.md) lists the JAX, PyTorch
+  and HIPS Autograd equivalents.
 - Rust computes each derivative analytically: a pullback maps the gradient with
   respect to an output, here the cross section, back to the inputs, here the
   radius. [Differentiation](../differentiation/index.md) describes these

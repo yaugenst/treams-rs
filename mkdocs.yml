@@ -93,6 +93,7 @@ nav:
           - reference/python/advect.md
           - reference/python/jax.md
           - reference/python/torch.md
+          - reference/python/autograd.md
           - reference/python/native-types.md
       - Rust crate: reference/rust.md
       - reference/glossary.md

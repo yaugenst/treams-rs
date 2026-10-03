@@ -18,6 +18,12 @@ when omitted), where pol 0 is negative and 1 positive helicity, or
 ``"parity"``, where pol 0 is the transverse-electric and 1 the
 transverse-magnetic wave. ``translate`` and ``to_cw`` are the same in both.
 
+Autodiff holds the axial-label matching in ``to_cw`` fixed. If the axial
+wavenumber varies, use that same parameter for both ``kzcw`` and ``kzpw``.
+Changing whether the labels match is a discrete transition without a
+derivative. With matching labels the coefficient is independent of their
+shared axial wavenumber.
+
 Differences from treams:
     - Invalid modes and nonfinite arguments raise ValueError; treams returns
       NaN for them, for example in ``to_sw`` with ``|m| > l``.
@@ -40,6 +46,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from . import _native
+from . import _wave_functions as _autodiff
+from ._autodiff_functions import transparent_function as _transparent_function
 from ._polarization import is_helicity as _is_helicity
 
 if TYPE_CHECKING:
@@ -158,3 +166,11 @@ def permute_xyz(
             _native.pw_permute_xyz_inverse_p if inverse else _native.pw_permute_xyz_p
         )
     return function(kx, ky, kz, p, q, *args, **kwargs)
+
+
+translate = _transparent_function(translate, _autodiff.pw_translate, module=__name__)
+to_sw = _transparent_function(to_sw, _autodiff.pw_to_sw, module=__name__)
+to_cw = _transparent_function(to_cw, _autodiff.pw_to_cw, module=__name__)
+permute_xyz = _transparent_function(
+    permute_xyz, _autodiff.pw_permute_xyz, module=__name__
+)

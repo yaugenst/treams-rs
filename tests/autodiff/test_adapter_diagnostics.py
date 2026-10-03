@@ -5,7 +5,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from treams_rs._records import apply_pullback, input_array, run_record
+from treams_rs._records import apply_pullback, input_array, native_array, run_record
 
 pytestmark = [pytest.mark.gradients, pytest.mark.interface]
 
@@ -18,6 +18,20 @@ def test_parameter_dtype_reports_actual_precision_and_remedy(dtype):
     assert "float64 or complex128" in message
     assert f"received {np.dtype(dtype)}" in message
     assert "Cast the parameter explicitly" in message
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.float64, np.complex64, np.complex128])
+def test_native_input_promotion_preserves_values(dtype):
+    value = np.array([0.25, 0.5], dtype=dtype)
+    actual = native_array(value)
+    assert actual.dtype == (np.complex128 if np.iscomplexobj(value) else np.float64)
+    np.testing.assert_array_equal(actual, value)
+
+
+@pytest.mark.parametrize("dtype", [np.float16, np.int32, np.bool_])
+def test_native_input_promotion_rejects_unsupported_dtypes(dtype):
+    with pytest.raises(TypeError, match=f"received {np.dtype(dtype)}"):
+        native_array(np.ones(2, dtype=dtype))
 
 
 def test_empty_output_tuple_explains_missing_result():

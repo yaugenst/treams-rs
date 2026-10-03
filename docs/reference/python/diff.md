@@ -87,7 +87,11 @@ signatures are identical; these differ:
 angular(degree: ArrayLike, order: ArrayLike, z: ArrayLike, *, function: str='legendre') -> tuple[NDArray[np.complex128], _native.AngularContext]
 ```
 
-Legendre, pi or tau angular functions of integer degree, broadcast over z.
+Legendre, pi or tau angular functions, broadcast over z.
+
+Legendre also accepts noninteger degrees for real z in (-1, 1]. The pi
+and tau functions, and arguments with a nonzero imaginary part, require
+integer degrees.
 
 A derivative at a branch point raises ValueError unless its cotangent is
 zero.
@@ -103,7 +107,7 @@ complex128 array with the broadcast shape of ``degree``, ``order`` and
 
 **Static configuration**
 
-- `degree`: integer degree l, broadcast.
+- `degree`: degree l, broadcast; integer except for real-domain Legendre.
 - `order`: integer order m, broadcast.
 - `function`: "legendre", "pi" or "tau".
 

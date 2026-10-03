@@ -27,6 +27,14 @@ def double_precision():
         yield
 
 
+@pytest.mark.parametrize("dtype", [jnp.float64, jnp.complex128])
+def test_array_dtype_inference_preserves_nested_tracers(dtype):
+    value = jnp.asarray(0.4 + 0.2j if dtype == jnp.complex128 else 0.4, dtype=dtype)
+    actual = jax.jit(lambda z: tj._physics_array([[z, z + 0.1]], dtype=None))(value)
+    assert actual.dtype == dtype
+    assert_array_equal(actual, [[value, value + 0.1]])
+
+
 def test_jit_vmap_and_repeated_pullbacks():
     z = jnp.array([0.4 + 0.1j, 0.7 - 0.2j, 1.1 + 0.3j])
     function = jax.jit(
@@ -64,10 +72,13 @@ def test_gradient_of_jit_with_scalar_constant_residuals():
 
 @pytest.mark.interface
 def test_adapter_contract_precision_shape_higher_derivatives():
-    with jax.enable_x64(False), pytest.raises(ValueError, match="jax_enable_x64"):
-        tj.bessel(0.3, order=1)
-    with pytest.raises(TypeError, match="float64"):
-        tj.bessel(jnp.array(0.3, dtype=jnp.float32), order=1)
+    for dtype in (jnp.float16, jnp.bfloat16, jnp.int32):
+        with pytest.raises(TypeError, match="require float32, float64, complex64"):
+            tj.bessel(jnp.array(1, dtype=dtype), order=1)
+        with pytest.raises(TypeError, match="require float32, float64, complex64"):
+            tj.sphere_tmatrix(
+                k0=1.2, lmax=1, radius=jnp.array(1, dtype=dtype), material=3.0
+            )
     operation = tj.wrap(lambda z: diff.bessel(1, z), np.array([0.3]))
     with pytest.raises(ValueError, match="shapes and dtypes"):
         operation(jnp.array([0.2, 0.3]))
@@ -75,6 +86,54 @@ def test_adapter_contract_precision_shape_higher_derivatives():
         operation(jnp.array([0.3]), jnp.array([0.4]))
     with pytest.raises((ValueError, TypeError), match=r"JVP|jvp|differentiat"):
         jax.grad(jax.grad(lambda z: tj.bessel(z, order=1).real))(0.3)
+
+
+@pytest.mark.parametrize("x64", [False, True])
+def test_single_precision_native_inputs_and_complex_cotangents(x64):
+    seen = []
+
+    def record(z):
+        seen.append(z.dtype)
+        return diff.bessel(2, z)
+
+    with jax.enable_x64(x64):
+        z = jnp.array([0.4 + 0.1j, 0.7 - 0.2j], dtype=jnp.complex64)
+        function = tj.wrap(record, z)
+        value, pullback = jax.vjp(jax.jit(function), z)
+        assert value.dtype == (jnp.complex128 if x64 else jnp.complex64)
+        weight = jnp.array([0.1 + 0.2j, 0.3 - 0.1j], dtype=value.dtype)
+        expected, context = diff.bessel(2, np.asarray(z, dtype=np.complex128))
+        expected_gradient = context.pullback(np.asarray(weight).conj()).conj()
+        gradient = pullback(weight)[0]
+        assert gradient.dtype == jnp.complex64
+        assert_allclose(value, expected, rtol=2e-7, atol=1e-9)
+        assert_allclose(gradient, expected_gradient, rtol=2e-7, atol=1e-9)
+        assert len(seen) == 3  # signature example, forward, backward recomputation
+        assert all(dtype == np.complex128 for dtype in seen)
+
+
+@pytest.mark.parametrize("x64", [False, True])
+def test_default_precision_root_sphere_gradient_eager_and_jit(x64):
+    def objective(radius):
+        sphere = tr.sphere_tmatrix(k0=2.0, lmax=2, radius=radius, material=3.0)
+        wave = tr.plane_wave([0, 0, 1], "positive_helicity", k0=2.0)
+        return sphere.cross_sections(wave).scattering
+
+    step = 1e-5
+    expected_value = objective(0.2)
+    expected_gradient = (objective(0.2 + step) - objective(0.2 - step)) / (2 * step)
+    with jax.enable_x64(x64):
+        for function in (
+            jax.value_and_grad(objective),
+            jax.jit(jax.value_and_grad(objective)),
+        ):
+            value, gradient = function(0.2)
+            assert (
+                value.dtype == gradient.dtype == (jnp.float64 if x64 else jnp.float32)
+            )
+            assert_allclose(value, expected_value, rtol=5e-7)
+            assert_allclose(gradient, expected_gradient, rtol=5e-7)
+        assert bool(jax.config.x64_enabled) == x64
 
 
 # XLA flushes subnormals to zero (FTZ/DAZ) on the thread that runs a computation,

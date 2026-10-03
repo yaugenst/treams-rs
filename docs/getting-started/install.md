@@ -25,13 +25,14 @@ runtime dependency.
 
 ## Optional packages
 
-Extras add framework adapters and HDF5 interchange:
+Extras install optional differentiation frameworks and HDF5 interchange:
 
 | Extra | Adds | For |
 | --- | --- | --- |
-| `advect` | Advect | `treams_rs.advect` |
-| `jax` | JAX | `treams_rs.jax` |
-| `torch` | PyTorch | `treams_rs.torch` |
+| `advect` | Advect | Automatic differentiation through `treams_rs` |
+| `jax` | JAX | Automatic differentiation through `treams_rs` |
+| `torch` | PyTorch | Automatic differentiation through `treams_rs` |
+| `autograd` | HIPS Autograd | Automatic differentiation through `treams_rs` |
 | `io` | h5py | HDF5 files in `treams_rs.io` |
 
 Name the extras in brackets:
@@ -39,6 +40,12 @@ Name the extras in brackets:
 ```sh
 pip install "treams-rs[jax,io]"
 ```
+
+If a supported framework is already installed, no extra installation or
+backend-specific treams-rs import is needed. Use `import treams_rs as tr` and
+pass its arrays or traced values to the ordinary API. Python and NumPy values
+keep the NumPy path. See [framework support](../differentiation/frameworks.md)
+for dtypes and supported transforms.
 
 For 0.1.0, use CPython 3.12–3.14 with the `torch` or `io` extras. The
 CPython 3.15 release matrix excludes their standard PyPI installs because

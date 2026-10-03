@@ -27,9 +27,11 @@ assert cross.extinction > cross.scattering > 0
 
 - **Unsolved and solved objects differ.** `Cluster(particles, positions=...)`
   only collects particles. `Cluster.solve()` returns the coupled `TMatrix`,
-  `Cluster.factor()` a reusable `ScatteringFactor` and `solve_periodic(...)` a
-  `PeriodicResponse`. treams instead calls `TMatrix.cluster`, which returns a
-  matrix that is not yet a response.
+  `Cluster.factor()` prepares repeated illumination solves and
+  `solve_periodic(...)` returns a `PeriodicResponse`. NumPy clusters reuse a
+  `ScatteringFactor`; framework clusters prepare coupling and record a native
+  factorization for each solve. treams instead calls `TMatrix.cluster`, which
+  returns a matrix that is not yet a response.
 - **`scatter()` returns waves.** `TMatrix.scatter`, `Cluster.scatter` and
   `PeriodicResponse.scatter` return a `Wave` or `PeriodicWave`; fields come from
   the wave, as in `response.scatter(incident).efield(points)`. A field operator
@@ -88,6 +90,9 @@ The treams-style modules keep treams' `poltype=`. The `TMatrix` constructor,
 
 ## Arrays and metadata
 
+The NumPy implementations follow these rules. Framework objects retain their
+framework arrays and its mutation rules; see [framework adapters](adapters.md).
+
 - **`.array` is read-only.** Objects own their storage and mark it read-only, so
   no caller can change a T-matrix behind its metadata. Copy the array to edit it.
 - **Plain indexing gives plain values.** Indexing `.array`, or arithmetic on an
@@ -109,3 +114,9 @@ vectorized call equals the per-element calls bit for bit. Results do not depend 
 the memory layout of the operands (broadcast, reversed, strided, unaligned or
 Fortran-ordered), on masked or aliased outputs, on the number of threads, or on
 which dtype loop serves a value-preserving cast. Invalid mode labels raise `ValueError` in every layout.
+
+Public differentiable functions wrap these native implementations to select an
+adapter from framework inputs. NumPy calls retain the native behavior and ufunc
+attributes and methods, but public wrappers need not be `numpy.ufunc` instances.
+Only direct function calls support autodiff; ufunc methods and `out`/`where`
+remain on the NumPy path. See [framework adapters](adapters.md).

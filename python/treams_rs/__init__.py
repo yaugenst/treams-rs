@@ -53,11 +53,11 @@ Choose the physical workflow:
   follow ``ports.pol`` (1 means positive helicity, 0 means negative); inspect that
   array instead of assuming the order.
 
-Sensitivity and optimization use an explicit framework namespace. With the
-``[advect]`` extra installed::
+Sensitivity and optimization use the same API: framework inputs select their
+adapter automatically. With the ``[advect]`` extra installed::
 
     import advect as ad
-    import treams_rs.advect as tr
+    import treams_rs as tr
 
     def objective(radius):
         particle = tr.sphere_tmatrix(k0=2.0, lmax=2, radius=radius, material=3.0)
@@ -70,9 +70,12 @@ Construct changing geometry/materials inside the objective and keep traced
 values as framework arrays (``advect.numpy``); convert to float/NumPy only after
 differentiation. Rust computes analytic gradients with respect to continuous
 geometry, material and frequency; mode cutoffs, integer labels and topology stay
-fixed. CPU, first-order reverse mode only. JAX and PyTorch have explicit
-optional namespaces. The root NumPy namespace does not trace; ``diff`` returns
-each value with a context whose ``pullback`` gives the input gradients.
+fixed. Advect, JAX, PyTorch and HIPS Autograd support CPU, first-order reverse
+mode with their documented dtype and transform limits. Plain Python and NumPy
+inputs retain NumPy behavior, without loading optional frameworks. Explicit
+``advect``, ``jax``, ``torch`` and ``autograd`` namespaces remain available for
+framework-specific record helpers. ``diff`` returns each value with a context
+whose ``pullback`` gives the input gradients.
 
 Offline help: ``python -m treams_rs`` shows this quickstart;
 ``python -m treams_rs sphere_tmatrix`` or ``python -m treams_rs advect`` shows
@@ -209,6 +212,7 @@ __all__ = [
 # reads it from source.
 _OPTIONAL_MODULES = {
     "advect": "advect",
+    "autograd": "autograd",
     "jax": "jax",
     "torch": "torch",
     "io": "h5py",

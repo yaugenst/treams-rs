@@ -93,7 +93,11 @@ DOCSTRINGS = {
 @pytest.mark.parametrize("path", DOCSTRINGS)
 def test_docstring_examples_run(request, path):
     # The adapter quickstarts need their optional framework.
-    framework = {"treams_rs.jax": "jax", "treams_rs.torch": "torch"}.get(path)
+    framework = {
+        "treams_rs.jax": "jax",
+        "treams_rs.torch": "torch",
+        "treams_rs.autograd": "autograd",
+    }.get(path)
     if framework is not None:
         pytest.importorskip(framework)
         if framework == "jax":
@@ -109,6 +113,7 @@ def test_docstring_examples_run(request, path):
         "treams_rs.advect": "gradient",
         "treams_rs.jax": "gradient",
         "treams_rs.torch": "gradient",
+        "treams_rs.autograd": "gradient",
     }.get(path)
     if result is not None:
         value = np.asarray(namespace[result])
@@ -131,7 +136,7 @@ def test_docstring_doctests_pass(doc):
 @pytest.mark.interface
 def test_documentation_has_examples_and_fences_are_marked():
     assert not UNMARKED, (
-        f"fences {UNMARKED} must be `python exec [jax|torch]` or `python no-exec`"
+        f"fences {UNMARKED} must be `python exec [jax|torch|autograd]` or `python no-exec`"
     )
     # Snippet includes belong in no-exec fences; the included scripts run in
     # their own tests.

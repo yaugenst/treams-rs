@@ -431,7 +431,7 @@ def test_native_wheel_matrix_builds_the_classifier_family():
     extras = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"][
         "optional-dependencies"
     ]
-    profiles = {"base", "advect", "io"}
+    profiles = {"base", "advect", "autograd", "io"}
     assert profiles - {"base"} <= set(extras)
     for entry in pythons:
         smoked = entry["profiles"].split()
@@ -626,9 +626,9 @@ def test_dependency_minimums_pin_every_declared_floor(tmp_path):
 
 
 def test_dependency_minimums_cover_the_smoke_profiles():
-    pins = minimums.minimum_pins(["advect", "io"])
+    pins = minimums.minimum_pins(["advect", "autograd", "io"])
     assert [pin.split("==")[0] for pin in pins][:1] == ["numpy"]
-    assert {"advect", "h5py"} <= {pin.split("==")[0] for pin in pins}
+    assert {"advect", "autograd", "h5py"} <= {pin.split("==")[0] for pin in pins}
 
 
 @pytest.mark.parametrize(

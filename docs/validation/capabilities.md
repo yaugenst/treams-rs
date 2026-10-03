@@ -69,7 +69,7 @@ silently through NumPy operations ([Python API design](../design/python-api.md))
 
 - **CPU only.** No GPU or other accelerator support.
 - **First-order derivatives.** Native pullbacks compute the derivative of the
-  numerical solve; the framework adapters for Advect, JAX and PyTorch compose them
+  numerical solve; the framework adapters for Advect, JAX, PyTorch and HIPS Autograd compose them
   with a user's objective. A native pullback gives no higher-order derivatives,
   batching or accelerator support.
 - **Explicit physical metadata.** Physics objects carry their own basis and

@@ -4,7 +4,7 @@
 import advect
 import numpy as np
 
-import treams_rs.advect as tr
+import treams_rs as tr
 from treams_rs.testing import check_gradient
 
 STEPS = 5

@@ -101,4 +101,4 @@ np.testing.assert_allclose(power.transmission + power.reflection, 1, rtol=1e-12)
   workflows.
 - The [user guide](../guide/index.md) covers each topic in depth.
 - [Differentiation](../differentiation/index.md) shows gradients through
-  Advect, JAX and PyTorch.
+  Advect, JAX, PyTorch and HIPS Autograd.

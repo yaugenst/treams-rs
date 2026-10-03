@@ -44,6 +44,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from . import _modes, _native, diff
+from . import _wave_functions as _autodiff
+from ._autodiff_functions import transparent_function as _transparent_function
 from ._bases import CylindricalBasis as _CylindricalBasis
 from ._polarization import is_helicity as _is_helicity
 
@@ -101,6 +103,10 @@ def rotate(
     Returns:
         complex128 array with the broadcast shape of the label and coordinate
         arguments. Python numbers give one complex number.
+
+    Autodiff:
+        Mode matching is held fixed. Axial labels may move together, but changing
+        whether ``kz == qz`` is a discrete transition without a derivative.
     """
     if (
         not args
@@ -158,6 +164,12 @@ def translate(
     Returns:
         complex128 array with the broadcast shape of the label and coordinate
         arguments. Python numbers give one complex number.
+
+    Autodiff:
+        Mode matching is held fixed. To differentiate the shared axial
+        wavenumber, use the same varying parameter for ``kz`` and ``qz``. The
+        phase derivative is credited to the source ``qz``. Independent changes
+        that break ``kz == qz`` are discontinuous and have no derivative.
     """
     if (
         not args
@@ -267,3 +279,14 @@ def translate_periodic(
 
 
 periodic_to_pw = _native.cw_periodic_to_pw
+
+
+rotate = _transparent_function(rotate, _autodiff.cw_rotate, module=__name__)
+translate = _transparent_function(translate, _autodiff.cw_translate, module=__name__)
+to_sw = _transparent_function(to_sw, _autodiff.cw_to_sw, module=__name__)
+translate_periodic = _transparent_function(
+    translate_periodic, _autodiff.cw_translate_periodic, module=__name__
+)
+periodic_to_pw = _transparent_function(
+    periodic_to_pw, _autodiff.periodic_to_pw, module=__name__
+)

@@ -32,13 +32,17 @@ Example::
 
 from __future__ import annotations
 
+from functools import partial as _partial
 from typing import TYPE_CHECKING
 
 import numpy as np
 
 from . import diff
+from ._dispatch import backend_for as _backend_for
 
 if TYPE_CHECKING:
+    from typing import Any
+
     from numpy.typing import ArrayLike, NDArray
 
 __all__ = [
@@ -73,6 +77,10 @@ def fresnel(ks: ArrayLike, kzs: ArrayLike, zs: ArrayLike) -> NDArray[np.complex1
         treams broadcasts over leading axes of the inputs; here the inputs
         describe one interface.
     """
+    backend = _backend_for(ks, kzs, zs)
+    if backend is not None:
+        values = tuple(backend.array(v, complex_=True) for v in (ks, kzs, zs))
+        return backend.apply(diff.fresnel, (2, 2, 2, 2), *values)
     return diff.fresnel(ks, kzs, zs)[0]
 
 
@@ -111,6 +119,13 @@ def mie(
         raise ValueError(
             "mie takes one integer degree; loop over degrees (treams broadcasts)"
         )
+    backend = _backend_for(x, epsilon, mu, kappa)
+    if backend is not None:
+        values = (
+            backend.array(x),
+            *(backend.array(v, complex_=True) for v in (epsilon, mu, kappa)),
+        )
+        return backend.apply(_partial(diff.mie, l), (2, 2), *values)
     return diff.mie(l, x, epsilon, mu, kappa)[0]
 
 
@@ -153,4 +168,15 @@ def mie_cyl(
         raise ValueError(
             "mie_cyl takes one integer order; loop over orders (treams broadcasts)"
         )
+    backend = _backend_for(kz, k0, radii, epsilon, mu, kappa)
+    if backend is not None:
+        values = (
+            *(backend.array(v) for v in (kz, k0, radii)),
+            *(backend.array(v, complex_=True) for v in (epsilon, mu, kappa)),
+        )
+
+        def record(kz: Any, *values: Any) -> Any:
+            return diff.mie_cyl(kz, m, *values)
+
+        return backend.apply(record, (2, 2), *values)
     return diff.mie_cyl(kz, m, k0, radii, epsilon, mu, kappa)[0]

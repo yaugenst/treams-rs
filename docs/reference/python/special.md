@@ -10,8 +10,13 @@ description: Special functions of multipole waves, with NumPy broadcasting.
 Special functions of multipole waves, with NumPy broadcasting.
 
 Mirrors ``treams.special``. Every function broadcasts its arguments as a NumPy
-ufunc does. The ufuncs and the Python functions accept ``out`` and ``where``;
+ufunc does. With NumPy inputs the functions accept ``out`` and ``where``;
 the coordinate transforms and ``vpw_*`` accept ``out`` only.
+
+Advect, JAX, PyTorch and Autograd inputs select their differentiation adapter
+automatically for continuous arguments. Degrees, orders and polarization labels
+stay fixed. Differentiable calls do not accept ``out`` or ``where``; use the
+framework's array operations to combine or mask results.
 
 - Bessel and Hankel functions: ``jv``, ``yv``, ``hankel1``, ``hankel2``, the
   spherical ``spherical_jn``, ``spherical_yn``, ``spherical_hankel1``,
@@ -38,6 +43,10 @@ gradients with respect to the argument.
 
 **Differences from treams**
 
+- Native ufuncs are exposed through dispatching callables, so they are not
+  instances of ``numpy.ufunc``. NumPy calls, ufunc attributes and methods
+  such as ``outer`` still delegate to the original ufunc, available as
+  ``__wrapped__``. Ufunc methods themselves are NumPy-only.
 - ValueError instead of NaN or infinity: ``hankel1(0, 0.0)`` raises,
   treams returns ``nan+nanj``. ``incgamma`` and ``intkambe`` return
   infinity at their poles, as treams does.

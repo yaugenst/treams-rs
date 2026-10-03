@@ -31,7 +31,7 @@ repository root. Run the Python checks as `uv run --no-sync pytest ...` after
 | `smatrix` | `smatrix.rs` | `_smatrix.py`, `coeffs.py` (`fresnel`) | `tests/smatrix/`, `properties/smatrix.rs` | `pytest tests/smatrix`; `cargo test -p treams-core -- smatrix` |
 | - | - | `_array.py`, `_operators.py`, `_operator_objects.py`, `operators.py`, `_polarization.py`, `_results.py`, `_validation.py` | `tests/api/`, `tests/waves/test_polarization.py` | `pytest tests/api/test_operators.py tests/api/test_matrix_methods.py tests/api/test_physics_api.py` |
 | - | every record and context | `diff.py`, `_records.py`, `testing.py` | `tests/autodiff/test_testing.py`, `tests/autodiff/test_adjoint_identities.py`, the `gradients` tests of every domain | `pytest -m gradients` |
-| - | - | `advect.py`, `jax.py`, `torch.py`, `_framework.py`, `_framework_backend.py`, `_framework_waves.py`, `_framework_tmatrix.py`, `_framework_smatrix.py` | `tests/autodiff/` | `pytest tests/autodiff` |
+| - | - | `_dispatch.py`, `_promotion.py`, `_autodiff_functions.py`, `advect.py`, `jax.py`, `torch.py`, `autograd.py`, `_framework*.py` | `tests/autodiff/` | `pytest tests/autodiff` |
 | - | - | `__init__.py`, `__main__.py`, `_catalog.py`, `_upstream.py` | `tests/api/test_support_catalog.py`, `tests/api/test_namespaces.py`, `tests/api/test_docs.py` | `pytest tests/api/test_support_catalog.py tests/api/test_namespaces.py`; `just docs-check` |
 | - | - | `io.py` | `tests/api/test_io.py` | `pytest tests/api/test_io.py` |
 | `test_support` | `testing.rs` (`*_jet` hooks) | - | `tests/_support.py`, `tests/_scripts.py`, `tests/test_suite_rules.py` | `pytest tests/test_suite_rules.py` |
@@ -79,6 +79,12 @@ These rules hold everywhere:
   and their docstrings. The reference pages, the generated tables and
   `llms.txt` come from it through `just docs`; never edit them by hand, and
   keep no second list of capabilities.
+- **One derivative boundary.** Ordinary constructors and methods select an
+  optional adapter in `_dispatch.py` before array coercion. `_promotion.py`
+  converts constant physics objects, and `_autodiff_functions.py` preserves the
+  NumPy callable contract for numerical functions. Shared `_framework*.py`
+  objects compose records; adapter modules supply only their framework bridge.
+  Keep native derivative formulas in Rust, not in a dispatcher or adapter.
 - **Recorded evidence.** Numerical measurements stay unchanged. Privacy-only
   transformations follow [the evidence policy](../../benchmarks/README.md#privacy-and-provenance).
 - **Renames.** Every public rename gets a bullet under "Unreleased" in
@@ -118,7 +124,7 @@ For a new function `X` that computes a value:
    physics object. Check label bounds and argument types in Python, with
    messages in treams terms.
 4. **Framework adapters.** If a physics object exposes the feature, route it
-   through `_framework_*.py`, so that Advect, JAX and PyTorch differentiate it.
+   through `_framework_*.py`, so that Advect, JAX, PyTorch and HIPS Autograd differentiate it.
 5. **Tests.** Add tests to `tests/<domain>/`: a comparison with the pinned
    treams version or another reference, a physical identity, and `check_pullback` for the
    gradients ([adding a test](testing.md#adding-a-test)).

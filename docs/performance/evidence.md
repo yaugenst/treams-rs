@@ -44,6 +44,49 @@ require extra Ewald shell, sheet and method tracking. Explicit lattice
 splits below the automatic one can take longer because they sum more shells and
 check their cancellation ([last section](#lattice-sums-at-explicit-small-splits-pre-release-timings)).
 
+## Automatic-dispatch overhead
+
+A 2026-10-03 check compared eight NumPy calls before and after automatic
+autodiff selection: sphere scattering and cross sections at degrees 1 and 10,
+one-point fields at degree 3, a two-sphere solve, and two-channel interface and
+slab construction. Both versions used the same native library.
+
+| Frameworks imported before timing | Added time in the seven smallest calls | Calls exceeding the 10% timing limit |
+| --- | ---: | ---: |
+| None | 0.3–2.8 µs | 3 of 8 |
+| Advect, JAX, PyTorch and Autograd | 2.0–9.7 µs | 7 of 8 |
+
+For example, slab construction changed from 19.3 to 22.0 µs without framework
+imports, and from 19.1 to 28.8 µs with all four imported. The two-sphere solve
+stayed within the timing limit in both conditions. All recorded values agreed
+exactly. These timings cover small forward calls, not gradient computation or
+large workloads; memory was not measured.
+
+The check used [`compare_builds.py`](../../scripts/compare_builds.py) on Linux,
+an AMD Ryzen 9 9950X and Python 3.13.1: five paired rounds, three samples of at
+least 20 ms per call, alternating measurement order, one native/BLAS thread
+and CPU affinity 4–5. Imports and input setup were outside the timed calls.
+Reported times are medians of each round's fastest sample; the limit uses the
+median paired time ratio.
+The raw rounds and source snapshots are retained privately. Earlier benchmark
+results above remain unchanged.
+
+<details>
+<summary>Measured source and library identities</summary>
+
+The baseline was `e3e759f1bc46d1df35bb1dbb6d9c99a91fb691be`; the candidate
+was the automatic-dispatch source snapshot, including its traversal
+optimization and reviewed fixes. SHA-256 fingerprints identify these measured
+builds, independently of later source changes:
+
+```text
+Baseline Python: 5fbd9d6ef41fbc04633607ab473ed5f1753d1759e1013f42a611c684fb9e0c08
+Candidate Python: 839a44d639e7c3aa01004915066df57c9cc6a84e34938c766197e30c6781d596
+Shared native: 9e8a39cb2fc8459b5069a65ffc349c9eee71024ced6464524e55f52f9b8ed3c5
+```
+
+</details>
+
 ## Redacted paths
 
 The distributed evidence has privacy-only redactions documented in

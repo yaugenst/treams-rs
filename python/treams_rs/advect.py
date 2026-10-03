@@ -5,11 +5,11 @@ every optimization step. Inputs may be float64, complex128, float32 or
 complex64; the Rust code computes in double precision, outputs are float64 or
 complex128, and each gradient has the dtype of its input.
 
-Build every object of a differentiated objective from this namespace::
+Framework inputs select Advect through the ordinary API::
 
     import advect as ad
     import advect.numpy as np
-    import treams_rs.advect as tr
+    import treams_rs as tr
 
     def objective(radius):
         sphere = tr.sphere_tmatrix(k0=2.0, lmax=2, radius=radius, material=3.0)
@@ -25,12 +25,14 @@ inputs. ``treams_rs.diff`` defines records, contexts and pullbacks.
 Install ``treams-rs[advect]``. Forward mode, higher derivatives, staging and
 checkpointing are not available. Mode cutoffs, integer labels and topology are
 static. Pass inputs as arrays (scalars as ``np.asarray(x)``) and keep traced
-values inside Advect: converting them to float or NumPy, or building objects
-from the NumPy-only root ``treams_rs`` namespace, loses derivatives.
+values inside Advect: converting them to float or NumPy loses derivatives.
+Plain Python and NumPy inputs retain NumPy behavior; constant physics objects
+are promoted when combined with Advect values. Use this explicit namespace
+when constants alone should produce Advect objects, or for its record helpers.
 
 Advect has no public ``wrap``. Run a custom record through
-``treams_rs.jax.wrap`` or ``treams_rs.torch.wrap``, or compose the expert
-functions of ``treams_rs.advect``.
+``treams_rs.jax.wrap``, ``treams_rs.torch.wrap`` or
+``treams_rs.autograd.wrap``, or compose the expert functions here.
 
 Framework adapters guide: https://yaugenst.github.io/treams-rs/latest/differentiation/frameworks/
 """
