@@ -283,21 +283,26 @@ pub fn diffraction_orders(b: [[f64; 2]; 2], radius: f64) -> Result<Vec<i64>> {
         let half = ((radius - distance) * (radius + distance)).max(0.0).sqrt() / length;
         let lower = (center - half).floor() as i64 - 1;
         let upper = (center + half).ceil() as i64 + 1;
-        let mut emit = |n: i64| {
+        let mut emit = |n: i64| -> Result<()> {
             if m == 0 && n <= 0 {
-                return;
+                return Ok(());
             }
             let x = m as f64 * b[0][0] + n as f64 * b[1][0];
             let y = m as f64 * b[0][1] + n as f64 * b[1][1];
             if x.hypot(y) <= radius {
+                // Amortized and fallible: a huge radius returns OutOfMemory, not an abort.
+                orders
+                    .try_reserve(4)
+                    .map_err(|_| Error::out_of_memory(orders.len() + 4, size_of::<i64>()))?;
                 orders.extend([m, n, -m, -n]);
             }
+            Ok(())
         };
         for n in lower.max(0)..=upper {
-            emit(n);
+            emit(n)?;
         }
         for n in (lower..=upper.min(-1)).rev() {
-            emit(n);
+            emit(n)?;
         }
     }
     Ok(orders)

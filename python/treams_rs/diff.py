@@ -1956,6 +1956,13 @@ def plane_permutation(
     )
 
 
+def _real_points(points: ArrayLike) -> NDArray[np.float64]:
+    """float64 ``points``; complex points raise instead of being truncated."""
+    if np.iscomplexobj(points):
+        raise TypeError("coordinate conversions require real points")
+    return np.asarray(points, dtype=np.float64)
+
+
 def coordinates(
     points: ArrayLike, *, function: str | None = None, kind: str | None = None
 ) -> tuple[NDArray[np.float64], _native.CoordinatesContext]:
@@ -1975,7 +1982,7 @@ def coordinates(
             "sph2cyl", "car2pol" or "pol2car"; ``kind`` is an alias.
     """
     function = _required("function", function, "kind", kind)
-    return _native.coordinates_record(np.asarray(points, dtype=np.float64), function)
+    return _native.coordinates_record(_real_points(points), function)
 
 
 def vector_coordinates(
@@ -2002,7 +2009,7 @@ def vector_coordinates(
     """
     function = _required("function", function, "kind", kind)
     vector = np.asarray(vectors, dtype=np.complex128)
-    position = np.asarray(points, dtype=np.float64)
+    position = _real_points(points)
     dim = 2 if function in ("car2pol", "pol2car") else 3
     if (
         not vector.shape

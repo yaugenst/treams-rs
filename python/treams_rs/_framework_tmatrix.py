@@ -14,7 +14,7 @@ from ._bases import CylindricalBasis, PlaneWavePorts, SphericalBasis
 from ._framework_backend import Backend, Basis, Material, Recorded, with_zero_metadata
 from ._framework_smatrix import SMatrix
 from ._framework_waves import PlaneWave, PortSet, PortWave, Wave
-from ._lattice import on_diffraction_orders, periodic_alignment
+from ._lattice import framework_cell, on_diffraction_orders, periodic_alignment
 from ._promotion import promote
 from ._results import CrossSections
 from ._validation import check_particle_positions, one_of
@@ -131,11 +131,7 @@ class _PeriodicInteraction:
     def coupling(self, lattice: Any, kpar: Any, *, eta: complex = 0) -> Any:
         """Lattice coupling from every other cell into this cell's regular modes."""
         tm, b = self.matrix, self.matrix._backend
-        a, q = b.array(lattice), b.array(kpar)
-        if a.ndim == 0:
-            a = a.reshape(1, 1)
-        if q.ndim == 0:
-            q = q.reshape(1)
+        a, q = framework_cell(b, lattice, kpar, isinstance(tm.basis, SphericalBasis))
         return b.lattice_expansion(
             tm.basis,
             tm.positions,
@@ -1185,11 +1181,7 @@ def solve_periodic(
             "periodic cells require an unsolved Cluster or a global particle response"
         )
     b, basis = unit_cell._backend, unit_cell.basis
-    a, q = b.array(lattice), b.array(kpar)
-    if a.ndim == 0:
-        a = a.reshape(1, 1)
-    if q.ndim == 0:
-        q = q.reshape(1)
+    a, q = framework_cell(b, lattice, kpar, isinstance(basis, SphericalBasis))
     coupling = b.lattice_expansion(
         basis,
         unit_cell.positions,

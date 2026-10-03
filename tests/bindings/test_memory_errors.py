@@ -35,6 +35,10 @@ REQUESTS = {
         points = np.full((100_000, 3), 2.0)
         diff.field_operator(points, tr.SphericalBasis.default(30), [1.0, 1.0])
     """,
+    # A circle of radius 1e5 pitches holds 3.1e10 orders: 500 GB of int64 pairs.
+    "diffraction_orders": """
+        tr.lattice.diffr_orders_circle(np.eye(2), 1e5)
+    """,
 }
 
 #: Imports first, then the limit: only the request has to fit under it.

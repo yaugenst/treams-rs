@@ -198,6 +198,15 @@ def test_ordinary_functions_preserve_values_and_gradients(engine, name):
     assert_allclose(gradient, expected, rtol=2e-5, atol=2e-7)
 
 
+@pytest.mark.parametrize("name", ["car2sph", "sph2car", "vcar2sph", "vsph2car"])
+def test_complex_coordinates_raise_like_numpy(engine, name):
+    # The float64 cast would otherwise keep only the real part.
+    with pytest.raises(TypeError):
+        coordinate(name, 1.2 + 0.1j)
+    with pytest.raises(TypeError, match="real points"):
+        value_gradient(engine, lambda x: coordinate(name, x * (1 + 0.1j)), 1.2)
+
+
 def test_numpy_ufunc_attributes_methods_and_output_masks_are_retained():
     assert special.jv.nin == _native.jv.nin
     assert special.jv.types == _native.jv.types
