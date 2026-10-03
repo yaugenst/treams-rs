@@ -715,7 +715,7 @@ fn check_cylinder_symmetries(
     let outer = radii.len() - 1;
     let inner = if outer == 0 { 0.0 } else { radii[outer - 1] };
     let mut split_radii = radii.to_vec();
-    split_radii.insert(outer, 0.5 * (inner + radii[outer]));
+    split_radii.insert(outer, inner.midpoint(radii[outer]));
     let mut split = materials.clone();
     split.insert(outer, materials[outer]);
     let other = coeffs::mie_cyl(kz, order, k0, &split_radii, &split).unwrap();

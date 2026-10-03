@@ -295,7 +295,7 @@ pub(super) fn reciprocal_term<const N: usize>(
             });
             f64::from(2 * l + 1).sqrt()
                 * (-i).powi(m)
-                * (0.5 * (log_factorial(l + m) + log_factorial(l - m))).exp()
+                * log_factorial(l + m).midpoint(log_factorial(l - m)).exp()
                 / (measure * k * k * (-2.0_f64).powi(l))
                 * sum
         }
@@ -330,7 +330,7 @@ pub(super) fn reciprocal_term<const N: usize>(
             let prefactor = -i
                 * (f64::from(2 * l + 1) / PI).sqrt()
                 * (-i).powi(l - m)
-                * (0.5 * (log_factorial(l + m) + log_factorial(l - m))).exp()
+                * log_factorial(l + m).midpoint(log_factorial(l - m)).exp()
                 / (2.0 * measure * k);
             *bound += sum_bound.times(&prefactor);
             prefactor * sum

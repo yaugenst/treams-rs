@@ -1222,7 +1222,9 @@ fn check_field_evaluation(
     // Helicity to parity amplitudes; polarization 1 precedes 0 in each pair.
     if case.ks[0] == case.ks[1] && case.helicity {
         let parity: Vec<_> = coefficients
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .flat_map(|pair| [pair[0] + pair[1], pair[0] - pair[1]].map(|c| c * FRAC_1_SQRT_2))
             .collect();
         let parity_case = FieldCase {

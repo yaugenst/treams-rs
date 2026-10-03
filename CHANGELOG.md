@@ -53,6 +53,8 @@ This entry describes the release being prepared; it is not a publication notice.
 
 ### Numerical corrections
 
+- NumPy integer inputs and results use 64-bit values on Windows, matching Linux
+  and macOS. Oversized wave labels are rejected without truncation.
 - Slabs retain both internal polarizations before selecting external ports.
   Partial bases give the corresponding projection of the complete response,
   including in framework adapters and parity ports.

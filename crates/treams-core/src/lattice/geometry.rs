@@ -550,8 +550,13 @@ mod tests {
         let radius = radius * scale;
         let orders = diffraction_orders(b, radius)?;
         prop_assert_eq!(&orders[..2], &[0, 0]);
-        let pairs: Vec<_> = orders.chunks_exact(2).map(|p| (p[0], p[1])).collect();
-        for pair in pairs[1..].chunks_exact(2) {
+        let pairs: Vec<(i64, i64)> = orders
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|&p| p.into())
+            .collect();
+        for pair in pairs[1..].as_chunks::<2>().0 {
             prop_assert_eq!(pair[1], (-pair[0].0, -pair[0].1));
         }
         let set: std::collections::BTreeSet<_> = pairs.iter().copied().collect();
@@ -838,8 +843,12 @@ mod tests {
                 for (m, n) in [(1, 0), (0, 1), (1, 1), (2, 0), (1, -1), (2, 1)] {
                     let radius = magnitude(m, n);
                     let orders = diffraction_orders(b, radius)?;
-                    let set: std::collections::BTreeSet<_> =
-                        orders.chunks_exact(2).map(|p| (p[0], p[1])).collect();
+                    let set: std::collections::BTreeSet<(i64, i64)> = orders
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
+                        .map(|&p| p.into())
+                        .collect();
                     let expected: std::collections::BTreeSet<_> = (-8..=8)
                         .flat_map(|m| (-8..=8).map(move |n| (m, n)))
                         .filter(|&(m, n)| magnitude(m, n) <= radius)

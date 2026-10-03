@@ -275,7 +275,7 @@ pub fn field(
             size,
             parallel,
             |j, column| -> Result<()> {
-                for (out, &point) in column.chunks_exact_mut(3).zip(&points) {
+                for (out, &point) in column.as_chunks_mut::<3>().0.iter_mut().zip(&points) {
                     let phase = phase(vectors[j], point);
                     for (out, &e) in out.iter_mut().zip(&electric[j]) {
                         *out = phase * e;

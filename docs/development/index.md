@@ -6,8 +6,8 @@ description: Set up a development checkout, run the checks that hosted CI runs, 
 
 ## Setup
 
-You need CPython 3.12–3.15, [uv](https://docs.astral.sh/uv/) 0.12.22,
-[just](https://just.systems/) and Rust 1.94.0, pinned in
+You need CPython 3.12–3.15, [uv](https://docs.astral.sh/uv/) 0.12.18 or later
+in the 0.12 series, [just](https://just.systems/) and Rust 1.94.0, pinned in
 [`rust-toolchain.toml`](../../rust-toolchain.toml). Use Python 3.12 or 3.13
 for the complete reference suite. From the repository root:
 

@@ -250,7 +250,7 @@ def _values(
     def element(code: str) -> object:
         if code == "d":
             return rng.choice(INTEGRAL if rng.random() < 2 / 3 else FLOATS)
-        return rng.choice(LABELS if code == "l" else complexes)
+        return rng.choice(LABELS if np.dtype(code).kind == "i" else complexes)
 
     return tuple(
         np.reshape([element(code) for _ in range(math.prod(shape))], shape).tolist()

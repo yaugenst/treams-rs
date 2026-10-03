@@ -579,7 +579,7 @@ for types, signature, *names in map(str.split, REGISTRY_ROWS.strip().splitlines(
     for name in names:
         assert name not in REGISTRY, name
         REGISTRY[name] = (
-            tuple(types.split(",")),
+            tuple(row.replace("l", np.dtype("int64").char) for row in types.split(",")),
             None if signature == "-" else signature,
         )
 
@@ -667,6 +667,28 @@ def test_registered_loops_match_the_golden_registry(name):
     assert (function.nin, function.nout) == (len(types[0].split("->")[0]), 1)
     assert tuple(function.types) == types
     assert function.signature == signature
+
+
+@pytest.mark.parametrize("dtype", [np.int32, np.int64])
+def test_integer_operands_promote_without_truncation(dtype):
+    orders = np.arange(-2, 3, dtype=dtype)
+    expected = np.exp(-1j * orders * 0.3)
+    np.testing.assert_allclose(
+        cw.rotate(0.2, orders, 1, 0.2, orders, 1, 0.3), expected, rtol=1e-15
+    )
+    cells = np.array([[[2**30, 0], [0, 8]]], dtype=dtype)
+    volumes = lattice.volume(cells)
+    assert volumes.dtype == np.dtype("int64")
+    assert_array_equal(volumes, [2**33])
+
+
+def test_large_integer_labels_are_rejected_without_wrapping():
+    for order in (2**32 + 1, np.array([2**32 + 1], dtype=np.int64)):
+        with pytest.raises(ValueError, match="orders"):
+            cw.rotate(0.2, order, 1, 0.2, order, 1, 0.3)
+    for pol in (2**32 + 1, np.array([2**32 + 1], dtype=np.int64)):
+        with pytest.raises(ValueError, match="polarization"):
+            special.vpw_A(0.2, 0.3, 1.3, 0.0, 0.0, 0.0, pol)
 
 
 def test_stub_declares_exactly_the_native_module():

@@ -629,9 +629,11 @@ mod tests {
         for (key, pairs) in cases {
             let lmax = key[0];
             assert_eq!(pairs.len() % 2, 0, "lmax {lmax}: unpaired field");
-            let expected: Vec<_> = pairs
-                .chunks_exact(2)
-                .map(|pair| (pair[0], pair[1]))
+            let expected: Vec<(i32, i32)> = pairs
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|&pair| pair.into())
                 .collect();
             let actual: Vec<_> = super::harmonics(lmax).collect();
             assert_eq!(actual, expected, "lmax {lmax}");

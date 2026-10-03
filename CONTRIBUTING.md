@@ -20,8 +20,8 @@ report, numerical discrepancy or feature request.
 ## Development setup
 
 The core supports CPython 3.12–3.15; use 3.12 or 3.13 for the complete
-reference suite. You also need [uv](https://docs.astral.sh/uv/) 0.12.22,
-[just](https://just.systems/) and Rust 1.94.0, pinned in
+reference suite. You also need [uv](https://docs.astral.sh/uv/) 0.12.18 or later
+in the 0.12 series, [just](https://just.systems/) and Rust 1.94.0, pinned in
 [`rust-toolchain.toml`](rust-toolchain.toml). From the repository root:
 
 ```sh
