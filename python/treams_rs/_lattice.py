@@ -530,6 +530,23 @@ def framework_cell(
         kpar = backend.array([kpar["xyz".index(axis)] for axis in alignment])
     if a.ndim == 0 or (cell and a.shape == (1,)):
         a = a.reshape(1, 1)
-    elif dim > 1 and a.shape == (dim,):
-        a = a[:, None] * backend.array(np.eye(dim))
+    elif a.ndim == 1 and a.shape[0] in (2, 3) and (cell or a.shape == (dim,)):
+        a = a[:, None] * backend.array(np.eye(a.shape[0]))
+    if cell and a.ndim == 2 and a.shape[0] > dim:
+        # Row selection follows Lattice, including row-permuted cells. Its
+        # topology is fixed on the valid sublattice; only its entries vary.
+        def sublattice(array: Any) -> Any:
+            lattice = Lattice(array)
+            value = np.atleast_2d(lattice._sublattice(alignment))
+            columns = [lattice.alignment.index(axis) for axis in alignment]
+            rows = np.flatnonzero(np.any(array[:, columns] != 0, axis=1))
+
+            def pullback(gradient: Any) -> tuple[Any]:
+                result = np.zeros_like(array)
+                result[np.ix_(rows, columns)] = gradient
+                return (result,)
+
+            return value, pullback
+
+        a = backend.apply(sublattice, (dim, dim), a, real=True)
     return a, kpar.reshape(1) if kpar.ndim == 0 else kpar

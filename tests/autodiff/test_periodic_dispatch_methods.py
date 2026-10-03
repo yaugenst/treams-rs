@@ -8,6 +8,7 @@ from numpy.testing import assert_allclose
 from test_transparent_api import engine as engine
 
 import treams_rs as tr
+from treams_rs.testing import check_gradient
 
 pytestmark = pytest.mark.gradients
 
@@ -136,7 +137,15 @@ def test_latticeinteraction_methods_preserve_gradients(
 
 
 @pytest.mark.parametrize(
-    "cell", ["lattice", "diagonal", "wavevector", "moving_diagonal"]
+    "cell",
+    [
+        "lattice",
+        "diagonal",
+        "larger_diagonal",
+        "larger_matrix",
+        "wavevector",
+        "moving_diagonal",
+    ],
 )
 def test_periodic_solves_accept_lattice_metadata(engine, cell):
     def objective(api, x):
@@ -144,6 +153,11 @@ def test_periodic_solves_accept_lattice_metadata(engine, cell):
         lattice, kpar = {
             "lattice": (tr.Lattice.square(0.9), [0, 0]),
             "diagonal": ([0.9, 0.95], [0, 0]),
+            "larger_diagonal": ([0.9, 0.95, 1.1], [0, 0]),
+            "larger_matrix": (
+                [[0, 0, 1.1], [0.9, 0.05, 0], [0.03, 0.95, 0]],
+                [0, 0],
+            ),
             "wavevector": (np.eye(2) * 0.9, tr.WaveVector([0, 0])),
             "moving_diagonal": ([x + 0.7, x + 0.75], [0, 0]),
         }[cell]
@@ -157,10 +171,55 @@ def test_periodic_solves_accept_lattice_metadata(engine, cell):
         return power.transmission + (abs(coupled) ** 2).sum()
 
     value, gradient = engine.value_and_grad(objective, 0.2)
-    step = 1e-6
-    expected = (objective(tr, 0.2 + step) - objective(tr, 0.2 - step)) / (2 * step)
     assert_allclose(value, objective(tr, 0.2), rtol=1e-12)
-    assert_allclose(gradient, expected, rtol=2e-5, atol=1e-8)
+    check_gradient(
+        functools.partial(objective, tr),
+        lambda _: gradient,
+        np.asarray(0.2),
+        directions=(np.asarray(1.0),),
+        step=1e-6,
+        rtol=2e-5,
+        atol=1e-8,
+    )
+
+
+@pytest.mark.parametrize("matrix", [False, True])
+def test_sublattice_gradients_preserve_cell_shape_and_excluded_axes(engine, matrix):
+    if matrix:
+        point = np.array([[0, 0, 1.1], [0.9, 0.05, 0], [0.03, 0.95, 0]])
+        # Preserve the xy sublattice while varying its rows and the unused z period.
+        direction = np.array([[0, 0, 0.6], [0.3, -0.2, 0], [-0.1, 0.5, 0]])
+    else:
+        point = np.array([0.9, 0.95, 1.1])
+        direction = np.array([0.3, 0.5, 0.6])
+
+    def objective(api, lattice):
+        particle = api.sphere_tmatrix(k0=2.0, lmax=1, radius=0.2, material=3 + 0.1j)
+        response = api.solve_periodic(particle, lattice=lattice, kpar=[0, 0])
+        incident = api.plane_wave([0, 0, 1], "positive_helicity", k0=2.0)
+        return (
+            response.to_smatrix(api.PlaneWavePorts.default([0, 0]))
+            .power(incident, side="negative")
+            .transmission
+        )
+
+    value, gradient = engine.value_and_grad(objective, point)
+    assert_allclose(value, objective(tr, point), rtol=1e-12)
+    assert gradient.shape == point.shape
+    if matrix:
+        assert_allclose(gradient[0], 0, atol=0)
+        assert_allclose(gradient[:, 2], 0, atol=0)
+    else:
+        assert gradient[2] == 0
+    check_gradient(
+        functools.partial(objective, tr),
+        lambda _: gradient,
+        point,
+        directions=(direction,),
+        step=1e-6,
+        rtol=2e-5,
+        atol=1e-8,
+    )
 
 
 @pytest.mark.parametrize("spherical", [True, False])
@@ -195,7 +254,13 @@ def test_chain_solves_accept_every_period_form(engine, spherical, period):
         return (abs(solved) ** 2).sum() + (abs(coupled) ** 2).sum()
 
     value, gradient = engine.value_and_grad(objective, 0.2)
-    step = 1e-6
-    expected = (objective(tr, 0.2 + step) - objective(tr, 0.2 - step)) / (2 * step)
     assert_allclose(value, objective(tr, 0.2), rtol=1e-12)
-    assert_allclose(gradient, expected, rtol=2e-5, atol=1e-8)
+    check_gradient(
+        functools.partial(objective, tr),
+        lambda _: gradient,
+        np.asarray(0.2),
+        directions=(np.asarray(1.0),),
+        step=1e-6,
+        rtol=2e-5,
+        atol=1e-8,
+    )
