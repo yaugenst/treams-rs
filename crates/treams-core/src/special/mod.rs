@@ -7,7 +7,7 @@
 //! |---|---|---|
 //! | `bessel` | Cylindrical and spherical Bessel functions and radial jets | `jv`, `yv`, `hankel1`, `hankel2` and `spherical_*` (scipy), `_bessel.pyx` |
 //! | `legendre` | Associated Legendre functions and the angular functions `pi` and `tau` | `lpmv`, `pi_fun`, `tau_fun` of `_waves.pyx` |
-//! | `ferrers` | Ferrers functions of real, non-integer degree | `lpmv` of scipy's xsf |
+//! | `ferrers` | Ferrers functions of real, non-integer degree | `treams.special.lpmv` |
 //! | `wigner` | Wigner 3j symbols and Wigner small-d and D functions | `_wigner3j.pyx`, `_wignerd.pyx` |
 //! | `harmonics` | Cartesian solid harmonics and the spherical-harmonic normalization | none: a treams-rs addition for translations and lattice sums |
 //! | [`coordinates`] | Point and vector-component transforms between charts | `_coord.pyx` |
@@ -55,6 +55,8 @@ pub use bessel::{
 pub(crate) use bessel::{hankel_below, radial_jet, spherical_hankels, spherical_radial_sequence};
 #[cfg(test)]
 pub(crate) use ferrers::ferrers_real_degree;
+#[cfg(test)]
+pub(crate) use ferrers::ferrers_route_switches;
 pub(crate) use harmonics::{
     Solid, SolidTable, direction, harmonic_normalization, on_sphere, solid, tangent,
 };

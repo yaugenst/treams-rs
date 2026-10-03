@@ -192,18 +192,13 @@ fn check_real_degree_reflection(degree: f64, m: i32, x: f64) -> Result<(), TestC
     Ok(())
 }
 
-/// Real-degree Ferrers functions switch between the hypergeometric series and its
-/// continuation at `x = -0.35`, and to the logarithmic series in `(1 + x)/2` where
-/// `(v + |m| + 1)^2 (1 + x) = 4`; both sides agree at adjacent floating-point arguments.
+/// Both sides of every real-degree Ferrers evaluation-route switch agree at arguments
+/// separated by a few ulps. The kernel supplies the boundaries so the property follows
+/// its current routes.
 fn check_real_degree_branches(degree: f64, m: i32) -> Result<(), TestCaseError> {
-    let boundary = 4.0 / (degree + f64::from(m.abs()) + 1.0).powi(2) - 1.0;
-    for x in [-0.35, boundary] {
-        if x <= -1.0 || x > -0.35 {
-            continue;
-        }
-        let below = f64::from_bits(x.to_bits() + 1);
+    for [x, other_x] in special::ferrers_route_switches(degree, m) {
         let (value, derivative) = special::ferrers_real_degree::<true>(degree, m, x).unwrap();
-        let (other, _) = special::ferrers_real_degree::<false>(degree, m, below).unwrap();
+        let (other, _) = special::ferrers_real_degree::<false>(degree, m, other_x).unwrap();
         let scale = value.abs() + other.abs() + ((1.0 - x * x) * derivative).abs();
         prop_assert_close!(other, value, 1e-11 * scale, "x = {}", x);
     }

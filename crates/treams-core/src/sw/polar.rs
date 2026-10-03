@@ -284,6 +284,24 @@ mod tests {
         // `cartesian_translation_and_all_polar_adjoints`: singular waves at
         // `kr = 1.3 + 0.2i`, in the helicity and in the parity basis.
         let kr = Complex::new(1.3, 0.2);
+        // Release-readiness regressions: the former real-projected finite difference
+        // cancelled even though the full complex derivatives remained well conditioned.
+        check_spherical(
+            Mode { l: 4, m: 3, pol: 1 },
+            Mode { l: 4, m: 3, pol: 1 },
+            kr,
+            [2.788_667_920_988_279_6, 0.0],
+            true,
+            Radial::Singular,
+        )?;
+        check_spherical(
+            Mode { l: 4, m: 2, pol: 1 },
+            Mode { l: 4, m: 2, pol: 1 },
+            kr,
+            [0.1, 0.0],
+            false,
+            Radial::Singular,
+        )?;
         check_spherical(
             Mode { l: 5, m: 3, pol: 1 },
             Mode {
