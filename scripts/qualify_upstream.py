@@ -18,52 +18,89 @@ import io
 import json
 import os
 import platform
-from pathlib import Path
 from unittest.mock import patch
 
 import benchmark_cluster
 import numpy as np
+from _harness import file_sha256, pinned_threads
 from benchmark_illumination import fingerprints
 
 
-def residuals(actual, expected, *, rtol, atol):
+def _squared_norm(values):
+    """Sum of squared moduli, accumulated as np.linalg.norm does."""
+    if np.iscomplexobj(values):
+        return values.real @ values.real + values.imag @ values.imag
+    return values @ values
+
+
+def residuals(actual, expected, *, rtol, atol, chunk=benchmark_cluster.CHUNK):
+    """Summarize finite-entry residuals in memory independent of the output size.
+
+    Entries where either input is nonfinite are counted and excluded. ``atol``
+    must be positive, so scaled errors are never NaN. The worst entry is the
+    first maximum of the scaled error in C order, as ``np.argmax`` reports it.
+    """
     actual, expected = np.broadcast_arrays(np.asarray(actual), np.asarray(expected))
-    finite = np.isfinite(actual) & np.isfinite(expected)
-    a, b = actual[finite], expected[finite]
-    if a.dtype == np.bool_ and b.dtype == np.bool_:
-        # Metric arithmetic uses exact 0/1 indicators; the original assertion
-        # still receives the untouched boolean arrays.
-        a, b = a.astype(np.int8), b.astype(np.int8)
+    # Metric arithmetic uses exact 0/1 indicators; the original assertion still
+    # receives the untouched boolean arrays.
+    indicators = actual.dtype == np.bool_ and expected.dtype == np.bool_
+
+    def chunks():
+        for start in range(0, actual.size, chunk):
+            a = actual.flat[start : start + chunk]
+            b = expected.flat[start : start + chunk]
+            finite = np.isfinite(a) & np.isfinite(b)
+            a, b = a[finite], b[finite]
+            if indicators:
+                a, b = a.astype(np.int8), b.astype(np.int8)
+            yield start, finite, a, b
+
+    finite_count, scale = 0, 0.0
+    maximum, max_scaled, worst = 0.0, 0.0, None
+    difference_norm = reference_norm = np.float64(0)
     with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
-        differences = np.abs(a - b)
-        maximum = float(np.max(differences, initial=0))
-        scaled = differences / (atol + rtol * np.abs(b))
-        max_scaled = float(np.max(scaled, initial=0))
-        scale = max(
-            float(np.max(np.abs(a), initial=0)), float(np.max(np.abs(b), initial=0))
+        for _, finite, a, b in chunks():
+            finite_count += int(np.count_nonzero(finite))
+            scale = max(
+                scale,
+                float(np.max(np.abs(a), initial=0)),
+                float(np.max(np.abs(b), initial=0)),
+            )
+        for start, finite, a, b in chunks():
+            if not a.size:
+                continue
+            differences = np.abs(a - b)
+            maximum = max(maximum, float(np.max(differences)))
+            scaled = differences / (atol + rtol * np.abs(b))
+            index = int(np.argmax(scaled))
+            if worst is None or scaled[index] > max_scaled:
+                max_scaled = float(scaled[index])
+                flat = start + int(np.flatnonzero(finite)[index])
+                worst = flat, a[index], b[index]
+            if scale:
+                difference_norm += _squared_norm(a / scale - b / scale)
+                reference_norm += _squared_norm(b / scale)
+        relative = (
+            float(np.sqrt(difference_norm) / np.sqrt(reference_norm)) if scale else 0.0
         )
-        if scale == 0:
-            relative = 0.0
-        else:
-            reference_norm = np.linalg.norm(b / scale)
-            relative = float(np.linalg.norm(a / scale - b / scale) / reference_norm)
-    coordinates = np.argwhere(finite)
-    worst = int(np.argmax(scaled)) if scaled.size else None
     details = {
         "actual_shape": list(actual.shape),
         "element_count": actual.size,
-        "finite_count": int(np.count_nonzero(finite)),
-        "nonfinite_count": int(np.count_nonzero(~finite)),
+        "finite_count": finite_count,
+        "nonfinite_count": actual.size - finite_count,
         "atol": atol,
         "rtol": rtol,
-        "worst_coordinates": coordinates[worst].tolist() if worst is not None else None,
-        "worst_actual": [float(a[worst].real), float(a[worst].imag)]
-        if worst is not None
-        else None,
-        "worst_reference": [float(b[worst].real), float(b[worst].imag)]
-        if worst is not None
-        else None,
+        "worst_coordinates": None,
+        "worst_actual": None,
+        "worst_reference": None,
     }
+    if worst is not None:
+        flat, a, b = worst
+        details["worst_coordinates"] = [
+            int(i) for i in np.unravel_index(flat, actual.shape)
+        ]
+        details["worst_actual"] = [float(a.real), float(a.imag)]
+        details["worst_reference"] = [float(b.real), float(b.imag)]
     values = {
         "max_abs_error": maximum,
         "relative_l2_error": relative,
@@ -75,13 +112,21 @@ def residuals(actual, expected, *, rtol, atol):
 
 
 def collect(check, parameters):
-    """Keep the original assertion authoritative, including its failure state."""
-    observations = []
-    original = np.testing.assert_allclose
+    """Record each whole compared output; the chunked check decides pass or fail.
 
-    def record(actual, expected, *args, **kwargs):
+    The benchmark's ``_assert_allclose`` is the single upstream comparison of a
+    check. Each call adds one observation per metric for the complete output.
+    """
+    observations = []
+    original = benchmark_cluster._assert_allclose
+
+    def record(actual, expected):
+        if np.shape(actual) != np.shape(expected):
+            # Shape mismatches have no elementwise residuals; the check raises.
+            original(actual, expected)
+            return
         metrics, details = residuals(
-            actual, expected, rtol=kwargs["rtol"], atol=kwargs["atol"]
+            actual, expected, rtol=benchmark_cluster.RTOL, atol=benchmark_cluster.ATOL
         )
         status = "error" if details["nonfinite_count"] else "passed"
         message = (
@@ -92,7 +137,7 @@ def collect(check, parameters):
         if not details["finite_count"]:
             metrics = dict.fromkeys(metrics)
         try:
-            original(actual, expected, *args, **kwargs)
+            original(actual, expected)
         except AssertionError as error:
             status, message = "failed", str(error)
             raise
@@ -117,7 +162,7 @@ def collect(check, parameters):
     failure = None
     try:
         with (
-            patch.object(np.testing, "assert_allclose", record),
+            patch.object(benchmark_cluster, "_assert_allclose", record),
             contextlib.redirect_stdout(io.StringIO()),
         ):
             check()
@@ -134,15 +179,7 @@ def main():
     parser.add_argument("--samples", type=int, default=2048)
     parser.add_argument("--threads", type=int, default=4)
     args = parser.parse_args()
-    for key in (
-        "BENCH_THREADS",
-        "RAYON_NUM_THREADS",
-        "OPENBLAS_NUM_THREADS",
-        "OMP_NUM_THREADS",
-        "MKL_NUM_THREADS",
-        "VECLIB_MAXIMUM_THREADS",
-    ):
-        os.environ[key] = str(args.threads)
+    os.environ.update(pinned_threads(args.threads), BENCH_THREADS=str(args.threads))
     if hasattr(os, "sched_getaffinity"):
         os.sched_setaffinity(0, set(sorted(os.sched_getaffinity(0))[: args.threads]))
     observations, failure = collect(
@@ -165,10 +202,8 @@ def main():
             **fingerprints(),
             **fingerprints(upstream=True),
             "native_profile": _native.build_profile(),
-            "collector_sha256": benchmark_cluster._digest(Path(__file__)),
-            "reference_harness_sha256": benchmark_cluster._digest(
-                Path(benchmark_cluster.__file__)
-            ),
+            "collector_sha256": file_sha256(__file__),
+            "reference_harness_sha256": file_sha256(benchmark_cluster.__file__),
         },
         "environment": {
             "os": platform.system(),
@@ -179,7 +214,7 @@ def main():
         },
         "protocol": {
             "reference": "treams 0.4.5 public calculation; agreement is not an independent proof of physical correctness",
-            "assertion": "Original benchmark assert_allclose remains active; native and upstream outputs evaluated once",
+            "assertion": "Original chunked benchmark assertion remains active; native and upstream outputs evaluated once; one observation per metric and compared output",
             "relative_error": "Normwise error on finite entries with magnitude scaling; exact zero/zero is zero, undefined or overflowed values are null",
             "scaled_error": "max(abs(actual-reference)/(atol+rtol*abs(reference))); threshold 1",
             "nonfinite": "Nonfinite entries counted separately and excluded from finite residual summaries; original assertion still compares them",

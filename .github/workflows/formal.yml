@@ -4,22 +4,30 @@ on:
   pull_request:
     paths:
       - formal/**
-      - crates/treams-core/src/geometry.rs
-      - crates/treams-core/src/waves.rs
-      - crates/treams-core/src/translation_plan.rs
-      - crates/treams-core/src/illumination.rs
-      - crates/treams-core/src/linalg.rs
+      - crates/treams-core/src/cluster/interaction.rs
+      - crates/treams-core/src/lattice/direct.rs
+      - crates/treams-core/src/lattice/geometry.rs
+      - crates/treams-core/src/lattice/shells.rs
+      - crates/treams-core/src/linalg/mod.rs
+      - crates/treams-core/src/special/harmonics.rs
+      - crates/treams-core/src/special/wigner.rs
+      - crates/treams-core/src/sw/coupling.rs
+      - crates/treams-core/src/sw/plan.rs
       - justfile
       - .github/workflows/formal.yml
   push:
     branches: [main]
     paths:
       - formal/**
-      - crates/treams-core/src/geometry.rs
-      - crates/treams-core/src/waves.rs
-      - crates/treams-core/src/translation_plan.rs
-      - crates/treams-core/src/illumination.rs
-      - crates/treams-core/src/linalg.rs
+      - crates/treams-core/src/cluster/interaction.rs
+      - crates/treams-core/src/lattice/direct.rs
+      - crates/treams-core/src/lattice/geometry.rs
+      - crates/treams-core/src/lattice/shells.rs
+      - crates/treams-core/src/linalg/mod.rs
+      - crates/treams-core/src/special/harmonics.rs
+      - crates/treams-core/src/special/wigner.rs
+      - crates/treams-core/src/sw/coupling.rs
+      - crates/treams-core/src/sw/plan.rs
       - justfile
       - .github/workflows/formal.yml
 

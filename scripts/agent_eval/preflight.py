@@ -2,20 +2,35 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Check wheel-only model context and both command sandboxes without model calls."""
+"""Check wheel-only model context and both command sandboxes without model calls.
+
+Sandboxed tools must not read the Codex credentials, instructions and memories
+in CODEX_HOME (see runner.py) or the Claude Code credentials in ~/.claude.
+Besides the variables of runner.py and claude_runner.py, this script reads:
+
+TREAMS_EVAL_FORBIDDEN        further paths that sandboxed tools must not read,
+                             separated by os.pathsep; default: none.
+TREAMS_EVAL_CONTEXT_MARKERS  further strings that must not appear in the Codex
+                             model context, such as a phrase unique to your
+                             global instructions, separated by os.pathsep (so a
+                             marker cannot contain it; any distinctive substring
+                             works); default: none.
+"""
 
 import json
 import os
+import re
 import shlex
 import socket
 import subprocess
 from pathlib import Path
 
 from claude_runner import tool_command
-from runner import VENV, launch_args
+from runner import VENV, codex_home, launch_args
 
 ROOT = Path(__file__).resolve().parents[2]
-OUTPUT = ROOT / "benchmarks/results/agent-api-20260920/isolation"
+# Reruns never write into archived evidence; results/local/ is untracked.
+OUTPUT = ROOT / "benchmarks/results/local/agent-api/isolation"
 
 
 def run(command, **kwargs):
@@ -25,7 +40,19 @@ def run(command, **kwargs):
     return r.stdout
 
 
+def fill(template, values):
+    """Replace each placeholder name in template by the repr of its value.
+
+    One pass, so a value that contains a placeholder name is never rewritten.
+    """
+    pattern = r"\b(" + "|".join(map(re.escape, values)) + r")\b"
+    return re.sub(pattern, lambda match: repr(values[match[1]]), template)
+
+
 def main():
+    extra_forbidden = os.environ.get("TREAMS_EVAL_FORBIDDEN", "").split(os.pathsep)
+    extra_markers = os.environ.get("TREAMS_EVAL_CONTEXT_MARKERS", "").split(os.pathsep)
+    codex = codex_home()
     OUTPUT.mkdir(parents=True, exist_ok=True)
     hidden = OUTPUT / "hidden.txt"
     hidden.write_text("Existing evaluator canary; not an answer.\n")
@@ -38,7 +65,7 @@ def main():
     results = {}
     try:
         for provider in ("codex", "claude"):
-            trial = Path("/tmp/treams-api-eval-preflight-20260920") / provider
+            trial = Path("/tmp/treams-api-eval-preflight") / provider
             trial.mkdir(parents=True, exist_ok=True)
             (trial / ".tmp").mkdir(exist_ok=True)
             link = trial / "hidden-link"
@@ -50,11 +77,11 @@ def main():
                 Path(__file__),
                 hidden,
                 link,
-                Path("~/personal/advect/pyproject.toml"),
-                Path("~/.codex/auth.json"),
-                Path("~/.claude/.credentials.json"),
-                Path("~/.codex/AGENTS.md"),
-                Path("~/.codex/memories/MEMORY.md"),
+                codex / "auth.json",
+                Path.home() / ".claude/.credentials.json",
+                codex / "AGENTS.md",
+                codex / "memories/MEMORY.md",
+                *map(Path, filter(None, extra_forbidden)),
             ]
             probe = """import errno,json,os,pathlib,socket,treams_rs,advect
 for name in FORBIDDEN:
@@ -91,13 +118,15 @@ for pid in pathlib.Path('/proc').iterdir():
 print(json.dumps({'package':treams_rs.__file__,'forbidden_paths':len(FORBIDDEN),
     'network':'blocked','venv':'read-only','workspace':'read-write','oracle_packages':'absent'}))
 """
-            for key, value in [
-                ("FORBIDDEN", [str(p) for p in forbidden]),
-                ("VENV_CONFIG", str(VENV / "pyvenv.cfg")),
-                ("HOST_SOCKET", str(address)),
-                ("HIDDEN", str(hidden)),
-            ]:
-                probe = probe.replace(key, repr(value))
+            probe = fill(
+                probe,
+                {
+                    "FORBIDDEN": [str(p) for p in forbidden],
+                    "VENV_CONFIG": str(VENV / "pyvenv.cfg"),
+                    "HOST_SOCKET": str(address),
+                    "HIDDEN": str(hidden),
+                },
+            )
             if provider == "codex":
                 command, fds = launch_args(trial, "gpt-5.6-luna")
                 try:
@@ -118,8 +147,7 @@ print(json.dumps({'package':treams_rs.__file__,'forbidden_paths':len(FORBIDDEN),
                     "<skills_instructions>",
                     "AGENTS.md instructions",
                     "MEMORY_SUMMARY",
-                    "PONYTAIL",
-                    "atlas-context",
+                    *filter(None, extra_markers),
                 ):
                     assert marker not in context, marker
                 command, fds = launch_args(trial, "gpt-5.6-luna")

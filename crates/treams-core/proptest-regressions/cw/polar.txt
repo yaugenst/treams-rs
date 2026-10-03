@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 0fc9574b16a541d0c554e4336b1a9bfcb9c6db337542076b1c1db6c88649b5f5 # shrinks to mu = -4, m = 5, phi = -0.22280701766659256, regular = false
+cc ba0acd6e0b931c7b29307f5ffc321a6664fd6fe3aa419e16b759494340e62b77 # shrinks to l = 3, lambda = 5, seed = 8, theta = 2.2550873402946245, phi = -0.09539001315443345, helicity = true, regular = false
+cc 243b97655090fbe9d9cbcd7fff706398307a5b4ef5ef3a832cd2e4885279ff68 # shrinks to l = 5, lambda = 3, seed = 8, theta = 0.8131346225360948, phi = 0.0, helicity = false, regular = false
+cc 41df1f8d2b938af1a982dcfaea841a04be62990306f980c74b50c2a0923b01a9 # shrinks to (l, m) = (1, 0), (lambda, mu) = (2, 2), pol = 0, to_pol = 0, magnitude = 1.0, angle = 0.0, theta = 3.141592653589793, phi = 0.0, helicity = false, radial = Regular

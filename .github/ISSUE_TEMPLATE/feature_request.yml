@@ -1,0 +1,28 @@
+name: Feature request
+description: Propose a new capability or a change to the API.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What do you want to compute or do that treams-rs does not support well today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: The API or behaviour you have in mind, ideally with a short code sketch.
+    validations:
+      required: true
+  - type: input
+    id: treams
+    attributes:
+      label: treams counterpart
+      description: The corresponding treams function or class, if there is one.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Workarounds you use now, or other designs you considered.

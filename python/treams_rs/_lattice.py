@@ -1,4 +1,4 @@
-"""Immutable lattice and partial-wavevector metadata in treams conventions."""
+"""Lattice and WaveVector (treams._lattice) and their native cell rows."""
 
 from __future__ import annotations
 
@@ -17,6 +17,20 @@ if TYPE_CHECKING:
     from numpy.typing import ArrayLike, DTypeLike, NDArray
 
 
+__all__ = [
+    "Lattice",
+    "WaveVector",
+    "cell_geometry",
+    "geometry_inputs",
+    "infer_dimension",
+    "on_diffraction_orders",
+    "periodic_alignment",
+    "periodic_geometry",
+    "sum_cell",
+    "turns",
+    "z_rotation",
+]
+
 _ALIGNMENTS = {1: ("z", "x", "y"), 2: ("xy", "yz", "zx"), 3: ("xyz",)}
 
 
@@ -25,14 +39,27 @@ def _alignment(axes: set[str]) -> str:
     return "zx" if value == "xz" else value
 
 
-def _turns(n: int) -> int:
+def periodic_alignment(dim: int, spherical: bool) -> str:
+    """Cartesian axes of a periodic cell: z (spheres) or x (cylinders) in 1D."""
+    return ("z" if spherical else "x") if dim == 1 else "xyz"[:dim]
+
+
+def on_diffraction_orders(orders: ArrayLike) -> bool:
+    """Whether (possibly complex) reciprocal coordinates are integer orders."""
+    values = np.asarray(orders)
+    return np.allclose(values, np.round(values.real), atol=1e-10, rtol=0)
+
+
+def turns(n: int) -> int:
+    """Permutation count modulo 3; non-integer counts raise ValueError."""
     value = int(n)
     if value != n:
         raise ValueError("permutation count must be an integer")
     return value % 3
 
 
-def _z_rotation(phi: float) -> NDArray[np.float64]:
+def z_rotation(phi: float) -> NDArray[np.float64]:
+    """Rotation matrix about z, exact at quarter turns."""
     if not math.isfinite(phi):
         raise ValueError("rotation angle must be finite")
     c, s = math.cos(phi), math.sin(phi)
@@ -43,11 +70,21 @@ def _z_rotation(phi: float) -> NDArray[np.float64]:
 
 @dataclass(frozen=True, init=False, eq=False)
 class Lattice:
-    """Row lattice vectors embedded along Cartesian axes; numerical geometry is native."""
+    """Lattice vectors as rows, along named Cartesian axes.
+
+    Mirrors ``treams.Lattice``. The array is a scalar period (1D), the
+    diagonal of 2 or 3 lengths, or a square 2x2 or 3x3 matrix of row vectors.
+    ``alignment`` names the Cartesian axes of the rows: ``"z"`` (default),
+    ``"x"`` or ``"y"`` in 1D; ``"xy"`` (default), ``"yz"`` or ``"zx"`` in 2D;
+    ``"xyz"`` in 3D. ``Lattice(lattice, "xy")`` selects the sublattice of a 3D
+    lattice along x and y. The Rust core computes the volume and the reciprocal
+    vectors.
+    """
 
     _array: NDArray[np.float64]
     _reciprocal: NDArray[np.float64]
     alignment: str
+    """Cartesian axes of the rows, for example ``"xy"``."""
 
     def __init__(self, arr: ArrayLike | Lattice, alignment: str | None = None):
         if isinstance(arr, Lattice):
@@ -82,6 +119,7 @@ class Lattice:
 
     @property
     def dim(self) -> int:
+        """Number of lattice dimensions, 1 to 3."""
         return len(self.alignment)
 
     @property
@@ -126,31 +164,60 @@ class Lattice:
         values = str(self._array).replace("\n", "\n        ")
         return f"Lattice({values}, alignment='{self.alignment}')"
 
-    def __bool__(self) -> bool:
-        return True
-
     @classmethod
     def square(cls, pitch: float, alignment: str | None = None) -> Lattice:
+        """Square lattice with side ``pitch``.
+
+        Args:
+            pitch: Lattice constant.
+            alignment: Plane of the lattice: ``"xy"`` (default), ``"yz"`` or
+                ``"zx"``. The rows lie along its first and second axis.
+        """
         return cls([pitch, pitch], alignment)
 
     @classmethod
     def cubic(cls, pitch: float, alignment: str | None = None) -> Lattice:
+        """Cubic lattice with side ``pitch``; the alignment can only be ``"xyz"``."""
         return cls([pitch, pitch, pitch], alignment)
 
     @classmethod
     def rectangular(cls, x: float, y: float, alignment: str | None = None) -> Lattice:
+        """Rectangular lattice with sides ``x`` and ``y``.
+
+        Args:
+            x: Length along the first axis of the alignment.
+            y: Length along the second axis of the alignment.
+            alignment: Plane of the lattice: ``"xy"`` (default), ``"yz"`` or
+                ``"zx"``. The rows lie along its first and second axis.
+        """
         return cls([x, y], alignment)
 
     @classmethod
     def orthorhombic(
         cls, x: float, y: float, z: float, alignment: str | None = None
     ) -> Lattice:
+        """Orthorhombic lattice with sides ``x``, ``y`` and ``z``.
+
+        The alignment can only be ``"xyz"``.
+        """
         return cls([x, y, z], alignment)
 
     @classmethod
     def hexagonal(
         cls, pitch: float, height: float | None = None, alignment: str | None = None
     ) -> Lattice:
+        """Hexagonal lattice with side ``pitch``, 2D or, with ``height``, 3D.
+
+        The rows are (pitch, 0) and (pitch/2, sqrt(3) pitch/2) in the plane of
+        the alignment. ``height`` adds the row (0, 0, height) and needs the
+        alignment ``"xyz"``.
+
+        Args:
+            pitch: Lattice constant in the plane.
+            height: Period along the third axis; None for a 2D lattice.
+            alignment: Plane of a 2D lattice: ``"xy"`` (default), ``"yz"`` or
+                ``"zx"``.
+        """
         values = np.array([[pitch, 0], [0.5 * pitch, np.sqrt(0.75) * pitch]])
         if height is not None:
             values = np.pad(values, ((0, 1), (0, 1)))
@@ -175,16 +242,17 @@ class Lattice:
         return result.reshape(()) if len(columns) == 1 else result
 
     def permute(self, n: int = 1) -> Lattice:
-        turns = _turns(n)
+        """Permute the axes cyclically, x -> y -> z, n times."""
+        shift = turns(n)
         if self.dim == 3:
-            return Lattice(np.roll(self._array, turns, axis=1), self.alignment)
-        alignment = "".join("xyz"[("xyz".index(c) + turns) % 3] for c in self.alignment)
+            return Lattice(np.roll(self._array, shift, axis=1), self.alignment)
+        alignment = "".join("xyz"[("xyz".index(c) + shift) % 3] for c in self.alignment)
         return Lattice(self._array, alignment)
 
     def rotate(self, phi: float) -> Lattice:
         """Rotate around z; the resulting span must remain Cartesian aligned."""
         axes = ["xyz".index(axis) for axis in self.alignment]
-        rotation = _z_rotation(phi)[:, axes].T
+        rotation = z_rotation(phi)[:, axes].T
         columns = np.flatnonzero(np.any(rotation != 0, axis=0))
         if len(columns) != self.dim:
             raise ValueError(
@@ -214,7 +282,7 @@ class Lattice:
         overlap = set(self.alignment) & set(other.alignment)
         if overlap:
             # Two partially overlapping planes can merge only when their shared
-            # axes are separable sublattices, matching upstream's contract.
+            # axes are separable sublattices, as treams requires.
             values = []
             for axis in alignment:
                 candidates = [
@@ -244,14 +312,18 @@ class Lattice:
         return left
 
     def isdisjoint(self, other: Lattice) -> bool:
+        """Whether the two lattices share no Cartesian axis."""
         return set(self.alignment).isdisjoint(other.alignment)
 
 
 @dataclass(frozen=True, init=False, eq=False)
 class WaveVector(Sequence[complex | float]):
-    """Partial Cartesian wavevector; NaN denotes an unspecified component.
+    """Partial Cartesian wavevector; NaN marks an unspecified component.
 
-    ``&`` combines compatible constraints; ``|`` keeps only common constraints.
+    Mirrors ``treams.WaveVector``. Three values give (kx, ky, kz); one or two
+    values give the components along ``alignment`` (``"z"`` or ``"xy"`` by
+    default), and the others are NaN. ``&`` combines compatible constraints;
+    ``|`` keeps only the common ones.
     """
 
     _values: tuple[complex | float, ...]
@@ -340,21 +412,23 @@ class WaveVector(Sequence[complex | float]):
         )
 
     def isdisjoint(self, other: ArrayLike | WaveVector) -> bool:
+        """Whether no component is specified in both wavevectors."""
         return all(
             np.isnan(a) or np.isnan(b)
             for a, b in zip(self, WaveVector(other), strict=True)
         )
 
     def permute(self, n: int = 1) -> WaveVector:
-        turns = _turns(n)
+        """Permute the components cyclically, x -> y -> z, n times."""
+        shift = turns(n)
         return WaveVector(
-            self._values[-turns:] + self._values[:-turns] if turns else self._values
+            self._values[-shift:] + self._values[:-shift] if shift else self._values
         )
 
     def rotate(self, phi: float) -> WaveVector:
         """Rotate around z without discarding partial wavevector constraints."""
         values = np.asarray(self._values)
-        rotated = [np.sum(row[row != 0] * values[row != 0]) for row in _z_rotation(phi)]
+        rotated = [np.sum(row[row != 0] * values[row != 0]) for row in z_rotation(phi)]
         if np.count_nonzero(np.isnan(rotated)) != np.count_nonzero(np.isnan(values)):
             raise ValueError(
                 "rotation produces constraints outside Cartesian alignment"
@@ -362,10 +436,10 @@ class WaveVector(Sequence[complex | float]):
         return WaveVector(rotated)
 
 
-def _geometry_inputs(
+def geometry_inputs(
     a: ArrayLike | Lattice, kpar: ArrayLike | WaveVector, alignment: str
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-    """Resolve explicit metadata once at the numerical geometry boundary."""
+    """Lattice rows and Bloch vector of ``alignment`` as arrays, for a native call."""
     if isinstance(a, Lattice):
         values = a._array if a.alignment == alignment else a._sublattice(alignment)
     else:
@@ -377,3 +451,49 @@ def _geometry_inputs(
     if isinstance(kpar, WaveVector):
         kpar = tuple(kpar["xyz".index(axis)] for axis in alignment)
     return np.atleast_2d(values), np.atleast_1d(np.asarray(kpar, dtype=np.float64))
+
+
+def infer_dimension(a: ArrayLike, kpar: ArrayLike) -> int:
+    """Lattice dimension: the specified Bloch components, capped by the cell size."""
+    components = np.atleast_1d(kpar)
+    dim = (
+        int(np.count_nonzero(~np.isnan(components)))
+        if isinstance(kpar, WaveVector)
+        else components.size
+    )
+    return min(dim, np.atleast_2d(a).shape[0] if np.ndim(a) != 1 else np.size(a))
+
+
+def periodic_geometry(
+    a: ArrayLike, kpar: ArrayLike, spherical: bool
+) -> tuple[list[list[float]], list[float]]:
+    """Native cell rows and Bloch vector, with the inferred lattice dimension."""
+    return cell_geometry(infer_dimension(a, kpar), a, kpar, spherical)
+
+
+def cell_geometry(
+    dim: int, a: ArrayLike, kpar: ArrayLike, spherical: bool
+) -> tuple[list[list[float]], list[float]]:
+    """Native cell rows and Bloch vector of a ``dim``-dimensional cell."""
+    matrix, bloch = geometry_inputs(a, kpar, periodic_alignment(dim, spherical))
+    if matrix.shape != (dim, dim) or bloch.shape != (dim,):
+        raise ValueError("lattice and Bloch vector must match the requested dimension")
+    return matrix.tolist(), bloch.tolist()
+
+
+def sum_cell(
+    dim: int, a: ArrayLike, kpar: ArrayLike, spherical: bool
+) -> tuple[ArrayLike, ArrayLike]:
+    """Native (lattice, Bloch) inputs of a per-dimension sum.
+
+    Lattice/WaveVector metadata is resolved (to scalars in 1D) and 2D/3D
+    diagonals are expanded; other raw 1D inputs pass through unchanged.
+    """
+    if isinstance(a, Lattice) or isinstance(kpar, WaveVector):
+        matrix, bloch = cell_geometry(dim, a, kpar, spherical)
+        return (matrix[0][0], bloch[0]) if dim == 1 else (np.asarray(matrix), bloch)
+    if dim > 1:
+        a = np.asarray(a)
+        if a.shape == (dim,):
+            a = np.diag(a)
+    return a, kpar

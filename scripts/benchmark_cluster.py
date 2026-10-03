@@ -11,57 +11,234 @@ The parent never imports either solver, keeping peak-RSS measurements separate.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import importlib.metadata
 import json
 import os
 import platform
-import resource
 import statistics
 import subprocess
 import sys
 import time
 from pathlib import Path
 
+from _harness import (
+    cpu_affinity,
+    file_sha256,
+    peak_rss_mib,
+    pinned_threads,
+    python_source_sha256,
+    threadpools,
+)
 
-def _digest(path: Path) -> str:
-    with path.open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
+# Scripts whose code can accept a failed upstream comparison, by workload.
+CERTIFIERS = {
+    "rotation": ("qualify_references.py", "qualify_legendre.py"),
+    "cluster": (
+        "qualify_cluster_conditioning.py",
+        "qualify_upstream.py",
+        "benchmark_illumination.py",
+    ),
+}
+# Tolerance of every agreement check with treams; qualify_upstream records against it.
+RTOL = 2e-9
+ATOL = 1e-12
+# Flat slices copy at most 1 MiB per complex128 input, including strided arrays.
+# Full explicit operators can exceed 1 GiB before validation.
+CHUNK = 65536
 
 
-def _package_digest(directory: Path) -> str:
-    digest = hashlib.sha256()
-    for path in sorted(directory.glob("*.py")):
-        digest.update(path.name.encode())
-        digest.update(bytes.fromhex(_digest(path)))
-    return digest.hexdigest()
-
-
-def _assert_allclose(actual, expected) -> None:
+def _assert_allclose(actual, expected, *, chunk=CHUNK) -> None:
     """Check every element without array-sized comparison temporaries."""
     import numpy as np
 
     actual, expected = np.asarray(actual), np.asarray(expected)
     if actual.shape != expected.shape:
         raise AssertionError(f"shape mismatch: {actual.shape} != {expected.shape}")
-    # flat slices copy at most 1 MiB per complex128 input, including strided
-    # arrays. Full explicit operators can exceed 1 GiB before validation.
-    for start in range(0, actual.size, 65536):
-        stop = start + 65536
+    for start in range(0, actual.size, chunk):
+        stop = start + chunk
         np.testing.assert_allclose(
             actual.flat[start:stop],
             expected.flat[start:stop],
-            rtol=2e-9,
-            atol=1e-12,
+            rtol=RTOL,
+            atol=ATOL,
             err_msg=f"flat indices {start}:{min(stop, actual.size)}",
         )
+
+
+def _with_forward(*names: str) -> tuple[str, ...]:
+    """Recorded (pullback) and forward-only variants of each workload."""
+    return tuple(variant for name in names for variant in (name, f"{name}-forward"))
+
+
+_WAVE_MODES = ("M", "N", "A", "rM", "rN", "rA")
+_WAVES = (
+    "sph_harm",
+    "vsh_X",
+    "vsh_Y",
+    "vsh_Z",
+    *(f"{kind}_{mode}" for kind in ("vsw", "vcw") for mode in _WAVE_MODES),
+    "vpw_M",
+    "vpw_N",
+    "vpw_A",
+)
+_COORDINATES = (
+    "car2cyl",
+    "car2sph",
+    "cyl2car",
+    "cyl2sph",
+    "sph2car",
+    "sph2cyl",
+    "car2pol",
+    "pol2car",
+)
+_LATTICE_SUMS = ("lsum", "realsum", "recsum", "dsum")
+_LATTICE_ADJOINT = ("sw1d_shift", "sw2d_shift", "sw3d", "cw1d_shift", "cw2d")
+_LATTICE_FORWARD = (
+    "sw1d",
+    "sw1d_shift",
+    "sw2d",
+    "sw2d_shift",
+    "sw3d",
+    "cw1d",
+    "cw1d_shift",
+    "cw2d",
+)
+_NAMESPACES = (
+    "sw.rotate",
+    "sw.translate",
+    "sw.periodic_to_pw",
+    "sw.periodic_to_cw",
+    "cw.rotate",
+    "cw.translate",
+    "cw.to_sw",
+    "cw.periodic_to_pw",
+    "pw.translate",
+    "pw.to_sw",
+    "pw.to_cw",
+    "pw.permute_xyz",
+)
+_GEOMETRY = (
+    "volume2",
+    "volume3",
+    "reciprocal2",
+    "reciprocal3",
+    "cube",
+    "cubeedge",
+    "diffr_orders_circle",
+    "refractive_index",
+    "wave_vec_z",
+    "basischange",
+    "pickmodes",
+    "firstbrillouin1d",
+    "firstbrillouin2d",
+    "firstbrillouin3d",
+)
+_POLAR_ADJOINT = ("tl_vcw", "tl_vcw_r", "tl_vsw_A", "tl_vsw_rB")
+_POLAR_FORWARD = (
+    "tl_vcw",
+    "tl_vcw_r",
+    "tl_vsw_A",
+    "tl_vsw_B",
+    "tl_vsw_rA",
+    "tl_vsw_rB",
+)
+_OPERATOR_FIELDS = ("efield", "hfield", "dfield", "bfield", "gfield", "ffield")
+# Every --workload value; worker() dispatches on these names.
+WORKLOADS = (
+    "cluster",
+    "particle-cluster",
+    "particle-cluster-public",
+    "cylindrical-particle-cluster",
+    "cylindrical-particle-cluster-public",
+    "slab",
+    "field",
+    "ebcm",
+    "cylindrical-expansion",
+    "cylindrical-expansion-axial",
+    "cylindrical-periodic",
+    "cylindrical-periodic-axial",
+    "cylindrical-field",
+    "cylindrical-field-axial",
+    "cylindrical-array",
+    "cylindrical-plane-expansion",
+    "field-operator",
+    "periodic",
+    "array",
+    "rotation",
+    "conversion",
+    "periodic-conversion",
+    "plane-field",
+    "plane-operator",
+    "plane-phases",
+    "plane-permutation",
+    "plane-expansion",
+    "oriented-chirality",
+    *_with_forward(
+        "internal-field",
+        "callback-helicity",
+        "callback-parity",
+        "power-tr",
+        "incgamma",
+        "intkambe",
+        "wigner",
+        "bessel",
+        "bessel-derivative",
+        "angular-fractional",
+        "angular-legendre",
+        "angular-pi",
+        "angular-tau",
+    ),
+    "power-cd-forward",
+    "power-translate-forward",
+    "power-permute-forward",
+    "wigner-small-forward",
+    "wigner3j-forward",
+    *(
+        f"operator-{family}-{field}-forward"
+        for family in ("sphere", "cylinder", "plane")
+        for field in _OPERATOR_FIELDS
+    ),
+    *(
+        f"lattice-{kind}{family}"
+        for kind in _LATTICE_SUMS
+        for family in _LATTICE_ADJOINT
+    ),
+    *(
+        f"lattice-{kind}{family}-forward"
+        for kind in _LATTICE_SUMS
+        for family in _LATTICE_FORWARD
+    ),
+    *(f"namespace-{name}-forward" for name in _NAMESPACES),
+    *(f"polar-{name}" for name in _POLAR_ADJOINT),
+    *(f"polar-{name}-forward" for name in _POLAR_FORWARD),
+    *(f"wave-{name}" for name in ("vsw_rA", "vcw_rA", "vpw_A")),
+    *(f"wave-{name}-forward" for name in _WAVES),
+    *(f"geometry-{name}-forward" for name in _GEOMETRY),
+    *(
+        f"coordinate-{vector}{name}-forward"
+        for vector in ("", "v")
+        for name in _COORDINATES
+    ),
+)
+
+
+def _calibrate(function, minimum: float = 0.02) -> int:
+    """Smallest power-of-ten call count whose total time reaches ``minimum`` s."""
+    batch = 1
+    while True:
+        start = time.perf_counter()
+        for _ in range(batch):
+            function()
+        if time.perf_counter() - start >= minimum:
+            return batch
+        batch *= 10
 
 
 def worker(
     backend: str, particles: int, order: int, repeats: int, workload: str, samples: int
 ) -> None:
     import numpy as np
-    from threadpoolctl import threadpool_info, threadpool_limits
+    from threadpoolctl import threadpool_limits
 
     if backend in ("rust", "check", "compare"):
         from treams_rs import (
@@ -446,8 +623,8 @@ def worker(
                 for degree in degrees
             )
             if backend in ("rust", "check", "compare"):
+                from treams_rs import Cluster, TMatrix
                 from treams_rs import CylindricalTMatrix as TMatrixC
-                from treams_rs import TMatrix
 
                 local_tmats = [
                     TMatrixC.cylinder([0.2, 0.4], degree, 1.3, radius, [eps, 1])
@@ -684,7 +861,7 @@ def worker(
                 )
                 return np.asarray(function(power_incident))[:, None]
             if workload.startswith("callback-"):
-                value, residual = diff.periodic_from_table(
+                value, residual = diff.lattice_expansion_from_table(
                     callback_table, callback_basis, poltype=callback_poltype
                 )
                 return value if forward_only else (value, residual)
@@ -742,7 +919,9 @@ def worker(
             if workload.startswith("wave-"):
                 if forward_only:
                     return getattr(special, wave_name)(*wave_args)
-                return diff.vector_wave(*wave_arguments, kind=wave_name, **wave_labels)
+                return diff.vector_wave(
+                    *wave_arguments, function=wave_name, **wave_labels
+                )
             if workload.startswith("coordinate-"):
                 args = (
                     (coordinate_vector, coordinate_points)
@@ -753,11 +932,11 @@ def worker(
             if workload.startswith("cylindrical-expansion"):
                 return diff.expansion(basis, basis, [1.3, 1.3], singular=True)
             if workload.startswith("cylindrical-periodic"):
-                return lattice.expansion_with_context(
-                    basis, basis, [1.3, 1.3], vectors, bloch, eta=eta
+                return diff.lattice_expansion(
+                    basis, basis, [1.3, 1.3], bloch, vectors, eta=eta
                 )
             if workload == "wigner":
-                return diff.wigner(order, 1, -2, 0.2, special_arguments, -0.1)
+                return diff.wignerd(order, 1, -2, 0.2, special_arguments, -0.1)
             if workload == "wigner-forward":
                 return special.wignerd(order, 1, -2, 0.2, special_arguments, -0.1)
             if workload == "wigner-small-forward":
@@ -778,7 +957,7 @@ def worker(
                         *angular_labels, angular_arguments
                     )
                 return diff.angular(
-                    angular_degree, 2, angular_arguments, kind=angular_kind
+                    angular_degree, 2, angular_arguments, function=angular_kind
                 )
             if workload == "bessel-forward":
                 return special.hankel1(order, bessel_arguments)
@@ -788,16 +967,11 @@ def worker(
                 return diff.bessel(
                     order,
                     bessel_arguments,
-                    kind="h1",
+                    function="h1",
                     derivative=workload == "bessel-derivative",
                 )
             if "particle-cluster" in workload and workload.endswith("public"):
-                return (
-                    type(local_tmats[0])
-                    ._assemble(local_tmats, positions)
-                    .interaction.solve()
-                    .array
-                )
+                return Cluster(local_tmats, positions=positions).solve().array
             if "particle-cluster" in workload:
                 return diff.particle_cluster(
                     local_arrays, positions, [1.3, 1.3], bases=local_bases
@@ -822,12 +996,12 @@ def worker(
                     surface_zs,
                     theta=theta,
                     weights=quadrature,
-                    out=basis,
-                    legacy=True,
+                    destination=basis,
+                    radial_area_factor=False,
                 )
             if workload in ("internal-field", "internal-field-forward"):
                 if workload == "internal-field-forward":
-                    return _native.smatrix_illuminate_forward(lower, upper, up, down)
+                    return _native.smatrix_illuminate_value(lower, upper, up, down)
                 return diff.smatrix_illuminate(lower, upper, up, down)
             if workload == "slab":
                 return SMatrices.slab(
@@ -845,7 +1019,7 @@ def worker(
             if workload == "conversion":
                 return diff.expansion(basis, source_basis, [1.3, 1.3])
             if workload == "periodic-conversion":
-                return diff.periodic_conversion(basis, source_basis, [1.3, 1.3], 200)
+                return diff.periodic_to_cw(basis, source_basis, [1.3, 1.3], 200)
             if workload == "rotation":
                 return diff.rotation([0.2, 0.7, -0.3], basis)
             if workload == "field-operator":
@@ -860,8 +1034,7 @@ def worker(
                 for index, (radius, eps) in enumerate(zip(radii, epsilon, strict=True)):
                     value, context = (
                         diff.cylinder([0.2], order, 1.3, [radius], [eps, 1])
-                        if workload
-                        in ("cylindrical-array", "cylindrical-plane-expansion")
+                        if workload == "cylindrical-array"
                         else diff.sphere(order, 1.3, [radius], [eps, 1])
                     )
                     contexts.append(context)
@@ -869,8 +1042,8 @@ def worker(
                         index * block : (index + 1) * block,
                         index * block : (index + 1) * block,
                     ] = value
-                coupling, coupling_context = lattice.expansion_with_context(
-                    basis, basis, [1.3, 1.3], vectors, bloch, eta=eta
+                coupling, coupling_context = diff.lattice_expansion(
+                    basis, basis, [1.3, 1.3], bloch, vectors, eta=eta
                 )
                 value, context = diff.interaction(local, coupling)
                 residual = (contexts, coupling_context, context)
@@ -894,7 +1067,7 @@ def worker(
                     value, radiation_context = diff.smatrix_from_array(value, channels)
                     residual += (channel_context, radiation_context)
                 return value, residual
-            return diff.cluster(order, 1.3, radii, epsilon, positions)
+            return diff.sphere_cluster(order, 1.3, radii, epsilon, positions)
 
         def upstream():
             if workload.startswith("power-"):
@@ -1147,8 +1320,8 @@ def worker(
             validation = {
                 "accuracy_check": "passed",
                 "reference_kind": "upstream",
-                "rtol": 2e-9,
-                "atol": 1e-12,
+                "rtol": RTOL,
+                "atol": ATOL,
             }
             try:
                 _assert_allclose(actual, expected)
@@ -1176,6 +1349,11 @@ def worker(
                     )
                 else:
                     raise
+                # The certifiers are outside the hashed scripts; bind them too.
+                proof.setdefault("source", {})["certifier_sha256"] = {
+                    name: file_sha256(Path(__file__).with_name(name))
+                    for name in CERTIFIERS[workload]
+                }
                 if not proof["passed"]:
                     raise AssertionError(json.dumps(proof)) from None
                 validation["reference_kind"] = (
@@ -1188,17 +1366,7 @@ def worker(
             # Tiny kernels need both implementations in the same process, with
             # alternating order, to separate kernel cost from process/core drift.
             functions = (("treams", upstream), ("rust", rust))
-            batches = {}
-            for name, function in functions:
-                batch = 1
-                while True:
-                    start = time.perf_counter()
-                    for _ in range(batch):
-                        function()
-                    if time.perf_counter() - start >= 0.02:
-                        break
-                    batch *= 10
-                batches[name] = batch
+            batches = {name: _calibrate(function) for name, function in functions}
             pairs = []
             for index in range(2 * repeats):
                 pair = {}
@@ -1217,34 +1385,24 @@ def worker(
                         "speedup": statistics.median(
                             p["treams"] / p["rust"] for p in pairs
                         ),
-                        "cpu_affinity": sorted(os.sched_getaffinity(0))
-                        if hasattr(os, "sched_getaffinity")
-                        else None,
+                        "cpu_affinity": cpu_affinity(),
                     }
                 )
             )
             return
-        rss_unit = 1024**2 if sys.platform == "darwin" else 1024
-        baseline = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / rss_unit
+        baseline = peak_rss_mib()
         function = rust if backend == "rust" else upstream
         function()
         # Microsecond kernels need sustained samples, not seven individual calls
         # dominated by timer noise, cold caches and CPU frequency ramp-up.
-        batch = 1
-        while True:
-            start = time.perf_counter()
-            for _ in range(batch):
-                function()
-            if time.perf_counter() - start >= 0.02:
-                break
-            batch *= 10
+        batch = _calibrate(function)
         times = []
         for _ in range(repeats):
             start = time.perf_counter()
             for _ in range(batch):
                 function()
             times.append((time.perf_counter() - start) / batch)
-        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / rss_unit
+        peak = peak_rss_mib()
         backward_times = []
         if backend == "rust" and not workload.endswith(("-forward", "-public")):
             sample_total = 0.0
@@ -1292,7 +1450,7 @@ def worker(
                         backward_times.append(sample_total / batch)
                     sample_total = 0.0
                 del value, context, cotangent
-        backward_peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / rss_unit
+        backward_peak = peak_rss_mib()
         print(
             json.dumps(
                 {
@@ -1301,15 +1459,15 @@ def worker(
                     "platform": platform.platform(),
                     "numpy_version": np.__version__,
                     "treams_version": importlib.metadata.version("treams"),
-                    "native_sha256": _digest(Path(_native.__file__))
+                    "native_sha256": file_sha256(_native.__file__)
                     if backend == "rust"
                     else None,
-                    "python_source_sha256": _package_digest(
+                    "python_source_sha256": python_source_sha256(
                         Path(_native.__file__).parent
                     )
                     if backend == "rust"
                     else None,
-                    "benchmark_sha256": _digest(Path(__file__)),
+                    "benchmark_sha256": file_sha256(__file__),
                     "native_profile": _native.build_profile()
                     if backend == "rust"
                     else None,
@@ -1411,10 +1569,7 @@ def worker(
                     "forward_and_backward_peak_rss_mib": backward_peak
                     if backward_times
                     else None,
-                    "blas": [
-                        {**pool, "filepath": Path(pool["filepath"]).name}
-                        for pool in threadpool_info()
-                    ],
+                    "blas": threadpools(),
                 }
             )
         )
@@ -1424,165 +1579,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--workload",
-        choices=[
-            "power-tr",
-            "power-tr-forward",
-            "power-cd-forward",
-            "power-translate-forward",
-            "power-permute-forward",
-            "callback-helicity",
-            "callback-parity",
-            "callback-helicity-forward",
-            "callback-parity-forward",
-            *(
-                f"operator-{family}-{name}-forward"
-                for family in ("sphere", "cylinder", "plane")
-                for name in ("efield", "hfield", "dfield", "bfield", "gfield", "ffield")
-            ),
-            *(
-                f"lattice-{prefix}{family}"
-                for prefix in ("lsum", "realsum", "recsum", "dsum")
-                for family in ("sw1d_shift", "sw2d_shift", "sw3d", "cw1d_shift", "cw2d")
-            ),
-            *(
-                f"lattice-{prefix}{family}-forward"
-                for prefix in ("lsum", "realsum", "recsum", "dsum")
-                for family in (
-                    "sw1d",
-                    "sw1d_shift",
-                    "sw2d",
-                    "sw2d_shift",
-                    "sw3d",
-                    "cw1d",
-                    "cw1d_shift",
-                    "cw2d",
-                )
-            ),
-            "namespace-sw.rotate-forward",
-            "namespace-sw.translate-forward",
-            "namespace-sw.periodic_to_pw-forward",
-            "namespace-sw.periodic_to_cw-forward",
-            "namespace-cw.rotate-forward",
-            "namespace-cw.translate-forward",
-            "namespace-cw.to_sw-forward",
-            "namespace-cw.periodic_to_pw-forward",
-            "namespace-pw.translate-forward",
-            "namespace-pw.to_sw-forward",
-            "namespace-pw.to_cw-forward",
-            "namespace-pw.permute_xyz-forward",
-            "polar-tl_vcw-forward",
-            "polar-tl_vcw_r-forward",
-            "polar-tl_vcw",
-            "polar-tl_vcw_r",
-            "polar-tl_vsw_A-forward",
-            "polar-tl_vsw_B-forward",
-            "polar-tl_vsw_rA-forward",
-            "polar-tl_vsw_rB-forward",
-            "polar-tl_vsw_A",
-            "polar-tl_vsw_rB",
-            "wave-sph_harm-forward",
-            "wave-vsh_X-forward",
-            "wave-vsh_Y-forward",
-            "wave-vsh_Z-forward",
-            "wave-vsw_M-forward",
-            "wave-vsw_N-forward",
-            "wave-vsw_A-forward",
-            "wave-vsw_rM-forward",
-            "wave-vsw_rN-forward",
-            "wave-vsw_rA-forward",
-            "wave-vcw_M-forward",
-            "wave-vcw_N-forward",
-            "wave-vcw_A-forward",
-            "wave-vcw_rM-forward",
-            "wave-vcw_rN-forward",
-            "wave-vcw_rA-forward",
-            "wave-vpw_M-forward",
-            "wave-vpw_N-forward",
-            "wave-vpw_A-forward",
-            "wave-vsw_rA",
-            "wave-vcw_rA",
-            "wave-vpw_A",
-            "wigner",
-            "wigner-forward",
-            "wigner-small-forward",
-            "wigner3j-forward",
-            "geometry-volume2-forward",
-            "geometry-volume3-forward",
-            "geometry-reciprocal2-forward",
-            "geometry-reciprocal3-forward",
-            "geometry-cube-forward",
-            "geometry-cubeedge-forward",
-            "geometry-diffr_orders_circle-forward",
-            "geometry-refractive_index-forward",
-            "geometry-wave_vec_z-forward",
-            "geometry-basischange-forward",
-            "geometry-pickmodes-forward",
-            "geometry-firstbrillouin1d-forward",
-            "geometry-firstbrillouin2d-forward",
-            "geometry-firstbrillouin3d-forward",
-            "incgamma-forward",
-            "intkambe-forward",
-            "incgamma",
-            "intkambe",
-            "angular-fractional",
-            "angular-fractional-forward",
-            "angular-legendre",
-            "angular-pi",
-            "angular-tau",
-            "angular-legendre-forward",
-            "angular-pi-forward",
-            "angular-tau-forward",
-            "bessel-forward",
-            "bessel-derivative-forward",
-            "bessel",
-            "bessel-derivative",
-            "cluster",
-            "particle-cluster",
-            "cylindrical-particle-cluster",
-            "particle-cluster-public",
-            "cylindrical-particle-cluster-public",
-            "slab",
-            "field",
-            "internal-field",
-            "internal-field-forward",
-            "ebcm",
-            "coordinate-car2cyl-forward",
-            "coordinate-car2sph-forward",
-            "coordinate-cyl2car-forward",
-            "coordinate-cyl2sph-forward",
-            "coordinate-sph2car-forward",
-            "coordinate-sph2cyl-forward",
-            "coordinate-car2pol-forward",
-            "coordinate-pol2car-forward",
-            "coordinate-vcar2cyl-forward",
-            "coordinate-vcar2sph-forward",
-            "coordinate-vcyl2car-forward",
-            "coordinate-vcyl2sph-forward",
-            "coordinate-vsph2car-forward",
-            "coordinate-vsph2cyl-forward",
-            "coordinate-vcar2pol-forward",
-            "coordinate-vpol2car-forward",
-            "cylindrical-expansion",
-            "cylindrical-expansion-axial",
-            "cylindrical-periodic",
-            "cylindrical-periodic-axial",
-            "cylindrical-field",
-            "cylindrical-field-axial",
-            "field-operator",
-            "periodic",
-            "array",
-            "rotation",
-            "conversion",
-            "periodic-conversion",
-            "plane-field",
-            "plane-operator",
-            "plane-phases",
-            "plane-permutation",
-            "oriented-chirality",
-            "plane-expansion",
-            "cylindrical-plane-expansion",
-            "cylindrical-array",
-        ],
+        choices=WORKLOADS,
         default="cluster",
     )
     parser.add_argument("--samples", "--channels", type=int, default=2048)
@@ -1615,14 +1612,11 @@ def main() -> None:
             args.samples,
         )
         return
-    env = dict(
-        os.environ,
-        BENCH_THREADS=str(args.threads),
-        RAYON_NUM_THREADS=str(args.threads),
-        OPENBLAS_NUM_THREADS=str(args.threads),
-        OMP_NUM_THREADS=str(args.threads),
-        MKL_NUM_THREADS=str(args.threads),
-    )
+    env = {
+        **os.environ,
+        **pinned_threads(args.threads),
+        "BENCH_THREADS": str(args.threads),
+    }
     results = []
     for backend in ["check", "treams", "rust"]:
         command = [

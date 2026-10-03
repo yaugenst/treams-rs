@@ -1,106 +1,128 @@
 # treams-rs
 
-T-matrix electromagnetic scattering with a Rust numerical core, a typed Python
-API, and native analytic derivatives. The core runs independently of Python and
-autodiff frameworks; there is no runtime fallback to treams, SciPy, or Cython.
+[![CI](https://github.com/yaugenst/treams-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/yaugenst/treams-rs/actions/workflows/ci.yml)
+[![Docs](https://github.com/yaugenst/treams-rs/actions/workflows/docs.yml/badge.svg)](https://yaugenst.github.io/treams-rs/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/yaugenst/treams-rs/blob/main/LICENSE)
+[![Python 3.12 | 3.13](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg)](https://yaugenst.github.io/treams-rs/getting-started/install/)
 
-The package covers spherical, cylindrical, and plane waves; layered and chiral
-particles; finite clusters and periodic arrays; planar stacks; fields and power
-observables. The Python API preserves physical meaning through scattering and field operations,
-with explicit solve boundaries and named results. Numerical conventions follow
-treams; upstream API compatibility is not a design requirement. Start with the
-[physics-first guide](docs/user-guide.md).
+treams-rs computes electromagnetic scattering with T-matrices: spheres,
+cylinders and layered or chiral particles, finite clusters, periodic arrays and
+planar stacks, with their fields, cross sections and power. A T-matrix is the
+linear map from the multipole coefficients of an incident wave to those of the
+scattered wave. A Rust core does the numerical work and a typed Python API
+describes the physics. The operations have analytic gradients, which Advect, JAX
+and PyTorch use directly.
 
-`main` is the authoritative CPU core and Python implementation. Experimental
-browser work lives on `experimental/browser`; CUDA work lives on
-`experimental/gpu`. Each branch contains only its own experiment.
+## Relationship to treams
 
-## Getting started
+treams-rs follows [treams](https://github.com/tfp-photonics/treams) by Dominik
+Beutel and coworkers:
 
-From a source checkout, install the tools listed in the
-[development guide](docs/development.md), then build the Python extension:
+- **Same numbers.** treams-rs uses the units, polarization, mode ordering and
+  normalization of treams 0.4.5, so arrays agree entry by entry.
+- **Same numerical namespaces.** `special`, `sw`, `cw`, `pw`, `lattice`,
+  `coeffs`, `misc`, `ebcm` and `io` keep the treams function and argument
+  names.
+- **Its own physics API.** Objects such as `TMatrix`, `Cluster`, `Wave` and
+  `SMatrix` carry their basis, wavenumber and media as attributes, in place of
+  annotated arrays.
+- **A Rust core.** At run time it needs only NumPy: no treams, SciPy or Cython.
+
+[Coming from treams](https://yaugenst.github.io/treams-rs/coming-from-treams/)
+maps treams workflows and names to treams-rs.
+
+## Install
+
+treams-rs is not on PyPI yet. Install it from GitHub; pip compiles the Rust
+core, so [rustup](https://rustup.rs) must be on the `PATH`:
 
 ```sh
-uv sync --locked --group dev
-just build-ext-release
+pip install "treams-rs @ git+https://github.com/yaugenst/treams-rs"
 ```
 
-Run Python with `uv run --no-sync python` in this environment. The installed
-package needs only NumPy at runtime. A two-sphere calculation is:
+Extras add optional packages: `[advect]`, `[jax]` and `[torch]` for gradients,
+and `[io]` for HDF5 files. See
+[Install](https://yaugenst.github.io/treams-rs/getting-started/install/) for
+details.
 
-```python
+## Example
+
+Two absorbing dielectric spheres scatter a circularly polarized plane wave:
+
+```python exec
 import treams_rs as tr
 
-particles = [
+spheres = [
     tr.sphere_tmatrix(k0=1.3, lmax=3, radius=r, material=4 + 0.1j) for r in (0.2, 0.25)
 ]
-cluster = tr.Cluster(particles, positions=[[0, 0, 0], [0, 0, 0.8]])
-incident = tr.plane_wave(direction=[0, 0, 1], polarization="positive_helicity", k0=1.3)
+cluster = tr.Cluster(spheres, positions=[[0, 0, 0], [0, 0, 0.8]])
+incident = tr.plane_wave(direction=[0, 0, 1], pol="positive_helicity", k0=1.3)
 scattered = cluster.scatter(incident)
 print(scattered.efield([[0.1, 0.2, 1.2]]))
 ```
 
-Objects carry explicit basis and material metadata; `.array` exposes read-only
-numerical storage. Ordinary array arithmetic does not infer physical metadata.
-See the [API reference](docs/api.md) for signatures, shapes, and conventions.
-
 ## Differentiation
 
-Rust implements first-order pullbacks at numerical boundaries. A `diff` call
-returns `(output, context)`; `context.pullback(cotangent)` consumes its residual
-once. Complex derivatives use `dL = Re(vdot(cotangent, doutput))`.
+The same physics in `treams_rs.advect` gives the gradient of the scattering
+cross section with respect to the sphere radius (install `treams-rs[advect]`):
 
-Optional Advect, JAX, and PyTorch adapters compose these pullbacks with scalar
-objectives. For example, using `treams-rs[advect]`:
-
-```python
+```python exec
 from advect import grad
 from treams_rs import advect as tr
 
 
-def loss(radius):
+def scattering(radius):
     sphere = tr.sphere_tmatrix(k0=1.3, lmax=2, radius=radius, material=3)
     incident = tr.plane_wave([0, 0, 1], "positive_helicity", k0=1.3)
     return sphere.cross_sections(incident).scattering
 
 
-print(grad(loss)(0.2))
+print(grad(scattering)(0.2))
 ```
 
-The [adapter guide](docs/adapters.md) defines supported transforms, CPU execution,
-complex conventions, and residual ownership. Mode labels and topology are static;
-forward mode and higher derivatives are outside the contract. Use the
-[gradient-checking helpers](docs/testing.md) to validate a composed objective.
+`treams_rs.jax` and `treams_rs.torch` work the same way with `jax.grad` and
+`torch.autograd`. Rust computes each derivative analytically; see
+[Differentiation](https://yaugenst.github.io/treams-rs/differentiation/).
 
-## Choose a computation path
+## Documentation
 
-| Need | Guide |
-| --- | --- |
-| Reuse a factorization for a few incident waves | [Requested illuminations and larger clusters](docs/large-problems.md) |
-| Avoid dense storage for a sphere cluster | [Matrix-free forward and adjoint solves](docs/iterative.md) |
-| Exchange T matrices through HDF5 | `treams-rs[io]` and [I/O API](docs/api.md#treams_rsio) |
-| Discover the installed API programmatically | [Agent guide](docs/agents.md) and [llms.txt](llms.txt) |
+The documentation lives at <https://yaugenst.github.io/treams-rs/>:
 
-CPU parallelism uses Rayon and faer. Set `RAYON_NUM_THREADS` before importing to
-choose the thread budget.
+- [Getting started](https://yaugenst.github.io/treams-rs/getting-started/quickstart/):
+  four short examples.
+- [Coming from treams](https://yaugenst.github.io/treams-rs/coming-from-treams/):
+  workflows, names and conventions side by side.
+- [User guide](https://yaugenst.github.io/treams-rs/guide/): particles, clusters,
+  periodic arrays, planar stacks and the numerical namespaces.
+- [Differentiation](https://yaugenst.github.io/treams-rs/differentiation/):
+  gradients through Advect, JAX, PyTorch and the `diff` module.
+- [Examples](https://yaugenst.github.io/treams-rs/examples/): the treams gallery
+  in treams-rs, plus gradient-based design.
+- [Validation](https://yaugenst.github.io/treams-rs/validation/): tests against
+  treams, analytic results and published spectra.
+- [Performance](https://yaugenst.github.io/treams-rs/performance/): CPU timings
+  against treams 0.4.5.
+- [Reference](https://yaugenst.github.io/treams-rs/reference/): every public
+  function and class.
+- [Development](https://yaugenst.github.io/treams-rs/development/): building
+  from a checkout, tests and
+  [contributing](https://github.com/yaugenst/treams-rs/blob/main/CONTRIBUTING.md).
 
-## Numerical qualification
+## Citing
 
-Rust unit/property tests and Python reference, Hypothesis, and complete-workflow
-tests check physical invariants and analytic derivatives. The
-[benchmark guide](docs/benchmarks.md) records 527 runtime and 525 peak-RSS CPU
-comparisons, including exact inputs, binary/source hashes, and two recorded-adjoint
-memory exceptions. These finite measurements are not universal performance
-or accuracy guarantees.
+If you use treams-rs, cite it with the metadata in
+[CITATION.cff](https://github.com/yaugenst/treams-rs/blob/main/CITATION.cff),
+and cite the treams paper:
 
-[Published-application reproductions](docs/paper-qualification.md) compare original
-source data, complete spectra, and convergence checks. Known reference defects
-are listed in [upstream findings](docs/upstream-findings.md). Platform-specific
-qualification and numerical limits are collected in the
-[capability reference](docs/status.md).
+> D. Beutel, I. Fernandez-Corbaton and C. Rockstuhl, "treams – a T-matrix-based
+> scattering code for nanophotonics", Computer Physics Communications 297,
+> 109076 (2024), <https://doi.org/10.1016/j.cpc.2023.109076>.
 
-For implementation work, start with [Contributing](CONTRIBUTING.md),
-[architecture](docs/architecture.md), and the [test strategy](docs/test-strategy.md).
-The upstream source inventory is recorded in [rewrite scope](docs/upstream.md).
-License and scientific attribution are preserved in
-[third-party notices](THIRD_PARTY_NOTICES.md).
+## License
+
+treams-rs is released under the
+[MIT license](https://github.com/yaugenst/treams-rs/blob/main/LICENSE). It
+ports numerical methods from treams
+([LICENSE.treams](https://github.com/yaugenst/treams-rs/blob/main/LICENSE.treams))
+and from the other projects listed in
+[THIRD_PARTY_NOTICES.md](https://github.com/yaugenst/treams-rs/blob/main/THIRD_PARTY_NOTICES.md).

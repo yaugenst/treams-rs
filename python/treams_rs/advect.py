@@ -1,6 +1,11 @@
-"""Differentiable physical scattering with Advect and native Rust pullbacks.
+"""Advect adapter: physics objects and records differentiated by Advect, on the
+CPU and in first-order reverse mode only. Each gradient pass uses the data
+stored by its forward pass once, so call the transformed objective again for
+every optimization step. Inputs may be float64, complex128, float32 or
+complex64; the Rust code computes in double precision, outputs are float64 or
+complex128, and each gradient has the dtype of its input.
 
-Use this namespace for all objects inside a differentiated objective::
+Build every object of a differentiated objective from this namespace::
 
     import advect as ad
     import advect.numpy as np
@@ -13,86 +18,59 @@ Use this namespace for all objects inside a differentiated objective::
 
     value, gradient = ad.value_and_grad(objective)(np.asarray(0.2))
 
-Use ``ad.grad`` for just the derivative, or ``ad.value_and_grad`` for both.
-For multiple parameters use an array (or pytree) argument and unpack it inside
-objective; its gradient has the same structure. Build traced geometry using
-``advect.numpy.stack`` or ``asarray``; never convert a traced value to float or
-plain NumPy. ``tr.Material(epsilon=...)`` accepts traced real/complex parameters.
-Pass array primals to Advect transforms, including scalars as ``np.asarray(x)``.
-Advect 0.2.1 can lose complex cotangent contributions when a Python-float primal
-is promoted in expressions such as ``epsilon + 0.1j`` before entering this package.
-The same functions work without tracing for value evaluation. Convert to NumPy
-or float only after the transform returns, e.g. to write JSON.
+The Rust core computes each gradient analytically with a pullback: a map from
+the gradient with respect to an output to the gradients with respect to the
+inputs. ``treams_rs.diff`` defines records, contexts and pullbacks.
 
-``Cluster(..., positions=...).scatter(wave).efield(points)`` includes multiple
-scattering; add ``wave.efield(points)`` for the total field. ``slab(...).power``
-returns differentiable power fractions. ``tr.PlaneWavePorts`` and
-``tr.Lattice`` supply fixed mode geometry in this namespace too. Numerical arrays are exposed as
-``.array`` on responses and ``.coefficients`` on waves.
+Install ``treams-rs[advect]``. Forward mode, higher derivatives, staging and
+checkpointing are not available. Mode cutoffs, integer labels and topology are
+static. Pass inputs as arrays (scalars as ``np.asarray(x)``) and keep traced
+values inside Advect: converting them to float or NumPy, or building objects
+from the NumPy-only root ``treams_rs`` namespace, loses derivatives.
 
-Install ``treams-rs[advect]``. CPU, float64/complex128 and first-order reverse
-mode; mode cutoffs, integer labels and topology remain static. Each reverse
-pass consumes its native residual once. Forward mode, higher derivatives,
-staging and checkpointing are unsupported. Call the transformed objective
-again for every optimization step to create fresh residuals. The root
-``treams_rs`` namespace is NumPy-only; mixing it into a trace loses derivatives.
+Advect has no public ``wrap``. Run a custom record through
+``treams_rs.jax.wrap`` or ``treams_rs.torch.wrap``, or compose the expert
+functions of ``treams_rs.advect``.
+
+Framework adapters guide: https://yaugenst.github.io/treams-rs/differentiation/frameworks/
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from functools import partial
+from typing import TYPE_CHECKING, Any
 
 import advect as ad
 import numpy as np
 
 # Physical objects share one implementation; this namespace selects execution.
-from . import _framework as _physics
-from . import coeffs, diff, lattice
-from ._core import CylindricalWaveBasis, PlaneWaveBasisByComp, SphericalWaveBasis
-from ._core import CylindricalWaveBasis as CylindricalBasis
-from ._core import PlaneWaveBasisByComp as PlaneWavePorts
-from ._core import PlaneWaveBasisByUnitVector as PlaneWaveBasis
-from ._core import SphericalWaveBasis as SphericalBasis
-from ._framework import (
-    BandModes as BandModes,
-)
-from ._framework import (
-    Cluster as Cluster,
-)
-from ._framework import (
-    CrossSections as CrossSections,
-)
-from ._framework import (
-    Material as Material,
-)
-from ._framework import (
-    PeriodicResponse as PeriodicResponse,
-)
-from ._framework import PortWave as PortWave
-from ._framework import (
-    PowerBalance as PowerBalance,
-)
-from ._framework import ScatteredPorts as ScatteredPorts
-from ._framework import SMatrix as SMatrix
-from ._framework import TMatrix as TMatrix
-from ._framework import Wave as Wave
-from ._lattice import Lattice as Lattice
-from ._operators import _rs_weights
-from .config import _resolve_poltype
+from . import _framework, _framework_backend, diff
+from ._bases import CylindricalBasis, PlaneWaveBasis, PlaneWavePorts, SphericalBasis
+from ._fields import rs_weights
+from ._framework_backend import Material, Recorded, material_defaults
+from ._framework_smatrix import SMatrix, stack
+from ._framework_tmatrix import Cluster, PeriodicResponse, TMatrix, solve_periodic
+from ._framework_waves import PlaneWave, PortWave, Wave
+from ._lattice import Lattice
+from ._polarization import resolve_poltype
+from ._records import apply_pullback, run_record
+from ._results import BandModes, CrossSections, PowerBalance, ScatteredPorts
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Collection, Sequence
 
     from numpy.typing import ArrayLike, NDArray
 
-    from .ebcm import Modes
+    from ._modes import Modes
+    from ._records import Pullback, Record
 
 
 type _Values = tuple[ArrayLike, ...]
-type _Pullback = Callable[[NDArray[np.complex128]], _Values]
-type _Forward = Callable[[_Values], tuple[NDArray[np.complex128], _Pullback]]
+type _Forward = Callable[[_Values], tuple[NDArray[np.complex128], Pullback]]
 
 
+# The Advect primitive behind _operation: one native forward, and its pullback
+# kept as Advect's residual for the transpose.
 @ad.primitive(static_argnames=("forward",), residual=True)
 def _execute(
     values: _Values, *, forward: _Forward
@@ -107,70 +85,95 @@ def _transpose(
     cotangent: ArrayLike,
     primals: _Values,
     _output: ArrayLike,
-    residual: list[_Pullback],
+    residual: list[Pullback],
     *,
     forward: _Forward,
 ) -> _Values:
-    # Advect and the native core both use dL = Re(vdot(gradient, dx)).
-    gradients = residual[0](
-        np.ascontiguousarray(cotangent, dtype=np.complex128).reshape(
-            np.shape(cotangent)
-        )
-    )
-    return tuple(
-        np.asarray(
-            gradient if np.iscomplexobj(primal) else np.real(gradient),
-            dtype=np.asarray(primal).dtype,
-        ).reshape(np.shape(primal))
-        for gradient, primal in zip(gradients, primals, strict=True)
+    # Advect and the native core both use dL = Re(vdot(gradient, dx)), so
+    # cotangents stay unconjugated. reshape=True accepts native gradients that
+    # store a scalar parameter as shape (1,), such as the layer_stack thickness.
+    return apply_pullback(
+        residual[0],
+        (
+            np.ascontiguousarray(cotangent, dtype=np.complex128).reshape(
+                np.shape(cotangent)
+            ),
+        ),
+        tuple(np.asarray(primal) for primal in primals),
+        conjugate=False,
+        reshape=True,
     )
 
 
-def _call(values: _Values, forward: _Forward) -> NDArray[np.complex128]:
+def _operation(
+    record: Record,
+    *values: ArrayLike,
+    shape: tuple[int, ...] | None = None,
+    real: bool = False,
+) -> Any:
+    """Run ``record(*values) -> (output, context or pullback)`` as one primitive.
+
+    The output is complex128, also for a real-valued record. ``real`` returns
+    the real part and passes the real part of the cotangent to the pullback.
+    ``shape`` is unused: the output comes from the native forward, and
+    Backend.apply checks it for the physical objects.
+    """
+
+    def forward(primals: _Values) -> tuple[NDArray[np.complex128], Pullback]:
+        outputs, pullback, multiple = run_record(record, primals)
+        output = np.asarray(outputs if multiple else outputs[0], dtype=np.complex128)
+        if not real:
+            return output, pullback
+
+        def real_pullback(g: NDArray[np.complex128]) -> Any:
+            return pullback(g.real)
+
+        return output, real_pullback
+
     # Normalize containers before the primitive flattens its dynamic leaves.
-    return cast(
-        "NDArray[np.complex128]",
-        _execute(tuple(ad.numpy.asarray(value) for value in values), forward=forward),
+    result = _execute(
+        tuple(ad.numpy.asarray(value) for value in values), forward=forward
     )
+    return ad.numpy.real(result) if real else result
 
 
-def bessel(
-    z: ArrayLike,
-    *,
-    order: ArrayLike,
-    kind: str = "j",
-    spherical: bool = False,
-    derivative: bool = False,
-) -> NDArray[np.complex128]:
-    """Broadcast Bessel values with a native argument VJP; order is held fixed."""
+def _with_static(
+    record: Record, values: Sequence[Any], *, static: Collection[int]
+) -> Any:
+    """Differentiate ``record`` in ``values`` except at the indices in ``static``.
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.bessel(
-            order, values[0], kind=kind, spherical=spherical, derivative=derivative
-        )
-        return value, lambda g: (context.pullback(g),)
+    Static values reach the record unchanged and their gradients are dropped.
+    ``functools.partial`` binds keyword options; this drops gradients.
+    """
+    dynamic = [i for i in range(len(values)) if i not in static]
 
-    return _call((z,), forward)
+    def dynamic_record(*primals: Any) -> Recorded:
+        arguments = list(values)
+        for i, value in zip(dynamic, primals, strict=True):
+            arguments[i] = value
+        output, context = record(*arguments)
+
+        def pullback(g: NDArray[np.complex128]) -> _Values:
+            gradients = context.pullback(g)
+            return tuple(gradients[i] for i in dynamic)
+
+        return output, pullback
+
+    return _operation(dynamic_record, *(values[i] for i in dynamic))
+
+
+def _optional(value: ArrayLike | None) -> _Values:
+    return () if value is None else (value,)
 
 
 def incgamma(z: ArrayLike, *, n: ArrayLike) -> NDArray[np.complex128]:
-    """Upper incomplete gamma with a native argument pullback; n stays fixed."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.incgamma(n, values[0])
-        return value, lambda g: (context.pullback(g),)
-
-    return _call((z,), forward)
+    """Upper incomplete gamma function, differentiable in z; n stays fixed."""
+    return _operation(partial(diff.incgamma, n), z)
 
 
 def intkambe(z: ArrayLike, eta: ArrayLike, *, n: ArrayLike) -> NDArray[np.complex128]:
-    """Kambe integral with native z and eta pullbacks; n stays fixed."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.intkambe(n, *values)
-        return value, context.pullback
-
-    return _call((z, eta), forward)
+    """Kambe integral, differentiable in z and eta; n stays fixed."""
+    return _operation(partial(diff.intkambe, n), z, eta)
 
 
 def lattice_sum(
@@ -187,30 +190,36 @@ def lattice_sum(
     part: str = "full",
     shell: ArrayLike = 0,
 ) -> NDArray[np.complex128]:
-    """Native lattice-sum pullbacks with fixed wave labels and direct-shell index."""
+    """Lattice sum, differentiable in k, kpar, a, r and eta.
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.lattice_sum(
-            dim, degree, order, *values, spherical=spherical, part=part, shell=shell
-        )
-        return value, context.pullback
-
-    return _call((k, kpar, a, r, eta), forward)
+    The wave labels and the direct-shell index stay fixed.
+    """
+    return _operation(
+        partial(
+            diff.lattice_sum,
+            dim,
+            degree,
+            order,
+            spherical=spherical,
+            part=part,
+            shell=shell,
+        ),
+        k,
+        kpar,
+        a,
+        r,
+        eta,
+    )
 
 
 def angular(
-    z: ArrayLike, *, degree: ArrayLike, order: ArrayLike, kind: str = "legendre"
+    z: ArrayLike, *, degree: ArrayLike, order: ArrayLike, function: str = "legendre"
 ) -> NDArray[np.complex128]:
-    """Integer-degree angular functions with a native argument VJP."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.angular(degree, order, values[0], kind=kind)
-        return value, lambda g: (context.pullback(g),)
-
-    return _call((z,), forward)
+    """Integer-degree angular functions, differentiable in z."""
+    return _operation(partial(diff.angular, degree, order, function=function), z)
 
 
-def wigner(
+def wignerd(
     phi: ArrayLike,
     theta: ArrayLike,
     psi: ArrayLike,
@@ -219,25 +228,15 @@ def wigner(
     row: ArrayLike,
     column: ArrayLike,
 ) -> NDArray[np.complex128]:
-    """Wigner D elements with native complex Euler-angle pullbacks."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.wigner(degree, row, column, *values)
-        return value, context.pullback
-
-    return _call((phi, theta, psi), forward)
+    """Wigner D elements, differentiable in the three complex Euler angles."""
+    return _operation(partial(diff.wignerd, degree, row, column), phi, theta, psi)
 
 
 def chirality_density(
     ks: ArrayLike, normal: ArrayLike, z: ArrayLike = (0.0, 0.0)
 ) -> NDArray[np.complex128]:
-    """Compact up/down/cross chirality coefficients, with native k/normal/z VJP."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.chirality_density(*values)
-        return value, context.pullback
-
-    return _call((ks, normal, z), forward)
+    """Compact up/down/cross chirality coefficients, differentiable in ks, normal and z."""
+    return _operation(diff.chirality_density, ks, normal, z)
 
 
 def oriented_chirality(
@@ -248,57 +247,20 @@ def oriented_chirality(
     polarizations: ArrayLike,
     axis: int = 2,
 ) -> NDArray[np.complex128]:
-    """Signed helicity chirality forms with native geometry and interval VJP."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.oriented_chirality(
-            *values, polarizations=polarizations, axis=axis
-        )
-        return value, context.pullback
-
-    return _call((transverse, normal, z), forward)
-
-
-def sphere(
-    lmax: int,
-    k0: ArrayLike,
-    radii: ArrayLike,
-    epsilon: ArrayLike,
-    mu: ArrayLike | None = None,
-    kappa: ArrayLike | None = None,
-) -> NDArray[np.complex128]:
-    """Differentiable multilayer/chiral sphere in the helicity basis."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.sphere(lmax, float(np.asarray(values[0])), *values[1:])
-        return value, context.pullback
-
-    # Defaults are constants with the input's shape; no boxed input is coerced.
-    shape = np.shape(epsilon)
-    return _call(
-        (
-            k0,
-            radii,
-            epsilon,
-            np.ones(shape) if mu is None else mu,
-            np.zeros(shape) if kappa is None else kappa,
-        ),
-        forward,
+    """Signed helicity chirality forms, differentiable in transverse, normal and z."""
+    return _operation(
+        partial(diff.oriented_chirality, polarizations=polarizations, axis=axis),
+        transverse,
+        normal,
+        z,
     )
 
 
-def cluster(
+def sphere_cluster(
     lmax: int, k0: ArrayLike, radii: ArrayLike, epsilon: ArrayLike, positions: ArrayLike
 ) -> NDArray[np.complex128]:
     """Differentiable interacting T-matrix of homogeneous spheres in vacuum."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.cluster(
-            lmax, float(np.asarray(values[3])), values[0], values[2], values[1]
-        )
-        return value, context.pullback
-
-    return _call((radii, positions, epsilon, k0), forward)
+    return _operation(partial(diff.sphere_cluster, lmax), k0, radii, epsilon, positions)
 
 
 def particle_cluster(
@@ -306,19 +268,18 @@ def particle_cluster(
     positions: ArrayLike,
     ks: ArrayLike,
     *,
-    bases: Sequence[SphericalWaveBasis | CylindricalWaveBasis],
+    bases: Sequence[SphericalBasis | CylindricalBasis],
     poltype: str | None = None,
 ) -> NDArray[np.complex128]:
-    """Heterogeneous local matrices with native geometry and embedding adjoints."""
-    poltype = _resolve_poltype(poltype)
+    """Interacting T-matrix of particles with their own local matrices.
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+    Differentiable in the local matrices, the positions and ks.
+    """
+    poltype = resolve_poltype(poltype)
+
+    def record(positions: Any, ks: Any, *local: Any) -> Recorded:
         value, context = diff.particle_cluster(
-            values[2:],
-            values[0],
-            values[1],
-            bases=bases,
-            poltype=poltype,
+            local, positions, ks, bases=bases, poltype=poltype
         )
 
         def pullback(g: NDArray[np.complex128]) -> _Values:
@@ -327,104 +288,56 @@ def particle_cluster(
 
         return value, pullback
 
-    return _call((positions, ks, *local), forward)
-
-
-def illuminate(
-    local: ArrayLike, coupling: ArrayLike, incident: ArrayLike
-) -> NDArray[np.complex128]:
-    """Differentiate only the requested incident columns of a scattering solve."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.illuminate(values[0], values[1], values[2])
-        return value, context.pullback
-
-    return _call((local, coupling, incident), forward)
-
-
-def interaction(local: ArrayLike, coupling: ArrayLike) -> NDArray[np.complex128]:
-    """Differentiable solve of (I - T C) X = T."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.interaction(values[0], values[1])
-        return value, context.pullback
-
-    return _call((local, coupling), forward)
-
-
-def solve(operator: ArrayLike, rhs: ArrayLike) -> NDArray[np.complex128]:
-    """Differentiable A X = B for a matrix B, reusing native pivoted LU in reverse."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.solve(values[0], values[1])
-        return value, context.pullback
-
-    return _call((operator, rhs), forward)
+    return _operation(record, positions, ks, *local)
 
 
 def eig(operator: ArrayLike) -> tuple[NDArray[np.complex128], NDArray[np.complex128]]:
-    """Native complex eigensystem with eigenvalue and phase-fixed vector VJPs.
+    """Eigenvalues and phase-fixed eigenvectors of a complex matrix, differentiable.
 
-    At repeated eigenvalues only equally weighted eigenvalue sums, without vector
-    dependence, have a supported pullback. Individual eigenmodes are undefined.
+    At repeated eigenvalues only equally weighted sums of those eigenvalues,
+    without eigenvector dependence, have a gradient. Individual eigenmodes
+    have no gradient there.
     """
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        (eigenvalues, eigenvectors), context = diff.eig(values[0])
-        return np.vstack((eigenvalues, eigenvectors)), lambda g: (
-            context.pullback(g[0], g[1:]),
+    def record(matrix: Any) -> Recorded:
+        (eigenvalues, eigenvectors), context = diff.eig(matrix)
+        return np.vstack((eigenvalues, eigenvectors)), lambda g: context.pullback(
+            g[0], g[1:]
         )
 
-    packed = _call((operator,), forward)
+    packed = _operation(record, operator)
     return packed[0], packed[1:]
 
 
 def smatrix_add(lower: ArrayLike, upper: ArrayLike) -> NDArray[np.complex128]:
     """Differentiable Redheffer composition, with arrays shaped (2, 2, n, n)."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.smatrix_add(values[0], values[1])
-        return value, context.pullback
-
-    return _call((lower, upper), forward)
+    return _operation(diff.smatrix_add, lower, upper)
 
 
 def smatrix_illuminate(
     lower: ArrayLike, upper: ArrayLike, up: ArrayLike, down: ArrayLike
 ) -> NDArray[np.complex128]:
     """Outgoing/internal up/down fields for mode-by-illumination incident arrays."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.smatrix_illuminate(*values)
-        return value, context.pullback
-
-    return _call((lower, upper, up, down), forward)
+    return _operation(diff.smatrix_illuminate, lower, upper, up, down)
 
 
 def smatrix_periodic(smats: ArrayLike) -> NDArray[np.complex128]:
-    """Native periodic transfer matrix, with a factorization-reusing adjoint."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.smatrix_periodic(values[0])
-        return value, lambda g: (context.pullback(g),)
-
-    return _call((smats,), forward)
+    """Periodic transfer matrix; its gradient reuses the forward factorization."""
+    return _operation(diff.smatrix_periodic, smats)
 
 
 def bands(
     smats: ArrayLike, period: ArrayLike
 ) -> tuple[NDArray[np.complex128], NDArray[np.complex128]]:
-    """Normal Bloch wavenumbers/vectors, with native S-matrix and period pullbacks."""
+    """Normal Bloch wavenumbers and eigenvectors, differentiable in smats and period."""
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        (wavenumbers, vectors), context = diff.bands(
-            values[0], float(np.asarray(values[1]))
-        )
+    def record(matrices: Any, p: Any) -> Recorded:
+        (wavenumbers, vectors), context = diff.bands(matrices, float(np.asarray(p)))
         return np.vstack((wavenumbers, vectors)), lambda g: context.pullback(
             g[0], g[1:]
         )
 
-    packed = _call((smats, period), forward)
+    packed = _operation(record, smats, period)
     return packed[0], packed[1:]
 
 
@@ -442,36 +355,22 @@ def smatrix_tr(
     fixed_q: bool = False,
 ) -> NDArray[np.complex128]:
     """Differentiable T/R rows for illumination columns and complete port geometry."""
-    poltype = _resolve_poltype(poltype)
-    static_q = np.asarray(q, dtype=np.float64) if fixed_q else None
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.smatrix_tr(
-            values[0],
-            values[1],
-            values[2],
-            values[3],
-            static_q if static_q is not None else values[4],
-            modes=modes,
-            axis=axis,
-            poltype=poltype,
-            modetype=modetype,
-            fixed_q=fixed_q,
-        )
-
-        def pullback(g: NDArray[np.complex128]) -> _Values:
-            result = context.pullback(g)
-            return result[:4] if fixed_q else result
-
-        return value.astype(np.complex128), pullback
-
-    return _call(
-        (matrices, incident, ks, zs) if fixed_q else (matrices, incident, ks, zs, q),
-        forward,
+    record = partial(
+        diff.smatrix_tr,
+        modes=modes,
+        axis=axis,
+        poltype=resolve_poltype(poltype),
+        modetype=modetype,
+        fixed_q=fixed_q,
+    )
+    if fixed_q:
+        q = np.asarray(q, dtype=np.float64)
+    return _with_static(
+        record, (matrices, incident, ks, zs, q), static={4} if fixed_q else ()
     )
 
 
-def smatrix_cd(
+def smatrix_circular_dichroism(
     matrices: ArrayLike,
     incident: ArrayLike,
     ks: ArrayLike,
@@ -484,12 +383,15 @@ def smatrix_cd(
     modetype: str = "up",
     fixed_q: bool = False,
 ) -> NDArray[np.complex128]:
-    """Transmission and total-outgoing-power contrast with complete native port AD.
+    """Circular dichroism in transmission and in total outgoing power.
 
-    A single native power evaluation batches both opposite-polarization
-    illuminations. Advect composes only their selection and scalar contrasts.
+    Returns the two contrasts (P1 - P0) / (P0 + P1): first of the transmitted
+    power, then of the transmitted plus reflected power. P0 belongs to
+    ``incident`` and P1 to the same illumination in the opposite helicity (or
+    with the sign of pol 0 flipped in the parity convention). One Rust power
+    evaluation covers both illuminations, and every input is differentiable.
     """
-    poltype = _resolve_poltype(poltype)
+    poltype = resolve_poltype(poltype)
     incoming = ad.numpy.asarray(incident)
     if incoming.ndim != 1:
         raise ValueError("CD requires one incident mode vector")
@@ -528,12 +430,7 @@ def smatrix_from_array(
     response: ArrayLike, channels: ArrayLike
 ) -> NDArray[np.complex128]:
     """Differentiable radiation of an effective multipole response into plane waves."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.smatrix_from_array(values[0], values[1])
-        return value, context.pullback
-
-    return _call((response, channels), forward)
+    return _operation(diff.smatrix_from_array, response, channels)
 
 
 def spherical_channels(
@@ -542,7 +439,7 @@ def spherical_channels(
     q: ArrayLike,
     area: ArrayLike,
     *,
-    basis: SphericalWaveBasis,
+    basis: SphericalBasis,
     polarizations: ArrayLike,
     poltype: str | None = None,
     fixed_q: bool = False,
@@ -552,65 +449,41 @@ def spherical_channels(
     fixed_q treats q as a static constant; this supports exactly normal incidence.
     Direction gradients otherwise require nonzero transverse wavevectors.
     """
-    poltype = _resolve_poltype(poltype)
+    poltype = resolve_poltype(poltype)
 
-    static_q = np.asarray(q, dtype=np.float64) if fixed_q else None
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        dynamic_basis = SphericalWaveBasis(basis.modes, positions=values[0])
-        value, context = diff.spherical_channels(
-            dynamic_basis,
-            values[1],
-            static_q if static_q is not None else values[3],
+    def record(positions: Any, ks: Any, q: Any, area: Any) -> Recorded:
+        return diff.spherical_channels(
+            SphericalBasis(basis.modes, positions=positions),
+            ks,
+            q,
             polarizations,
-            float(np.asarray(values[2])),
+            float(np.asarray(area)),
             poltype=poltype,
             fixed_q=fixed_q,
         )
 
-        def pullback(g: NDArray[np.complex128]) -> _Values:
-            positions, ks, q, area = context.pullback(g)
-            return (positions, ks, area) if fixed_q else (positions, ks, area, q)
-
-        return value, pullback
-
-    return _call(
-        (positions, ks, area) if fixed_q else (positions, ks, area, q), forward
-    )
+    if fixed_q:
+        q = np.asarray(q, dtype=np.float64)
+    return _with_static(record, (positions, ks, q, area), static={2} if fixed_q else ())
 
 
 def fresnel(ks: ArrayLike, kzs: ArrayLike, zs: ArrayLike) -> NDArray[np.complex128]:
     """Differentiable chiral planar-interface coefficients."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = coeffs.fresnel_with_context(*values)
-        return value, context.pullback
-
-    return _call((ks, kzs, zs), forward)
+    return _operation(diff.fresnel, ks, kzs, zs)
 
 
 def propagation_matrix(
     vectors: ArrayLike, distance: ArrayLike
 ) -> NDArray[np.complex128]:
     """Differentiable propagation for upgoing wavevectors and a Cartesian displacement."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.propagation(values[0], values[1])
-        return value, context.pullback
-
-    return _call((vectors, distance), forward)
+    return _operation(diff.propagation_matrix, vectors, distance)
 
 
 def mie(
     degree: int, sizes: ArrayLike, epsilon: ArrayLike, mu: ArrayLike, kappa: ArrayLike
 ) -> NDArray[np.complex128]:
     """Differentiable spherical Mie coefficient matrix."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = coeffs.mie_with_context(degree, *values)
-        return value, context.pullback
-
-    return _call((sizes, epsilon, mu, kappa), forward)
+    return _operation(partial(diff.mie, degree), sizes, epsilon, mu, kappa)
 
 
 def mie_cyl(
@@ -624,31 +497,25 @@ def mie_cyl(
 ) -> NDArray[np.complex128]:
     """Differentiable cylindrical Mie coefficient matrix."""
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = coeffs.mie_cyl_with_context(
-            float(np.asarray(values[0])),
-            order,
-            float(np.asarray(values[1])),
-            *values[2:],
+    def record(axial: Any, k: Any, *layers: Any) -> Recorded:
+        return diff.mie_cyl(
+            float(np.asarray(axial)), order, float(np.asarray(k)), *layers
         )
-        return value, context.pullback
 
-    return _call((kz, k0, radii, epsilon, mu, kappa), forward)
+    return _operation(record, kz, k0, radii, epsilon, mu, kappa)
 
 
 def rotation(
     angles: ArrayLike,
     *,
-    destination: SphericalWaveBasis | CylindricalWaveBasis,
-    source: SphericalWaveBasis | CylindricalWaveBasis | None = None,
+    destination: SphericalBasis | CylindricalBasis,
+    source: SphericalBasis | CylindricalBasis | None = None,
 ) -> NDArray[np.complex128]:
     """Euler-angle derivatives; cylindrical theta must remain fixed at zero."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.rotation(values[0], destination, source)
-        return value, lambda g: (np.asarray(context.pullback(g)),)
-
-    return _call((angles,), forward)
+    # The native gradient is one list of the three Euler-angle derivatives.
+    return _operation(
+        partial(diff.rotation, destination=destination, source=source), angles
+    )
 
 
 def ebcm_qmat(
@@ -659,26 +526,27 @@ def ebcm_qmat(
     *,
     theta: ArrayLike,
     weights: ArrayLike,
-    out: Modes,
-    in_: Modes | None = None,
+    destination: Modes,
+    source: Modes | None = None,
     singular: bool = True,
-    legacy: bool = False,
+    radial_area_factor: bool = True,
 ) -> NDArray[np.complex128]:
-    """Axisymmetric surface integral with shape and material adjoints owned by Rust."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.ebcm_qmat(
-            *values,
+    """Axisymmetric EBCM surface integral, differentiable in radii, slopes, ks and zs."""
+    return _operation(
+        partial(
+            diff.ebcm_qmat,
             theta=theta,
             weights=weights,
-            out=out,
-            in_=in_,
+            destination=destination,
+            source=source,
             singular=singular,
-            legacy=legacy,
-        )
-        return value, context.pullback
-
-    return _call((radii, slopes, ks, zs), forward)
+            radial_area_factor=radial_area_factor,
+        ),
+        radii,
+        slopes,
+        ks,
+        zs,
+    )
 
 
 def tmatrix_metric(
@@ -686,106 +554,140 @@ def tmatrix_metric(
     ks: ArrayLike = (1.0, 1.0),
     *,
     polarizations: ArrayLike,
-    kind: str,
+    metric: str | None = None,
+    kind: str | None = None,
 ) -> NDArray[np.float64]:
-    """Global helicity cd/db/chi, with all derivatives owned by Rust."""
+    """Global helicity metric of a T-matrix, differentiable in operator and ks.
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+    ``metric`` is "cd", "db" or "chi", as in ``diff.tmatrix_metric``; ``kind``
+    is an alias.
+    """
+
+    def record(matrix: Any, wavenumbers: Any) -> Recorded:
         value, context = diff.tmatrix_metric(
-            values[0], values[1], polarizations=polarizations, kind=kind
+            matrix,
+            wavenumbers,
+            polarizations=polarizations,
+            metric=metric,
+            kind=kind,
         )
-        return np.asarray(value, dtype=np.complex128), lambda g: context.pullback(
-            float(g.real)
-        )
+        return value, lambda g: context.pullback(float(g))
 
-    return ad.numpy.real(_call((operator, ks), forward))
+    return _operation(record, operator, ks, real=True)
 
 
 def svdvals(operator: ArrayLike) -> NDArray[np.float64]:
-    """Descending singular values with a native first-order matrix pullback."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.svdvals(values[0])
-        return value.astype(np.complex128), lambda g: (context.pullback(g.real),)
-
-    return ad.numpy.real(_call((operator,), forward))
+    """Singular values of a complex matrix in descending order, differentiable."""
+    return _operation(diff.svdvals, operator, real=True)
 
 
-def _real_kzs(kzs: ArrayLike) -> NDArray[np.float64]:
-    axial = np.asarray(kzs)
+def _real_axial(values: ArrayLike, name: str) -> NDArray[np.float64]:
+    axial = np.asarray(values)
     if np.iscomplexobj(axial):
         if np.any(axial.imag != 0):
-            raise ValueError("kzs must be real")
+            raise ValueError(f"{name} must be real")
         axial = axial.real
     return np.asarray(axial, dtype=np.float64)
 
 
 def _dynamic_basis(
-    basis: SphericalWaveBasis | CylindricalWaveBasis,
-    origins: ArrayLike,
-    kzs: ArrayLike | None,
-) -> SphericalWaveBasis | CylindricalWaveBasis:
-    if kzs is None:
-        return type(basis)(basis.modes, origins)
-    if not isinstance(basis, CylindricalWaveBasis):
+    basis: SphericalBasis | CylindricalBasis,
+    positions: ArrayLike,
+    kz: ArrayLike | None = None,
+) -> SphericalBasis | CylindricalBasis:
+    """``basis`` at ``positions``, with one axial wavenumber ``kz`` per mode."""
+    if kz is None:
+        return type(basis)(basis.modes, positions)
+    if not isinstance(basis, CylindricalBasis):
         raise ValueError("axial derivatives require a cylindrical basis")
-    axial = _real_kzs(kzs)
+    axial = _real_axial(kz, "kz")
     if axial.shape != (len(basis),):
-        raise ValueError("kzs must contain one real axial wavenumber per mode")
-    result = CylindricalWaveBasis(
+        raise ValueError("kz must contain one real axial wavenumber per mode")
+    result = CylindricalBasis(
         (
-            (p, float(kz), m, pol)
-            for (p, _, m, pol), kz in zip(basis.modes, axial, strict=True)
+            (p, float(value), m, pol)
+            for (p, _, m, pol), value in zip(basis.modes, axial, strict=True)
         ),
-        origins,
+        positions,
     )
     if len(result) != len(basis):
         raise ValueError("axial wavenumbers must preserve distinct mode labels")
     return result
 
 
+def _field_record(
+    function: Callable[..., Recorded],
+    basis: SphericalBasis | CylindricalBasis,
+    *,
+    poltype: str,
+    singular: bool,
+    axial: bool,
+) -> Record:
+    """Record of ``diff.field`` or ``diff.field_operator`` with moving positions.
+
+    The record takes the function's leading arguments, the positions, ``ks``
+    and, if ``axial``, one ``kz`` per mode; ``basis`` follows the positions.
+    """
+
+    def record(*values: Any) -> Recorded:
+        *leading, positions, ks = values[:-1] if axial else values
+        value, context = function(
+            *leading,
+            _dynamic_basis(basis, positions, *values[-1:] if axial else ()),
+            ks,
+            poltype=poltype,
+            singular=singular,
+        )
+        return value, context.pullback_axial if axial else context.pullback
+
+    return record
+
+
 def field_operator(
     points: ArrayLike,
-    origins: ArrayLike,
+    positions: ArrayLike,
     ks: ArrayLike,
     *,
-    basis: SphericalWaveBasis | CylindricalWaveBasis,
+    basis: SphericalBasis | CylindricalBasis,
     poltype: str | None = None,
     singular: bool = False,
-    kzs: ArrayLike | None = None,
+    kz: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
-    """Full field matrix; optional per-mode kzs are differentiable for cylinders."""
-    poltype = _resolve_poltype(poltype)
+    """Full field matrix at the expansion centres ``positions``.
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        dynamic_basis = _dynamic_basis(
-            basis, values[1], values[3] if kzs is not None else None
-        )
-        value, context = diff.field_operator(
-            values[0], dynamic_basis, values[2], poltype=poltype, singular=singular
-        )
-        return value, context.pullback if kzs is None else context.pullback_axial
-
-    values = (points, origins, ks) if kzs is None else (points, origins, ks, kzs)
-    return _call(values, forward)
+    For a cylindrical basis, ``kz`` (one value per mode, like ``basis.kz``)
+    makes the axial wavenumbers differentiable.
+    """
+    record = _field_record(
+        diff.field_operator,
+        basis,
+        poltype=resolve_poltype(poltype),
+        singular=singular,
+        axial=kz is not None,
+    )
+    return _operation(record, points, positions, ks, *_optional(kz))
 
 
 def field(
     coefficients: ArrayLike,
     points: ArrayLike,
-    origins: ArrayLike,
+    positions: ArrayLike,
     ks: ArrayLike,
     *,
-    basis: SphericalWaveBasis | CylindricalWaveBasis,
+    basis: SphericalBasis | CylindricalBasis,
     poltype: str | None = None,
     singular: bool = False,
-    kzs: ArrayLike | None = None,
+    kz: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
-    """Electric samples with native geometry/medium and optional cylindrical kz VJPs.
+    """Electric field at points, differentiable in every array argument.
+
+    ``positions`` are the expansion centres. For a cylindrical basis, ``kz``
+    (one value per mode, like ``basis.kz``) makes the axial wavenumbers
+    differentiable.
 
     For routine scattering prefer ``Cluster(...).scatter(incident).efield(points)``.
-    Raw scattered coefficients require ``singular=True`` (outgoing waves);
-    ``singular=False`` means regular incident waves. ``ks`` contains medium
+    Raw scattered coefficients are singular (outgoing) waves and require
+    ``singular=True``; ``singular=False`` means regular incident waves. ``ks`` contains medium
     wavenumbers for negative/positive helicity, both k0 in vacuum. Helicity
     labels do not mean opposite propagation directions or opposite signs of k.
 
@@ -803,44 +705,36 @@ def field(
                        [k0, k0], basis=scattered.basis, singular=True)
         np.testing.assert_allclose(raw, scattered.efield(points))
     """
-    poltype = _resolve_poltype(poltype)
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        dynamic_basis = _dynamic_basis(
-            basis, values[2], values[4] if kzs is not None else None
-        )
-        value, context = diff.field(
-            values[0],
-            values[1],
-            dynamic_basis,
-            values[3],
-            poltype=poltype,
-            singular=singular,
-        )
-        return value, context.pullback if kzs is None else context.pullback_axial
-
-    values = (
-        (coefficients, points, origins, ks)
-        if kzs is None
-        else (coefficients, points, origins, ks, kzs)
+    record = _field_record(
+        diff.field,
+        basis,
+        poltype=resolve_poltype(poltype),
+        singular=singular,
+        axial=kz is not None,
     )
-    return _call(values, forward)
+    return _operation(record, coefficients, points, positions, ks, *_optional(kz))
 
 
 def hfield(
     coefficients: ArrayLike,
     points: ArrayLike,
-    origins: ArrayLike,
+    positions: ArrayLike,
     ks: ArrayLike,
     impedance: ArrayLike,
     *,
-    basis: SphericalWaveBasis | CylindricalWaveBasis,
+    basis: SphericalBasis | CylindricalBasis,
     poltype: str | None = None,
     singular: bool = False,
-    kzs: ArrayLike | None = None,
+    kz: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
-    """Magnetic samples, including impedance derivatives through the linear weights."""
-    poltype = _resolve_poltype(poltype)
+    """Magnetic samples, including impedance derivatives through the linear weights.
+
+    Arguments as for ``field``; ``kz`` holds one value per mode.
+    """
+    # _framework_waves._Fields.hfield applies the same weights to framework
+    # arrays. gfield and ffield reuse _fields.rs_weights; H has no NumPy
+    # helper there to share.
+    poltype = resolve_poltype(poltype)
     weights = 2 * basis.pol - 1 if poltype == "helicity" else 1
     if poltype == "parity":
         basis = type(basis)(
@@ -852,12 +746,12 @@ def hfield(
     return field(
         coefficients,
         points,
-        origins,
+        positions,
         ks,
         basis=basis,
         poltype=poltype,
         singular=singular,
-        kzs=kzs,
+        kz=kz,
     )
 
 
@@ -865,38 +759,41 @@ def gfield(
     pol: int,
     coefficients: ArrayLike,
     points: ArrayLike,
-    origins: ArrayLike,
+    positions: ArrayLike,
     ks: ArrayLike,
     *,
-    basis: SphericalWaveBasis | CylindricalWaveBasis,
+    basis: SphericalBasis | CylindricalBasis,
     poltype: str | None = None,
     singular: bool = False,
-    kzs: ArrayLike | None = None,
+    kz: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
-    """Weighted G samples and native field pullbacks, with upstream scaling."""
-    poltype = _resolve_poltype(poltype)
-    electric, magnetic = _rs_weights(pol, basis, poltype)
+    """Weighted G field samples with upstream scaling, differentiable like ``field``.
+
+    Arguments as for ``field``; ``kz`` holds one value per mode.
+    """
+    poltype = resolve_poltype(poltype)
+    electric, magnetic = rs_weights(pol, basis, poltype)
     value = field(
         ad.numpy.asarray(coefficients) * electric,
         points,
-        origins,
+        positions,
         ks,
         basis=basis,
         poltype=poltype,
         singular=singular,
-        kzs=kzs,
+        kz=kz,
     )
     if magnetic:
         value = value + 1j * magnetic * hfield(
             coefficients,
             points,
-            origins,
+            positions,
             ks,
             1.0,
             basis=basis,
             poltype=poltype,
             singular=singular,
-            kzs=kzs,
+            kz=kz,
         )
     return value
 
@@ -905,16 +802,19 @@ def ffield(
     pol: int,
     coefficients: ArrayLike,
     points: ArrayLike,
-    origins: ArrayLike,
+    positions: ArrayLike,
     ks: ArrayLike,
     *,
-    basis: SphericalWaveBasis | CylindricalWaveBasis,
+    basis: SphericalBasis | CylindricalBasis,
     poltype: str | None = None,
     singular: bool = False,
-    kzs: ArrayLike | None = None,
+    kz: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
-    """Weighted F samples, differentiating the chiral index weights as well."""
-    poltype = _resolve_poltype(poltype)
+    """Weighted F samples, differentiating the chiral index weights as well.
+
+    Arguments as for ``field``; ``kz`` holds one value per mode.
+    """
+    poltype = resolve_poltype(poltype)
     if poltype == "helicity":
         ks = ad.numpy.asarray(ks)
         coefficients = (
@@ -924,30 +824,30 @@ def ffield(
         pol,
         coefficients,
         points,
-        origins,
+        positions,
         ks,
         basis=basis,
         poltype=poltype,
         singular=singular,
-        kzs=kzs,
+        kz=kz,
     )
 
 
 def _group_axial(
-    destination: SphericalWaveBasis | CylindricalWaveBasis,
-    source: SphericalWaveBasis | CylindricalWaveBasis,
-    kzs: ArrayLike | None,
+    destination: SphericalBasis | CylindricalBasis,
+    source: SphericalBasis | CylindricalBasis,
+    kzs: ArrayLike | None = None,
 ) -> tuple[
     NDArray[np.float64] | None, NDArray[np.float64] | None, NDArray[np.intp] | None
 ]:
     if kzs is None:
         return None, None, None
-    if not isinstance(destination, CylindricalWaveBasis) or not isinstance(
-        source, CylindricalWaveBasis
+    if not isinstance(destination, CylindricalBasis) or not isinstance(
+        source, CylindricalBasis
     ):
         raise ValueError("axial expansion derivatives require two cylindrical bases")
     groups = np.unique(np.concatenate((destination.kz, source.kz)))
-    axial = _real_kzs(kzs)
+    axial = _real_axial(kzs, "kzs")
     if axial.shape != groups.shape or not np.all(np.isfinite(axial)):
         raise ValueError("kzs must contain one finite real value per axial group")
     if len(np.unique(axial)) != len(groups):
@@ -959,47 +859,59 @@ def _group_axial(
     )
 
 
+def _axial_pullback(context: Any, order: NDArray[np.intp] | None) -> Pullback:
+    """Pullback of an expansion context, with axial gradients in input order.
+
+    ``order`` maps the native axial gradients (sorted groups) to the order of
+    the ``kzs`` input; None means no axial input.
+    """
+    if order is None:
+        return context.pullback
+
+    def pullback(g: NDArray[np.complex128]) -> _Values:
+        *gradients, axial = context.pullback_axial(g)
+        return (*gradients, axial[order])
+
+    return pullback
+
+
 def expansion(
     destination_positions: ArrayLike,
     source_positions: ArrayLike,
     ks: ArrayLike,
     *,
-    destination: SphericalWaveBasis | CylindricalWaveBasis,
-    source: SphericalWaveBasis | CylindricalWaveBasis,
+    destination: SphericalBasis | CylindricalBasis,
+    source: SphericalBasis | CylindricalBasis,
     poltype: str | None = None,
     singular: bool = False,
     kzs: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
-    """Expansion with origin/medium VJPs and optional cylindrical axial groups.
+    """Expansion matrix, differentiable in the positions, ks and optional axial groups.
 
-    ``kzs`` corresponds to sorted distinct axial labels of both original bases.
-    One value moves the entire matching group in both bases. Values must remain
-    distinct; changing which modes couple is a discrete operation.
+    ``kzs`` holds the sorted distinct axial wavenumbers of both bases, one value
+    per group, like ``kzs`` of ``TMatrixC.cylinder`` in treams (``kz`` of the
+    field functions holds one value per mode). One value moves the entire
+    matching group in both bases. Values must remain distinct; changing which
+    modes couple is a discrete operation.
     """
-    poltype = _resolve_poltype(poltype)
+    poltype = resolve_poltype(poltype)
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        to_axial, from_axial, order = _group_axial(
-            destination, source, values[3] if kzs is not None else None
-        )
+    def record(
+        destination_positions: Any, source_positions: Any, ks: Any, *axial: Any
+    ) -> Recorded:
+        destination_kz, source_kz, order = _group_axial(destination, source, *axial)
         value, context = diff.expansion(
-            _dynamic_basis(destination, values[0], to_axial),
-            _dynamic_basis(source, values[1], from_axial),
-            values[2],
+            _dynamic_basis(destination, destination_positions, destination_kz),
+            _dynamic_basis(source, source_positions, source_kz),
+            ks,
             poltype=poltype,
             singular=singular,
         )
-        if order is None:
-            return value, context.pullback
+        return value, _axial_pullback(context, order)
 
-        def pullback(g: NDArray[np.complex128]) -> _Values:
-            to, source, ks, axial = context.pullback_axial(g)
-            return to, source, ks, axial[order]
-
-        return value, pullback
-
-    values = (destination_positions, source_positions, ks)
-    return _call(values if kzs is None else (*values, kzs), forward)
+    return _operation(
+        record, destination_positions, source_positions, ks, *_optional(kzs)
+    )
 
 
 def cylinder(
@@ -1011,25 +923,17 @@ def cylinder(
     mu: ArrayLike | None = None,
     kappa: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
-    """Differentiable multilayer/chiral cylinder T-matrix."""
+    """Differentiable multilayer/chiral cylinder T-matrix.
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.cylinder(
-            values[0], mmax, float(np.asarray(values[1])), *values[2:]
-        )
-        return value, context.pullback
+    ``kzs`` holds the sorted distinct axial wavenumbers, as in treams'
+    ``TMatrixC.cylinder(kzs, ...)``.
+    """
 
-    shape = np.shape(epsilon)
-    return _call(
-        (
-            kzs,
-            k0,
-            radii,
-            epsilon,
-            np.ones(shape) if mu is None else mu,
-            np.zeros(shape) if kappa is None else kappa,
-        ),
-        forward,
+    def record(axial: Any, k: Any, *layers: Any) -> Recorded:
+        return diff.cylinder(axial, mmax, float(np.asarray(k)), *layers)
+
+    return _operation(
+        record, kzs, k0, radii, epsilon, *material_defaults(epsilon, mu, kappa)
     )
 
 
@@ -1040,54 +944,54 @@ def lattice_expansion(
     kpar: ArrayLike,
     a: ArrayLike,
     *,
-    destination: SphericalWaveBasis | CylindricalWaveBasis,
-    source: SphericalWaveBasis | CylindricalWaveBasis,
+    destination: SphericalBasis | CylindricalBasis,
+    source: SphericalBasis | CylindricalBasis,
     poltype: str | None = None,
     eta: complex = 0,
     kzs: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
-    """Periodic coupling with native VJPs for origins, two ks, Bloch and lattice vectors.
+    """Lattice expansion (periodic coupling), differentiable in positions, ks, kpar and a.
 
     The Ewald split eta is a numerical constant; its exact physical derivative is zero.
-    Optional ``kzs`` moves shared cylindrical axial groups, ordered as in
-    ``expansion``. Groups must remain distinct.
+    Optional ``kzs`` holds the sorted distinct axial wavenumbers of both bases,
+    one value per group, as in ``expansion``. Groups must remain distinct.
     """
-    poltype = _resolve_poltype(poltype)
+    poltype = resolve_poltype(poltype)
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        to_axial, from_axial, order = _group_axial(
-            destination, source, values[5] if kzs is not None else None
-        )
-        value, context = lattice.expansion_with_context(
-            _dynamic_basis(destination, values[0], to_axial),
-            _dynamic_basis(source, values[1], from_axial),
-            values[2],
-            values[4],
-            values[3],
+    def record(
+        destination_positions: Any,
+        source_positions: Any,
+        ks: Any,
+        bloch: Any,
+        vectors: Any,
+        *axial: Any,
+    ) -> Recorded:
+        destination_kz, source_kz, order = _group_axial(destination, source, *axial)
+        value, context = diff.lattice_expansion(
+            _dynamic_basis(destination, destination_positions, destination_kz),
+            _dynamic_basis(source, source_positions, source_kz),
+            ks,
+            bloch,
+            vectors,
             poltype=poltype,
             eta=eta,
         )
-        if order is None:
-            return value, context.pullback
+        return value, _axial_pullback(context, order)
 
-        def pullback(g: NDArray[np.complex128]) -> _Values:
-            to, source, ks, bloch, vectors, axial = context.pullback_axial(g)
-            return to, source, ks, bloch, vectors, axial[order]
-
-        return value, pullback
-
-    values = (destination_positions, source_positions, ks, kpar, a)
-    return _call(values if kzs is None else (*values, kzs), forward)
+    return _operation(
+        record,
+        destination_positions,
+        source_positions,
+        ks,
+        kpar,
+        a,
+        *_optional(kzs),
+    )
 
 
 def plane_phases(points: ArrayLike, vectors: ArrayLike) -> NDArray[np.complex128]:
-    """Plane translation phases with native displacement and wavevector VJPs."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.plane_phases(values[0], values[1])
-        return value, context.pullback
-
-    return _call((points, vectors), forward)
+    """Plane-wave translation phases, differentiable in the points and wavevectors."""
+    return _operation(diff.plane_phases, points, vectors)
 
 
 def plane_field(
@@ -1099,87 +1003,71 @@ def plane_field(
     poltype: str | None = None,
     fixed_vectors: bool = False,
 ) -> NDArray[np.complex128]:
-    """Native plane field/operator, differentiable in amplitudes, points and wavevectors.
+    """Plane-wave field or field operator, differentiable in amplitudes, points and wavevectors.
 
     fixed_vectors removes the wavevectors from the differentiable inputs.
     """
-    poltype = _resolve_poltype(poltype)
-    dynamic: _Values = (points,) if coefficients is None else (coefficients, points)
-    if not fixed_vectors:
-        dynamic += (vectors,)
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.plane_field(
-            None if coefficients is None else values[0],
-            values[0] if coefficients is None else values[1],
-            vectors if fixed_vectors else values[-1],
-            polarizations,
-            poltype=poltype,
-            fixed_vectors=fixed_vectors,
-        )
-
-        def pullback(g: NDArray[np.complex128]) -> _Values:
-            gc, gp, gk = context.pullback(g)
-            gradients: _Values = (gp,) if coefficients is None else (gc, gp)
-            return gradients if fixed_vectors else (*gradients, gk)
-
-        return value, pullback
-
-    return _call(dynamic, forward)
+    record = partial(
+        diff.plane_field,
+        polarizations=polarizations,
+        poltype=resolve_poltype(poltype),
+        fixed_vectors=fixed_vectors,
+    )
+    static = {
+        i
+        for i, is_static in ((0, coefficients is None), (2, fixed_vectors))
+        if is_static
+    }
+    return _with_static(record, (coefficients, points, vectors), static=static)
 
 
 def plane_expansion(
-    origins: ArrayLike,
+    positions: ArrayLike,
     vectors: ArrayLike,
     *,
-    destination: SphericalWaveBasis | CylindricalWaveBasis,
+    destination: SphericalBasis | CylindricalBasis,
     polarizations: ArrayLike,
     poltype: str | None = None,
     fixed_vectors: bool = False,
 ) -> NDArray[np.complex128]:
-    """Plane-to-multipole illumination with native origin and wavevector pullbacks."""
-    poltype = _resolve_poltype(poltype)
+    """Plane-wave expansion into multipoles, differentiable in positions and wavevectors."""
+    poltype = resolve_poltype(poltype)
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.plane_expansion(
-            type(destination)(destination.modes, values[0]),
-            vectors if fixed_vectors else values[1],
+    def record(positions: Any, vectors: Any) -> Recorded:
+        return diff.plane_expansion(
+            type(destination)(destination.modes, positions),
+            vectors,
             polarizations,
             poltype=poltype,
             fixed_vectors=fixed_vectors,
         )
 
-        def pullback(g: NDArray[np.complex128]) -> _Values:
-            gradients = context.pullback(g)
-            return gradients[:1] if fixed_vectors else gradients
-
-        return value, pullback
-
-    return _call((origins,) if fixed_vectors else (origins, vectors), forward)
+    return _with_static(
+        record, (positions, vectors), static={1} if fixed_vectors else ()
+    )
 
 
 def cylindrical_channels(
-    origins: ArrayLike,
+    positions: ArrayLike,
     ks: ArrayLike,
     kx: ArrayLike,
     period: ArrayLike,
     *,
-    basis: CylindricalWaveBasis,
+    basis: CylindricalBasis,
     kz_labels: ArrayLike,
     polarizations: ArrayLike,
     poltype: str | None = None,
 ) -> NDArray[np.complex128]:
     """Differentiable cylindrical radiation, holding axial mode labels fixed."""
-    poltype = _resolve_poltype(poltype)
+    poltype = resolve_poltype(poltype)
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        q = np.column_stack([kz_labels, values[2]])
+    def record(positions: Any, ks: Any, kx: Any, period: Any) -> Recorded:
         value, context = diff.cylindrical_channels(
-            type(basis)(basis.modes, values[0]),
-            values[1],
-            q,
+            type(basis)(basis.modes, positions),
+            ks,
+            np.column_stack([kz_labels, kx]),
             polarizations,
-            float(np.asarray(values[3])),
+            float(np.asarray(period)),
             poltype=poltype,
         )
 
@@ -1189,7 +1077,7 @@ def cylindrical_channels(
 
         return value, pullback
 
-    return _call((origins, ks, kx, period), forward)
+    return _operation(record, positions, ks, kx, period)
 
 
 def interface_coefficients(
@@ -1200,24 +1088,12 @@ def interface_coefficients(
     alignment: str = "xy",
     fixed_q: bool = False,
 ) -> NDArray[np.complex128]:
-    """Native Cartesian interface matching with its implicit solve adjoint."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.interface(
-            values[0],
-            values[1],
-            q if fixed_q else values[2],
-            alignment=alignment,
-            fixed_q=fixed_q,
-        )
-
-        def pullback(g: NDArray[np.complex128]) -> _Values:
-            gradients = context.pullback(g)
-            return gradients[:2] if fixed_q else gradients
-
-        return value, pullback
-
-    return _call((ks, zs) if fixed_q else (ks, zs, q), forward)
+    """Coefficients of one planar interface, differentiable in ks, zs and q."""
+    return _with_static(
+        partial(diff.interface_coefficients, alignment=alignment, fixed_q=fixed_q),
+        (ks, zs, q),
+        static={2} if fixed_q else (),
+    )
 
 
 def layer_stack(
@@ -1229,58 +1105,57 @@ def layer_stack(
     alignment: str = "xy",
     fixed_q: bool = False,
 ) -> NDArray[np.complex128]:
-    """Compact native layer stack with linear channel storage and analytic pullback."""
+    """Compact S-matrix of a layer stack, differentiable in ks, zs, q and thickness.
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.layer_stack(
-            values[0],
-            values[1],
-            q if fixed_q else values[2],
-            values[2] if fixed_q else values[3],
-            alignment=alignment,
-            fixed_q=fixed_q,
-        )
-
-        def pullback(g: NDArray[np.complex128]) -> _Values:
-            gk, gz, gq, gd = context.pullback(g)
-            return (gk, gz, gd) if fixed_q else (gk, gz, gq, gd)
-
-        return value, pullback
-
-    return _call((ks, zs, thickness) if fixed_q else (ks, zs, q, thickness), forward)
+    The output holds one (2, 2, 2, 2) block per transverse wavevector.
+    """
+    return _with_static(
+        partial(diff.layer_stack, alignment=alignment, fixed_q=fixed_q),
+        (ks, zs, q, thickness),
+        static={2} if fixed_q else (),
+    )
 
 
-def periodic_conversion(
-    destination_origins: ArrayLike,
-    source_origins: ArrayLike,
+def periodic_to_cw(
+    destination_positions: ArrayLike,
+    source_positions: ArrayLike,
     ks: ArrayLike,
-    kzs: ArrayLike,
+    kz: ArrayLike,
     period: ArrayLike,
     *,
-    destination: CylindricalWaveBasis,
-    source: SphericalWaveBasis,
+    destination: CylindricalBasis,
+    source: SphericalBasis,
     poltype: str | None = None,
 ) -> NDArray[np.complex128]:
-    """Periodic spherical-to-cylindrical radiation, including moving Fourier labels."""
-    poltype = _resolve_poltype(poltype)
+    """Periodic spherical-to-cylindrical radiation, including moving Fourier labels.
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
+    ``kz`` holds one axial wavenumber per destination mode, like
+    ``destination.kz``.
+    """
+    poltype = resolve_poltype(poltype)
+
+    def record(
+        destination_positions: Any,
+        source_positions: Any,
+        ks: Any,
+        kz: Any,
+        period: Any,
+    ) -> Recorded:
         modes = [
-            (p, float(kz), m, pol)
-            for (p, _, m, pol), kz in zip(
-                destination.modes, np.asarray(values[3], dtype=np.float64), strict=True
+            (p, float(value), m, pol)
+            for (p, _, m, pol), value in zip(
+                destination.modes, np.asarray(kz, dtype=np.float64), strict=True
             )
         ]
-        value, context = diff.periodic_conversion(
-            type(destination)(modes, values[0]),
-            type(source)(source.modes, values[1]),
-            values[2],
-            float(np.asarray(values[4])),
+        return diff.periodic_to_cw(
+            type(destination)(modes, destination_positions),
+            type(source)(source.modes, source_positions),
+            ks,
+            float(np.asarray(period)),
             poltype=poltype,
         )
-        return value, context.pullback
 
-    return _call((destination_origins, source_origins, ks, kzs, period), forward)
+    return _operation(record, destination_positions, source_positions, ks, kz, period)
 
 
 def plane_permutation(
@@ -1290,56 +1165,73 @@ def plane_permutation(
     n: int = 1,
     poltype: str | None = None,
 ) -> NDArray[np.complex128]:
-    """Cyclic-axis polarization coefficients with native complex-vector pullbacks."""
-    poltype = _resolve_poltype(poltype)
+    """Cyclic-axis polarization coefficients, differentiable in the complex wavevectors."""
+    return _operation(
+        partial(
+            diff.plane_permutation,
+            polarizations=polarizations,
+            n=n,
+            poltype=resolve_poltype(poltype),
+        ),
+        vectors,
+    )
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.plane_permutation(
-            values[0], polarizations, n, poltype=poltype
-        )
-        return value, lambda g: (context.pullback(g),)
 
-    return _call((vectors,), forward)
+def coordinates(
+    points: ArrayLike, *, function: str | None = None, kind: str | None = None
+) -> NDArray[np.float64]:
+    """Coordinate conversion of points, differentiable in the points.
 
-
-def coordinates(points: ArrayLike, *, kind: str) -> NDArray[np.float64]:
-    """Coordinate conversion with native real point pullback."""
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.coordinates(values[0], kind=kind)
-        return value.astype(np.complex128), lambda g: (context.pullback(g.real),)
-
-    return ad.numpy.real(_call((points,), forward))
+    ``function`` is a conversion such as "car2sph", as in
+    ``diff.coordinates``; ``kind`` is an alias.
+    """
+    return _operation(
+        partial(diff.coordinates, function=function, kind=kind), points, real=True
+    )
 
 
 def vector_coordinates(
-    vectors: ArrayLike, points: ArrayLike, *, kind: str
+    vectors: ArrayLike,
+    points: ArrayLike,
+    *,
+    function: str | None = None,
+    kind: str | None = None,
 ) -> NDArray[np.complex128]:
-    """Vector-frame conversion with native vector and source-position pullbacks."""
+    """Vector-frame conversion, differentiable in the vectors and the points.
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.vector_coordinates(*values, kind=kind)
-        return value, context.pullback
-
-    return _call((vectors, points), forward)
+    ``function`` is a conversion such as "car2sph", as in
+    ``diff.vector_coordinates``; ``kind`` is an alias.
+    """
+    return _operation(
+        partial(diff.vector_coordinates, function=function, kind=kind),
+        vectors,
+        points,
+    )
 
 
 def vector_wave(
     *arguments: ArrayLike,
-    kind: str,
+    function: str,
     degree: ArrayLike = 0,
     order: ArrayLike = 0,
-    polarization: ArrayLike = 0,
+    pol: ArrayLike | None = None,
+    polarization: ArrayLike | None = None,
 ) -> NDArray[np.complex128]:
-    """Native low-level vector waves with all continuous arguments differentiable."""
+    """Vector waves and harmonics, differentiable in every continuous argument.
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.vector_wave(
-            *values, kind=kind, degree=degree, order=order, polarization=polarization
-        )
-        return value, lambda g: tuple(context.pullback(g))
-
-    return _call(arguments, forward)
+    ``pol`` is the pol index 0 or 1 (default 0); ``polarization`` is an alias.
+    """
+    return _operation(
+        partial(
+            diff.vector_wave,
+            function=function,
+            degree=degree,
+            order=order,
+            pol=pol,
+            polarization=polarization,
+        ),
+        *arguments,
+    )
 
 
 def sph_harm(
@@ -1349,8 +1241,8 @@ def sph_harm(
     degree: ArrayLike,
     order: ArrayLike,
 ) -> NDArray[np.complex128]:
-    """Normalized spherical harmonic with native theta and phi pullbacks."""
-    return vector_wave(theta, phi, kind="sph_harm", degree=degree, order=order)
+    """Normalized spherical harmonic, differentiable in theta and phi."""
+    return vector_wave(theta, phi, function="sph_harm", degree=degree, order=order)
 
 
 def spherical_translation(
@@ -1363,20 +1255,19 @@ def spherical_translation(
     poltype: str | None = None,
     singular: bool = True,
 ) -> NDArray[np.complex128]:
-    """Polar spherical translation with native argument pullbacks."""
-    poltype = _resolve_poltype(poltype)
-
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.spherical_translation(
-            *values,
+    """Spherical translation coefficients, differentiable in kr, theta and phi."""
+    return _operation(
+        partial(
+            diff.spherical_translation,
             destination=destination,
             source=source,
-            poltype=poltype,
+            poltype=resolve_poltype(poltype),
             singular=singular,
-        )
-        return value, context.pullback
-
-    return _call((kr, theta, phi), forward)
+        ),
+        kr,
+        theta,
+        phi,
+    )
 
 
 def cylindrical_translation(
@@ -1388,336 +1279,64 @@ def cylindrical_translation(
     order: ArrayLike,
     singular: bool = True,
 ) -> NDArray[np.complex128]:
-    """Cylindrical polar translation with an analytic common-axial-label VJP."""
+    """Cylindrical translation coefficients, differentiable in krr, phi, z and kz."""
+    return _operation(
+        partial(diff.cylindrical_translation, order=order, singular=singular),
+        krr,
+        phi,
+        z,
+        kz,
+    )
 
-    def forward(values: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.cylindrical_translation(
-            *values, order=order, singular=singular
-        )
-        return value, context.pullback
 
-    return _call((krr, phi, z, kz), forward)
-
-
-def periodic_from_table(
+def lattice_expansion_from_table(
     values: ArrayLike,
     *,
-    destination: SphericalWaveBasis,
-    source: SphericalWaveBasis | None = None,
+    destination: SphericalBasis,
+    source: SphericalBasis | None = None,
     poltype: str | None = None,
 ) -> NDArray[np.complex128]:
-    """Compose a custom differentiable lattice table with native angular coupling."""
-    poltype = _resolve_poltype(poltype)
-
-    def forward(inputs: _Values) -> tuple[NDArray[np.complex128], _Pullback]:
-        value, context = diff.periodic_from_table(
-            inputs[0], destination, source, poltype=poltype
-        )
-        return value, lambda g: (context.pullback(g),)
-
-    return _call((values,), forward)
-
-
-class PlaneWave(_physics.PlaneWave):
-    """Plane illumination using this namespace's explicitly selected framework."""
-
-    def __init__(
-        self, direction: Any, polarization: Any, *, k0: Any, medium: Any = 1.0
-    ):
-        super().__init__(
-            direction, polarization, k0=k0, medium=medium, backend=_backend
-        )
-
-
-def smatrix(
-    array: Any,
-    *,
-    basis: PlaneWaveBasisByComp,
-    k0: Any,
-    negative_medium: Any = 1.0,
-    positive_medium: Any = 1.0,
-    polarization: str = "helicity",
-) -> SMatrix:
-    """Wrap scattering blocks (2,2,modes,modes) with explicit exterior media."""
-    matrix = _backend.array(array, complex_=True)
-    if matrix.shape != (2, 2, len(basis), len(basis)):
-        raise ValueError("scattering blocks must have shape (2,2,modes,modes)")
-    result = SMatrix(
-        matrix,
-        basis=basis,
-        k0=_backend.array(k0),
-        media=(
-            _physics._material(positive_medium),
-            _physics._material(negative_medium),
+    """Couple a custom differentiable lattice table to spherical modes, differentiable in ``values``."""
+    return _operation(
+        partial(
+            diff.lattice_expansion_from_table,
+            destination=destination,
+            source=source,
+            poltype=resolve_poltype(poltype),
         ),
-        backend=_backend,
-    )
-    result.polarization = polarization
-    return result
-
-
-def wave(
-    coefficients: Any,
-    *,
-    basis: SphericalWaveBasis | CylindricalWaveBasis,
-    k0: Any,
-    medium: Any = 1.0,
-    kind: str = "regular",
-    polarization: str = "helicity",
-    positions: Any = None,
-) -> Wave:
-    """Construct a physical multipole wave using this namespace; coefficients have shape (modes,)."""
-    if kind not in ("regular", "outgoing"):
-        raise ValueError("wave kind must be regular or outgoing")
-    array = _backend.array(coefficients, complex_=True)
-    if array.shape != (len(basis),):
-        raise ValueError("one coefficient is required per basis mode")
-    return Wave(
-        array,
-        basis=basis,
-        k0=_backend.array(k0),
-        medium=_physics._material(medium),
-        backend=_backend,
-        positions=positions,
-        outgoing=kind == "outgoing",
-        polarization=polarization,
+        values,
     )
 
 
-def tmatrix(
-    array: Any,
-    *,
-    basis: SphericalWaveBasis | CylindricalWaveBasis,
-    k0: Any,
-    medium: Any = 1.0,
-    polarization: str = "helicity",
-    positions: Any = None,
-) -> TMatrix:
-    """Wrap a user response (modes,modes) with fixed labels and dynamic physical metadata."""
-    matrix = _backend.array(array, complex_=True)
-    if matrix.shape != (len(basis), len(basis)):
-        raise ValueError("matrix dimensions must match the basis")
-    return TMatrix(
-        matrix,
-        basis=basis,
-        k0=_backend.array(k0),
-        medium=_physics._material(medium),
-        backend=_backend,
-        positions=positions,
-        polarization=polarization,
-    )
+_backend = _framework_backend.Backend(ad.numpy, _operation)
 
 
-def sphere_tmatrix(
-    *,
-    k0: Any,
-    lmax: int,
-    radius: Any,
-    material: Any,
-    medium: Any = 1.0,
-    polarization: str = "helicity",
-) -> TMatrix:
-    """Homogeneous sphere with differentiable geometry, material and frequency."""
-    return multilayer_sphere_tmatrix(
-        k0=k0,
-        lmax=lmax,
-        radii=_backend.stack((_backend.array(radius),)),
-        materials=(material,),
-        medium=medium,
-        polarization=polarization,
-    )
+# One shared implementation of the physical constructors, bound to this backend.
+# _api and _ops keep their names: their bound methods pickle as references to them.
+_api = _framework.Constructors(_backend, __name__)
+plane_wave = _api.plane_wave
+smatrix = _api.smatrix
+wave = _api.wave
+tmatrix = _api.tmatrix
+sphere_tmatrix = _api.sphere_tmatrix
+multilayer_sphere_tmatrix = _api.multilayer_sphere_tmatrix
+cylinder_tmatrix = _api.cylinder_tmatrix
+multilayer_cylinder_tmatrix = _api.multilayer_cylinder_tmatrix
+slab = _api.slab
+interface = _api.interface
+multilayer_slab = _api.multilayer_slab
+propagation = _api.propagation
 
+# The expert operations shared with the other adapters.
+_ops = _framework.Operations(_backend, __name__)
+solve = _ops.solve
+interaction = _ops.interaction
+illuminate = _ops.illuminate
+sphere = _ops.sphere
+bessel = _ops.bessel
 
-def multilayer_sphere_tmatrix(
-    *,
-    k0: Any,
-    lmax: int,
-    radii: Any,
-    materials: Any,
-    medium: Any = 1.0,
-    polarization: str = "helicity",
-) -> TMatrix:
-    """Concentric layers, one material per radius, with a separate exterior."""
-    result = _backend.multilayer(
-        k0=k0,
-        radii=radii,
-        materials=materials,
-        medium=medium,
-        basis=SphericalWaveBasis.default(lmax),
-        polarization="helicity",
-    )
-    return (
-        result if polarization == "helicity" else result.with_polarization(polarization)
-    )
-
-
-def cylinder_tmatrix(
-    *,
-    k0: Any,
-    kz: Any,
-    mmax: int,
-    radius: Any,
-    material: Any,
-    medium: Any = 1.0,
-    polarization: str = "helicity",
-) -> TMatrix:
-    """Homogeneous cylinder; axial mode labels are fixed configuration."""
-    return multilayer_cylinder_tmatrix(
-        k0=k0,
-        kz=kz,
-        mmax=mmax,
-        radii=_backend.stack((_backend.array(radius),)),
-        materials=(material,),
-        medium=medium,
-        polarization=polarization,
-    )
-
-
-def multilayer_cylinder_tmatrix(
-    *,
-    k0: Any,
-    kz: Any,
-    mmax: int,
-    radii: Any,
-    materials: Any,
-    medium: Any = 1.0,
-    polarization: str = "helicity",
-) -> TMatrix:
-    """Concentric cylinders with fixed axial labels and dynamic layers."""
-    result = _backend.multilayer(
-        k0=k0,
-        radii=radii,
-        materials=materials,
-        medium=medium,
-        basis=CylindricalWaveBasis.default(kz, mmax),
-        polarization="helicity",
-        kz=kz,
-        mmax=mmax,
-    )
-    return (
-        result if polarization == "helicity" else result.with_polarization(polarization)
-    )
-
-
-def plane_wave(
-    direction: Any, polarization: Any, *, k0: Any, medium: Any = 1.0
-) -> PlaneWave:
-    """Fixed-direction plane wave with dynamic frequency, medium and amplitudes."""
-    return PlaneWave(direction, polarization, k0=k0, medium=medium)
-
-
-def solve_periodic(
-    unit_cell: TMatrix | Cluster, *, lattice: Any, kpar: Any, eta: complex = 0
-) -> PeriodicResponse:
-    """Solve periodic coupling once, then use response.to_smatrix(ports)."""
-    return _physics.solve_periodic(unit_cell, lattice=lattice, kpar=kpar, eta=eta)
-
-
-def slab(
-    *,
-    basis: PlaneWaveBasisByComp,
-    k0: Any,
-    thickness: Any,
-    material: Any,
-    negative_medium: Any = 1.0,
-    positive_medium: Any = 1.0,
-    polarization: str = "helicity",
-) -> SMatrix:
-    """One layer with differentiable geometry and explicit exterior media."""
-    return _physics.layer_stack(
-        _backend,
-        k0=k0,
-        basis=basis,
-        materials=(negative_medium, material, positive_medium),
-        thickness=thickness,
-    ).with_polarization(polarization)
-
-
-def interface(
-    *,
-    basis: PlaneWaveBasisByComp,
-    k0: Any,
-    negative_medium: Any,
-    positive_medium: Any,
-    polarization: str = "helicity",
-) -> SMatrix:
-    """Interface from negative to positive side of the port normal."""
-    return _physics.layer_stack(
-        _backend,
-        k0=k0,
-        basis=basis,
-        materials=(negative_medium, positive_medium),
-        thickness=[],
-    ).with_polarization(polarization)
-
-
-def multilayer_slab(
-    *,
-    basis: PlaneWaveBasisByComp,
-    k0: Any,
-    thicknesses: Any,
-    materials: Any,
-    negative_medium: Any = 1.0,
-    positive_medium: Any = 1.0,
-    polarization: str = "helicity",
-) -> SMatrix:
-    """Interior layers in increasing normal order, one material per thickness."""
-    return _physics.layer_stack(
-        _backend,
-        k0=k0,
-        basis=basis,
-        materials=(negative_medium, *materials, positive_medium),
-        thickness=thicknesses,
-    ).with_polarization(polarization)
-
-
-def propagation(
-    *,
-    distance: Any,
-    basis: PlaneWaveBasisByComp,
-    k0: Any,
-    medium: Any = 1.0,
-    polarization: str = "helicity",
-) -> SMatrix:
-    """Homogeneous propagation with native distance and wavevector derivatives."""
-    return _physics.propagation(
-        _backend,
-        distance=distance,
-        basis=basis,
-        k0=k0,
-        medium=medium,
-        polarization=polarization,
-    )
-
-
-def stack(layers: Any) -> SMatrix:
-    """Cascade layers from the negative to positive side of the port normal."""
-    if not layers:
-        raise ValueError("stack requires at least one layer")
-    result = layers[0]
-    for layer in layers[1:]:
-        result = result.cascade(layer)
-    return result
-
-
-def _physics_call(
-    record: Any, shape: tuple[int, ...], *values: Any, real: bool = False
-) -> Any:
-    def forward(primals: Any) -> Any:
-        result, context = record(*primals)
-        pullback = context if callable(context) else context.pullback
-
-        def backward(g: Any) -> Any:
-            result = pullback(g.real if real else g)
-            return result if isinstance(result, tuple) else (result,)
-
-        return np.asarray(result, dtype=np.complex128), backward
-
-    result = _call(values, forward)
-    return ad.numpy.real(result) if real else result
-
-
-_backend = _physics.Backend(ad.numpy, _physics_call)
+# treams calls circular dichroism cd (TMatrix.cd).
+smatrix_cd = smatrix_circular_dichroism
 
 
 __all__ = [
@@ -1742,7 +1361,6 @@ __all__ = [
     "bands",
     "bessel",
     "chirality_density",
-    "cluster",
     "coordinates",
     "cylinder",
     "cylinder_tmatrix",
@@ -1764,6 +1382,7 @@ __all__ = [
     "interface_coefficients",
     "intkambe",
     "lattice_expansion",
+    "lattice_expansion_from_table",
     "lattice_sum",
     "layer_stack",
     "mie",
@@ -1773,8 +1392,7 @@ __all__ = [
     "multilayer_sphere_tmatrix",
     "oriented_chirality",
     "particle_cluster",
-    "periodic_conversion",
-    "periodic_from_table",
+    "periodic_to_cw",
     "plane_expansion",
     "plane_field",
     "plane_permutation",
@@ -1787,6 +1405,7 @@ __all__ = [
     "smatrix",
     "smatrix_add",
     "smatrix_cd",
+    "smatrix_circular_dichroism",
     "smatrix_from_array",
     "smatrix_illuminate",
     "smatrix_periodic",
@@ -1795,6 +1414,7 @@ __all__ = [
     "solve_periodic",
     "sph_harm",
     "sphere",
+    "sphere_cluster",
     "sphere_tmatrix",
     "spherical_channels",
     "spherical_translation",
@@ -1805,5 +1425,5 @@ __all__ = [
     "vector_coordinates",
     "vector_wave",
     "wave",
-    "wigner",
+    "wignerd",
 ]

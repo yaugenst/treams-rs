@@ -4,7 +4,7 @@ import Formal.Range
 # Diffraction-order enumeration
 
 A real-arithmetic model of `diffraction_orders` in
-`crates/treams-core/src/geometry.rs`. Reciprocal vectors are `b0 = (b00, b01)` and
+`crates/treams-core/src/lattice/geometry.rs`. Reciprocal vectors are `b0 = (b00, b01)` and
 `b1 = (b10, b11)`; an order `(m, n)` lies at `m b0 + n b1`.
 
 `Real.sqrt` returns zero for negative arguments, so `half` models the Rust code

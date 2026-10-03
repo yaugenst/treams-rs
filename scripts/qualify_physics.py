@@ -10,7 +10,6 @@ This is accuracy qualification, not a timing benchmark or an exhaustive proof.
 """
 
 import argparse
-import hashlib
 import json
 import math
 import os
@@ -21,6 +20,8 @@ import warnings
 from contextlib import contextmanager
 from numbers import Real
 from pathlib import Path
+
+from _harness import file_sha256, pinned_threads, python_source_sha256, threadpools
 
 FAMILIES = (
     "coefficients",
@@ -68,7 +69,7 @@ class Collector:
 
     def add(self, metric, error, tolerance, **details):
         value = float(error)
-        finite = math.isfinite(value) and value >= 0
+        valid = math.isfinite(value) and value >= 0
         status = (
             (
                 "diagnostic"
@@ -77,7 +78,7 @@ class Collector:
                 if value <= tolerance
                 else "failed"
             )
-            if finite
+            if valid
             else "error"
         )
         row = {
@@ -86,12 +87,12 @@ class Collector:
             "backend": "treams-rs",
             "reference_kind": "physical_invariant",
             "metric": metric,
-            "error": value if finite else None,
+            "error": value if valid else None,
             "tolerance": tolerance,
             "status": status,
             **details,
         }
-        if not finite:
+        if not valid:
             row["message"] = f"invalid residual: {value}"
         invalid_details = []
 
@@ -236,7 +237,7 @@ def fields(c, rng):
 
     points = np.array([[0, 0, 0], [0.2, -0.1, 0.3], [0, 0, 0.5], [-0.3, 0.3, 0.2]])
     for axis in range(3):
-        direction, polarization = np.eye(3)[axis], np.eye(3)[(axis + 1) % 3]
+        direction, pol = np.eye(3)[axis], np.eye(3)[(axis + 1) % 3]
         for degree in (2, 4, 6, 8, 10):
             with c.case(
                 f"plane-{axis}-l{degree}",
@@ -244,15 +245,15 @@ def fields(c, rng):
                 dict(
                     k0=1.3,
                     direction=direction.tolist(),
-                    polarization=polarization.tolist(),
+                    polarization=pol.tolist(),
                     lmax=degree,
                     points=points.tolist(),
                 ),
             ):
                 basis = tr.SphericalBasis.default(degree)
-                wave = tr.plane_wave(direction, polarization, k0=1.3)
+                wave = tr.plane_wave(direction, pol, k0=1.3)
                 actual = tr.diff.field(wave.expand(basis), points, basis, [1.3, 1.3])[0]
-                expected = np.exp(1.3j * (points @ direction))[:, None] * polarization
+                expected = np.exp(1.3j * (points @ direction))[:, None] * pol
                 c.add(
                     "field_relative_l2",
                     relative(actual, expected),
@@ -284,7 +285,7 @@ def fields(c, rng):
                 outgoing=outgoing,
             ),
         ):
-            value, derivative, _ = _native.spherical_wave(
+            value, derivative, _ = _native.spherical_wave_jet(
                 (degree, order, pol), k, tuple(point), True, outgoing
             )
             value, derivative = np.asarray(value), np.asarray(derivative)
@@ -348,6 +349,7 @@ def rotation(c, _rng):
 
 def finite(c, _rng):
     import numpy as np
+    from scipy.linalg import block_diag
 
     import treams_rs as tr
 
@@ -380,8 +382,19 @@ def finite(c, _rng):
                 tr.TMatrix.sphere(degree, k0, radius, [eps, 1])
                 for radius, eps in zip(radii, epsilon, strict=True)
             ]
-            local = tr.TMatrix._assemble(particles, positions)
-            response = local.interaction.solve()
+            local = tr.TMatrix(
+                block_diag(*(particle.array for particle in particles)),
+                basis=tr.SphericalBasis(
+                    [
+                        (index, *mode[1:])
+                        for index, particle in enumerate(particles)
+                        for mode in particle.basis
+                    ],
+                    positions,
+                ),
+                k0=k0,
+            )
+            response = tr.Cluster(particles, positions=positions).solve()
             system = local.interaction()
             residual = np.linalg.norm(system @ response.array - local.array) / (
                 np.linalg.norm(system) * np.linalg.norm(response.array)
@@ -398,17 +411,15 @@ def finite(c, _rng):
                 reference_kind="analytic",
                 conditioning=conditioning,
             )
-            shifted = tr.TMatrix._assemble(
-                particles, positions + np.array([0.4, -0.3, 0.7])
-            ).interaction.solve()
+            shifted = tr.Cluster(
+                particles, positions=positions + np.array([0.4, -0.3, 0.7])
+            ).solve()
             c.add(
                 "translation_relative_l2",
                 relative(shifted.array, response.array),
                 2e-12,
             )
-            rotated = tr.TMatrix._assemble(
-                particles, positions @ rz.T
-            ).interaction.solve()
+            rotated = tr.Cluster(particles, positions=positions @ rz.T).solve()
             basis_rotation = tr.operators.rotate(angle, 0, 0, basis=local.basis)
             c.add(
                 "rotation_covariance_relative_l2",
@@ -422,9 +433,7 @@ def finite(c, _rng):
                 tr.TMatrix.sphere(degree, k0 / scale, radius * scale, [eps, 1])
                 for radius, eps in zip(radii, epsilon, strict=True)
             ]
-            scaled = tr.TMatrix._assemble(
-                scaled_particles, positions * scale
-            ).interaction.solve()
+            scaled = tr.Cluster(scaled_particles, positions=positions * scale).solve()
             c.add(
                 "scale_invariance_relative_l2",
                 relative(scaled.array, response.array),
@@ -551,21 +560,22 @@ def periodic(c, _rng):
         ):
             basis = tr.CylindricalBasis.default([bloch], 3)
             particle = tr.TMatrix.sphere(3, k0, radius, [3, 1])
-            value = tr.CylindricalTMatrix._from_array(
-                particle, basis, lattice=period, kpar=bloch
-            ).array
+            value = (
+                tr.solve_periodic(particle, lattice=period, kpar=bloch)
+                .to_cylindrical(basis)
+                .array
+            )
             c.add(
                 "unitarity_max_absolute",
                 unitarity(np.eye(len(basis)) + 2 * value),
                 2e-10,
             )
             scale = 1.4
-            scaled = tr.CylindricalTMatrix._from_array(
+            scaled = tr.solve_periodic(
                 tr.TMatrix.sphere(3, k0 / scale, radius * scale, [3, 1]),
-                tr.CylindricalBasis.default([bloch / scale], 3),
                 lattice=period * scale,
                 kpar=bloch / scale,
-            )
+            ).to_cylindrical(tr.CylindricalBasis.default([bloch / scale], 3))
             c.add("scale_invariance_relative_l2", relative(scaled.array, value), 2e-10)
         with c.case(
             f"periodic-cylinder-r{radius}",
@@ -591,8 +601,8 @@ def periodic(c, _rng):
                 "zx",
             )
             local = tr.diff.cylinder([0.2], 3, k0, [radius], [4, 1])[0]
-            coupling = tr.lattice.expansion_with_context(
-                basis, basis, [k0, k0], [[period]], [0.1]
+            coupling = tr.diff.lattice_expansion(
+                basis, basis, [k0, k0], [0.1], [[period]]
             )[0]
             response = tr.diff.interaction(local, coupling)[0]
             channels = tr.diff.cylindrical_channels(
@@ -659,7 +669,7 @@ def ebcm(c, _rng):
             zs=zs,
             out=basis,
             order=order,
-            legacy=legacy,
+            radial_area_factor=not legacy,
         )
         q = tr.ebcm.qmat(**args)
         regular = tr.ebcm.qmat(**args, singular=False)
@@ -777,21 +787,26 @@ def ebcm(c, _rng):
         c.add("zero_contrast_max_absolute", np.max(abs(value)), 1e-14)
 
 
+FAMILY_FUNCTIONS = {
+    "coefficients": coefficients,
+    "fields": fields,
+    "rotation": rotation,
+    "finite": finite,
+    "planar": planar,
+    "periodic": periodic,
+    "ebcm": ebcm,
+}
+
+
 def source_metadata():
     import treams_rs as tr
     from treams_rs import _native
 
-    checksum = hashlib.sha256()
-    for path in sorted(Path(tr.__file__).parent.glob("*.py")):
-        checksum.update(path.name.encode())
-        checksum.update(hashlib.sha256(path.read_bytes()).digest())
     return {
-        "native_sha256": hashlib.sha256(
-            Path(_native.__file__).read_bytes()
-        ).hexdigest(),
+        "native_sha256": file_sha256(_native.__file__),
         "native_profile": _native.build_profile(),
-        "python_source_sha256": checksum.hexdigest(),
-        "script_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "python_source_sha256": python_source_sha256(Path(tr.__file__).parent),
+        "script_sha256": file_sha256(__file__),
     }
 
 
@@ -805,7 +820,7 @@ def qualify(seed=20260912, families=FAMILIES):
         rng = np.random.default_rng(
             np.random.SeedSequence([seed, FAMILIES.index(name)])
         )
-        globals()[name](c, rng)
+        FAMILY_FUNCTIONS[name](c, rng)
     after = source_metadata()
     stable = source == after
     return {
@@ -848,24 +863,13 @@ def main():
     args = parser.parse_args()
     if args.threads < 1:
         parser.error("--threads must be positive")
-    for name in (
-        "RAYON_NUM_THREADS",
-        "OMP_NUM_THREADS",
-        "OPENBLAS_NUM_THREADS",
-        "MKL_NUM_THREADS",
-        "VECLIB_MAXIMUM_THREADS",
-        "BLIS_NUM_THREADS",
-    ):
-        os.environ[name] = str(args.threads)
-    from threadpoolctl import threadpool_info, threadpool_limits
+    os.environ.update(pinned_threads(args.threads))
+    from threadpoolctl import threadpool_limits
 
     started = time.perf_counter()
     with threadpool_limits(limits=args.threads):
         result = qualify(args.seed, args.families)
-        result["environment"]["threadpools"] = [
-            {**pool, "filepath": Path(pool["filepath"]).name}
-            for pool in threadpool_info()
-        ]
+        result["environment"]["threadpools"] = threadpools()
     result["environment"]["requested_threads"] = args.threads
     result["elapsed_seconds"] = time.perf_counter() - started
     encoded = json.dumps(result, indent=2, allow_nan=False)

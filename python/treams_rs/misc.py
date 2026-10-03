@@ -1,4 +1,29 @@
-"""Mode selection, material branches and reciprocal-cell reduction."""
+"""Refractive indices, normal wavenumbers, mode selection and Brillouin zones.
+
+Mirrors ``treams.misc``. Mode arguments ``out`` and ``in_`` are label arrays
+of equal length, as in treams: three arrays (degree, order, pol) or four
+arrays with the position index first. The last array is always the
+polarization. ``out`` labels the destination modes (rows) and ``in_`` the
+source modes (columns).
+
+Differences from treams:
+    - ``firstbrillouin1d`` is a NumPy ufunc and broadcasts over its
+      arguments.
+    - ``pickmodes`` and ``basischange`` raise ValueError unless they get
+      three or four label arrays of equal length.
+
+Example::
+
+    import numpy as np
+    from treams_rs import misc
+
+    # Helicity indices sqrt(epsilon mu) -/+ kappa of a chiral medium.
+    assert np.allclose(misc.refractive_index(4, 1, 0.1), [1.9, 2.1])
+    # Evanescent waves get a positive imaginary normal wavenumber.
+    assert np.isclose(misc.wave_vec_z(2, 0, 1), np.sqrt(3) * 1j)
+    picked = misc.pickmodes(([1, 1], [0, 1], [0, 1]), ([1, 1, 1], [0, 0, 1], [0, 1, 1]))
+    assert picked.tolist() == [[True, False, False], [False, False, True]]
+"""
 
 from __future__ import annotations
 
@@ -11,16 +36,52 @@ from . import _native
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
 
+__all__ = [
+    "basischange",
+    "firstbrillouin1d",
+    "firstbrillouin2d",
+    "firstbrillouin3d",
+    "pickmodes",
+    "refractive_index",
+    "wave_vec_z",
+]
+
 
 def refractive_index(
     epsilon: ArrayLike = 1, mu: ArrayLike = 1, kappa: ArrayLike = 0
 ) -> NDArray[np.float64 | np.complex128]:
-    """Negative/positive helicity indices, with nonnegative imaginary parts."""
+    """Refractive indices sqrt(epsilon mu) - kappa and sqrt(epsilon mu) + kappa.
+
+    Mirrors ``treams.misc.refractive_index``. The first index belongs to
+    negative and the second to positive helicity. Each index changes sign
+    where needed, so that its imaginary part is nonnegative.
+
+    Args:
+        epsilon: Relative permittivity.
+        mu: Relative permeability.
+        kappa: Chirality parameter.
+
+    Returns:
+        Array with the broadcast shape of the arguments plus a last axis of
+        length 2: float64 for real indices, complex128 otherwise.
+    """
     return _native.refractive_indices(epsilon, mu, kappa)
 
 
 def wave_vec_z(kx: ArrayLike, ky: ArrayLike, k: ArrayLike) -> NDArray[np.complex128]:
-    """Normal wavenumber on the outgoing square-root branch, including zero."""
+    """Normal wavenumber kz = sqrt(k^2 - kx^2 - ky^2) with Im kz >= 0.
+
+    Mirrors ``treams.misc.wave_vec_z``. On this branch evanescent waves
+    ``exp(i kz z)`` decay towards +z; ``kz`` is 0 at grazing incidence.
+
+    Args:
+        kx: x component of the wavevector.
+        ky: y component of the wavevector.
+        k: Wavenumber, real or complex.
+
+    Returns:
+        complex128 array with the broadcast shape of the arguments.
+    """
     return _native.wave_vector_z(kx, ky, k)
 
 
@@ -32,13 +93,37 @@ def _mode_rows(columns: ArrayLike) -> NDArray[np.generic]:
 
 
 def pickmodes(out: ArrayLike, in_: ArrayLike) -> NDArray[np.bool_]:
-    """Exact mode-selection matrix, with output modes as rows."""
+    """Selection matrix P: P[i, j] is True where mode out[i] equals mode in_[j].
+
+    Mirrors ``treams.misc.pickmodes``.
+
+    Args:
+        out: Destination modes: three or four label arrays of length M, the last
+            one the polarization.
+        in_: Source modes in the same form, length N.
+
+    Returns:
+        bool array of shape (M, N).
+    """
     destination, source = _mode_rows(out), _mode_rows(in_)
     return np.all(destination[:, None, :] == source, axis=-1)
 
 
 def basischange(out: ArrayLike, in_: ArrayLike | None = None) -> NDArray[np.float64]:
-    """Helicity/parity conversion between matching nonpolarization labels."""
+    """Matrix that changes modes between helicity and parity polarizations.
+
+    Mirrors ``treams.misc.basischange``. Modes with equal labels apart from the
+    polarization couple with 1 / sqrt(2), except the pair of two pol 0 modes,
+    which couples with -1 / sqrt(2). The matrix is its own inverse.
+
+    Args:
+        out: Destination modes: three or four label arrays of length M, the last
+            one the polarization.
+        in_: Source modes in the same form, length N; ``out`` when omitted.
+
+    Returns:
+        float64 array of shape (M, N).
+    """
     destination = _mode_rows(out)
     source = destination if in_ is None else _mode_rows(in_)
     match = np.all(destination[:, None, :-1] == source[:, :-1], axis=-1)
@@ -50,14 +135,43 @@ firstbrillouin1d = _native.first_brillouin_1d
 
 
 def firstbrillouin2d(kpar: ArrayLike, b: ArrayLike, n: int = 2) -> NDArray[np.float64]:
-    """Reduce a wavevector using a minimal two-dimensional reciprocal basis."""
+    """Wavevector equivalent to ``kpar`` in the first Brillouin zone of a 2D lattice.
+
+    Mirrors ``treams.misc.firstbrillouin2d``. Each of ``n`` rounds first
+    subtracts a rough multiple of the reciprocal vectors, then picks the
+    shortest of the result and its 8 neighbours.
+
+    Args:
+        kpar: Wavevector in the lattice plane, shape (2,).
+        b: Reciprocal lattice vectors as rows, shape (2, 2).
+        n: Number of rounds.
+
+    Returns:
+        float64 array of shape (2,).
+    """
     return _native.first_brillouin(
         np.asarray(kpar, dtype=np.float64), np.asarray(b, dtype=np.float64), 2, n
     )
 
 
 def firstbrillouin3d(kpar: ArrayLike, b: ArrayLike, n: int = 2) -> NDArray[np.float64]:
-    """Iterative nearest-neighbour reduction in three dimensions."""
+    """Wavevector equivalent to ``kpar`` in the first Brillouin zone of a 3D lattice.
+
+    Mirrors ``treams.misc.firstbrillouin3d``. Each of ``n`` rounds first
+    subtracts a rough multiple of the reciprocal vectors, then picks the
+    shortest of the result and its 26 neighbours. For skewed reciprocal cells
+    the result need not be the shortest equivalent wavevector, and reducing it
+    again can change it. Use a nearly orthogonal reciprocal basis where the
+    shortest vector matters.
+
+    Args:
+        kpar: Wavevector, shape (3,).
+        b: Reciprocal lattice vectors as rows, shape (3, 3).
+        n: Number of rounds.
+
+    Returns:
+        float64 array of shape (3,).
+    """
     return _native.first_brillouin(
         np.asarray(kpar, dtype=np.float64), np.asarray(b, dtype=np.float64), 3, n
     )

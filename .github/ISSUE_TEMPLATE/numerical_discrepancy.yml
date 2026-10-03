@@ -1,0 +1,67 @@
+name: Numerical discrepancy
+description: A treams-rs result disagrees with treams or with an independent reference.
+labels: ["numerical"]
+body:
+  - type: checkboxes
+    id: differences
+    attributes:
+      label: Known differences
+      options:
+        - label: >-
+            I checked the
+            [Differences from treams](https://yaugenst.github.io/treams-rs/coming-from-treams/differences/)
+            page, and it does not explain this discrepancy.
+          required: true
+  - type: input
+    id: quantity
+    attributes:
+      label: Quantity
+      description: The function or observable that differs, for example a T-matrix, cross sections, a lattice sum or a pullback.
+    validations:
+      required: true
+  - type: textarea
+    id: inputs
+    attributes:
+      label: Inputs
+      description: Wavenumber or frequency, materials, geometry, multipole orders, lattice and Bloch vector, polarization convention.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: treams-rs result
+    validations:
+      required: true
+  - type: textarea
+    id: reference
+    attributes:
+      label: Reference result
+      description: The reference value and where it comes from, either the treams version or the independent method (analytic result, high-precision computation, other code).
+    validations:
+      required: true
+  - type: input
+    id: tolerance
+    attributes:
+      label: Expected tolerance
+      description: The relative or absolute agreement you expect, and why.
+    validations:
+      required: true
+  - type: textarea
+    id: script
+    attributes:
+      label: Script
+      description: A minimal script that computes both results.
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions
+      description: |
+        The treams-rs version
+        (`python -c "import importlib.metadata as m; print(m.version('treams-rs'))"`),
+        the treams version if you compare with treams, NumPy, Python, and the
+        operating system and CPU.
+    validations:
+      required: true

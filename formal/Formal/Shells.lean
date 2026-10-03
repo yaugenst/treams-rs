@@ -3,11 +3,12 @@ import Formal.Range
 /-!
 # Lattice shells
 
-A model of `visit_cube` in `crates/treams-core/src/geometry.rs`. `visit n edge k
+A model of `visit_cube` in `crates/treams-core/src/lattice/geometry.rs`. `visit n edge k
 boundary` is the recursive `append` with `k` axes left to fill; a point lists the
 current axis first. The Rust condition `axis + 1 == dim` is `k = 0` here.
 
-`shell_sum` in `lattice.rs` visits `visit n true dim false` for `n = 0, 1, ...`.
+`Shells::sum` in `lattice/shells.rs` visits `visit n true dim false` for `n = 0, 1, ...`;
+`direct_shell` in `lattice/direct.rs` visits one such shell.
 -/
 
 namespace Treams.Shells
@@ -130,7 +131,7 @@ theorem mem_shell {dim : ℕ} (hdim : 0 < dim) {n : ℤ} (hn : 0 ≤ n) (x : Lis
   obtain ⟨k, rfl⟩ : ∃ k, dim = k + 1 := ⟨dim - 1, by omega⟩
   simp [cube, mem_visit_edge hn]
 
-/-- `shell_sum` with radii `0..maximum` adds every point of Chebyshev norm below `maximum`
+/-- `Shells::sum` with radii `0..maximum` adds every point of Chebyshev norm below `maximum`
 exactly once. -/
 theorem shells_partition {dim : ℕ} (hdim : 0 < dim) (maximum : ℕ) :
     let all := (List.range maximum).flatMap fun r : ℕ => cube dim (r : ℤ) true

@@ -5,11 +5,11 @@
 """Recompute author-provided optical spectra with the installed Rust extension.
 
 Run from the checkout: uv run --no-sync python scripts/qualify_papers.py
-See docs/paper-qualification.md for provenance and the limits of each comparison.
+Provenance and the limits of each comparison:
+https://yaugenst.github.io/treams-rs/validation/published-applications/
 """
 
 import argparse
-import hashlib
 import importlib.metadata
 import json
 import platform
@@ -19,6 +19,7 @@ from pathlib import Path
 
 import numpy as np
 import treams
+from _harness import file_sha256, python_source_sha256
 from numpy.testing import assert_allclose
 from scipy import constants
 
@@ -28,18 +29,19 @@ from treams_rs import _native
 ROOT = Path(__file__).resolve().parents[1]
 CPC_COMMIT = "1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39"
 EBEAM_COMMIT = "9aa9974d0e56c60873dc880f11557e622d233ea9"
+# Upstream treams names of the native classes that differ.
+UPSTREAM_NAMES = {
+    "CylindricalBasis": "CylindricalWaveBasis",
+    "CylindricalTMatrix": "TMatrixC",
+    "PlaneWavePorts": "PlaneWaveBasisByComp",
+    "SMatrix": "SMatrices",
+    "SphericalBasis": "SphericalWaveBasis",
+}
 
 
-def digest(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-
-
-def python_source_digest():
-    checksum = hashlib.sha256()
-    for path in sorted(Path(tr.__file__).parent.glob("*.py")):
-        checksum.update(path.name.encode())
-        checksum.update(hashlib.sha256(path.read_bytes()).digest())
-    return checksum.hexdigest()
+def api(lib, name):
+    """The class ``name`` of the native package, or its upstream equivalent."""
+    return getattr(lib, name if lib is tr else UPSTREAM_NAMES.get(name, name))
 
 
 def electron_spectrum_point(
@@ -60,12 +62,8 @@ def electron_spectrum_point(
     beta = 0.7
     kz = k0 / beta
     impact = [60 * np.cos(phi), 60 * np.sin(phi), 0]
-    source = (tr.CylindricalBasis if lib is tr else lib.CylindricalWaveBasis).default(
-        [kz], 0, positions=[impact]
-    )
-    destination = (
-        tr.CylindricalBasis if lib is tr else lib.CylindricalWaveBasis
-    ).default([kz], order)
+    source = api(lib, "CylindricalBasis").default([kz], 0, positions=[impact])
+    destination = api(lib, "CylindricalBasis").default([kz], order)
     coefficients = np.zeros(len(source), complex)
     coefficients[np.asarray(source.pol) == 1] = (
         1j
@@ -81,7 +79,7 @@ def electron_spectrum_point(
         material_energy = energy * dispersion_hbar / (constants.hbar / constants.e)
         epsilon = 3.3 - 81 / (material_energy**2 + 0.022j * material_energy)
         tm = (
-            (tr.CylindricalTMatrix if lib is tr else lib.TMatrixC)
+            api(lib, "CylindricalTMatrix")
             .cylinder([kz], order, k0, 50, [epsilon, 1])
             .changepoltype("parity")
         )
@@ -121,39 +119,37 @@ def electron_spectrum_point(
 
 def cpc_sphere_point(lib, k0, order=4):
     tm = lib.TMatrix.sphere(order, k0, 75, [16 + 0.5j, 1])
-    dipole = tm[(tr.SphericalBasis if lib is tr else lib.SphericalWaveBasis).default(1)]
+    dipole = tm[api(lib, "SphericalBasis").default(1)]
     return np.array(
         [tm.xs_sca_avg, tm.xs_ext_avg, dipole.xs_sca_avg, dipole.xs_ext_avg]
     ) / (np.pi * 75**2)
 
 
 def cpc_slab_point(lib, k0):
-    basis = (tr.PlaneWavePorts if lib is tr else lib.PlaneWaveBasisByComp).default(
-        [0, 0.5 * k0]
-    )
-    layer = (tr.SMatrix if lib is tr else lib.SMatrices).slab(
+    basis = api(lib, "PlaneWavePorts").default([0, 0.5 * k0])
+    layer = api(lib, "SMatrix").slab(
         50, basis, k0, [1, (12.4 + 1j, 1 + 0.1j, 0.5 + 0.05j), (2, 2)]
     )
     return np.asarray([layer.tr([1, 0]), layer.tr([0, 1])]).reshape(-1)
 
 
-def cpc_array_point(lib, k0, order=3):
+# Multipole order of the array's unit cell, as evaluated and in convergence checks.
+ARRAY_ORDER, ARRAY_REFINED_ORDER = 3, 5
+
+
+def cpc_array_point(lib, k0, order=ARRAY_ORDER):
     lattice = lib.Lattice.square(500)
     kpar = [0, 0.3 * k0]
     unit_cell = lib.TMatrix.sphere(order, k0, 100, [(4, 1, 0.05), 1])
-    basis = (tr.PlaneWavePorts if lib is tr else lib.PlaneWaveBasisByComp).diffr_orders(
-        kpar, lattice, 0.02
-    )
+    basis = api(lib, "PlaneWavePorts").diffr_orders(kpar, lattice, 0.02)
     if lib is tr:
         incident = lib.plane_wave(
             [0, 0.3 * k0, k0 * np.sqrt(1 - 0.3**2)], [1, 0, 0], k0=k0
         ).expand(basis)
     else:
         incident = lib.plane_wave(kpar, [1, 0, 0], k0=k0, basis=basis, material=1)
-    slab = (tr.SMatrix if lib is tr else lib.SMatrices).slab(10, basis, k0, [1, 3, 1])
-    gap = (tr.SMatrix if lib is tr else lib.SMatrices).propagation(
-        [0, 0, 100], basis, k0, 1
-    )
+    slab = api(lib, "SMatrix").slab(10, basis, k0, [1, 3, 1])
+    gap = api(lib, "SMatrix").propagation([0, 0, 100], basis, k0, 1)
     if lib is tr:
         # rs makes coupling explicit at the constructor; upstream expects it done.
         array = tr.solve_periodic(unit_cell, lattice=lattice, kpar=kpar).to_smatrix(
@@ -161,12 +157,59 @@ def cpc_array_point(lib, k0, order=3):
         )
     else:
         response = unit_cell.latticeinteraction.solve(lattice, kpar)
-        array = (tr.SMatrix if lib is tr else lib.SMatrices).from_array(response, basis)
-    return np.asarray(
-        (tr.SMatrix if lib is tr else lib.SMatrices)
-        .stack([slab, gap, array])
-        .tr(incident)
+        array = lib.SMatrices.from_array(response, basis)
+    return np.asarray(api(lib, "SMatrix").stack([slab, gap, array]).tr(incident))
+
+
+# Paper grids, shared by this fail-fast check and qualify_paper_accuracy.py.
+EBEAM_CURVES = {
+    "sphere": {"cylindrical": False, "bounds": (2.0, 5.0), "order": 4},
+    "cylinder": {"cylindrical": True, "bounds": (2.5, 4.5), "order": 12},
+}
+EBEAM_SAMPLES = 50
+EBEAM_REFINED = [0, 16, 30, 38, 49]
+CPC_CURVES = (  # name, function, inverse-wavelength bounds (1/nm), count, columns
+    ("sphere", cpc_sphere_point, (1 / 700, 1 / 300), 200, 4),
+    ("chiral_slab", cpc_slab_point, (1 / 1000, 1 / 300), 50, 4),
+    ("sphere_array_above_slab", cpc_array_point, (1 / 600, 1 / 350), 100, 2),
+)
+ARRAY_REFINED = [0, 25, 50, 75, 98]
+EXCLUDED_ARRAY_SAMPLE = {
+    "index": 99,
+    "wavelength_nm": 350,
+    "reason": "Exact lattice/radiation threshold poles are not assigned upstream's finite surrogates.",
+}
+THRESHOLD_OFFSETS = (-1e-4, 1e-4, -1e-6, 1e-6)
+
+
+def cpc_grid(name, bounds, count):
+    """Vacuum wave numbers (1/nm) of a companion-code spectrum."""
+    grid = 2 * np.pi * np.linspace(*bounds, count)
+    # The author's final array sample is an exact Rayleigh anomaly. Upstream
+    # regularizes lattice/radiation poles with finite surrogates.
+    return grid[:-1] if name == "sphere_array_above_slab" else grid
+
+
+def threshold_wavelengths():
+    """Two-sided approach to the excluded 350 nm Rayleigh anomaly."""
+    return EXCLUDED_ARRAY_SAMPLE["wavelength_nm"] * (1 + np.array(THRESHOLD_OFFSETS))
+
+
+def notebook_grid(cylindrical):
+    """The figure notebooks' energies (eV), wavelengths (nm) and dispersion hbar.
+
+    The notebooks use a different grid from the stored tests, and the cylinder
+    notebook rounds hbar in its material dispersion.
+    """
+    inverse_wavelength = np.linspace(1 / (500 if cylindrical else 600), 1 / 250, 200)
+    energy = (
+        2
+        * np.pi
+        * inverse_wavelength
+        * ((constants.hbar / constants.e) * constants.c * 1e9)
     )
+    dispersion_hbar = 6.582e-16 if cylindrical else constants.hbar / constants.e
+    return energy, 1 / inverse_wavelength, dispersion_hbar
 
 
 def compare_curve(function, grid, *, oracle_rtol=2e-9, oracle_atol=2e-11, **kwargs):
@@ -197,11 +240,9 @@ def qualify_ebeam():
     executed_path = ROOT / "benchmarks/papers/ebeam-notebook-execution.json"
     executed = json.loads(executed_path.read_text())
     results = {}
-    for name, cylindrical, bounds, order in (
-        ("sphere", False, (2.0, 5.0), 4),
-        ("cylinder", True, (2.5, 4.5), 12),
-    ):
-        energies = np.linspace(*bounds, 50)
+    for name, spec in EBEAM_CURVES.items():
+        cylindrical, order = spec["cylindrical"], spec["order"]
+        energies = np.linspace(*spec["bounds"], EBEAM_SAMPLES)
         curve = compare_curve(
             electron_spectrum_point, energies, cylindrical=cylindrical, order=order
         )
@@ -212,7 +253,7 @@ def qualify_ebeam():
         assert_allclose(actual, expected, rtol=0, atol=1e-8)
         assert np.all(actual >= 0)
         assert np.all(actual[:, 0] <= actual[:, 1] + 1e-12)
-        selected = np.array([0, 16, 30, 38, 49])
+        selected = np.array(EBEAM_REFINED)
         refined = np.array(
             [
                 electron_spectrum_point(
@@ -244,18 +285,7 @@ def qualify_ebeam():
             }
         )
         results[name] = curve
-        # The figure notebooks use a different grid from the stored tests.
-        # The cylinder notebook also rounds hbar in its material dispersion.
-        inverse_wavelength = np.linspace(
-            1 / (500 if cylindrical else 600), 1 / 250, 200
-        )
-        notebook_energy = (
-            2
-            * np.pi
-            * inverse_wavelength
-            * ((constants.hbar / constants.e) * constants.c * 1e9)
-        )
-        dispersion_hbar = 6.582e-16 if cylindrical else constants.hbar / constants.e
+        notebook_energy, wavelength, dispersion_hbar = notebook_grid(cylindrical)
         notebook = compare_curve(
             electron_spectrum_point,
             notebook_energy,
@@ -263,7 +293,7 @@ def qualify_ebeam():
             order=order,
             dispersion_hbar=dispersion_hbar,
         )
-        notebook["wavelength_nm"] = (1 / inverse_wavelength).tolist()
+        notebook["wavelength_nm"] = wavelength.tolist()
         notebook["dispersion_hbar_eV_seconds"] = dispersion_hbar
         notebook["scope"] = (
             "Full original 200-point notebook grid and dispersion constants; fresh upstream calculation, not digitized figure pixels."
@@ -286,24 +316,16 @@ def qualify_ebeam():
     return {
         "paper": references["paper"],
         "code_commit": EBEAM_COMMIT,
-        "reference_sha256": digest(fixture),
-        "executed_notebook_sha256": digest(executed_path),
+        "reference_sha256": file_sha256(fixture),
+        "executed_notebook_sha256": file_sha256(executed_path),
         "curves": results,
     }
 
 
 def qualify_cpc():
     curves = {}
-    for name, function, bounds, count in (
-        ("sphere", cpc_sphere_point, (1 / 700, 1 / 300), 200),
-        ("chiral_slab", cpc_slab_point, (1 / 1000, 1 / 300), 50),
-        ("sphere_array_above_slab", cpc_array_point, (1 / 600, 1 / 350), 100),
-    ):
-        grid = 2 * np.pi * np.linspace(*bounds, count)
-        if name == "sphere_array_above_slab":
-            # The author's final sample is an exact Rayleigh anomaly. Upstream
-            # regularizes lattice/radiation poles with finite surrogates.
-            grid = grid[:-1]
+    for name, function, bounds, count, _ in CPC_CURVES:
+        grid = cpc_grid(name, bounds, count)
         curve = compare_curve(function, grid)
         actual = np.asarray(curve["native"])
         assert np.all(actual >= -1e-12)
@@ -314,26 +336,23 @@ def qualify_cpc():
             assert np.all(actual[:, [0, 2]] + actual[:, [1, 3]] <= 1 + 1e-12)
         else:
             assert_allclose(actual.sum(axis=1), 1, rtol=0, atol=1e-10)
-            selected = [0, 25, 50, 75, 98]
+            selected = ARRAY_REFINED
             refined = np.array(
-                [function(tr, float(grid[i]), order=5) for i in selected]
+                [
+                    function(tr, float(grid[i]), order=ARRAY_REFINED_ORDER)
+                    for i in selected
+                ]
             )
             curve["convergence"] = {
                 "indices": selected,
-                "original_order": 3,
-                "refined_order": 5,
+                "original_order": ARRAY_ORDER,
+                "refined_order": ARRAY_REFINED_ORDER,
                 "refined_native": refined.tolist(),
                 "max_absolute_change": float(np.max(abs(refined - actual[selected]))),
                 "scope": "Measured truncation sensitivity of the original author's lmax=3 recipe.",
             }
-            curve["excluded_author_samples"] = [
-                {
-                    "index": 99,
-                    "wavelength_nm": 350,
-                    "reason": "Exact lattice/radiation threshold poles are not assigned upstream's finite surrogates.",
-                }
-            ]
-            wavelengths = 350 * (1 + np.array([-1e-4, 1e-4, -1e-6, 1e-6]))
+            curve["excluded_author_samples"] = [dict(EXCLUDED_ARRAY_SAMPLE)]
+            wavelengths = threshold_wavelengths()
             approach = compare_curve(function, 2 * np.pi / wavelengths)
             transmission = np.asarray(approach["native"])[:, 0]
             power_error = float(np.max(abs(np.sum(approach["native"], axis=1) - 1)))
@@ -441,9 +460,9 @@ def main():
             name: importlib.metadata.version(name)
             for name in ("numpy", "scipy", "treams")
         },
-        "native_sha256": digest(_native.__file__),
-        "python_source_sha256": python_source_digest(),
-        "script_sha256": digest(__file__),
+        "native_sha256": file_sha256(_native.__file__),
+        "python_source_sha256": python_source_sha256(Path(tr.__file__).parent),
+        "script_sha256": file_sha256(__file__),
     }
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", "'where' used without 'out'.*", UserWarning)

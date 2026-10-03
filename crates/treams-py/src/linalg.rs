@@ -1,184 +1,129 @@
-//! Native linear algebra contexts shared by scattering and band workflows.
-use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
-use pyo3::{exceptions::PyValueError, prelude::*};
-use treams_core::{Complex, linalg};
+//! `solve`, `eig` and `svdvals` with their contexts (`treams_core::linalg`).
+use numpy::{IntoPyArray, PyReadonlyArray2};
+use pyo3::prelude::*;
+use treams_core::{Complex, fpenv::ieee, linalg};
 
 use crate::{
-    error,
-    tmatrix::{from_array, matrix, owned_matrix},
+    context::{context, detached},
+    convert::{
+        C1, C2, Cotangent, R1, RealCotangent, from_array, matrix, matrix_cotangent, owned_matrix,
+        vector_cotangent,
+    },
 };
 
-type MatrixPair<'py> = (Bound<'py, PyArray2<Complex>>, Bound<'py, PyArray2<Complex>>);
-
-#[pyclass]
-#[derive(Debug)]
-struct SolveContext {
-    residual: Option<linalg::SolveResidual>,
-}
+context!(SolveContext(linalg::SolveResidual));
 
 #[pymethods]
 impl SolveContext {
     fn pullback<'py>(
         &mut self,
         py: Python<'py>,
-        cotangent: PyReadonlyArray2<'py, Complex>,
-    ) -> PyResult<MatrixPair<'py>> {
-        let g = from_array(cotangent)?;
-        let residual = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        if g.shape() != residual.value.shape() {
-            return Err(PyValueError::new_err(
-                "cotangent shape does not match forward output",
-            ));
-        }
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let (a, b) = py.detach(move || residual.pullback(g)).map_err(error)?;
-        Ok((owned_matrix(py, a)?, owned_matrix(py, b)?))
+        cotangent: Cotangent<'py>,
+    ) -> PyResult<(C2<'py>, C2<'py>)> {
+        ieee(|| {
+            let (residual, g) = self
+                .residual
+                .take_with_matrix(&cotangent, linalg::SolveResidual::shape)?;
+            let gradient = detached(py, move || residual.pullback(g))?;
+            Ok((
+                owned_matrix(py, gradient.operator)?,
+                owned_matrix(py, gradient.rhs)?,
+            ))
+        })
     }
 }
 
+/// Record the solution X of `operator X = rhs`: `linalg::solve_owned`.
 #[pyfunction]
-fn linear_solve<'py>(
+pub(crate) fn solve<'py>(
     py: Python<'py>,
     operator: PyReadonlyArray2<'py, Complex>,
     rhs: PyReadonlyArray2<'py, Complex>,
-) -> PyResult<(Bound<'py, PyArray2<Complex>>, SolveContext)> {
-    let a = from_array(operator)?;
-    let b = from_array(rhs)?;
-    let residual = py
-        .detach(move || linalg::solve_owned(a, b))
-        .map_err(error)?;
-    Ok((
-        matrix(py, &residual.value),
-        SolveContext {
-            residual: Some(residual),
-        },
-    ))
+) -> PyResult<(C2<'py>, SolveContext)> {
+    ieee(|| {
+        let a = from_array(operator, "operator")?;
+        let b = from_array(rhs, "rhs")?;
+        let residual = detached(py, move || linalg::solve_owned(a, b))?;
+        // A C-ordered copy: the residual keeps the solution for the pullback.
+        Ok((matrix(py, residual.value()), SolveContext::new(residual)))
+    })
 }
 
-#[pyclass]
-#[derive(Debug)]
-struct EigenContext {
-    residual: Option<linalg::EigenResidual>,
-}
+context!(EigContext(linalg::EigResidual));
 
 #[pymethods]
-impl EigenContext {
+impl EigContext {
     fn pullback<'py>(
         &mut self,
         py: Python<'py>,
-        eigenvalues: PyReadonlyArray1<'py, Complex>,
-        eigenvectors: PyReadonlyArray2<'py, Complex>,
-    ) -> PyResult<Bound<'py, PyArray2<Complex>>> {
-        let values: Vec<_> = eigenvalues.as_array().iter().copied().collect();
-        let vectors = from_array(eigenvectors)?;
-        let residual = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        if values.len() != residual.values.len()
-            || vectors.shape() != residual.vectors.shape()
-            || values
-                .iter()
-                .any(|z| !z.re.is_finite() || !z.im.is_finite())
-        {
-            return Err(PyValueError::new_err(
-                "cotangent shapes must match the finite eigensystem outputs",
-            ));
-        }
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let g = py
-            .detach(move || residual.pullback(&values, vectors))
-            .map_err(error)?;
-        owned_matrix(py, g)
+        eigenvalues: Cotangent<'py>,
+        eigenvectors: Cotangent<'py>,
+    ) -> PyResult<C2<'py>> {
+        ieee(|| {
+            let (residual, (values, vectors)) = self.residual.take_if(|residual| {
+                let values = vector_cotangent(&eigenvalues, residual.values().len())?;
+                let vectors = matrix_cotangent(&eigenvectors, residual.vectors().shape())?;
+                Ok((values, vectors))
+            })?;
+            owned_matrix(
+                py,
+                detached(py, move || residual.pullback(&values, vectors))?,
+            )
+        })
     }
 }
 
-type Eigensystem<'py> = (
-    Bound<'py, PyArray1<Complex>>,
-    Bound<'py, PyArray2<Complex>>,
-    EigenContext,
-);
-
+/// Record the eigenvalues and unit right eigenvectors of a matrix: `linalg::eig`.
 #[pyfunction]
-fn eig<'py>(
+pub(crate) fn eig<'py>(
     py: Python<'py>,
     operator: PyReadonlyArray2<'py, Complex>,
-) -> PyResult<Eigensystem<'py>> {
-    let a = from_array(operator)?;
-    let residual = py.detach(move || linalg::eig(&a)).map_err(error)?;
-    Ok((
-        residual.values.clone().into_pyarray(py),
-        matrix(py, &residual.vectors),
-        EigenContext {
-            residual: Some(residual),
-        },
-    ))
+) -> PyResult<(C1<'py>, C2<'py>, EigContext)> {
+    ieee(|| {
+        let a = from_array(operator, "operator")?;
+        let residual = detached(py, move || linalg::eig(&a))?;
+        // Copies, the eigenvectors in C order: the residual keeps both for the pullback.
+        Ok((
+            residual.values().to_vec().into_pyarray(py),
+            matrix(py, residual.vectors()),
+            EigContext::new(residual),
+        ))
+    })
 }
 
-pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<SolveContext>()?;
-    m.add_class::<EigenContext>()?;
-    m.add_function(wrap_pyfunction!(linear_solve, m)?)?;
-    m.add_function(wrap_pyfunction!(eig, m)?)?;
-    m.add_class::<SingularContext>()?;
-    m.add_function(wrap_pyfunction!(svdvals, m)?)?;
-    Ok(())
-}
-
-#[pyclass]
-#[derive(Debug)]
-struct SingularContext {
-    residual: Option<linalg::SingularResidual>,
-}
+context!(SvdvalsContext(linalg::SvdvalsResidual));
 
 #[pymethods]
-impl SingularContext {
+impl SvdvalsContext {
+    /// The singular values are real, so only the real part of a complex
+    /// cotangent enters the real pairing.
     fn pullback<'py>(
         &mut self,
         py: Python<'py>,
-        cotangent: PyReadonlyArray1<'py, f64>,
-    ) -> PyResult<Bound<'py, PyArray2<Complex>>> {
-        let g: Vec<_> = cotangent.as_array().iter().copied().collect();
-        let residual = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        if g.len() != residual.values.len() || g.iter().any(|x| !x.is_finite()) {
-            return Err(PyValueError::new_err(
-                "cotangent must match the finite singular-value output",
-            ));
-        }
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let gradient = py.detach(move || residual.pullback(&g)).map_err(error)?;
-        owned_matrix(py, gradient)
+        cotangent: RealCotangent<'py>,
+    ) -> PyResult<C2<'py>> {
+        ieee(|| {
+            let (residual, g) = self
+                .residual
+                .take_if(|residual| vector_cotangent(&cotangent, residual.values().len()))?;
+            owned_matrix(py, detached(py, move || residual.pullback(&g))?)
+        })
     }
 }
 
+/// Record the singular values of a matrix: `linalg::svdvals`.
 #[pyfunction]
-fn svdvals<'py>(
+pub(crate) fn svdvals<'py>(
     py: Python<'py>,
     operator: PyReadonlyArray2<'py, Complex>,
-) -> PyResult<(Bound<'py, PyArray1<f64>>, SingularContext)> {
-    let operator = from_array(operator)?;
-    let residual = py
-        .detach(move || linalg::svdvals(&operator))
-        .map_err(error)?;
-    Ok((
-        residual.values.clone().into_pyarray(py),
-        SingularContext {
-            residual: Some(residual),
-        },
-    ))
+) -> PyResult<(R1<'py>, SvdvalsContext)> {
+    ieee(|| {
+        let operator = from_array(operator, "operator")?;
+        let residual = detached(py, move || linalg::svdvals(&operator))?;
+        // A copy: the residual keeps the singular values for the pullback.
+        Ok((
+            residual.values().to_vec().into_pyarray(py),
+            SvdvalsContext::new(residual),
+        ))
+    })
 }

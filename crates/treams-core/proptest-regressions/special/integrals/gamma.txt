@@ -1,0 +1,15 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc afbbb93560b339adce8f936c86b71116ffb68e4eea289bc933141a517fea3331 # shrinks to twice_n = -24, re = 13.820057168500842, im = 0.0, g = Complex { re: 0.0, im: 0.0 }
+cc 5a757e60a907ff699a0954fb599d3ccc14c59a5db4ff8fa358a29046ad3cf60d # shrinks to n = 0, z = Complex { re: -0.4254205013679884, im: 0.0 }, (radius, phase) = (0.4, -1.7341708959977336)
+cc 3f3e58bd4857dc3e3574e0aad46e09e823d1e7ec9dde18f8da6902be8f125f40 # shrinks to n = 0, z = Complex { re: 2.8425649245843183, im: 2.9839617744140496 }, (radius, phase) = (2.2618815478506162, 0.0)
+cc e1921580f0398cd690788681659efdc885acc881f729d03ec395ce2967b22205 # shrinks to n = -6, z = Complex { re: 2.7024629010793615, im: 0.0 }, (radius, phase) = (2.9711187963664103, -0.8887788491043055)
+cc ebfe315412501e5a3fff33e3a96feb490960a1de69bc600f42ea7ce99d52b14d # shrinks to n = -1, x = 1.9831871884470615, eta = 0.8
+cc 89b0c7871e0a4a5b439afe943db9c7c74844a2db19b3b8f85ecb27f0bfa2d53a # shrinks to twice_n = -239, x = 403.16199564754135, parabola = 0.0, side = 1.0
+cc 80d20e7f1858f2bf69408bc8c956b438e6322516aea3e8dbeed8fc84c090a5f3 # shrinks to n = 0, z = Complex { re: -1.4262676249133426, im: -0.8838314179608345 }, (radius, phase) = (0.5599624091681298, -2.5072078136463656)
+cc bd709dba9b7ff2fa75bb3ba320da2df5d172953f3bac02c4183666a6615c62e9 # shrinks to twice_n = -1, x = 566.6937236777679, parabola = 0.0, side = 1.0
+cc af810d067a7f8b25243d8267bda1ec49130c2c79c8d8109552986282fa0449f0 # shrinks to twice_n = 83, ratio = 0.45712364811761047, phase = 1.0685621494614719, step = 0.25

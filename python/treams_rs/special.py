@@ -1,9 +1,56 @@
-"""Rust special functions with NumPy broadcasting, ``out`` and ``where``.
+"""Special functions of multipole waves, with NumPy broadcasting.
 
-Results use complex128, including real inputs. Singular/nonfinite evaluations
-raise ValueError. diff/advect.bessel and .angular provide native argument pullbacks.
-Angular orders are integers. Degrees are bounded by 128; real-argument lpmv
-also supports noninteger degrees.
+Mirrors ``treams.special``. Every function broadcasts its arguments as a NumPy
+ufunc does. The ufuncs and the Python functions accept ``out`` and ``where``;
+the coordinate transforms and ``vpw_*`` accept ``out`` only.
+
+- Bessel and Hankel functions: ``jv``, ``yv``, ``hankel1``, ``hankel2``, the
+  spherical ``spherical_jn``, ``spherical_yn``, ``spherical_hankel1``,
+  ``spherical_hankel2``, and their derivatives ``*_d``.
+- Angular functions: ``lpmv``, ``pi_fun``, ``tau_fun``, ``sph_harm`` and the
+  Wigner symbols ``wignersmalld``, ``wignerd`` and ``wigner3j``.
+- Lattice-sum integrals: ``incgamma`` and ``intkambe``.
+- Vector waves: spherical ``vsw_*``, cylindrical ``vcw_*``, plane ``vpw_*``
+  and the vector spherical harmonics ``vsh_*``. An ``r`` after the underscore
+  (``vsw_rN``) selects the regular wave; without it the wave is singular
+  (outgoing, built on the Hankel function H1).
+- Translation coefficients: ``tl_vsw_A``, ``tl_vsw_B``, ``tl_vcw`` and their
+  regular versions ``tl_vsw_rA``, ``tl_vsw_rB`` and ``tl_vcw_r``.
+- Coordinate transforms of points (``car2sph``, ``sph2car``, ...) and of
+  vector components (``vcar2sph``, ``vsph2car``, ...).
+
+Results are complex128, also for real arguments. ``lpmv`` with real
+arguments, ``wigner3j`` and the transforms of real points return float64.
+Bessel functions, angular functions and waves raise ValueError where they have
+no finite value, for example ``hankel1(0, 0.0)``. Angular functions, Wigner d
+functions and spherical waves take degrees l from 0 to 128.
+``diff.bessel``, ``diff.angular`` and their ``advect`` versions also return
+gradients with respect to the argument.
+
+Differences from treams:
+    - ValueError instead of NaN or infinity: ``hankel1(0, 0.0)`` raises,
+      treams returns ``nan+nanj``. ``incgamma`` and ``intkambe`` return
+      infinity at their poles, as treams does.
+    - complex128 instead of float64 for real arguments: ``jv(0, 1.0)`` is
+      ``0.765...+0j``.
+    - Degrees l above 128 raise ValueError; treams has no limit.
+    - ``hankel1``, ``hankel2``, ``lpmv``, ``pi_fun``, ``tau_fun``,
+      ``incgamma``, ``intkambe``, ``wigner3j``, ``tl_vcw`` and ``tl_vcw_r``
+      are Python functions, not ufuncs: they have no ufunc methods such as
+      ``outer``.
+    - The coordinate transforms (``car2cyl``, ..., ``vpol2car``) and
+      ``vpw_M``, ``vpw_N``, ``vpw_A`` are native functions, not ufuncs: they
+      take no ``where`` and have no ufunc methods.
+
+Example::
+
+    import numpy as np
+    from treams_rs import special
+
+    x = 2.0
+    assert np.isclose(special.jv(0, 1.0), 0.7651976865579666)
+    assert np.isclose(special.spherical_jn(1, x), np.sin(x) / x**2 - np.cos(x) / x)
+    assert np.isclose(special.lpmv(2, 2, 0.5), 3 * (1 - 0.5**2))
 """
 
 from __future__ import annotations
@@ -15,6 +62,74 @@ from . import _native
 if TYPE_CHECKING:
     import numpy as np
     from numpy.typing import ArrayLike, NDArray
+
+__all__ = [
+    "car2cyl",
+    "car2pol",
+    "car2sph",
+    "cyl2car",
+    "cyl2sph",
+    "hankel1",
+    "hankel1_d",
+    "hankel2",
+    "hankel2_d",
+    "incgamma",
+    "intkambe",
+    "jv",
+    "jv_d",
+    "lpmv",
+    "pi_fun",
+    "pol2car",
+    "sph2car",
+    "sph2cyl",
+    "sph_harm",
+    "spherical_hankel1",
+    "spherical_hankel1_d",
+    "spherical_hankel2",
+    "spherical_hankel2_d",
+    "spherical_jn",
+    "spherical_jn_d",
+    "spherical_yn",
+    "spherical_yn_d",
+    "tau_fun",
+    "tl_vcw",
+    "tl_vcw_r",
+    "tl_vsw_A",
+    "tl_vsw_B",
+    "tl_vsw_rA",
+    "tl_vsw_rB",
+    "vcar2cyl",
+    "vcar2pol",
+    "vcar2sph",
+    "vcw_A",
+    "vcw_M",
+    "vcw_N",
+    "vcw_rA",
+    "vcw_rM",
+    "vcw_rN",
+    "vcyl2car",
+    "vcyl2sph",
+    "vpol2car",
+    "vpw_A",
+    "vpw_M",
+    "vpw_N",
+    "vsh_X",
+    "vsh_Y",
+    "vsh_Z",
+    "vsph2car",
+    "vsph2cyl",
+    "vsw_A",
+    "vsw_M",
+    "vsw_N",
+    "vsw_rA",
+    "vsw_rM",
+    "vsw_rN",
+    "wigner3j",
+    "wignerd",
+    "wignersmalld",
+    "yv",
+    "yv_d",
+]
 
 jv = _native.jv
 yv = _native.yv
@@ -30,6 +145,22 @@ spherical_hankel1_d = _native.spherical_hankel1_d
 spherical_hankel2_d = _native.spherical_hankel2_d
 
 
+# The ufunc aliases (jv, ..., sph_harm, vsh_*, vsw_*, vcw_*, tl_vsw_*,
+# wignersmalld, wignerd) keep NumPy's positional ``out``, keyword ``where`` and
+# ufunc methods. The coordinate transforms and vpw_* are native functions with
+# their own scalar path; they take ``out`` but not ``where``. The Python functions
+# in this module mirror their treams signatures instead: spherical_jn and
+# spherical_yn take the ``derivative`` flag, tl_vcw and tl_vcw_r forward extra
+# arguments to the ufunc, and the others take ``out`` and ``where`` as keywords.
+#
+# Python-scalar fast paths: called with Python numbers and no ``out`` or
+# ``where``, a wrapper calls a native scalar function instead of the ufunc,
+# because NumPy's ufunc dispatch costs more than one evaluation. Each fast path
+# returns the value and dtype of the ufunc, or raises the same ValueError;
+# test_python_scalar_fast_paths_match_the_ufunc in
+# tests/bindings/test_ufunc_contract.py checks this for every wrapper.
+
+
 def spherical_jn(
     n: ArrayLike,
     z: ArrayLike,
@@ -38,7 +169,26 @@ def spherical_jn(
     out: NDArray[np.complex128] | None = None,
     where: ArrayLike = True,
 ) -> NDArray[np.complex128]:
-    """Spherical regular Bessel, optionally its first argument derivative."""
+    """Spherical Bessel function j_n(z) = sqrt(pi / (2 z)) J_{n + 1/2}(z).
+
+    Mirrors ``treams.special.spherical_jn``.
+
+    Args:
+        n: Order n, usually an integer n >= 0; a noninteger n evaluates the
+            formula above.
+        z: Argument, real or complex.
+        derivative: If True, return the derivative dj_n/dz instead.
+        out: Array for the result, as for a NumPy ufunc.
+        where: Mask of the elements to compute, as for a NumPy ufunc.
+
+    Returns:
+        complex128 array with the broadcast shape of ``n`` and ``z``.
+
+    Differences from treams:
+        treams returns float64 for real ``z`` and truncates a noninteger ``n``;
+        here a noninteger ``n`` evaluates the formula above. Non-finite input
+        and overflow raise ValueError.
+    """
     function = _native.spherical_jn_d if derivative else _native.spherical_jn
     return function(n, z, out=out, where=where)
 
@@ -51,7 +201,28 @@ def spherical_yn(
     out: NDArray[np.complex128] | None = None,
     where: ArrayLike = True,
 ) -> NDArray[np.complex128]:
-    """Spherical second-kind Bessel, optionally its first argument derivative."""
+    """Spherical Bessel function y_n(z) = sqrt(pi / (2 z)) Y_{n + 1/2}(z).
+
+    Mirrors ``treams.special.spherical_yn``.
+
+    Args:
+        n: Order n, usually an integer n >= 0; a noninteger n evaluates the
+            formula above.
+        z: Argument, real or complex, nonzero.
+        derivative: If True, return the derivative dy_n/dz instead.
+        out: Array for the result, as for a NumPy ufunc.
+        where: Mask of the elements to compute, as for a NumPy ufunc.
+
+    Returns:
+        complex128 array with the broadcast shape of ``n`` and ``z``.
+
+    Differences from treams:
+        treams returns float64 for real ``z``, ``-inf`` at ``z = 0`` and
+        truncates a noninteger ``n``; here ``z = 0`` raises ValueError and a
+        noninteger ``n`` evaluates the formula above. Non-finite input,
+        overflow and ``n = 0`` at ``|z|`` below about ``1e-162`` raise
+        ValueError.
+    """
     function = _native.spherical_yn_d if derivative else _native.spherical_yn
     return function(n, z, out=out, where=where)
 
@@ -63,7 +234,25 @@ def hankel1(
     out: NDArray[np.complex128] | None = None,
     where: ArrayLike = True,
 ) -> complex | NDArray[np.complex128]:
-    """Outgoing cylindrical Hankel, with a direct native Python-scalar path."""
+    """Hankel function of the first kind H1_v(z) = J_v(z) + i Y_v(z).
+
+    Mirrors ``treams.special.hankel1``. H1 describes outgoing (singular)
+    cylindrical waves.
+
+    Args:
+        v: Real order.
+        z: Argument, real or complex, nonzero.
+        out: Array for the result, as for a NumPy ufunc.
+        where: Mask of the elements to compute, as for a NumPy ufunc.
+
+    Returns:
+        complex128 array with the broadcast shape of ``v`` and ``z``. Python
+        numbers give one complex number.
+
+    Differences from treams:
+        ``z = 0``, non-finite input and overflow raise ValueError; treams
+        returns NaN or infinity.
+    """
     if (
         out is None
         and where is True
@@ -81,7 +270,24 @@ def hankel2(
     out: NDArray[np.complex128] | None = None,
     where: ArrayLike = True,
 ) -> complex | NDArray[np.complex128]:
-    """Incoming cylindrical Hankel, with a direct native Python-scalar path."""
+    """Hankel function of the second kind H2_v(z) = J_v(z) - i Y_v(z).
+
+    Mirrors ``treams.special.hankel2``. H2 describes incoming cylindrical waves.
+
+    Args:
+        v: Real order.
+        z: Argument, real or complex, nonzero.
+        out: Array for the result, as for a NumPy ufunc.
+        where: Mask of the elements to compute, as for a NumPy ufunc.
+
+    Returns:
+        complex128 array with the broadcast shape of ``v`` and ``z``. Python
+        numbers give one complex number.
+
+    Differences from treams:
+        ``z = 0``, non-finite input and overflow raise ValueError; treams
+        returns NaN or infinity.
+    """
     if (
         out is None
         and where is True
@@ -99,16 +305,42 @@ def lpmv(
     *,
     out: NDArray[np.complex128] | NDArray[np.float64] | None = None,
     where: ArrayLike = True,
-) -> complex | NDArray[np.complex128] | NDArray[np.float64]:
-    """Associated Legendre function; real arguments also support noninteger degrees."""
+) -> float | complex | NDArray[np.complex128] | NDArray[np.float64]:
+    """Associated Legendre function P_v^m(z), with the Condon-Shortley phase (-1)^m.
+
+    Mirrors ``treams.special.lpmv``. The order ``m`` comes first, as in SciPy.
+    For real arguments the degree may be noninteger. Orders with
+    ``|m| > v`` give 0.
+
+    Args:
+        m: Integer order m.
+        n: Degree v, from 0 to 128; integer for complex ``z``.
+        z: Argument. Real ``z`` outside [-1, 1] with odd ``m`` and ``|m| <= v``
+            raises ValueError; pass complex ``z`` for the continuation.
+        out: Array for the result, as for a NumPy ufunc.
+        where: Mask of the elements to compute, as for a NumPy ufunc.
+
+    Returns:
+        float64 array for real arguments, complex128 array for complex ``z``,
+        with the broadcast shape of ``m``, ``n`` and ``z``. Python numbers give
+        one float or complex number.
+
+    Differences from treams:
+        At real ``|z| > 1`` and an integer degree ``v >= |m| > 0``, treams
+        returns NaN; here even ``m`` gives the value and odd ``m`` raises
+        ValueError. A noninteger degree ``v > |m|`` needs ``z`` in ``(-1, 1]``
+        with zero imaginary part and raises ValueError elsewhere.
+    """
     if (
         out is None
         and where is True
         and isinstance(n, (int, float))
         and isinstance(m, (int, float))
-        and isinstance(z, (int, float, complex))
     ):
-        return _native.angular_value(n, m, z, "legendre")
+        if isinstance(z, complex):
+            return _native.angular_scalar(n, m, z, "legendre")
+        if isinstance(z, (int, float)):
+            return _native.lpmv_real_scalar(n, m, z)
     return _native.lpmv(m, n, z, out=out, where=where)
 
 
@@ -120,7 +352,25 @@ def pi_fun(
     out: NDArray[np.complex128] | None = None,
     where: ArrayLike = True,
 ) -> complex | NDArray[np.complex128]:
-    """Integer-degree pi function with native broadcasting and polar limits."""
+    """Angular function pi_l^m(x) = m P_l^m(x) / sqrt(1 - x^2).
+
+    Mirrors ``treams.special.pi_fun``. At ``x = +-1`` it returns the limit.
+
+    Args:
+        n: Integer degree l, from 0 to 128.
+        m: Integer order m.
+        z: Argument x, real or complex; ``x = cos(theta)`` on the real line.
+        out: Array for the result, as for a NumPy ufunc.
+        where: Mask of the elements to compute, as for a NumPy ufunc.
+
+    Returns:
+        complex128 array with the broadcast shape of ``n``, ``m`` and ``z``.
+        Python numbers give one complex number.
+
+    Differences from treams:
+        treams returns float64 for real ``x`` and NaN at real ``|x| > 1``,
+        where this function returns the value.
+    """
     if (
         out is None
         and where is True
@@ -128,7 +378,7 @@ def pi_fun(
         and isinstance(m, (int, float))
         and isinstance(z, (int, float, complex))
     ):
-        return _native.angular_value(n, m, z, "pi")
+        return _native.angular_scalar(n, m, z, "pi")
     return _native.pi_fun(n, m, z, out=out, where=where)
 
 
@@ -140,7 +390,27 @@ def tau_fun(
     out: NDArray[np.complex128] | None = None,
     where: ArrayLike = True,
 ) -> complex | NDArray[np.complex128]:
-    """Integer-degree tau function with native broadcasting and polar limits."""
+    """Angular function tau_l^m(x) = d P_l^m(cos theta) / d theta at x = cos theta.
+
+    Mirrors ``treams.special.tau_fun``. At ``x = +-1`` it returns the limit.
+
+    Args:
+        n: Integer degree l, from 0 to 128.
+        m: Integer order m.
+        z: Argument x, real or complex.
+        out: Array for the result, as for a NumPy ufunc.
+        where: Mask of the elements to compute, as for a NumPy ufunc.
+
+    Returns:
+        complex128 array with the broadcast shape of ``n``, ``m`` and ``z``.
+        Python numbers give one complex number.
+
+    Differences from treams:
+        treams returns float64 for real ``x`` and NaN at real ``|x| > 1``
+        unless ``l = |m| <= 1``; this function returns the value. For
+        ``|m| > l`` it returns 0, where treams returns, for example,
+        ``tau_fun(0, -1, x) = 0.5``.
+    """
     if (
         out is None
         and where is True
@@ -148,7 +418,7 @@ def tau_fun(
         and isinstance(m, (int, float))
         and isinstance(z, (int, float, complex))
     ):
-        return _native.angular_value(n, m, z, "tau")
+        return _native.angular_scalar(n, m, z, "tau")
     return _native.tau_fun(n, m, z, out=out, where=where)
 
 
@@ -163,15 +433,37 @@ def incgamma(
     out: NDArray[np.complex128] | None = None,
     where: ArrayLike = True,
 ) -> complex | NDArray[np.complex128]:
-    """Upper incomplete gamma for integer and half-integer degree."""
+    """Upper incomplete gamma function Gamma(n, z).
+
+    ``Gamma(n, z) = integral_z^inf t^(n - 1) exp(-t) dt``.
+
+    Mirrors ``treams.special.incgamma``. The negative real axis is the branch
+    cut. For ``n <= 0``, ``Gamma(n, 0)`` is infinite.
+
+    Args:
+        n: Integer or half-integer degree from -128 to 128.
+        z: Argument, real or complex.
+        out: Array for the result, as for a NumPy ufunc.
+        where: Mask of the elements to compute, as for a NumPy ufunc.
+
+    Returns:
+        complex128 array with the broadcast shape of ``n`` and ``z``. Python
+        numbers give one complex number.
+
+    Differences from treams:
+        treams returns float64 for real ``z`` and NaN at ``z < 0`` for
+        half-integer ``l`` and for ``l <= 0``; this function returns the
+        principal-branch value (``arg z = pi``). Degrees outside the integers
+        and half-integers from -128 to 128 raise ValueError.
+    """
     if (
         out is None
         and where is True
         and isinstance(n, (int, float))
         and isinstance(z, (int, float, complex))
     ):
-        return _native.incgamma(n, z)
-    return _native.incgamma_ufunc(n, z, out=out, where=where)
+        return _native.incgamma_scalar(n, z)
+    return _native.incgamma(n, z, out=out, where=where)
 
 
 def intkambe(
@@ -182,7 +474,27 @@ def intkambe(
     out: NDArray[np.complex128] | None = None,
     where: ArrayLike = True,
 ) -> complex | NDArray[np.complex128]:
-    """Kambe integral with integer order and broadcast complex arguments."""
+    """Kambe integral I_n(z, eta).
+
+    ``I_n(z, eta) = integral_eta^inf t^n exp(-z^2 t^2 / 2 + 1 / (2 t^2)) dt``.
+
+    Mirrors ``treams.special.intkambe``. The lattice sums of
+    ``treams_rs.lattice`` use it. Odd orders at imaginary ``eta = -i / w``
+    (the arguments of the 1D spherical lattice sums) come from a series that
+    cancels by up to ``exp(|w|^2)``: they lose up to about 1e-4 relative at
+    ``|w| = 5``, 0.1 at ``|w| = 6`` and every digit from about ``|w| = 8``.
+
+    Args:
+        n: Integer order.
+        z: Argument, real or complex.
+        eta: Lower limit of the integral, real or complex.
+        out: Array for the result, as for a NumPy ufunc.
+        where: Mask of the elements to compute, as for a NumPy ufunc.
+
+    Returns:
+        complex128 array with the broadcast shape of ``n``, ``z`` and ``eta``.
+        Python numbers give one complex number.
+    """
     if (
         out is None
         and where is True
@@ -190,8 +502,8 @@ def intkambe(
         and isinstance(z, (int, float, complex))
         and isinstance(eta, (int, float, complex))
     ):
-        return _native.intkambe(n, z, eta)
-    return _native.intkambe_ufunc(n, z, eta, out=out, where=where)
+        return _native.intkambe_scalar(n, z, eta)
+    return _native.intkambe(n, z, eta, out=out, where=where)
 
 
 def wigner3j(
@@ -205,7 +517,28 @@ def wigner3j(
     out: NDArray[np.float64] | None = None,
     where: ArrayLike = True,
 ) -> float | NDArray[np.float64]:
-    """Integer Wigner 3j symbol with selection rules and native broadcasting."""
+    """Wigner 3j symbol (j1 j2 j3; m1 m2 m3).
+
+    Mirrors ``treams.special.wigner3j``. Labels that break the selection rules
+    (``m1 + m2 + m3 = 0``, the triangle rule, ``|mi| <= ji``) give 0.
+
+    Args:
+        j1: Integer degree.
+        j2: Integer degree.
+        j3: Integer degree.
+        m1: Integer order.
+        m2: Integer order.
+        m3: Integer order.
+        out: Array for the result, as for a NumPy ufunc.
+        where: Mask of the elements to compute, as for a NumPy ufunc.
+
+    Returns:
+        float64 array with the broadcast shape of the six labels. Python
+        integers give one float.
+
+    Differences from treams:
+        Labels must be integers from -260 to 260; others raise ValueError.
+    """
     if (
         out is None
         and where is True
@@ -238,29 +571,29 @@ vcar2pol = _native.vcar2pol
 vpol2car = _native.vpol2car
 
 sph_harm = _native.sph_harm
-vsh_X = _native.vsh_X  # noqa: N816 - upstream public function name
-vsh_Y = _native.vsh_Y  # noqa: N816 - upstream public function name
-vsh_Z = _native.vsh_Z  # noqa: N816 - upstream public function name
-vsw_M = _native.vsw_M  # noqa: N816 - upstream public function name
-vsw_N = _native.vsw_N  # noqa: N816 - upstream public function name
-vsw_A = _native.vsw_A  # noqa: N816 - upstream public function name
-vsw_rM = _native.vsw_rM  # noqa: N816 - upstream public function name
-vsw_rN = _native.vsw_rN  # noqa: N816 - upstream public function name
-vsw_rA = _native.vsw_rA  # noqa: N816 - upstream public function name
-vcw_M = _native.vcw_M  # noqa: N816 - upstream public function name
-vcw_N = _native.vcw_N  # noqa: N816 - upstream public function name
-vcw_A = _native.vcw_A  # noqa: N816 - upstream public function name
-vcw_rM = _native.vcw_rM  # noqa: N816 - upstream public function name
-vcw_rN = _native.vcw_rN  # noqa: N816 - upstream public function name
-vcw_rA = _native.vcw_rA  # noqa: N816 - upstream public function name
-vpw_M = _native.vpw_M  # noqa: N816 - upstream public function name
-vpw_N = _native.vpw_N  # noqa: N816 - upstream public function name
-vpw_A = _native.vpw_A  # noqa: N816 - upstream public function name
+vsh_X = _native.vsh_X
+vsh_Y = _native.vsh_Y
+vsh_Z = _native.vsh_Z
+vsw_M = _native.vsw_M
+vsw_N = _native.vsw_N
+vsw_A = _native.vsw_A
+vsw_rM = _native.vsw_rM
+vsw_rN = _native.vsw_rN
+vsw_rA = _native.vsw_rA
+vcw_M = _native.vcw_M
+vcw_N = _native.vcw_N
+vcw_A = _native.vcw_A
+vcw_rM = _native.vcw_rM
+vcw_rN = _native.vcw_rN
+vcw_rA = _native.vcw_rA
+vpw_M = _native.vpw_M
+vpw_N = _native.vpw_N
+vpw_A = _native.vpw_A
 
-tl_vsw_A = _native.tl_vsw_A  # noqa: N816 - upstream public function name
-tl_vsw_B = _native.tl_vsw_B  # noqa: N816 - upstream public function name
-tl_vsw_rA = _native.tl_vsw_rA  # noqa: N816 - upstream public function name
-tl_vsw_rB = _native.tl_vsw_rB  # noqa: N816 - upstream public function name
+tl_vsw_A = _native.tl_vsw_A
+tl_vsw_B = _native.tl_vsw_B
+tl_vsw_rA = _native.tl_vsw_rA
+tl_vsw_rB = _native.tl_vsw_rB
 
 
 def tl_vcw(
@@ -274,7 +607,33 @@ def tl_vcw(
     *args: object,
     **kwargs: object,
 ) -> complex | NDArray[np.complex128]:
-    """Outgoing cylindrical coefficient with exact axial-label selection."""
+    """Singular cylindrical translation coefficient of one mode pair.
+
+    ``H1_{m - mu}(krr) exp(i ((m - mu) phi + kz z))`` if ``kz == qz``, else 0.
+
+    Mirrors ``treams.special.tl_vcw``. It expands a singular wave about the
+    source origin in regular waves about the destination origin;
+    ``cw.translate`` adds the polarization.
+
+    Args:
+        kz: Axial wavenumber of the destination mode.
+        mu: Integer order of the destination mode.
+        qz: Axial wavenumber of the source mode.
+        m: Integer order of the source mode.
+        krr: Radial distance of the displacement times the radial wavenumber,
+            real or complex, nonzero.
+        phi: Azimuthal angle of the displacement.
+        z: Axial distance of the displacement, not scaled by a wavenumber.
+        *args: Further ufunc arguments, such as ``out``.
+        **kwargs: Further ufunc keywords, such as ``where``.
+
+    Returns:
+        complex128 array with the broadcast shape of the arguments. Python
+        numbers give one complex number.
+
+    Differences from treams:
+        ``krr = 0`` raises ValueError; treams returns ``nan+nanj``.
+    """
     if (
         not args
         and not kwargs
@@ -286,7 +645,7 @@ def tl_vcw(
         and isinstance(phi, (int, float))
         and isinstance(z, (int, float))
     ):
-        return _native.cylindrical_translation_scalar(kz, mu, qz, m, krr, phi, z, True)
+        return _native.tl_vcw_scalar(kz, mu, qz, m, krr, phi, z, True)
     return _native.tl_vcw(kz, mu, qz, m, krr, phi, z, *args, **kwargs)
 
 
@@ -301,7 +660,30 @@ def tl_vcw_r(
     *args: object,
     **kwargs: object,
 ) -> complex | NDArray[np.complex128]:
-    """Regular cylindrical coefficient with an analytic coincident-origin limit."""
+    """Regular cylindrical translation coefficient of one mode pair.
+
+    ``J_{m - mu}(krr) exp(i ((m - mu) phi + kz z))`` if ``kz == qz``, else 0.
+
+    Mirrors ``treams.special.tl_vcw_r``. It expands a wave about the source
+    origin in waves of the same kind about the destination origin. At
+    ``krr = 0`` it returns the limit.
+
+    Args:
+        kz: Axial wavenumber of the destination mode.
+        mu: Integer order of the destination mode.
+        qz: Axial wavenumber of the source mode.
+        m: Integer order of the source mode.
+        krr: Radial distance of the displacement times the radial wavenumber,
+            real or complex.
+        phi: Azimuthal angle of the displacement.
+        z: Axial distance of the displacement, not scaled by a wavenumber.
+        *args: Further ufunc arguments, such as ``out``.
+        **kwargs: Further ufunc keywords, such as ``where``.
+
+    Returns:
+        complex128 array with the broadcast shape of the arguments. Python
+        numbers give one complex number.
+    """
     if (
         not args
         and not kwargs
@@ -313,5 +695,5 @@ def tl_vcw_r(
         and isinstance(phi, (int, float))
         and isinstance(z, (int, float))
     ):
-        return _native.cylindrical_translation_scalar(kz, mu, qz, m, krr, phi, z, False)
+        return _native.tl_vcw_scalar(kz, mu, qz, m, krr, phi, z, False)
     return _native.tl_vcw_r(kz, mu, qz, m, krr, phi, z, *args, **kwargs)

@@ -26,15 +26,13 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
+from _harness import cpu_affinity, file_sha256, pinned_threads
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def utc_now() -> str:
     return datetime.now(UTC).isoformat()
-
-
-def digest(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def capture(command: list[str]) -> str:
@@ -141,9 +139,8 @@ def load_cases(args: argparse.Namespace) -> list[dict]:
     return cases
 
 
-def source_fingerprint(cases: list[dict]) -> dict:
-    # One child preflight records the actual loaded release binary and package.
-    preflight = """
+# One child preflight records the actual loaded release binary and package.
+PREFLIGHT = """
 import hashlib, json
 from pathlib import Path
 from treams_rs import _native
@@ -155,8 +152,11 @@ for f in sorted(p.parent.glob('*.py')):
 print(json.dumps({'native_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
  'python_source_sha256':h.hexdigest(),'native_profile':_native.build_profile()}))
 """
+
+
+def source_fingerprint(cases: list[dict]) -> dict:
     result = subprocess.run(
-        [sys.executable, "-c", preflight],
+        [sys.executable, "-c", PREFLIGHT],
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -166,11 +166,12 @@ print(json.dumps({'native_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
         raise RuntimeError(neutral(result.stderr))
     source = json.loads(result.stdout)
     source["commit"] = capture(["git", "rev-parse", "HEAD"])
+    # Every benchmark script imports the shared helper, so its hash belongs to each.
+    scripts = {case["command"][0] for case in cases} | {"scripts/_harness.py"}
     source["harness_sha256"] = {
-        script: digest(ROOT / script)
-        for script in sorted({case["command"][0] for case in cases})
+        script: file_sha256(ROOT / script) for script in sorted(scripts)
     }
-    source["runner_sha256"] = digest(Path(__file__))
+    source["runner_sha256"] = file_sha256(__file__)
     tree = hashlib.sha256()
     tracked = capture(
         ["git", "ls-files", "crates", "python", "Cargo.toml", "Cargo.lock"]
@@ -179,7 +180,7 @@ print(json.dumps({'native_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
         path = ROOT / relative
         if path.is_file():
             tree.update(relative.encode())
-            tree.update(bytes.fromhex(digest(path)))
+            tree.update(bytes.fromhex(file_sha256(path)))
     source["numerical_source_sha256"] = tree.hexdigest()
     return source
 
@@ -191,9 +192,7 @@ def environment() -> dict:
         "architecture": platform.machine(),
         "python": platform.python_version(),
         "logical_cores": os.cpu_count(),
-        "cpu_affinity": sorted(os.sched_getaffinity(0))
-        if hasattr(os, "sched_getaffinity")
-        else None,
+        "cpu_affinity": cpu_affinity(),
     }
     if sys.platform == "darwin":
         result.update(
@@ -346,15 +345,7 @@ def execute_case(
     child_env = dict(os.environ)
     if "--threads" in case["command"]:
         threads = case["command"][case["command"].index("--threads") + 1]
-        for name in (
-            "BENCH_THREADS",
-            "RAYON_NUM_THREADS",
-            "OPENBLAS_NUM_THREADS",
-            "OMP_NUM_THREADS",
-            "MKL_NUM_THREADS",
-            "VECLIB_MAXIMUM_THREADS",
-        ):
-            child_env[name] = threads
+        child_env.update(pinned_threads(threads), BENCH_THREADS=threads)
     with (
         (output / attempt["stdout"]).open("wb") as stdout,
         (output / attempt["stderr"]).open("wb") as stderr,
@@ -500,9 +491,7 @@ def main() -> None:
             "default_timeout_seconds": args.timeout,
             "watchdog": "ps process-group RSS sum; sum can double-count shared pages; polling is a guard, not reported benchmark peak RSS",
             "watchdog_poll_seconds": args.poll_seconds,
-            "cpu_affinity": sorted(os.sched_getaffinity(0))
-            if hasattr(os, "sched_getaffinity")
-            else None,
+            "cpu_affinity": cpu_affinity(),
             "sampling": "Existing harness raw samples retained unchanged; benchmark_cluster uses predeclared alternating paired timing for all sub-ms cases",
         },
         "cases": cases,

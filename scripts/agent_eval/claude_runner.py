@@ -3,16 +3,20 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Claude Code runner with an external, network-free Bash tool sandbox."""
+"""Claude Code runner with an external, network-free Bash tool sandbox.
+
+TREAMS_EVAL_VENV    evaluation environment created by install.py (required).
+TREAMS_EVAL_CLAUDE  Claude Code executable; default: ``claude`` on PATH.
+"""
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 VENV = Path(os.environ["TREAMS_EVAL_VENV"]).resolve()
-CLAUDE = Path("~/.local/bin/claude").resolve()
 MODELS = ("claude-sonnet-5", "claude-opus-5")
 
 
@@ -88,7 +92,9 @@ def main():
         trial = Path(os.environ["TREAMS_EVAL_CLAUDE_TRIAL"])
         os.execv("/usr/bin/bwrap", tool_command(trial, sys.argv[1]))
 
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("action", choices=("run",))
     parser.add_argument("--trial-dir", type=Path, required=True)
     parser.add_argument("--model", choices=MODELS)
@@ -99,6 +105,13 @@ def main():
     (trial / ".tmp").mkdir(exist_ok=True)
     if not (args.model and args.prompt_file and args.log_file):
         parser.error("run requires --model, --prompt-file, and --log-file")
+    # Resolved here, not at import: the shell-prefix process and the graders
+    # import this module without needing the CLI.
+    claude = Path(
+        os.environ.get("TREAMS_EVAL_CLAUDE")
+        or shutil.which("claude")
+        or sys.exit("set TREAMS_EVAL_CLAUDE or put claude on PATH")
+    ).resolve()
     original_user_dir = Path.home()
     claude_config = original_user_dir / ".claude"
     # OAuth refresh rotates this file atomically, so its parent must be writable.
@@ -195,7 +208,7 @@ def main():
     )
     command = [
         *outer,
-        str(CLAUDE),
+        str(claude),
         "--safe-mode",
         "--setting-sources",
         "",

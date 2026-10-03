@@ -8,18 +8,24 @@ repos:
       - id: check-yaml
       - id: check-json
       - id: check-merge-conflict
+        args: [--assume-in-merge]
       - id: check-symlinks
       - id: destroyed-symlinks
       - id: check-added-large-files
         args: [--maxkb=1000, --enforce-all]
-        exclude: ^benchmarks/(results/|comparison-report/|correction-plan\.json$)
+        exclude: ^benchmarks/(results/|correction-plan\.json$)
       - id: check-added-large-files
         name: check benchmark artifact size
-        files: ^benchmarks/(results/|comparison-report/|correction-plan\.json$)
+        files: ^benchmarks/(results/|correction-plan\.json$)
         args: [--maxkb=50000, --enforce-all]
       - id: detect-private-key
   - repo: local
     hooks:
+      - id: no-diff3-base-markers
+        name: diff3 merge-base markers
+        language: pygrep
+        entry: '^\|{7}( |$)'
+        types: [text]
       - id: cargo-fmt
         name: cargo-fmt
         entry: just rust-fmt-check

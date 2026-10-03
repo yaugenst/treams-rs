@@ -1,0 +1,6 @@
+# Test code may unwrap, index and panic: a failing property then shrinks to a
+# reproducible counterexample. Production lints stay unchanged.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true

@@ -2,21 +2,66 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Wheel-only Codex launcher adapted from the qualified Photonoodle campaign."""
+"""Wheel-only Codex launcher: runs one attempt in a bubblewrap sandbox with global
+instructions, skills and history masked. Configure with the environment variables
+listed below.
+
+TREAMS_EVAL_VENV        evaluation environment created by install.py (required).
+                        It and its base Python installation (the parent of the
+                        ``home`` entry of its pyvenv.cfg) are readable inside the
+                        sandbox.
+TREAMS_EVAL_CODEX       Codex executable; default: ``codex`` on PATH. The
+                        directory two levels above the resolved executable (its
+                        installation) is readable inside the sandbox, so it must
+                        not contain CODEX_HOME, ~/.claude or other private data;
+                        preflight.py fails when it exposes a forbidden path.
+TREAMS_EVAL_READ_PATHS  further read-only paths for the sandbox, separated by
+                        os.pathsep; default: none.
+CODEX_HOME              Codex state directory; default: ~/.codex.
+"""
 
 import json
 import os
+import shutil
+import sys
 import tempfile
 from pathlib import Path
 
-CODEX = Path("~/.local/bin/codex").resolve()
+CODEX = Path(
+    os.environ.get("TREAMS_EVAL_CODEX")
+    or shutil.which("codex")
+    or sys.exit("set TREAMS_EVAL_CODEX or put codex on PATH")
+).resolve()
 VENV = Path(os.environ["TREAMS_EVAL_VENV"]).resolve()
+
+
+def read_only_paths():
+    """Base Python installation of VENV, resolved and as linked, then extra paths.
+
+    pyvenv.cfg names the base interpreter directory under ``home``; uv often names
+    it through a minor-version link to the patch-version directory, so both
+    spellings are granted.
+    """
+    home = None
+    for line in (VENV / "pyvenv.cfg").read_text().splitlines():
+        key, separator, value = line.partition("=")
+        if separator and key.strip() == "home":
+            home = Path(value.strip())
+    if home is None:
+        sys.exit(f"{VENV / 'pyvenv.cfg'} has no home entry")
+    extra = os.environ.get("TREAMS_EVAL_READ_PATHS", "").split(os.pathsep)
+    return [home.resolve().parent, home.parent, *map(Path, filter(None, extra))]
+
+
+def codex_home():
+    """Codex state directory: CODEX_HOME, or ~/.codex when it is unset or empty."""
+    return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
 
 
 def launch_args(trial, model):
     trial = Path(trial).resolve()
     assert trial.is_dir()
-    host = Path("~/.codex")
+    host = codex_home()
     fds = []
     argv = [
         "bwrap",
@@ -42,7 +87,7 @@ def launch_args(trial, model):
             argv += ["--ro-bind-data", str(fd), str(host / name)]
     for path in (
         host / "skills",
-        Path("~/.agents/skills"),
+        Path.home() / ".agents" / "skills",
         host / "memories",
         host / "plugins",
     ):
@@ -69,8 +114,7 @@ def launch_args(trial, model):
     filesystem = {
         ":minimal": "read",
         str(VENV): "read",
-        "~/.local/share/uv/python/cpython-3.13.1-linux-x86_64-gnu": "read",
-        "~/.local/share/uv/python/cpython-3.13-linux-x86_64-gnu": "read",
+        **dict.fromkeys(map(str, read_only_paths()), "read"),
         str(CODEX.parent.parent): "read",
         str(trial): "write",
     }

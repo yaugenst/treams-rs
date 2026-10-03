@@ -1,7 +1,8 @@
 """Reproduce PRB 112, 054307 (2025), Fig. 2, against the authors' data.
 
-Run from the release-built checkout with PYTHONPATH=python. The default selects
-52 of the original 300 frequencies; --samples 300 evaluates the entire curve.
+Run after `just build-ext-release`: uv run --no-sync python scripts/papers_thermal.py.
+The default selects 52 of the original 300 frequencies; --samples 300 evaluates
+the entire curve.
 The fixture contains numerical data, not a copy of the authors' implementation.
 """
 
@@ -17,6 +18,7 @@ from importlib.metadata import version
 from pathlib import Path
 
 import numpy as np
+from _harness import file_sha256, python_source_sha256
 
 import treams_rs as rs
 from treams_rs import _native
@@ -24,7 +26,8 @@ from treams_rs import _native
 COMMIT = "ec710fc1f15f379d126659043ef1c2ce4f0eafae"
 SOURCE = "https://github.com/jdmazo-vasquez/TMatricesThermalRadiation"
 RAW = f"https://raw.githubusercontent.com/jdmazo-vasquez/TMatricesThermalRadiation/{COMMIT}"
-FIXTURE = Path("benchmarks/papers/thermal-source.json")
+ROOT = Path(__file__).resolve().parents[1]
+FIXTURE = ROOT / "benchmarks/papers/thermal-source.json"
 C0 = 299792458.0
 HBAR = 1.05457182e-34
 KB = 1.380649e-23
@@ -95,9 +98,11 @@ def chain_matrix(module, frequency, epsilon, order):
         poltype="helicity",
     )
     positions = [[0.0, 0.0, z * 520e-9] for z in (-1.5, -0.5, 0.5, 1.5)]
-    cluster = (rs.TMatrix._assemble if module is rs else module.TMatrix.cluster)(
-        [sphere] * 4, positions
-    ).interaction.solve()
+    cluster = (
+        rs.Cluster([sphere] * 4, positions=positions).solve()
+        if module is rs
+        else module.TMatrix.cluster([sphere] * 4, positions).interaction.solve()
+    )
     return np.asarray(
         cluster.expand(
             (rs.SphericalBasis if module is rs else module.SphericalWaveBasis).default(
@@ -164,7 +169,7 @@ def main():
         help="Reuse the identical-parameter upstream rows of an earlier qualification",
     )
     parser.add_argument(
-        "--output", type=Path, default=Path("benchmarks/papers/thermal-result.json")
+        "--output", type=Path, default=ROOT / "benchmarks/papers/thermal-result.json"
     )
     parser.add_argument(
         "--indices",
@@ -198,10 +203,7 @@ def main():
         assert old_result["complete"]
         assert old_result["source_commit"] == COMMIT
         assert old_result["lmax"] == args.lmax
-        assert (
-            old_result["fixture_sha256"]
-            == hashlib.sha256(FIXTURE.read_bytes()).hexdigest()
-        )
+        assert old_result["fixture_sha256"] == file_sha256(FIXTURE)
         reference_rows = {
             row["index"]: row
             for row in old_result["rows"]
@@ -212,19 +214,13 @@ def main():
         import treams
 
         upstream = treams
-    source_digest = hashlib.sha256()
-    for path in sorted(Path(rs.__file__).parent.glob("*.py")):
-        source_digest.update(path.name.encode())
-        source_digest.update(hashlib.sha256(path.read_bytes()).digest())
     result = {
         "paper_doi": data["doi"],
         "source_commit": COMMIT,
-        "fixture_sha256": hashlib.sha256(FIXTURE.read_bytes()).hexdigest(),
-        "native_sha256": hashlib.sha256(
-            Path(_native.__file__).read_bytes()
-        ).hexdigest(),
-        "script_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-        "python_source_sha256": source_digest.hexdigest(),
+        "fixture_sha256": file_sha256(FIXTURE),
+        "native_sha256": file_sha256(_native.__file__),
+        "script_sha256": file_sha256(__file__),
+        "python_source_sha256": python_source_sha256(Path(rs.__file__).parent),
         "python_version": platform.python_version(),
         "numpy_version": np.__version__,
         "platform": platform.platform(),
@@ -249,7 +245,7 @@ def main():
         else args.upstream_reference.name,
         "upstream_reference_sha256": None
         if args.upstream_reference is None
-        else hashlib.sha256(args.upstream_reference.read_bytes()).hexdigest(),
+        else file_sha256(args.upstream_reference),
         "rows": [],
         "angular_cuts": [],
         "convergence": [],

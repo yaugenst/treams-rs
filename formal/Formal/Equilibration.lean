@@ -4,7 +4,7 @@ import Formal.ImplicitAdjoint
 # Equilibrated LU solves
 
 A model of `equilibrate` and `Lu::solve_in_place` / `Lu::solve_adjoint_in_place` in
-`crates/treams-core/src/linalg.rs`. Equilibration factors `Â = diag(row) A diag(column)`
+`crates/treams-core/src/linalg/mod.rs`. Equilibration factors `Â = diag(row) A diag(column)`
 with real scales. The forward solve scales the right-hand side by `row`, solves with `Â`,
 then scales by `column`; the adjoint solve uses `column`, `Âᴴ`, then `row`.
 The transposed branch equilibrates `Aᵀ` and swaps the returned scales.

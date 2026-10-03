@@ -1,11 +1,11 @@
-"""Offline installed help: quickstart, an API path, --search text, or --format json."""
+"""Offline help from the API catalog: quickstart, an API path, --search or --format."""
 
 import argparse
 import json
 from typing import Any
 
 from . import __doc__ as quickstart
-from .support import _markdown, support_catalog
+from ._catalog import render_markdown, support_catalog
 
 
 def _entries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -18,7 +18,10 @@ def main() -> None:
         "topic", nargs="?", help="API path, e.g. sphere_tmatrix or advect.Cluster"
     )
     parser.add_argument(
-        "--search", metavar="TEXT", help="Find public names and one-line descriptions"
+        "--search",
+        metavar="TEXT",
+        help="Find public names containing TEXT, with one-line descriptions; "
+        "separate alternatives with '|', e.g. 'cross|power'",
     )
     parser.add_argument(
         "--format", choices=("json", "markdown"), help="Export the complete catalog"
@@ -32,7 +35,7 @@ def main() -> None:
     catalog = support_catalog()
     if args.format:
         print(
-            _markdown(catalog)
+            render_markdown(catalog)
             if args.format == "markdown"
             else json.dumps(catalog, indent=2)
         )
@@ -40,9 +43,7 @@ def main() -> None:
     entries = _entries(catalog["api"])
     if args.search:
         terms = [
-            term.strip().casefold()
-            for term in args.search.replace(r"\|", "|").split("|")
-            if term.strip()
+            term.strip().casefold() for term in args.search.split("|") if term.strip()
         ]
         matches = [
             row
@@ -59,7 +60,7 @@ def main() -> None:
     )
     if path in catalog["modules"]:
         print(catalog["modules"][path])
-        print("\nPublic API (request a name for its full contract):")
+        print("\nPublic API (request a name for its full documentation):")
         for row in catalog["api"]:
             if row["path"].rsplit(".", 1)[0] == path:
                 print(row["path"] + row.get("signature", ""))

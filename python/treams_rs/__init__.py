@@ -5,6 +5,21 @@ Import as ``import treams_rs as tr``. Lengths use any consistent unit;
 permittivities (epsilon), not refractive indices; use ``Material(epsilon, mu,
 kappa)`` for magnetic/chiral media. Passive loss has positive imaginary epsilon.
 
+Terms used throughout:
+
+* ``medium``: the exterior (embedding) material; ``material`` is the particle
+  or layer material. Planar networks have a ``negative_medium`` (below) and a
+  ``positive_medium`` (above).
+* ``polarization``: the convention of the channels, ``"helicity"`` (default)
+  or ``"parity"`` (treams ``poltype``). ``pol`` is the state of one channel,
+  0 or 1; in the helicity convention pol 1 is positive helicity.
+* ``kind``: the radial kind of multipole waves, ``"regular"`` or
+  ``"singular"`` (outgoing; treams ``modetype``), or the direction of
+  plane-wave ports, ``"up"`` or ``"down"``.
+
+The glossary defines every term:
+https://yaugenst.github.io/treams-rs/reference/glossary/
+
 A complete particle calculation::
 
     import numpy as np
@@ -53,22 +68,24 @@ Sensitivity and optimization use an explicit framework namespace. With the
 
 Construct changing geometry/materials inside the objective and keep traced
 values as framework arrays (``advect.numpy``); convert to float/NumPy only after
-differentiation. Continuous geometry, material and frequency compose through
-native pullbacks; mode cutoffs, integer labels and topology stay fixed. CPU,
-first-order reverse mode only. JAX and PyTorch have explicit optional namespaces.
-The root NumPy namespace does not trace; ``diff`` exposes manual native VJPs.
+differentiation. Rust computes exact gradients with respect to continuous
+geometry, material and frequency; mode cutoffs, integer labels and topology stay
+fixed. CPU, first-order reverse mode only. JAX and PyTorch have explicit
+optional namespaces. The root NumPy namespace does not trace; ``diff`` returns
+each value with a context whose ``pullback`` gives the input gradients.
 
 Offline help: ``python -m treams_rs`` shows this quickstart;
 ``python -m treams_rs sphere_tmatrix`` or ``python -m treams_rs advect`` shows
-focused contracts; ``python -m treams_rs --search cross`` lists matching names.
+focused help; ``python -m treams_rs --search cross`` lists matching names.
 ``help(tr.sphere_tmatrix)`` also works. ``support_catalog()`` or explicit
 ``python -m treams_rs --format json`` gives the complete source-derived catalog.
 """
 
-from importlib import import_module
-from types import ModuleType
+from importlib import import_module as _import_module
+from types import ModuleType as _ModuleType
 
 from . import (
+    _upstream,
     coeffs,
     cw,
     diff,
@@ -82,44 +99,46 @@ from . import (
     sw,
     testing,
 )
-from ._core import CylindricalWaveBasis as CylindricalBasis
-from ._core import Material
-from ._core import PlaneWaveBasisByComp as PlaneWavePorts
-from ._core import PlaneWaveBasisByUnitVector as PlaneWaveBasis
-from ._core import SphericalWaveBasis as SphericalBasis
+from ._bases import CylindricalBasis, PlaneWaveBasis, PlaneWavePorts, SphericalBasis
+from ._catalog import support_catalog
+from ._cluster import Cluster, ScatteringFactor
 from ._lattice import Lattice, WaveVector
-from ._physics import (
-    Cluster,
-    PeriodicResponse,
-    PeriodicWave,
-    ScatteringFactor,
-    cylinder_tmatrix,
-    interface,
-    multilayer_cylinder_tmatrix,
-    multilayer_slab,
-    multilayer_sphere_tmatrix,
-    propagation,
-    slab,
-    solve_periodic,
-    sphere_tmatrix,
-    stack,
-)
-from ._plane import PlaneWave, plane_wave, plane_wave_angle
-from ._smatrix import (
+from ._material import Material
+from ._periodic import PeriodicResponse, PeriodicWave, solve_periodic
+from ._results import (
     BandModes,
     CircularDichroism,
+    CrossSections,
     PowerBalance,
     ScatteredPorts,
+)
+from ._smatrix import (
     ScatteringBlock,
     SMatrix,
     chirality_density,
+    interface,
+    multilayer_slab,
     poynting_avg_z,
+    propagation,
+    slab,
+    stack,
 )
-from ._source import MultipoleWave as Wave
-from ._source import cylindrical_wave, spherical_wave
-from ._tmatrix import CrossSections, TMatrix
-from ._tmatrix import TMatrixC as CylindricalTMatrix
-from .support import support_catalog
+from ._tmatrix import (
+    CylindricalTMatrix,
+    TMatrix,
+    cylinder_tmatrix,
+    multilayer_cylinder_tmatrix,
+    multilayer_sphere_tmatrix,
+    sphere_tmatrix,
+)
+from ._waves import (
+    PlaneWave,
+    Wave,
+    cylindrical_wave,
+    plane_wave,
+    plane_wave_angle,
+    spherical_wave,
+)
 
 __all__ = [
     "BandModes",
@@ -176,6 +195,8 @@ __all__ = [
 ]
 
 
+# Optional namespace -> distribution it needs. Keep it a literal: the API catalog
+# reads it from source.
 _OPTIONAL_MODULES = {
     "advect": "advect",
     "jax": "jax",
@@ -184,23 +205,20 @@ _OPTIONAL_MODULES = {
 }
 
 
-def __getattr__(name: str) -> ModuleType:
-    if name not in _OPTIONAL_MODULES:
-        for public_name in __all__:
-            value = globals()[public_name]
-            if isinstance(value, type) and value.__name__ == name:
-                raise AttributeError(
-                    f"{name} is exported as treams_rs.{public_name}; use {public_name}"
-                )
+def __getattr__(name: str) -> _ModuleType:
+    dependency = _OPTIONAL_MODULES.get(name)
+    if dependency is None:
+        if name in _upstream.UPSTREAM_NAMES:
+            raise _upstream.missing_attribute("treams_rs", name)
         raise AttributeError(f"module treams_rs has no attribute {name!r}")
     try:
-        module = import_module(f".{name}", __name__)
+        module = _import_module(f".{name}", __name__)
     except ModuleNotFoundError as error:
-        if error.name != _OPTIONAL_MODULES[name]:
+        if error.name != dependency:
             raise
         raise ModuleNotFoundError(
-            f"treams_rs.{name} needs {_OPTIONAL_MODULES[name]}; install the optional extra with "
-            f"pip install 'treams-rs[{name}]' in the environment containing your private wheel"
+            f"treams_rs.{name} needs {dependency}; install it with "
+            f"pip install 'treams-rs[{name}]'"
         ) from error
     globals()[name] = module
     return module
