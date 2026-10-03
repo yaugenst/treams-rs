@@ -62,7 +62,9 @@ def main():
         return -0.138 * np.cos(theta) * np.sin(theta)
 
     native = {
-        order: ebcm.qmat(radius, slope, ks, zs, out, incoming, order=order, legacy=True)
+        order: ebcm.qmat(
+            radius, slope, ks, zs, out, incoming, order=order, radial_area_factor=False
+        )
         for order in (48, 96, 192)
     }
     results = []

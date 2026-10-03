@@ -1,92 +1,50 @@
-//! Field samples and one-use native pullback contexts.
-#![allow(clippy::indexing_slicing)] // Fixed triples and validated array dimensions.
+//! `field`, `field_operator` and their cylindrical twins with `FieldContext` and
+//! `FieldOperatorContext`: electric fields of multipole bases at sample points
+//! (`treams_core::fields`).
 
 use crate::{
-    basis::{make_basis, make_cyl_basis},
-    error,
+    args::{make_basis, make_cyl_basis},
+    context::{context, cotangent_error, detached, radial},
+    convert::{
+        C1, C2, C3, Cotangent, R1, R2, all_finite, cotangent_view, layout_error, merged_cotangent,
+        rows, rows_array,
+    },
 };
+use nalgebra::DMatrix;
 use numpy::{
-    IntoPyArray, PyArray1, PyArray2, PyArray3, PyArrayDyn, PyArrayMethods, PyReadonlyArray1,
-    PyReadonlyArray2, PyReadonlyArray3, PyReadonlyArrayDyn,
-    ndarray::{Array2, Array3, IxDyn},
+    IntoPyArray, PyReadonlyArray1, PyReadonlyArray2,
+    ndarray::{Array3, Ix2, Ix3},
 };
-use pyo3::{exceptions::PyValueError, prelude::*};
+use pyo3::prelude::*;
 use treams_core::{
     Complex,
+    basis::MultipoleBasis,
     fields::{self, FieldResidual},
-    special::Radial,
+    fpenv::ieee,
 };
 
-fn triples<T: numpy::Element + Copy>(value: PyReadonlyArray2<'_, T>) -> PyResult<Vec<[T; 3]>> {
-    let array = value.as_array();
-    if array.ncols() != 3 {
-        return Err(PyValueError::new_err("array must have shape (N, 3)"));
-    }
-    Ok(array
-        .rows()
-        .into_iter()
-        .map(|row| [row[0], row[1], row[2]])
-        .collect())
-}
-fn array<'py, T: numpy::Element + Copy>(
-    py: Python<'py>,
-    value: &[[T; 3]],
-) -> Bound<'py, PyArray2<T>> {
-    Array2::from_shape_fn((value.len(), 3), |(i, j)| value[i][j]).into_pyarray(py)
-}
-
-fn operator_array(value: nalgebra::DMatrix<Complex>) -> PyResult<Array3<Complex>> {
+/// A column-major `(3 N, modes)` operator, whose rows run over (sample, Cartesian
+/// component), as an `(N, 3, modes)` array that keeps its storage.
+pub(crate) fn operator_array(value: DMatrix<Complex>) -> PyResult<Array3<Complex>> {
     let shape = (value.ncols(), value.nrows() / 3, 3);
     Array3::from_shape_vec(shape, Vec::from(value.data))
         .map(|a| a.permuted_axes([1, 2, 0]))
-        .map_err(|e| PyValueError::new_err(e.to_string()))
+        .map_err(layout_error)
 }
 
-#[pyclass]
-#[derive(Debug)]
-struct FieldContext {
-    residual: Option<FieldResidual>,
-}
-
-type Gradient<'py> = (
-    Bound<'py, PyArray1<Complex>>,
-    Bound<'py, PyArray2<f64>>,
-    Bound<'py, PyArray2<f64>>,
-    Bound<'py, PyArray1<Complex>>,
-);
-
-type AxialGradient<'py> = (
-    Bound<'py, PyArray1<Complex>>,
-    Bound<'py, PyArray2<f64>>,
-    Bound<'py, PyArray2<f64>>,
-    Bound<'py, PyArray1<Complex>>,
-    Bound<'py, PyArray1<f64>>,
-);
+context!(FieldContext(FieldResidual));
 
 impl FieldContext {
-    fn take(
-        &mut self,
-        cotangent: PyReadonlyArray2<'_, Complex>,
-    ) -> PyResult<(FieldResidual, Vec<[Complex; 3]>)> {
-        let g = triples(cotangent)?;
-        let residual = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        if g.len() != residual.value.len()
-            || g.iter()
-                .flatten()
-                .any(|v| !v.re.is_finite() || !v.im.is_finite())
-        {
-            return Err(PyValueError::new_err(
-                "cotangent must be finite and match the field shape",
-            ));
-        }
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        Ok((residual, g))
+    fn take(&mut self, cotangent: &Cotangent<'_>) -> PyResult<(FieldResidual, Vec<[Complex; 3]>)> {
+        self.residual.take_if(|residual| {
+            let expected: [usize; 2] = residual.shape().into();
+            let g = rows(cotangent_view::<_, Ix2>(cotangent, &expected)?, "cotangent")?;
+            if all_finite(g.as_flattened()) {
+                Ok(g)
+            } else {
+                Err(cotangent_error(&expected))
+            }
+        })
     }
 }
 #[pymethods]
@@ -94,421 +52,117 @@ impl FieldContext {
     fn pullback<'py>(
         &mut self,
         py: Python<'py>,
-        cotangent: PyReadonlyArray2<'py, Complex>,
-    ) -> PyResult<Gradient<'py>> {
-        let (residual, g) = self.take(cotangent)?;
-        let result = py.detach(move || residual.pullback(&g)).map_err(error)?;
-        Ok((
-            result.coefficients.into_pyarray(py),
-            array(py, &result.points),
-            array(py, &result.origins),
-            result.ks.to_vec().into_pyarray(py),
-        ))
+        cotangent: Cotangent<'py>,
+    ) -> PyResult<(C1<'py>, R2<'py>, R2<'py>, C1<'py>)> {
+        ieee(|| {
+            let (residual, g) = self.take(&cotangent)?;
+            let result = detached(py, move || residual.pullback(&g))?;
+            Ok((
+                result.coefficients.into_pyarray(py),
+                rows_array(py, result.points)?,
+                rows_array(py, result.positions)?,
+                result.ks.to_vec().into_pyarray(py),
+            ))
+        })
     }
     fn pullback_axial<'py>(
         &mut self,
         py: Python<'py>,
-        cotangent: PyReadonlyArray2<'py, Complex>,
-    ) -> PyResult<AxialGradient<'py>> {
-        let (residual, g) = self.take(cotangent)?;
-        let (result, kz) = py
-            .detach(move || residual.pullback_axial(&g))
-            .map_err(error)?;
-        Ok((
-            result.coefficients.into_pyarray(py),
-            array(py, &result.points),
-            array(py, &result.origins),
-            result.ks.to_vec().into_pyarray(py),
-            kz.into_pyarray(py),
-        ))
+        cotangent: Cotangent<'py>,
+    ) -> PyResult<(C1<'py>, R2<'py>, R2<'py>, C1<'py>, R1<'py>)> {
+        ieee(|| {
+            let (residual, g) = self.take(&cotangent)?;
+            let (result, kz) = detached(py, move || residual.pullback_axial(&g))?;
+            Ok((
+                result.coefficients.into_pyarray(py),
+                rows_array(py, result.points)?,
+                rows_array(py, result.positions)?,
+                result.ks.to_vec().into_pyarray(py),
+                kz.into_pyarray(py),
+            ))
+        })
     }
 }
 
+/// Record the electric field of spherical-wave coefficients at points: `fields::field`.
 #[pyfunction]
-fn field<'py>(
+pub(crate) fn field<'py>(
     py: Python<'py>,
     modes: Vec<(usize, i32, i32, u8)>,
-    origins: Vec<[f64; 3]>,
+    positions: Vec<[f64; 3]>,
     coefficients: PyReadonlyArray1<'py, Complex>,
     points: PyReadonlyArray2<'py, f64>,
     ks: [Complex; 2],
     helicity: bool,
-    outgoing: bool,
-) -> PyResult<(Bound<'py, PyArray2<Complex>>, FieldContext)> {
-    evaluate(
-        py,
-        make_basis(modes, origins).into(),
-        coefficients,
-        points,
-        ks,
-        helicity,
-        outgoing,
-    )
+    singular: bool,
+) -> PyResult<(C2<'py>, FieldContext)> {
+    ieee(|| {
+        evaluate(
+            py,
+            make_basis(modes, positions).into(),
+            coefficients,
+            points,
+            ks,
+            helicity,
+            singular,
+        )
+    })
 }
 
+/// Record the electric field of cylindrical-wave coefficients at points: `fields::field`.
 #[pyfunction]
-fn cylindrical_field<'py>(
+pub(crate) fn cylindrical_field<'py>(
     py: Python<'py>,
     modes: Vec<(usize, f64, i32, u8)>,
-    origins: Vec<[f64; 3]>,
+    positions: Vec<[f64; 3]>,
     coefficients: PyReadonlyArray1<'py, Complex>,
     points: PyReadonlyArray2<'py, f64>,
     ks: [Complex; 2],
     helicity: bool,
-    outgoing: bool,
-) -> PyResult<(Bound<'py, PyArray2<Complex>>, FieldContext)> {
-    evaluate(
-        py,
-        make_cyl_basis(modes, origins).into(),
-        coefficients,
-        points,
-        ks,
-        helicity,
-        outgoing,
-    )
+    singular: bool,
+) -> PyResult<(C2<'py>, FieldContext)> {
+    ieee(|| {
+        evaluate(
+            py,
+            make_cyl_basis(modes, positions).into(),
+            coefficients,
+            points,
+            ks,
+            helicity,
+            singular,
+        )
+    })
 }
 
+/// The field samples, moved into a C-ordered `(N, 3)` array, and their context.
 fn evaluate<'py>(
     py: Python<'py>,
-    basis: fields::FieldBasis,
+    basis: MultipoleBasis,
     coefficients: PyReadonlyArray1<'py, Complex>,
     points: PyReadonlyArray2<'py, f64>,
     ks: [Complex; 2],
     helicity: bool,
-    outgoing: bool,
-) -> PyResult<(Bound<'py, PyArray2<Complex>>, FieldContext)> {
-    let coefficients = coefficients.to_vec()?;
-    let points = triples(points)?;
-    let radial = if outgoing {
-        Radial::Outgoing
-    } else {
-        Radial::Regular
-    };
-    let residual = py
-        .detach(move || fields::field(basis, coefficients, points, ks, helicity, radial))
-        .map_err(error)?;
-    Ok((
-        array(py, &residual.value),
-        FieldContext {
-            residual: Some(residual),
-        },
-    ))
+    singular: bool,
+) -> PyResult<(C2<'py>, FieldContext)> {
+    let coefficients = coefficients.as_array().to_vec();
+    let points = rows(points.as_array(), "points")?;
+    let (value, residual) = detached(py, move || {
+        fields::field(basis, coefficients, points, ks, helicity, radial(singular))
+    })?;
+    Ok((rows_array(py, value)?, FieldContext::new(residual)))
 }
 
-#[pyclass]
-#[derive(Debug)]
-struct PlaneFieldContext {
-    residual: Option<treams_core::plane::FieldResidual>,
-    shape: Vec<usize>,
-    fixed_vectors: bool,
-}
-type PlaneGradient<'py> = (
-    Bound<'py, PyArray1<Complex>>,
-    Bound<'py, PyArray2<f64>>,
-    Bound<'py, PyArray2<Complex>>,
-);
-#[pymethods]
-impl PlaneFieldContext {
-    fn pullback<'py>(
-        &mut self,
-        py: Python<'py>,
-        cotangent: PyReadonlyArrayDyn<'py, Complex>,
-    ) -> PyResult<PlaneGradient<'py>> {
-        let cotangent = cotangent.as_array();
-        let residual = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        if cotangent.shape() != self.shape {
-            return Err(PyValueError::new_err(
-                "cotangent must be finite and match the field shape",
-            ));
-        }
-        let (rows, cols) = residual.shape();
-        let packed = cotangent.strides()[..2] == [3, 1]
-            && (self.shape.len() == 2 || usize::try_from(cotangent.strides()[2]) == Ok(rows));
-        let g = match cotangent.as_slice_memory_order() {
-            Some(data) if packed => nalgebra::DMatrix::from_column_slice(rows, cols, data),
-            _ => nalgebra::DMatrix::from_fn(rows, cols, |i, j| {
-                if self.shape.len() == 2 {
-                    cotangent[IxDyn(&[i / 3, i % 3])]
-                } else {
-                    cotangent[IxDyn(&[i / 3, i % 3, j])]
-                }
-            }),
-        };
-        // Validate the packed cotangent in memory order, independent of NumPy strides.
-        if g.iter().any(|v| !v.re.is_finite() || !v.im.is_finite()) {
-            return Err(PyValueError::new_err("cotangent must be finite"));
-        }
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let fixed = self.fixed_vectors;
-        let result = py
-            .detach(move || residual.pullback(&g, fixed))
-            .map_err(error)?;
-        Ok((
-            result.coefficients.into_pyarray(py),
-            array(py, &result.points),
-            array(py, &result.vectors),
-        ))
-    }
-}
-#[pyfunction]
-#[pyo3(signature=(vectors,polarizations,points,coefficients,helicity,fixed_vectors))]
-fn plane_field<'py>(
-    py: Python<'py>,
-    vectors: PyReadonlyArray2<'py, Complex>,
-    polarizations: Vec<u8>,
-    points: PyReadonlyArray2<'py, f64>,
-    coefficients: Option<PyReadonlyArray1<'py, Complex>>,
-    helicity: bool,
-    fixed_vectors: bool,
-) -> PyResult<(Bound<'py, PyArrayDyn<Complex>>, PlaneFieldContext)> {
-    let vectors = triples(vectors)?;
-    let points = triples(points)?;
-    let coefficients = coefficients.map(|c| c.to_vec()).transpose()?;
-    let shape = if coefficients.is_some() {
-        vec![points.len(), 3]
-    } else {
-        vec![points.len(), 3, vectors.len()]
-    };
-    let (value, residual) = py
-        .detach(move || {
-            treams_core::plane::field(vectors, polarizations, points, coefficients, helicity)
-        })
-        .map_err(error)?;
-    // Transfer Rust storage directly; expose (samples, Cartesian, modes) by strides.
-    let output = if shape.len() == 2 {
-        Array2::from_shape_vec((shape[0], 3), Vec::from(value.data))
-            .map_err(|e| PyValueError::new_err(e.to_string()))?
-            .into_dyn()
-    } else {
-        operator_array(value)?.into_dyn()
-    }
-    .into_pyarray(py);
-    Ok((
-        output,
-        PlaneFieldContext {
-            residual: Some(residual),
-            shape,
-            fixed_vectors,
-        },
-    ))
-}
-
-#[pyclass]
-#[derive(Debug)]
-struct PlanePhaseContext {
-    residual: Option<treams_core::plane::PhaseResidual>,
-}
-type PhaseGradient<'py> = (Bound<'py, PyArray2<f64>>, Bound<'py, PyArray2<Complex>>);
-#[pymethods]
-impl PlanePhaseContext {
-    fn pullback<'py>(
-        &mut self,
-        py: Python<'py>,
-        cotangent: PyReadonlyArray2<'py, Complex>,
-    ) -> PyResult<PhaseGradient<'py>> {
-        let g = cotangent.as_array();
-        let residual = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        if g.dim() != residual.shape() {
-            return Err(PyValueError::new_err(
-                "cotangent shape does not match forward output",
-            ));
-        }
-        if g.iter().any(|v| !v.re.is_finite() || !v.im.is_finite()) {
-            return Err(PyValueError::new_err("cotangent must be finite"));
-        }
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let gradient = if let (Some(data), Ok(row), Ok(column)) = (
-            g.as_slice_memory_order().filter(|data| !data.is_empty()),
-            usize::try_from(g.strides()[0]),
-            usize::try_from(g.strides()[1]),
-        ) {
-            // Borrow contiguous C/F cotangents while the read-only Python borrow
-            // is alive. Strided or reversed inputs use the existing packed copy.
-            let view = nalgebra::DMatrixView::from_slice_with_strides(
-                data,
-                g.nrows(),
-                g.ncols(),
-                row,
-                column,
-            );
-            py.detach(move || residual.pullback(&view))
-        } else {
-            let packed = crate::tmatrix::matrix_from_view(g);
-            py.detach(move || residual.pullback(&packed))
-        }
-        .map_err(error)?;
-        Ok((array(py, &gradient.points), array(py, &gradient.vectors)))
-    }
-}
-
-#[pyfunction]
-fn plane_phases<'py>(
-    py: Python<'py>,
-    points: PyReadonlyArray2<'py, f64>,
-    vectors: PyReadonlyArray2<'py, Complex>,
-) -> PyResult<(Bound<'py, PyArray2<Complex>>, PlanePhaseContext)> {
-    let points = triples(points)?;
-    let vectors = triples(vectors)?;
-    let (value, residual) = py
-        .detach(move || treams_core::plane::phases(points, vectors))
-        .map_err(error)?;
-    let output = Array2::from_shape_vec((value.ncols(), value.nrows()), Vec::from(value.data))
-        .map_err(|e| PyValueError::new_err(e.to_string()))?
-        .reversed_axes()
-        .into_pyarray(py);
-    Ok((
-        output,
-        PlanePhaseContext {
-            residual: Some(residual),
-        },
-    ))
-}
-
-#[pyclass]
-#[derive(Debug)]
-struct PlanePermutationContext {
-    residual: Option<treams_core::plane::PermutationResidual>,
-}
-
-#[pymethods]
-impl PlanePermutationContext {
-    fn pullback<'py>(
-        &mut self,
-        py: Python<'py>,
-        cotangent: PyReadonlyArray2<'py, Complex>,
-    ) -> PyResult<Bound<'py, PyArray2<Complex>>> {
-        let g = crate::tmatrix::from_array(cotangent)?;
-        let residual = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        if g.shape() != (2, residual.modes()) {
-            return Err(PyValueError::new_err(
-                "permutation cotangent must have shape (2, modes)",
-            ));
-        }
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let gradient = py.detach(move || residual.pullback(&g)).map_err(error)?;
-        Ok(array(py, &gradient))
-    }
-}
-
-#[pyfunction]
-#[allow(clippy::float_cmp)] // Polarizations are exact discrete labels, not measured floats.
-fn plane_permutation<'py>(
-    py: Python<'py>,
-    vectors: PyReadonlyArray2<'py, Complex>,
-    polarizations: PyReadonlyArray1<'py, f64>,
-    turns: usize,
-    helicity: bool,
-) -> PyResult<(Bound<'py, PyArray2<Complex>>, PlanePermutationContext)> {
-    let vectors = triples(vectors)?;
-    let polarizations = polarizations
-        .as_array()
-        .iter()
-        .map(|&p| {
-            if p == 0.0 || p == 1.0 {
-                Ok(u8::from(p == 1.0))
-            } else {
-                Err(PyValueError::new_err("polarizations must be 0 or 1"))
-            }
-        })
-        .collect::<PyResult<Vec<_>>>()?;
-    let (value, residual) = py
-        .detach(move || treams_core::plane::permutation(vectors, polarizations, turns, helicity))
-        .map_err(error)?;
-    let value = Array2::from_shape_vec((value.ncols(), 2), Vec::from(value.data))
-        .map_err(|e| PyValueError::new_err(e.to_string()))?
-        .reversed_axes()
-        .into_pyarray(py);
-    Ok((
-        value,
-        PlanePermutationContext {
-            residual: Some(residual),
-        },
-    ))
-}
-
-pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<PlanePermutationContext>()?;
-    m.add_function(wrap_pyfunction!(plane_permutation, m)?)?;
-    m.add_class::<PlanePhaseContext>()?;
-    m.add_function(wrap_pyfunction!(plane_phases, m)?)?;
-    m.add_class::<PlaneFieldContext>()?;
-    m.add_function(wrap_pyfunction!(plane_field, m)?)?;
-    m.add_class::<FieldContext>()?;
-    m.add_function(wrap_pyfunction!(field, m)?)?;
-    m.add_function(wrap_pyfunction!(cylindrical_field, m)?)?;
-    m.add_class::<FieldOperatorContext>()?;
-    m.add_function(wrap_pyfunction!(field_operator, m)?)?;
-    m.add_function(wrap_pyfunction!(cylindrical_field_operator, m)?)?;
-    Ok(())
-}
-
-#[pyclass]
-#[derive(Debug)]
-struct FieldOperatorContext {
-    residual: Option<fields::OperatorResidual>,
-}
-type OperatorGradient<'py> = (
-    Bound<'py, PyArray2<f64>>,
-    Bound<'py, PyArray2<f64>>,
-    Bound<'py, PyArray1<Complex>>,
-);
-type AxialOperatorGradient<'py> = (
-    Bound<'py, PyArray2<f64>>,
-    Bound<'py, PyArray2<f64>>,
-    Bound<'py, PyArray1<Complex>>,
-    Bound<'py, PyArray1<f64>>,
-);
+context!(FieldOperatorContext(fields::OperatorResidual));
 impl FieldOperatorContext {
     fn take(
         &mut self,
-        cotangent: PyReadonlyArray3<'_, Complex>,
-    ) -> PyResult<(fields::OperatorResidual, nalgebra::DMatrix<Complex>)> {
-        let g = cotangent.as_array();
-        let residual = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let (rows, modes) = residual.shape();
-        if g.dim() != (rows / 3, 3, modes) {
-            return Err(PyValueError::new_err(
-                "cotangent must be finite and match the field operator shape",
-            ));
-        }
-        let g = match g.as_slice_memory_order() {
-            Some(data)
-                if g.strides()[..2] == [3, 1] && usize::try_from(g.strides()[2]) == Ok(rows) =>
-            {
-                nalgebra::DMatrix::from_column_slice(rows, modes, data)
-            }
-            _ => nalgebra::DMatrix::from_fn(rows, modes, |i, j| g[(i / 3, i % 3, j)]),
-        };
-        // Validate the packed cotangent in memory order, independent of NumPy strides.
-        if g.iter().any(|v| !v.re.is_finite() || !v.im.is_finite()) {
-            return Err(PyValueError::new_err("cotangent must be finite"));
-        }
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        Ok((residual, g))
+        cotangent: &Cotangent<'_>,
+    ) -> PyResult<(fields::OperatorResidual, DMatrix<Complex>)> {
+        self.residual.take_if(|residual| {
+            // The native rows run over (sample, Cartesian component).
+            let (rows, modes) = residual.shape();
+            merged_cotangent::<Ix3>(cotangent, &[rows / 3, 3, modes], (rows, modes))
+        })
     }
 }
 #[pymethods]
@@ -516,93 +170,97 @@ impl FieldOperatorContext {
     fn pullback<'py>(
         &mut self,
         py: Python<'py>,
-        cotangent: PyReadonlyArray3<'py, Complex>,
-    ) -> PyResult<OperatorGradient<'py>> {
-        let (residual, g) = self.take(cotangent)?;
-        let result = py.detach(move || residual.pullback(&g)).map_err(error)?;
-        Ok((
-            array(py, &result.points),
-            array(py, &result.origins),
-            result.ks.to_vec().into_pyarray(py),
-        ))
+        cotangent: Cotangent<'py>,
+    ) -> PyResult<(R2<'py>, R2<'py>, C1<'py>)> {
+        ieee(|| {
+            let (residual, g) = self.take(&cotangent)?;
+            let result = detached(py, move || residual.pullback(&g))?;
+            Ok((
+                rows_array(py, result.points)?,
+                rows_array(py, result.positions)?,
+                result.ks.to_vec().into_pyarray(py),
+            ))
+        })
     }
     fn pullback_axial<'py>(
         &mut self,
         py: Python<'py>,
-        cotangent: PyReadonlyArray3<'py, Complex>,
-    ) -> PyResult<AxialOperatorGradient<'py>> {
-        let (residual, g) = self.take(cotangent)?;
-        let (result, kz) = py
-            .detach(move || residual.pullback_axial(&g))
-            .map_err(error)?;
-        Ok((
-            array(py, &result.points),
-            array(py, &result.origins),
-            result.ks.to_vec().into_pyarray(py),
-            kz.into_pyarray(py),
-        ))
+        cotangent: Cotangent<'py>,
+    ) -> PyResult<(R2<'py>, R2<'py>, C1<'py>, R1<'py>)> {
+        ieee(|| {
+            let (residual, g) = self.take(&cotangent)?;
+            let (result, kz) = detached(py, move || residual.pullback_axial(&g))?;
+            Ok((
+                rows_array(py, result.points)?,
+                rows_array(py, result.positions)?,
+                result.ks.to_vec().into_pyarray(py),
+                kz.into_pyarray(py),
+            ))
+        })
     }
 }
 
+/// Record the matrix from spherical-wave coefficients to field samples: `fields::operator`.
 #[pyfunction]
-fn field_operator<'py>(
+pub(crate) fn field_operator<'py>(
     py: Python<'py>,
     modes: Vec<(usize, i32, i32, u8)>,
-    origins: Vec<[f64; 3]>,
+    positions: Vec<[f64; 3]>,
     points: PyReadonlyArray2<'py, f64>,
     ks: [Complex; 2],
     helicity: bool,
-    outgoing: bool,
-) -> PyResult<(Bound<'py, PyArray3<Complex>>, FieldOperatorContext)> {
-    evaluate_operator(
-        py,
-        make_basis(modes, origins).into(),
-        points,
-        ks,
-        helicity,
-        outgoing,
-    )
+    singular: bool,
+) -> PyResult<(C3<'py>, FieldOperatorContext)> {
+    ieee(|| {
+        evaluate_operator(
+            py,
+            make_basis(modes, positions).into(),
+            points,
+            ks,
+            helicity,
+            singular,
+        )
+    })
 }
+/// Record the matrix from cylindrical-wave coefficients to field samples: `fields::operator`.
 #[pyfunction]
-fn cylindrical_field_operator<'py>(
+pub(crate) fn cylindrical_field_operator<'py>(
     py: Python<'py>,
     modes: Vec<(usize, f64, i32, u8)>,
-    origins: Vec<[f64; 3]>,
+    positions: Vec<[f64; 3]>,
     points: PyReadonlyArray2<'py, f64>,
     ks: [Complex; 2],
     helicity: bool,
-    outgoing: bool,
-) -> PyResult<(Bound<'py, PyArray3<Complex>>, FieldOperatorContext)> {
-    evaluate_operator(
-        py,
-        make_cyl_basis(modes, origins).into(),
-        points,
-        ks,
-        helicity,
-        outgoing,
-    )
+    singular: bool,
+) -> PyResult<(C3<'py>, FieldOperatorContext)> {
+    ieee(|| {
+        evaluate_operator(
+            py,
+            make_cyl_basis(modes, positions).into(),
+            points,
+            ks,
+            helicity,
+            singular,
+        )
+    })
 }
+
+/// The field operator, moved into an `(N, 3, modes)` array whose strides follow the
+/// column-major matrix, and its context.
 fn evaluate_operator<'py>(
     py: Python<'py>,
-    basis: fields::FieldBasis,
+    basis: MultipoleBasis,
     points: PyReadonlyArray2<'py, f64>,
     ks: [Complex; 2],
     helicity: bool,
-    outgoing: bool,
-) -> PyResult<(Bound<'py, PyArray3<Complex>>, FieldOperatorContext)> {
-    let points = triples(points)?;
-    let radial = if outgoing {
-        Radial::Outgoing
-    } else {
-        Radial::Regular
-    };
-    let (value, residual) = py
-        .detach(move || fields::operator(basis, points, ks, helicity, radial))
-        .map_err(error)?;
+    singular: bool,
+) -> PyResult<(C3<'py>, FieldOperatorContext)> {
+    let points = rows(points.as_array(), "points")?;
+    let (value, residual) = detached(py, move || {
+        fields::operator(basis, points, ks, helicity, radial(singular))
+    })?;
     Ok((
         operator_array(value)?.into_pyarray(py),
-        FieldOperatorContext {
-            residual: Some(residual),
-        },
+        FieldOperatorContext::new(residual),
     ))
 }

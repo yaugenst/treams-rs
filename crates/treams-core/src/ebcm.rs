@@ -1,56 +1,77 @@
-//! Axisymmetric extended-boundary-condition surface integrals and native adjoints.
+//! Q-matrices of the extended boundary condition method (EBCM) for particles that are
+//! symmetric about the z axis, with analytic gradients for the surface and the media.
+//!
+//! Upstream: `treams.ebcm`. [`qmat`] computes `treams.ebcm.qmat` with two differences:
+//!
+//! - `radial_area_factor = true` includes the factor `r` of the surface element
+//!   `(r rhat - r' theta-hat) r sin(theta) dtheta dphi`, which treams omits; `false`
+//!   reproduces treams. See
+//!   <https://yaugenst.github.io/treams-rs/coming-from-treams/differences/>.
+//! - It sums over the fixed polar nodes and weights of a [`Surface`]; the Python
+//!   `ebcm.qmat` passes Gauss-Legendre nodes. treams integrates each matrix entry with
+//!   the adaptive `scipy.integrate.quad`.
 #![allow(clippy::indexing_slicing)] // Validated mode/sample dimensions and Cartesian axes.
+
+use std::collections::HashMap;
 
 use nalgebra::DMatrix;
 use rayon::prelude::*;
 
 use crate::{
     Complex, Error, Result,
-    fields::{VectorWave, spherical_wave_impl},
-    finite,
+    basis::{ModeLabel, MultipoleBasis},
+    fields::{SPATIAL_AND_K, VALUES, VectorWave, WaveSet},
+    numerics::finite,
     special::Radial,
-    waves::Mode,
+    sw::Mode,
 };
 
-/// A radial surface sampled at fixed polar quadrature nodes in [0, pi].
+/// A surface of revolution `r(theta)` about the z axis, sampled at fixed polar
+/// quadrature nodes in [0, pi].
 #[derive(Debug)]
 pub struct Surface {
-    /// Polar angles; these and the integration weights are held fixed in reverse.
+    /// Polar angles; the pullback holds these and the integration weights fixed.
     pub theta: Vec<f64>,
     /// Integration weights for d theta, without the sin(theta) Jacobian.
     pub weights: Vec<f64>,
     /// Positive surface radius at each node.
     pub radii: Vec<f64>,
-    /// d radius / d theta at each node, independently differentiable here.
+    /// The slope `dr/dtheta` at each node. The pullback treats it as an input
+    /// independent of the radii.
     pub slopes: Vec<f64>,
 }
 
-/// Geometry-only Q-matrix residual, recomputing local waves during reverse.
+/// What [`qmat`] saves for its pullback: the modes, the surface and the media, without
+/// any wave values; the pullback evaluates the waves again.
 #[derive(Debug)]
-pub struct QResidual {
-    to: Vec<Mode>,
+pub struct QmatResidual {
+    destination: Vec<Mode>,
     source: Vec<Mode>,
     surface: Surface,
     ks: [[Complex; 2]; 2],
     zs: [Complex; 2],
     radial: Radial,
-    legacy: bool,
+    radial_area_factor: bool,
 }
 
-/// Cotangents of all sampled shape and continuous medium parameters.
+/// Input gradients of [`QmatResidual::pullback`].
 #[derive(Debug)]
-pub struct QGradient {
-    /// Surface-radius cotangents.
+pub struct QmatGradient {
+    /// Gradients of the surface radii, one per node.
     pub radii: Vec<f64>,
-    /// Surface-slope cotangents.
+    /// Gradients of the surface slopes, one per node.
     pub slopes: Vec<f64>,
-    /// Inner/outer complex wavenumbers, each ordered negative/positive helicity.
+    /// Gradients of the inner and outer wavenumbers, each ordered negative, positive
+    /// helicity.
     pub ks: [[Complex; 2]; 2],
-    /// Inner/outer complex impedances.
+    /// Gradients of the inner and outer impedances.
     pub zs: [Complex; 2],
 }
 
-fn geometry(surface: &Surface, i: usize) -> [[f64; 3]; 4] {
+/// The point of node `i` in the x-z plane, its unnormalized surface normal
+/// `r rhat - r' theta-hat` (`r'` is the slope `dr/dtheta`) and the unit vectors `rhat`
+/// and `-theta-hat`, along which the normal changes with the radius and the slope.
+fn node_geometry(surface: &Surface, i: usize) -> [[f64; 3]; 4] {
     let (s, c) = surface.theta[i].sin_cos();
     let rhat = [s, 0.0, c];
     let slope = [-c, 0.0, s];
@@ -62,50 +83,85 @@ fn geometry(surface: &Surface, i: usize) -> [[f64; 3]; 4] {
     ]
 }
 
+/// `a x n` of a complex and a real vector.
+fn cross(a: [Complex; 3], n: [f64; 3]) -> [Complex; 3] {
+    [
+        a[1] * n[2] - a[2] * n[1],
+        a[2] * n[0] - a[0] * n[2],
+        a[0] * n[1] - a[1] * n[0],
+    ]
+}
+
+/// The bilinear (unconjugated) product `a . b`.
+fn dot(a: [Complex; 3], b: [Complex; 3]) -> Complex {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+/// The triple product `n . (a x b)`.
 fn triple(n: [f64; 3], a: [Complex; 3], b: [Complex; 3]) -> Complex {
     n[0] * (a[1] * b[2] - a[2] * b[1])
         + n[1] * (a[2] * b[0] - a[0] * b[2])
         + n[2] * (a[0] * b[1] - a[1] * b[0])
 }
 
-fn waves<const D: bool>(
-    modes: &[Mode],
+/// Spherical helicity waves of `modes` about the origin with wavenumbers `ks`. Only
+/// the wavenumbers of helicities with modes are evaluated. The other may be zero,
+/// which [`WaveSet::new`] rejects, so it takes the evaluated one's value.
+fn origin_waves(
+    modes: impl Iterator<Item = Mode>,
     ks: [Complex; 2],
-    position: [f64; 3],
     radial: Radial,
-    reverse_m: bool,
-) -> Result<Vec<VectorWave>> {
-    modes
-        .iter()
-        .map(|&mode| {
-            spherical_wave_impl::<D>(
-                Mode {
-                    m: if reverse_m { -mode.m } else { mode.m },
-                    ..mode
-                },
-                ks[usize::from(mode.pol)],
-                position,
-                true,
-                radial,
-            )
-        })
-        .collect()
+) -> Result<WaveSet> {
+    let modes: Vec<_> = modes.map(|mode| (0, mode)).collect();
+    let used = |pol: usize| modes.iter().any(|(_, mode)| usize::from(mode.pol) == pol);
+    let ks = [0, 1].map(|pol| if used(pol) { ks[pol] } else { ks[1 - pol] });
+    let basis = crate::sw::Basis {
+        modes,
+        positions: vec![[0.0; 3]],
+    };
+    WaveSet::new(MultipoleBasis::Spherical(basis), ks, true, radial)
 }
 
-/// Integrate Q between regular inner test waves and regular/outgoing outer waves.
-/// Set legacy to reproduce treams' integral with its radial area factor omitted.
+/// The first `count` waves of `waves` at `point`, which share their radial functions
+/// per degree and wavenumber and their solid harmonics per degree and order. `N` is
+/// the derivative level, [`VALUES`] or [`SPATIAL_AND_K`].
+fn evaluate_waves<const N: usize>(
+    waves: &WaveSet,
+    count: usize,
+    point: [f64; 3],
+) -> Result<Vec<VectorWave>> {
+    let mut cache = waves.cache::<N>();
+    // The loop writes each 240-byte wave once into a presized vector; collecting the
+    // `Result`s copies it through an iterator adapter and grows the vector stepwise.
+    let mut values = Vec::with_capacity(count);
+    for i in 0..count {
+        values.push(waves.wave::<N>(i, point, &mut cache)?.0);
+    }
+    Ok(values)
+}
+
+/// Integrate Q between regular inner test waves and regular or singular outer waves.
+///
+/// The surface element of node `i` is `(r rhat - r' theta-hat) r sin(theta) w_i`, where
+/// `w_i` is the quadrature weight. With `radial_area_factor` false the factor `r` is
+/// omitted. Each entry sums its nodes in order, so the result does not depend on the
+/// thread count.
+///
+/// Upstream: `treams.ebcm.qmat`. Differences: treams omits the radial area factor `r`,
+/// and `radial_area_factor = false` reproduces treams; treams integrates each entry
+/// with adaptive quadrature, while this sums over the fixed nodes of `surface`.
 pub fn qmat(
-    to: Vec<Mode>,
+    destination: Vec<Mode>,
     source: Vec<Mode>,
     surface: Surface,
     ks: [[Complex; 2]; 2],
     zs: [Complex; 2],
-    singular: bool,
-    legacy: bool,
-) -> Result<(DMatrix<Complex>, QResidual)> {
+    radial: Radial,
+    radial_area_factor: bool,
+) -> Result<(DMatrix<Complex>, QmatResidual)> {
     let n = surface.theta.len();
     if n == 0
-        || to.is_empty()
+        || destination.is_empty()
         || source.is_empty()
         || surface.weights.len() != n
         || surface.radii.len() != n
@@ -124,136 +180,194 @@ pub fn qmat(
     {
         return Err(Error::InvalidInput("require nonempty modes, finite matching surface samples, positive radii and polar angles in [0, pi]".into()));
     }
-    for mode in to.iter().chain(&source) {
+    for mode in destination.iter().chain(&source) {
         mode.validate()?;
     }
-    let residual = QResidual {
-        to,
+    let residual = QmatResidual {
+        destination,
         source,
         surface,
         ks,
         zs,
-        legacy,
-        radial: if singular {
-            Radial::Outgoing
-        } else {
-            Radial::Regular
-        },
+        radial,
+        radial_area_factor,
     };
-    let rows = residual.to.len();
-    let mut value = DMatrix::zeros(rows, residual.source.len());
-    for node in 0..n {
-        let [point, normal, _, _] = geometry(&residual.surface, node);
-        let a = waves::<false>(&residual.to, ks[0], point, Radial::Regular, true)?;
-        let b = waves::<false>(&residual.source, ks[1], point, residual.radial, false)?;
-        let weight = residual.surface.weights[node]
-            * residual.surface.theta[node].sin()
-            * if legacy {
-                1.0
-            } else {
-                residual.surface.radii[node]
-            };
-        let fill = |(j, column): (usize, &mut [Complex])| {
-            for (i, entry) in column.iter_mut().enumerate() {
-                if residual.to[i].m == residual.source[j].m {
-                    let factor = (2.0 * f64::from(residual.to[i].pol) - 1.0) * zs[1]
-                        + (2.0 * f64::from(residual.source[j].pol) - 1.0) * zs[0];
-                    *entry += weight * factor * triple(normal, a[i].value, b[j].value);
+    // The wave evaluations dominate; each node is independent.
+    let [destination, source] = residual.wave_sets()?;
+    let samples = (0..n)
+        .into_par_iter()
+        .map(|node| -> Result<Sample> {
+            let [point, normal, _, _] = node_geometry(&residual.surface, node);
+            let values = |waves: Vec<VectorWave>| waves.into_iter().map(|w| w.value).collect();
+            Ok(Sample {
+                weight: residual.weight(node),
+                normal,
+                destination: values(evaluate_waves::<VALUES>(
+                    &destination,
+                    residual.destination.len(),
+                    point,
+                )?),
+                source: values(evaluate_waves::<VALUES>(
+                    &source,
+                    residual.source.len(),
+                    point,
+                )?),
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let rows = residual.rows_by_order();
+    let factors = residual.factors();
+    let mut value = DMatrix::zeros(residual.destination.len(), residual.source.len());
+    // Each entry sums its nodes in order, so the result is independent of threading.
+    value
+        .as_mut_slice()
+        .par_chunks_mut(residual.destination.len())
+        .zip(&residual.source)
+        .enumerate()
+        .for_each(|(j, (column, from))| {
+            let rows = rows.get(&from.m).map_or(&[][..], Vec::as_slice);
+            for sample in &samples {
+                for &i in rows {
+                    let factor =
+                        factors[usize::from(residual.destination[i].pol)][usize::from(from.pol)];
+                    column[i] += sample.weight
+                        * factor
+                        * triple(sample.normal, sample.destination[i], sample.source[j]);
                 }
             }
-        };
-        if value.len() >= 4096 {
-            value
-                .as_mut_slice()
-                .par_chunks_mut(rows)
-                .enumerate()
-                .for_each(fill);
-        } else {
-            value
-                .as_mut_slice()
-                .chunks_mut(rows)
-                .enumerate()
-                .for_each(fill);
-        }
-    }
+        });
     if value.iter().any(|&z| !finite(z)) {
-        return Err(Error::SpecialFunction("non-finite EBCM integral".into()));
+        return Err(Error::NonFinite("non-finite EBCM integral".into()));
     }
     Ok((value, residual))
 }
 
-impl QResidual {
+/// The sign `2 pol - 1` of polarizations 0 and 1 (negative and positive helicity), as
+/// [`helicity_sign`](crate::special::helicity_sign) gives it. A pair of helicities
+/// couples through the impedance factor `HELICITY[a] z_outer + HELICITY[b] z_inner`,
+/// so the impedance gradients use the same signs.
+const HELICITY: [f64; 2] = [-1.0, 1.0];
+
+/// Surface weight and normal of one node with the waves evaluated there.
+struct Sample {
+    weight: f64,
+    normal: [f64; 3],
+    destination: Vec<[Complex; 3]>,
+    source: Vec<[Complex; 3]>,
+}
+
+impl QmatResidual {
+    /// The inner test waves, whose orders are reversed, and the outer waves.
+    fn wave_sets(&self) -> Result<[WaveSet; 2]> {
+        let reversed = self
+            .destination
+            .iter()
+            .map(|&mode| Mode { m: -mode.m, ..mode });
+        Ok([
+            origin_waves(reversed, self.ks[0], Radial::Regular)?,
+            origin_waves(self.source.iter().copied(), self.ks[1], self.radial)?,
+        ])
+    }
+
+    /// Integration weight of a node: the quadrature weight, `sin(theta)` and, with
+    /// `radial_area_factor`, the radius.
+    fn weight(&self, node: usize) -> f64 {
+        self.measure(node)
+            * if self.radial_area_factor {
+                self.surface.radii[node]
+            } else {
+                1.0
+            }
+    }
+
+    /// The quadrature weight times `sin(theta)`, which does not depend on the radius.
+    fn measure(&self, node: usize) -> f64 {
+        self.surface.weights[node] * self.surface.theta[node].sin()
+    }
+
+    /// The rows of each azimuthal order; only equal orders couple.
+    fn rows_by_order(&self) -> HashMap<i32, Vec<usize>> {
+        let mut rows = HashMap::<i32, Vec<usize>>::new();
+        for (i, mode) in self.destination.iter().enumerate() {
+            rows.entry(mode.m).or_default().push(i);
+        }
+        rows
+    }
+
+    /// The impedance factor `HELICITY[a] z_outer + HELICITY[b] z_inner` of each (row
+    /// helicity `a`, column helicity `b`) pair.
+    fn factors(&self) -> [[Complex; 2]; 2] {
+        HELICITY.map(|a| HELICITY.map(|b| a * self.zs[1] + b * self.zs[0]))
+    }
+
     /// Matrix shape, for binding-level cotangent validation.
     #[must_use]
     pub fn shape(&self) -> (usize, usize) {
-        (self.to.len(), self.source.len())
+        (self.destination.len(), self.source.len())
     }
 
-    /// Analytic surface and medium VJP at fixed quadrature nodes and weights.
-    pub fn pullback(self, g: &DMatrix<Complex>) -> Result<QGradient> {
-        if g.shape() != self.shape() || g.iter().any(|&z| !finite(z)) {
+    /// Gradients of the surface radii and slopes, the wavenumbers and the impedances
+    /// from `cotangent`, the gradient of a real loss with respect to the matrix. The
+    /// quadrature nodes and weights stay fixed. The sums run over the nodes in order,
+    /// so the gradients do not depend on the thread count.
+    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<QmatGradient> {
+        if cotangent.shape() != self.shape() || cotangent.iter().any(|&z| !finite(z)) {
             return Err(Error::InvalidInput("invalid EBCM cotangent".into()));
         }
+        let rows = self.rows_by_order();
+        let factors = self.factors();
+        let [destination, source] = self.wave_sets()?;
         let nodes = (0..self.surface.theta.len())
             .into_par_iter()
             .map(|node| {
-                let [point, normal, rhat, slope] = geometry(&self.surface, node);
-                let a = waves::<true>(&self.to, self.ks[0], point, Radial::Regular, true)?;
-                let b = waves::<true>(&self.source, self.ks[1], point, self.radial, false)?;
-                let measure = self.surface.weights[node] * self.surface.theta[node].sin();
-                let weight = measure
-                    * if self.legacy {
-                        1.0
-                    } else {
-                        self.surface.radii[node]
-                    };
+                let [point, normal, rhat, slope] = node_geometry(&self.surface, node);
+                let a =
+                    evaluate_waves::<SPATIAL_AND_K>(&destination, self.destination.len(), point)?;
+                let b = evaluate_waves::<SPATIAL_AND_K>(&source, self.source.len(), point)?;
+                let (measure, weight) = (self.measure(node), self.weight(node));
+                let along_radius = |wave: &VectorWave| -> [Complex; 3] {
+                    std::array::from_fn(|c| (0..3).map(|d| wave.position[c][d] * rhat[d]).sum())
+                };
+                let ar: Vec<_> = a.iter().map(along_radius).collect();
                 let mut result = NodeGradient::default();
-                for (j, vb) in b.iter().enumerate() {
-                    let pb = usize::from(self.source[j].pol);
-                    for (i, va) in a.iter().enumerate() {
-                        if self.to[i].m != self.source[j].m || g[(i, j)] == Complex::default() {
+                for (j, (vb, from)) in b.iter().zip(&self.source).enumerate() {
+                    let pb = usize::from(from.pol);
+                    // With triple(n, a, b) = a . (b x n), each outer wave's cross
+                    // products serve all of its inner partners.
+                    let normal_cross = cross(vb.value, normal);
+                    let rhat_cross = cross(vb.value, rhat);
+                    let slope_cross = cross(vb.value, slope);
+                    let radius_cross = cross(along_radius(vb), normal);
+                    let k_cross = cross(vb.k, normal);
+                    for &i in rows.get(&from.m).into_iter().flatten() {
+                        let cot = cotangent[(i, j)];
+                        if cot == Complex::default() {
                             continue;
                         }
-                        let pa = usize::from(self.to[i].pol);
-                        let sa = 2.0 * f64::from(self.to[i].pol) - 1.0;
-                        let sb = 2.0 * f64::from(self.source[j].pol) - 1.0;
-                        let factor = sa * self.zs[1] + sb * self.zs[0];
-                        let ar = std::array::from_fn(|c| {
-                            (0..3).map(|d| va.position[c][d] * rhat[d]).sum()
-                        });
-                        let br = std::array::from_fn(|c| {
-                            (0..3).map(|d| vb.position[c][d] * rhat[d]).sum()
-                        });
-                        let dr = triple(rhat, va.value, vb.value)
-                            + triple(normal, ar, vb.value)
-                            + triple(normal, va.value, br);
-                        let cotangent = g[(i, j)];
-                        result.radius += (cotangent.conj() * weight * factor * dr).re;
-                        if !self.legacy {
-                            result.radius += (cotangent.conj()
-                                * measure
-                                * factor
-                                * triple(normal, va.value, vb.value))
-                            .re;
+                        let va = &a[i];
+                        let pa = usize::from(self.destination[i].pol);
+                        let factor = factors[pa][pb];
+                        let t = dot(va.value, normal_cross);
+                        let dr = dot(va.value, rhat_cross)
+                            + dot(ar[i], normal_cross)
+                            + dot(va.value, radius_cross);
+                        let scaled = cot.conj() * weight;
+                        let weighted = scaled * factor;
+                        result.radius += (weighted * dr).re;
+                        if self.radial_area_factor {
+                            result.radius += (cot.conj() * measure * factor * t).re;
                         }
-                        result.slope += (cotangent.conj()
-                            * weight
-                            * factor
-                            * triple(slope, va.value, vb.value))
-                        .re;
-                        result.ks[0][pa] +=
-                            cotangent * (weight * factor * triple(normal, va.k, vb.value)).conj();
-                        result.ks[1][pb] +=
-                            cotangent * (weight * factor * triple(normal, va.value, vb.k)).conj();
-                        let base = weight * triple(normal, va.value, vb.value);
-                        result.zs[0] += cotangent * (sb * base).conj();
-                        result.zs[1] += cotangent * (sa * base).conj();
+                        result.slope += (weighted * dot(va.value, slope_cross)).re;
+                        result.ks[0][pa] += (weighted * dot(va.k, normal_cross)).conj();
+                        result.ks[1][pb] += (weighted * dot(va.value, k_cross)).conj();
+                        result.zs[0] += (scaled * HELICITY[pb] * t).conj();
+                        result.zs[1] += (scaled * HELICITY[pa] * t).conj();
                     }
                 }
                 Ok(result)
             })
             .collect::<Result<Vec<_>>>()?;
-        let mut result = QGradient {
+        let mut result = QmatGradient {
             radii: Vec::with_capacity(nodes.len()),
             slopes: Vec::with_capacity(nodes.len()),
             ks: [[Complex::default(); 2]; 2],
@@ -273,10 +387,51 @@ impl QResidual {
     }
 }
 
+/// The gradient contributions of one node: its radius and slope, and its share of
+/// the wavenumber and impedance gradients.
 #[derive(Default)]
 struct NodeGradient {
     radius: f64,
     slope: f64,
     ks: [[Complex; 2]; 2],
     zs: [Complex; 2],
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Surface, qmat};
+    use crate::{Complex, special::Radial, sw::Mode};
+    use nalgebra::DMatrix;
+
+    /// Only the wavenumbers of helicities with modes are evaluated, so the others may
+    /// be zero, in the forward integral and in its pullback.
+    #[test]
+    fn unused_helicities_accept_zero_wavenumbers() {
+        let surface = || Surface {
+            theta: vec![0.5, 1.5, 2.5],
+            weights: vec![1.0; 3],
+            radii: vec![0.3, 0.35, 0.3],
+            slopes: vec![0.1, 0.0, -0.1],
+        };
+        let modes = vec![Mode { l: 1, m: 0, pol: 1 }, Mode { l: 2, m: 1, pol: 1 }];
+        let (k, zero) = (Complex::new(1.3, 0.1), Complex::default());
+        let zs = [Complex::new(1.0, 0.0), Complex::new(0.8, 0.1)];
+        let q = |ks| {
+            qmat(
+                modes.clone(),
+                modes.clone(),
+                surface(),
+                ks,
+                zs,
+                Radial::Singular,
+                true,
+            )
+        };
+        let (value, residual) = q([[zero, k], [zero, k * 2.0]]).unwrap();
+        let (expected, _) = q([[k, k], [k, k * 2.0]]).unwrap();
+        assert_eq!(value, expected);
+        let gradient = residual.pullback(&DMatrix::from_element(2, 2, k)).unwrap();
+        assert_eq!(gradient.ks[0][0], zero);
+        assert!(q([[k, zero], [k, k]]).is_err());
+    }
 }

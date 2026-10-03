@@ -3,18 +3,20 @@ import Formal.Harmonics
 /-!
 # Selection-rule pruning in spherical translations
 
-`terms` in `crates/treams-core/src/waves.rs` iterates
+`Coupling::new` in `crates/treams-core/src/sw/coupling.rs`, which both `sw::terms` and
+`TranslationPlan::between` use, iterates the degrees of `degrees`,
 
 ```rust
-let start = l + lambda - cross;
-let end = (lambda - l).abs().saturating_add(cross).max((m - mu).abs());
-for p in (end..=start).rev().step_by(2) { .. helper(l, m, lambda, -mu, p, p - cross) .. }
+let start = l + lambda - i32::from(cross);
+let end = (lambda - l).abs().saturating_add(i32::from(cross)).max((m - mu).abs());
+for p in (end..=start).rev().step_by(2) { .. tl_vsw_term(l, m, lambda, -mu, p, p - i32::from(cross), rows) .. }
 ```
 
-and `helper` returns zero early unless both Wigner 3j symbols it multiplies,
-`(l λ p; m -μ μ-m)` and `(l λ q; 0 0 0)` with `q = p - cross`, can be nonzero.
+and `tl_vsw_term` returns zero early unless both Wigner 3j symbols it multiplies,
+`(l λ p; m -μ μ-m)` and `(l λ q; 0 0 0)` with `q = p - cross`, can be nonzero. It reads
+them from `Wigner3jRow`s, which equal `special::wigner3j` bit for bit.
 
-We show that the loop visits exactly the `p` that pass `helper`'s guard, and that every
+We show that the loop visits exactly the `p` that pass `tl_vsw_term`'s guard, and that every
 skipped `p` has a zero coefficient under the Racah formula. The parity rule for
 `(l λ q; 0 0 0)` is the only case that is not a definitional zero.
 -/
@@ -40,13 +42,13 @@ theorem mem_stepDown {start stop p : ℤ} :
 def termDegrees (l m lam mu c : ℤ) : List ℤ :=
   stepDown (l + lam - c) (max (|lam - l| + c) |m - mu|)
 
-/-- `helper(l, m, lambda, mu, p, q)` passes its early-return guard. -/
+/-- `tl_vsw_term(l, m, lambda, mu, p, q, rows)` passes its early-return guard. -/
 def helperPasses (l m lam mu p q : ℤ) : Prop :=
   ¬(p < max |m + mu| |l - lam| ∨ p > l + lam ∨ q < |l - lam| ∨ q > l + lam ∨
     (q + l + lam) % 2 ≠ 0)
 
-/-- The loop is exactly `helper`'s guard: it skips no admissible degree and visits no
-degree that `helper` would reject. -/
+/-- The loop is exactly `tl_vsw_term`'s guard: it skips no admissible degree and visits no
+degree that `tl_vsw_term` would reject. -/
 theorem mem_termDegrees {l m lam mu c p : ℤ} (hc : c = 0 ∨ c = 1) :
     p ∈ termDegrees l m lam mu c ↔ helperPasses l m lam (-mu) p (p - c) := by
   simp only [termDegrees, helperPasses, mem_stepDown, Int.abs_eq_natAbs]
@@ -66,7 +68,7 @@ noncomputable def racahSum (j1 j2 j3 m1 m2 : ℤ) : ℝ :=
       invFact (j1 + j2 - j3 - k) * invFact (j1 - k - m1) * invFact (j2 - k + m2)
 
 /-- The Wigner 3j symbol by the Racah formula. The zero conditions are those of the
-early return in `wigner3j` (`crates/treams-core/src/angular.rs`). -/
+early return in `wigner3j` (`crates/treams-core/src/special/wigner.rs`). -/
 noncomputable def threeJ (j1 j2 j3 m1 m2 m3 : ℤ) : ℝ :=
   open Classical in
   if j1 < 0 ∨ j2 < 0 ∨ j3 < 0 ∨ j3 < |j1 - j2| ∨ j3 > j1 + j2 ∨ |m1| > j1 ∨ |m2| > j2 ∨

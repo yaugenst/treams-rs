@@ -17,12 +17,10 @@ from __future__ import annotations
 
 import argparse
 import gc
-import hashlib
 import importlib.metadata
 import json
 import os
 import platform
-import resource
 import statistics
 import subprocess
 import sys
@@ -33,6 +31,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
+from _harness import (
+    cpu_affinity,
+    file_sha256,
+    package_sha256,
+    peak_rss_mib,
+    pinned_threads,
+    threadpools,
+)
 
 FAMILIES = ("cluster", "sphere", "layers", "field", "cylindrical-field")
 PARAMETERS = {
@@ -57,16 +63,6 @@ PARAMETERS = {
         "physical": ("coefficients", "points", "positions", "k0"),
     },
 }
-
-
-def digest(path):
-    with Path(path).open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
-
-
-def peak_mib():
-    divisor = 1024**2 if sys.platform == "darwin" else 1024
-    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / divisor
 
 
 def objective(value, family):
@@ -204,12 +200,12 @@ class Problem:
                 tr.TMatrix.sphere(lmax, k0, r, [eps, 1], poltype="helicity")
                 for r, eps in zip(values["radii"], values["epsilon"], strict=True)
             ]
+            if self.backend == "rust":
+                return np.asarray(
+                    tr.Cluster(spheres, positions=values["positions"]).solve()
+                )
             return np.asarray(
-                (
-                    tr.TMatrix._assemble
-                    if self.backend == "rust"
-                    else tr.TMatrix.cluster
-                )(spheres, values["positions"]).interaction.solve()
+                tr.TMatrix.cluster(spheres, values["positions"]).interaction.solve()
             )
         if self.family == "sphere":
             materials = list(
@@ -258,7 +254,7 @@ class Problem:
             return matrix @ values["coefficients"], matrix
         diff, k0 = self.solver.diff, float(values["k0"])
         if self.family == "cluster":
-            return diff.cluster(
+            return diff.sphere_cluster(
                 self.args.lmax,
                 k0,
                 values["radii"],
@@ -292,7 +288,7 @@ class Problem:
         raw = context.pullback(cotangent)
         if self.family == "cluster":
             gradients = dict(
-                zip(("radii", "positions", "epsilon", "k0"), raw, strict=True)
+                zip(("k0", "radii", "epsilon", "positions"), raw, strict=True)
             )
         elif self.family == "sphere":
             gradients = dict(
@@ -500,30 +496,21 @@ def validate(args):
 
 def fingerprints(problem):
     directory = Path(problem.solver.__file__).parent
-    paths = sorted(
-        p for p in directory.rglob("*") if p.suffix in (".py", ".so", ".pyd", ".dylib")
-    )
-    source = hashlib.sha256()
-    for path in paths:
-        source.update(path.relative_to(directory).as_posix().encode())
-        source.update(bytes.fromhex(digest(path)))
     return {
-        "package_sha256": source.hexdigest(),
-        "benchmark_sha256": digest(__file__),
-        "native_sha256": digest(problem.solver._native.__file__)
+        "package_sha256": package_sha256(directory, (".py", ".so", ".pyd", ".dylib")),
+        "benchmark_sha256": file_sha256(__file__),
+        "native_sha256": file_sha256(problem.solver._native.__file__)
         if problem.backend == "rust"
         else None,
     }
 
 
 def measure(args):
-    from threadpoolctl import threadpool_info
-
     problem = Problem(args, args.backend)
     if args.backend == "rust" and problem.solver._native.build_profile() != "release":
         raise RuntimeError("benchmark requires just build-ext-release")
     before = fingerprints(problem)
-    baseline = peak_mib()
+    baseline = peak_rss_mib()
     total_times, record_times, reverse_times = [], [], []
     last = None
 
@@ -576,7 +563,7 @@ def measure(args):
             record_times.append(float(totals[1] / batch))
             reverse_times.append(float(totals[2] / batch))
         gc.collect()
-    peak = peak_mib()
+    peak = peak_rss_mib()
     # Validation arrays are saved only after the measured high-water capture.
     last = run()
     np.savez(
@@ -630,13 +617,8 @@ def measure(args):
         "package_version": importlib.metadata.version(
             "treams-rs" if args.backend == "rust" else "treams"
         ),
-        "affinity": sorted(os.sched_getaffinity(0))
-        if hasattr(os, "sched_getaffinity")
-        else None,
-        "threadpools": [
-            {**pool, "filepath": Path(pool["filepath"]).name}
-            for pool in threadpool_info()
-        ],
+        "affinity": cpu_affinity(),
+        "threadpools": threadpools(),
     }
 
 
@@ -715,7 +697,7 @@ def main():
         if args.array_output is None:
             parser.error("worker requires --array-output")
         # NumPy 2 emits this upstream propagation warning once per call. Numerical
-        # agreement is independently gated; timing diagnostic I/O would inflate
+        # agreement is checked separately; timing diagnostic I/O would inflate
         # the reference cost. No other warnings are suppressed.
         warnings.filterwarnings(
             "ignore",
@@ -730,14 +712,7 @@ def main():
                 )
             )
         return
-    env = dict(
-        os.environ,
-        RAYON_NUM_THREADS=str(args.threads),
-        OPENBLAS_NUM_THREADS=str(args.threads),
-        OMP_NUM_THREADS=str(args.threads),
-        MKL_NUM_THREADS=str(args.threads),
-        VECLIB_MAXIMUM_THREADS=str(args.threads),
-    )
+    env = {**os.environ, **pinned_threads(args.threads)}
     config_keys = [
         "family",
         "parameters",
@@ -795,7 +770,7 @@ def main():
             np.savez_compressed(arrays_path, **reference)
             validation["check_arrays"] = {
                 "path": arrays_path.name,
-                "sha256": digest(arrays_path),
+                "sha256": file_sha256(arrays_path),
             }
         phases = [
             ("rust", "forward"),

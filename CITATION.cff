@@ -1,0 +1,39 @@
+cff-version: 1.2.0
+message: "If you use treams-rs, please cite it and the treams paper listed under references."
+title: treams-rs
+type: software
+authors:
+  - family-names: Augenstein
+    given-names: Yannick
+repository-code: "https://github.com/yaugenst/treams-rs"
+url: "https://yaugenst.github.io/treams-rs"
+license: MIT
+keywords:
+  - t-matrix
+  - electromagnetics
+  - scattering
+  - photonics
+  - autodiff
+references:
+  - type: article
+    authors:
+      - family-names: Beutel
+        given-names: Dominik
+      - family-names: Fernandez-Corbaton
+        given-names: Ivan
+      - family-names: Rockstuhl
+        given-names: Carsten
+    title: "treams – a T-matrix-based scattering code for nanophotonics"
+    journal: Computer Physics Communications
+    volume: 297
+    start: 109076
+    year: 2024
+    doi: 10.1016/j.cpc.2023.109076
+  - type: software
+    title: treams
+    authors:
+      - family-names: Beutel
+        given-names: Dominik
+    version: 0.4.5
+    repository-code: "https://github.com/tfp-photonics/treams"
+    license: MIT

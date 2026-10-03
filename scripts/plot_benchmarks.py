@@ -5,10 +5,13 @@
 """Render auditable CPU benchmark and numerical qualification reports.
 
 uv --no-config run --no-project --script scripts/plot_benchmarks.py \
-    --manifest benchmarks/campaign/linux.json --output benchmarks/report
+    --manifest <suite-manifest.json> --output benchmarks/results/local/report
+
+run_benchmark_suite.py writes the suite manifests; the archived ones are inside the
+evidence archives under benchmarks/results.
 
 A manifest contains suite_id, environment, source, protocol and cases. Each case
-has id, kind (cluster/illumination/gradient/gpu), result, status, family, tier,
+has id, kind (cluster/illumination/gradient/accuracy), result, status, family, tier,
 and optionally series and x={name,value,unit}. Paths are relative to the manifest
 directory, or --root when supplied. --manifest may be repeated. The archived
 complete-qualification.json format is also accepted, clearly marked historical.
@@ -33,7 +36,7 @@ import textwrap
 from collections import Counter, defaultdict
 from pathlib import Path
 
-COLORS = {"treams": "#b84b3a", "rust": "#2166ac", "gpu": "#308267"}
+COLORS = {"treams": "#b84b3a", "rust": "#2166ac", "accent": "#308267"}
 PALETTE = ["#2166ac", "#b84b3a", "#308267", "#8856a7", "#b27918", "#525b66"]
 LABELS = {"treams": "treams", "rust": "treams-rs"}
 PASS = {"passed", "complete", "ok", "verified", "success"}
@@ -43,8 +46,6 @@ def backend_color(backend, index=0):
     name = backend.lower()
     if "legacy" in name:
         return "#b27918"
-    if "gpu" in name or "cuda" in name:
-        return COLORS["gpu"]
     if name == "rust" or name.startswith("treams-rs"):
         return COLORS["rust"]
     if name == "treams":
@@ -121,9 +122,7 @@ def measurement(backend, phase, timing, metadata, median=None):
         "growth_rss_mib": max(0.0, peak - baseline)
         if finite(peak) and finite(baseline)
         else None,
-        "threads": metadata.get(
-            "threads", metadata.get("actual_cpu_threads", metadata.get("cpu_threads"))
-        ),
+        "threads": metadata.get("threads"),
         "native_sha256": metadata.get("native_sha256"),
         "python_source_sha256": metadata.get(
             "python_source_sha256", metadata.get("package_sha256")
@@ -140,7 +139,7 @@ def measurement(backend, phase, timing, metadata, median=None):
 
 
 def read_measurements(data, kind):
-    """Normalize native harness outputs while preserving each timing boundary."""
+    """Normalize the outputs of the benchmark scripts, keeping each timing interval."""
     result = []
 
     def add(backend, phase, timing, meta, median=None):
@@ -209,58 +208,6 @@ def read_measurements(data, kind):
                     )
     elif kind == "accuracy":
         return []
-    elif kind == "gpu":
-        normalized = data.get("results", []) if "raw" in data else []
-        for raw in normalized:
-            label = " · ".join([raw["backend"], raw["phase"], raw["path"]])
-            add(
-                label,
-                "warm",
-                raw.get("samples_seconds"),
-                {
-                    **data.get("source", {}),
-                    **data.get("parameters", {}),
-                    "workflow": data.get("scope"),
-                },
-                raw["median_seconds"],
-            )
-        if "raw" in data:
-            data = data["raw"]
-        raw_samples = data.get("samples", [])
-        if normalized:
-            pass
-        elif raw_samples and isinstance(raw_samples[0], dict):
-            # GPU harnesses name every timed boundary, including host/resident.
-            for key in raw_samples[0]:
-                if key.endswith("_seconds"):
-                    add(
-                        key.removesuffix("_seconds"),
-                        "warm",
-                        [r[key] for r in raw_samples],
-                        data,
-                    )
-        else:
-            for key in ["cpu_seconds", "cpu_preweighted_seconds", "gpu_seconds"]:
-                if key in data:
-                    add(key.removesuffix("_seconds"), "warm", [], data, data[key])
-        for key in [
-            "context_seconds",
-            "setup_seconds",
-            "assembly_seconds",
-            "operator_upload_seconds",
-            "cold_gpu_seconds",
-            "cold_application_seconds",
-            "cpu_preparation_seconds",
-            "cpu_prepare_geometry_seconds",
-            "cpu_row_major_pack_seconds",
-            "mode_upload_seconds",
-            "point_upload_seconds",
-            "output_allocation_seconds",
-            "cold_kernel_seconds",
-            "download_seconds",
-        ]:
-            if finite(data.get(key)) and data[key] > 0:
-                add(key.removesuffix("_seconds"), "setup / cold", [], data, data[key])
     else:
         raise ValueError(f"Unsupported result kind: {kind}")
     return result
@@ -552,7 +499,6 @@ def suite_caption(suite):
         "thread-scaling": "Thread scaling",
         "gradient": "Gradient benchmarks",
         "illumination": "Requested illuminations",
-        "gpu": "GPU benchmarks",
     }.get(group, (group or "").replace("-", " ").capitalize())
     return " · ".join(part for part in [environment_label(suite), label] if part)
 
@@ -610,7 +556,7 @@ def plot_overview(cases, save):
     fig, axes = plt.subplots(1, 2, figsize=(12.5, 5.8))
     variants = [
         (False, "Forward only", COLORS["rust"]),
-        (True, "Forward + retained adjoint context", COLORS["gpu"]),
+        (True, "Forward + retained adjoint context", COLORS["accent"]),
     ]
     for recorded, label, color in variants:
         order = np.sort(
@@ -884,9 +830,9 @@ def plot_scaling(cases, save, planned_cases=None):
 
     groups = defaultdict(list)
     for c in cases:
-        # The broad harness's nominal dimension can be a batch length, radius,
-        # or even an unchanged scalar argument. Only prespecified size sweeps
-        # have an unambiguous axis and fixed-parameter contract.
+        # The nominal dimension of a broad-grid case can be a batch length, radius
+        # or an unchanged scalar argument. Only prespecified size sweeps have one
+        # axis and fixed other parameters.
         if (
             cpu_pair(c)
             and c.get("campaign_phase") != "broad"
@@ -1077,7 +1023,7 @@ def plot_gradients(cases, save):
                     label=label,
                     color=color,
                 )
-        for phase, color in [("record", COLORS["rust"]), ("reverse", COLORS["gpu"])]:
+        for phase, color in [("record", COLORS["rust"]), ("reverse", COLORS["accent"])]:
             rows = [
                 (c["x"]["value"], m)
                 for c in entries
@@ -1215,70 +1161,6 @@ def plot_illumination(cases, save):
             f"illumination-{slug(series)}",
             title,
             "treams-full: public full T matrix; treams-selected: custom public coupling + SciPy LU. Native full/selected/matrix-free differ in setup and storage; upstream may be capped.",
-        )
-
-
-def plot_gpu(cases, save):
-    import matplotlib.pyplot as plt
-
-    for case in cases:
-        if case.get("kind") != "gpu" or case["status"] not in PASS:
-            continue
-        warm = [m for m in case["measurements"] if m["phase"] == "warm"]
-        cold = [m for m in case["measurements"] if m["phase"] == "setup / cold"]
-        if not warm:
-            continue
-        fig, axes = plt.subplots(1, 2, figsize=(14, max(5.5, len(warm) * 0.3 + 2)))
-        for ax, rows, title in [
-            (axes[0], warm, "Warm boundaries · transfers named explicitly"),
-            (axes[1], cold, "Setup and cold-call costs · separate boundaries"),
-        ]:
-            for i, m in enumerate(rows):
-                color = COLORS["gpu"] if "gpu" in m["backend"] else COLORS["rust"]
-                ax.barh(i, m["median"], color=color, alpha=0.8)
-                if m["seconds"]:
-                    ax.scatter(
-                        m["seconds"],
-                        [i] * len(m["seconds"]),
-                        s=9,
-                        color="#15202e",
-                        zorder=3,
-                    )
-            ax.set(
-                xscale="log",
-                yticks=range(len(rows)),
-                yticklabels=[m["backend"].replace("_", " ") for m in rows],
-                xlabel="Seconds",
-                title=title,
-            )
-        data = case["raw"]
-        precision = data.get("precision", "precision unspecified")
-        parameters = data.get("parameters", {})
-        workload = {
-            "sampling": "Cached field operator",
-            "fields": "Fused plane-wave fields",
-            "field-phases": "Fused-field kernel diagnostic",
-        }.get(parameters.get("workload"), "CUDA comparison")
-        scope = ", ".join(
-            f"{label}={parameters[key]:,}"
-            for key, label in [
-                ("points", "P"),
-                ("modes", "M"),
-                ("threads", "CPU threads"),
-            ]
-            if key in parameters
-        )
-        device = (
-            data.get("raw", data).get("device")
-            or data.get("environment", {})
-            .get("gpu_before", "GPU device unspecified")
-            .split(",")[0]
-        )
-        save(
-            fig,
-            f"gpu-{slug(case['id'])}",
-            f"{workload} · {scope}",
-            f"{device} · {precision}. CPU baseline is native Rust, not upstream treams. Dots are recorded samples; a bar alone is a summary without retained samples. Device array bytes are not measured peak VRAM.",
         )
 
 
@@ -1600,143 +1482,6 @@ def illumination_accuracy_records(case):
     return observations
 
 
-def gpu_accuracy_records(case):
-    """Keep CUDA comparison envelopes and unsaved scale-dependent gates explicit."""
-    if case.get("kind") != "gpu":
-        return []
-    data = case.get("raw", {})
-    raw = data.get("raw", data)
-    parameters = {
-        **{
-            key: raw[key]
-            for key in (
-                "points",
-                "modes",
-                "operator_shape",
-                "lossless",
-                "variant",
-                "real_k_specialized",
-                "actual_cpu_threads",
-                "selected_cpu_baseline",
-                "selected_cpu_layout",
-                "selected_cpu_adjoint_layout",
-            )
-            if key in raw
-        },
-        **data.get("parameters", {}),
-        **case.get("parameters", {}),
-    }
-    workload = parameters.get("workload")
-    if not workload:
-        workload = (
-            "field-phases"
-            if "variant" in raw
-            else "fields"
-            if raw.get("workload") == "weighted-plane-fields"
-            else "sampling"
-            if "operator_shape" in raw
-            else None
-        )
-    if workload not in {"sampling", "fields", "field-phases"}:
-        return []
-    common = {
-        "family": case.get("family", f"GPU {workload}"),
-        "backend": "treams-rs-cpu-and-cuda"
-        if workload == "sampling"
-        else "treams-rs-gpu",
-        "parameters": parameters,
-        "case_status": case.get("status"),
-        "reported_scope": {
-            key: raw[key] for key in ("scope", "adjoint_scope") if key in raw
-        },
-    }
-    for context in (raw, data, case):
-        common.update(
-            {
-                key: context[key]
-                for key in (
-                    "source",
-                    "environment",
-                    "precision",
-                    "comparison",
-                    "selection",
-                    "provenance",
-                )
-                if key in context
-            }
-        )
-    if data is not raw and "scope" in data:
-        common["wrapper_scope"] = data["scope"]
-    if workload == "sampling":
-        metrics = [
-            (
-                "max_abs_error",
-                "forward",
-                "native_cpu",
-                None,
-                "Worst checked forward discrepancy across prepared/cached CPU and CUDA variants versus native-core fused fields; not a GPU-only residual.",
-            ),
-            (
-                "max_adjoint_abs_error",
-                "coefficient-adjoint",
-                "native_cpu",
-                None,
-                "Worst checked adjoint discrepancy across CPU row-layout and CUDA variants versus CPU column-layout F^H g; fixed-operator coefficients only.",
-            ),
-            (
-                "max_adjoint_normalized_pairing_error",
-                "coefficient-adjoint-pairing",
-                "analytic",
-                2e-12,
-                "Worst CPU/CUDA Hermitian pairing residual: abs(g^H(Fc) - gradient^H c) / max(1, norm(g) * norm(Fc)); fixed-operator coefficients only.",
-            ),
-        ]
-    else:
-        metrics = [
-            (
-                "max_abs_error",
-                "forward-diagnostic" if workload == "field-phases" else "forward",
-                "native_cpu",
-                None,
-                "Selected diagnostic CUDA kernel variant's final warm output versus native-core fields; not the production API."
-                if workload == "field-phases"
-                else "First production CUDA field evaluation versus native-core fused fields; maximum complex component discrepancy.",
-            ),
-        ]
-    observations = []
-    for metric, phase, reference, tolerance, scope in metrics:
-        if metric not in raw:
-            continue
-        value = raw[metric]
-        valid = finite(value) and value >= 0
-        observations.append(
-            {
-                **common,
-                "id": f"{case['id']}/{metric}",
-                "metric": metric,
-                "phase": phase,
-                "reference_kind": reference,
-                "error": value if valid else None,
-                "tolerance": tolerance,
-                "status": "error"
-                if not valid
-                else "diagnostic"
-                if tolerance is None
-                else "passed"
-                if value <= tolerance
-                else "failed",
-                "source_field": ("raw." if data is not raw else "") + metric,
-                "scope": scope
-                + (
-                    " Reference magnitudes were not retained, so the scale-dependent gate and relative error cannot be reconstructed."
-                    if tolerance is None
-                    else ""
-                ),
-            }
-        )
-    return observations
-
-
 def accuracy_records(cases):
     """Collect measured residuals; timing success is never accuracy evidence."""
     records = []
@@ -1747,8 +1492,6 @@ def accuracy_records(cases):
         )
         if case.get("kind") == "illumination":
             observations = illumination_accuracy_records(case)
-        elif case.get("kind") == "gpu":
-            observations = gpu_accuracy_records(case)
         if case.get("kind") == "gradient":
             validation = data.get("validation", {})
             common = {
@@ -1946,7 +1689,7 @@ def error_axis(ax, values, axis="x", gate=None):
         for tick in coordinate.get_majorticklocs()
         if finite(tick) and 0 < tick <= upper
     ]
-    # Keep a high-scale label so failed gates far above one remain interpretable.
+    # Keep a high-scale label so failed checks far above one stay readable.
     if candidates and all(
         abs(transform.transform(candidates[-1]) - transform.transform(other))
         / displayed_upper
@@ -2089,7 +1832,8 @@ def plot_accuracy(cases, save):
         absolute = raw_error_metric(row["metric"])
         if absolute and row["reference_kind"] == "upstream":
             # Absolute units differ across hundreds of operations. Preserve all
-            # raw values/gates in the ledger; plot the comparable scaled errors.
+            # raw values and tolerances in the ledger; plot the comparable
+            # scaled errors.
             continue
         # Absolute errors have different physical units and output scales.
         # Only normalized/relative metrics get a cross-family distribution.
@@ -2431,8 +2175,6 @@ def accuracy_html(cases):
             coverage["gradient input definitions"] += 1
         elif case.get("kind") == "illumination" and data.get("measurements"):
             coverage["requested-illumination input definitions"] += 1
-        elif case.get("kind") == "gpu" and data:
-            coverage["CPU/CUDA benchmark input definitions"] += 1
         elif case.get("kind") != "accuracy":
             continue
         elif data.get("cases"):
@@ -2838,7 +2580,6 @@ def generate(manifest_paths, output, root=None):
                 plot_native_reverse(cases, save)
                 plot_gradients(cases, save)
                 plot_illumination(cases, save)
-                plot_gpu(cases, save)
                 plot_accuracy(cases, save)
                 plot_paper_spectra(cases, save)
             galleries.append(gallery)

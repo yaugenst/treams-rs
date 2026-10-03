@@ -3,14 +3,17 @@ import Formal.Range
 /-!
 # Harmonic table indices
 
-`TranslationPlan` in `crates/treams-core/src/translation_plan.rs` stores each coupling
-term as `index = p * p + p + m` into a table built by
+`TranslationPlan` in `crates/treams-core/src/sw/plan.rs` stores each coupling
+term as `index = p * p + p + m` into a table in the order of
 
 ```rust
-for p in 0..=self.order { for m in -p..=p { table.push(harmonic(p, m, ..)) } }
+fn harmonics(lmax: i32) -> impl Iterator<Item = (i32, i32)> {
+    (0..=lmax).flat_map(|p| (-p..=p).map(move |m| (p, m)))
+}
 ```
 
-The same `(l, m)` order builds the lattice normalization and periodic tables.
+`SolidTable::visit` in `special/harmonics.rs` fills the translation tables at the same indices.
+The same `(l, m)` order builds the origin, lattice normalization and periodic tables.
 -/
 
 namespace Treams.Harmonics

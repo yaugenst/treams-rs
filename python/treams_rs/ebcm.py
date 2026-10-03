@@ -1,40 +1,28 @@
-"""Axisymmetric EBCM surface integrals evaluated by the Rust core."""
+"""Surface integrals of the extended boundary condition method (EBCM).
+
+Mirrors ``treams.ebcm``. The Rust core evaluates the integrand at fixed
+quadrature nodes. ``Modes`` names the accepted mode arguments.
+"""
 
 from __future__ import annotations
 
-from functools import lru_cache
+from functools import lru_cache as _lru_cache
 from typing import TYPE_CHECKING
 
 import numpy as np
 
 from . import diff
-from ._core import SphericalWaveBasis
+from ._modes import Modes
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from numpy.typing import ArrayLike, NDArray
 
-type Modes = SphericalWaveBasis | tuple[ArrayLike, ArrayLike, ArrayLike]
+__all__ = ["Modes", "qmat"]
 
 
-def _modes(value: Modes) -> list[tuple[int, int, int]]:
-    if isinstance(value, SphericalWaveBasis):
-        if not value.isglobal or np.any(value.positions != 0):
-            raise ValueError("EBCM basis must have one origin at zero")
-        return [(int(degree), int(m), int(p)) for _, degree, m, p in value.modes]
-    modes = np.column_stack(value)
-    if (
-        modes.ndim != 2
-        or modes.shape[1] != 3
-        or not np.isfinite(modes).all()
-        or np.any(modes != np.floor(modes))
-    ):
-        raise ValueError("EBCM modes must be integer degree/order/polarization triples")
-    return [(int(degree), int(m), int(p)) for degree, m, p in modes]
-
-
-@lru_cache(maxsize=8)
+@_lru_cache(maxsize=8)
 def _quadrature(order: int) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     nodes, weights = np.polynomial.legendre.leggauss(order)
     nodes = (nodes + 1) * (np.pi / 2)
@@ -53,16 +41,64 @@ def qmat(
     singular: bool = True,
     *,
     order: int = 96,
-    legacy: bool = False,
+    radial_area_factor: bool = True,
 ) -> NDArray[np.complex128]:
-    """Surface Q integral using fixed Gauss-Legendre quadrature on [0, pi].
+    """Surface integral Q of the extended boundary condition method (EBCM).
 
-    r(theta) is the positive radius and dr(theta) its polar-angle derivative.
-    ks and zs are ordered inner/outer, with negative/positive helicity within ks.
-    Increase order to check convergence for the chosen shape and multipole degree.
-    Use diff.ebcm_qmat or advect.ebcm_qmat for differentiable sampled surfaces.
-    The default includes the radial surface-area factor omitted by treams.
-    Set legacy=True only to reproduce that upstream integral.
+    Mirrors ``treams.ebcm.qmat``. The particle is rotationally symmetric about
+    z, with surface radius ``r(theta)`` at polar angle theta. The T-matrix is
+    ``-solve(Q, Q_regular)``, with ``Q`` from ``singular=True`` and
+    ``Q_regular`` from ``singular=False``.
+
+    ``qmat`` integrates over theta with ``order`` Gauss-Legendre nodes on
+    [0, pi]. Increase ``order`` to check convergence for your shape and
+    multipole degree. Use ``diff.ebcm_qmat`` or ``advect.ebcm_qmat`` for
+    gradients with respect to sampled surfaces and materials.
+
+    Args:
+        r: Surface radius as a function of the polar angle; positive.
+        dr: Derivative of ``r`` with respect to the polar angle.
+        ks: Wavenumbers, shape (2, 2): inside then outside, each as
+            (negative, positive) helicity, for example ``Material.ks(k0)``.
+        zs: Relative impedances, shape (2,): inside then outside.
+        out: Destination modes: a ``SphericalBasis`` with one position at the
+            origin, or (degree, order, pol) label arrays.
+        in_: Source modes in the same form; ``out`` when omitted.
+        singular: True pairs the regular waves inside with singular
+            (outgoing) waves outside, for ``Q``; False pairs them with regular
+            waves, for ``Q_regular``.
+        order: Number of quadrature nodes.
+        radial_area_factor: True keeps the second factor ``r`` of the surface
+            element ``(r r_hat - dr theta_hat) r sin(theta) dtheta``. False
+            omits it and reproduces ``treams.ebcm.qmat``.
+
+    Returns:
+        Complex array of shape (len(out), len(in_)).
+
+    Differences from treams:
+        treams integrates every element with adaptive quadrature
+        (``scipy.integrate.quad``) and omits the second factor ``r`` of the
+        surface element. ``radial_area_factor=False`` reproduces treams; the default
+        recovers Mie coefficients for a sphere. ``out`` and ``in_`` also
+        accept a ``SphericalBasis``.
+
+    A sphere recovers the Mie T-matrix::
+
+        import numpy as np
+        import treams_rs as tr
+
+        k0, radius = 1.3, 0.3
+        inside, outside = tr.Material(2.5), tr.Material(1)
+        ks = [inside.ks(k0), outside.ks(k0)]
+        zs = [inside.impedance, outside.impedance]
+        basis = tr.SphericalBasis.default(2)
+        q = tr.ebcm.qmat(lambda t: radius, lambda t: 0.0, ks, zs, basis)
+        q_regular = tr.ebcm.qmat(
+            lambda t: radius, lambda t: 0.0, ks, zs, basis, singular=False
+        )
+        tmatrix = -np.linalg.solve(q, q_regular)
+        mie = tr.sphere_tmatrix(k0=k0, lmax=2, radius=radius, material=inside)
+        assert np.allclose(tmatrix, mie.array, atol=1e-12)
     """
     theta, weights = _quadrature(order)
     radii = np.array([r(float(t)) for t in theta])
@@ -74,8 +110,8 @@ def qmat(
         zs,
         theta=theta,
         weights=weights,
-        out=out,
-        in_=in_,
+        destination=out,
+        source=in_,
         singular=singular,
-        legacy=legacy,
+        radial_area_factor=radial_area_factor,
     )[0]

@@ -4,9 +4,9 @@
 # ///
 """Read-only evidence audit. No solver imports, builds, numerical runs or plots.
 
-Exit 1: integrity error; exit 2: intact evidence with unresolved case/native gates.
+Exit 1: integrity error; exit 2: intact evidence with unresolved case or native checks.
 Recorded upstream disagreements and explicitly excluded/diagnostic data stay visible.
-Run only after the requested cohorts have stopped measuring.
+Run it on a finished benchmark run; it reads manifests and results and never writes to them.
 """
 
 import argparse
@@ -467,6 +467,26 @@ def main():
                                         + "#validation.independent_reference",
                                     }
                                 )
+                        # A certificate accepts a failed upstream comparison
+                        # with code outside the hashed benchmark scripts; its
+                        # scripts must match.
+                        proof = raw.get("validation", {}).get("independent_reference")
+                        source = proof.get("source", {}) if proof else {}
+                        recorded = dict(source.get("certifier_sha256", {}))
+                        if "reference_collector_sha256" in source:
+                            collector = "qualify_cluster_conditioning.py"
+                            digest = source["reference_collector_sha256"]
+                            conflict = recorded.setdefault(collector, digest) != digest
+                            check(
+                                not conflict,
+                                f"{tag}: conflicting digests for certifier {collector}",
+                            )
+                        for name, digest in recorded.items():
+                            check(
+                                Path(name).name == name
+                                and sha(root / "scripts" / name) == digest,
+                                tag + ": changed certifier " + name,
+                            )
                     elif kind == "gradient":
                         validation = raw["validation"]
                         quality(
@@ -617,7 +637,7 @@ def main():
                                     tag + ": high-precision backend count differs",
                                 )
                         # Upstream disagreement is retained; independently certified native
-                        # cluster accuracy is the authoritative corrected native gate.
+                        # cluster accuracy decides the native accuracy check.
                         quality(
                             raw.get("native_reference_passed", raw["passed"]),
                             tag + ": native accuracy gate failed",

@@ -1,14 +1,8 @@
 # Rust and bindings
 
-Read [development](../docs/development.md) for check commands and
-[architecture](../docs/architecture.md) before changing numerical ownership.
+Read [source ownership](../docs/development/architecture.md) and the crate docs in `treams-core/src/lib.rs` and `treams-py/src/lib.rs`.
 
-- `treams-core` owns shared mathematics, complex128 conventions and analytic
-  pullbacks. Keep Python numerical execution in this crate.
-- `treams-py` owns array conversion, GIL release and context transfer. Update
-  `python/treams_rs/_native.pyi` with exposed signatures. Fix shared conversion
-  defects at that boundary and test the supported strided Python inputs.
-- Numerical changes need a native physical/algebraic or adjoint check. Use
-  proptest over valid bounded domains with shrinking, and preserve regressions.
-  Rebuild bindings and exercise the corresponding Python workflow too.
-- Run `just rust-fmt-check rust-lint rust-test` and the corresponding Python tests.
+- The whole body of every `#[pyfunction]` and `#[pymethods]` fn is one `fpenv::ieee(|| ...)` call; the Rayon pool starts lazily inside it.
+- `unsafe` appears only in `treams_core::fpenv` and `treams-py`'s `ufunc/ffi.rs` and `ufunc/loops.rs`, with a `SAFETY` comment on every block.
+- `python/treams_rs/_native.pyi` declares every export; follow "Adding a binding" in `treams-py/src/lib.rs`.
+- Implementation tests go inline, physics and gradient properties in `src/properties/<domain>.rs` ([testing](../docs/development/testing.md#rust)).

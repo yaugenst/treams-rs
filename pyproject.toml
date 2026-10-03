@@ -9,9 +9,30 @@ description = "T-matrix scattering with a Rust numerical core and native pullbac
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE", "LICENSE.treams", "LICENSE.xsf", "THIRD_PARTY_NOTICES.md"]
+authors = [{ name = "treams-rs contributors" }]
+keywords = ["t-matrix", "electromagnetics", "scattering", "photonics", "autodiff"]
 requires-python = ">=3.12,<3.14"
 dependencies = ["numpy>=2.1,<3"]
-classifiers = ["Development Status :: 3 - Alpha", "Programming Language :: Rust", "Typing :: Typed"]
+# No license classifier: `license` is an SPDX expression.
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://yaugenst.github.io/treams-rs"
+Repository = "https://github.com/yaugenst/treams-rs"
+Documentation = "https://yaugenst.github.io/treams-rs"
+Issues = "https://github.com/yaugenst/treams-rs/issues"
+Changelog = "https://github.com/yaugenst/treams-rs/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 advect = ["advect>=0.2.0,<0.3"]
@@ -34,6 +55,14 @@ dev = [
     "treams==0.4.5",
     "threadpoolctl>=3.6",
     "h5py>=3,<4",
+    "matplotlib>=3.9,<4",
+    "mpmath>=1.3,<2",
+    "pyyaml>=6",
+]
+docs = [
+    "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.7,<10",
+    "pymdown-extensions>=10,<13",
 ]
 
 [tool.maturin]
@@ -53,14 +82,26 @@ required-version = "==0.12.3"
 [tool.ruff]
 target-version = "py312"
 line-length = 88
-extend-exclude = ["reference", "benchmarks/results"]
+extend-exclude = ["benchmarks/results"]
 
 [tool.ruff.lint]
 select = ["F", "E", "W", "I", "N", "UP", "B", "A", "PLW1508", "RET504", "S310", "S506", "SIM", "TCH", "RUF", "NPY", "PERF"]
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+# upstream treams names: mixed-case special functions and the degree argument l
+"python/treams_rs/_native.pyi" = ["N802", "N816"]
+"python/treams_rs/coeffs.py" = ["E741"]
+"python/treams_rs/cw.py" = ["E741"]
+"python/treams_rs/lattice.py" = ["E741"]
+"python/treams_rs/pw.py" = ["E741"]
+"python/treams_rs/special.py" = ["N816"]
+"python/treams_rs/sw.py" = ["E741"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["treams_rs"]
+# tests/ is on sys.path under pytest's default prepend import mode.
+known-local-folder = ["_scripts", "_support"]
 
 [tool.pyrefly]
 python-version = "3.12"
@@ -71,6 +112,17 @@ preset = "strict"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-config --strict-markers -ra"
-filterwarnings = ["error"]
+# Warnings fail the suite. The only exceptions are known deprecations raised by
+# the pinned upstream oracle (treams==0.4.5), never by treams_rs itself:
+# - treams._operators calls masked ufuncs with `where=` and then zeroes the
+#   excluded entries explicitly;
+# - upstream special functions call SciPy's deprecated `sph_harm`. treams_rs never
+#   imports SciPy; the compiled upstream ufuncs attribute the warning to the
+#   calling test module, so this entry is scoped by its exact message.
+filterwarnings = [
+    "error",
+    "ignore:'where' used without 'out':UserWarning:treams\\._operators",
+    "ignore:`scipy\\.special\\.sph_harm` is deprecated:DeprecationWarning",
+]
 xfail_strict = true
-markers = ["physics: analytic and conservation-law validation", "ad_contract: native pullback correctness", "python_contract: Python interface behavior", "public_e2e: complete scattering workflows", "oracle_numerical: comparison to independent numerical references"]
+# Markers: tests/conftest.py registers the test categories (CATEGORIES).

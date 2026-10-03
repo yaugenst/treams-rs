@@ -2,8 +2,8 @@ import Formal.Shells
 import Formal.SelectionRules
 
 /-!
-Reference outputs of the executable Lean models. Rust tests compare `geometry::cube`,
-`waves::degrees` and `translation_plan::harmonics` against them. `lake env lean --run Golden.lean`
+Reference outputs of the executable Lean models. Rust tests compare `lattice::cube`,
+`sw::coupling::degrees` and `sw::plan::harmonics` against them. `lake env lean --run Golden.lean`
 rewrites `golden/`; adding `--check` fails when a file is stale. The interpreter
 avoids compiling Mathlib to native code.
 -/

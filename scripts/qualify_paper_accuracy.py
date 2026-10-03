@@ -10,7 +10,6 @@ normalization option only transforms saved data and never claims a fresh run.
 """
 
 import argparse
-import hashlib
 import json
 import math
 import os
@@ -18,12 +17,10 @@ import platform
 import time
 from pathlib import Path
 
+from _harness import file_sha256, pinned_threads
+
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "benchmarks/papers"
-
-
-def digest(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def references():
@@ -38,7 +35,7 @@ def references():
 
 
 def normalize_curves(raw, fixtures):
-    """Give historical and newly collected curves the same plotting contract."""
+    """Give recorded and newly collected curves the same fields for plotting."""
     curves = []
     author = fixtures["ebeam-author-reference.json"]
     notebooks = fixtures["ebeam-notebook-execution.json"]
@@ -393,11 +390,9 @@ def recompute():
             UserWarning,
             module=r"treams\._operators",
         )
-        for name, cylindrical, bounds, order in (
-            ("sphere", False, (2, 5), 4),
-            ("cylinder", True, (2.5, 4.5), 12),
-        ):
-            energy = np.linspace(*bounds, 50)
+        for name, spec in paper.EBEAM_CURVES.items():
+            cylindrical, order = spec["cylindrical"], spec["order"]
+            energy = np.linspace(*spec["bounds"], paper.EBEAM_SAMPLES)
             result = curve(
                 paper.electron_spectrum_point,
                 energy,
@@ -405,7 +400,7 @@ def recompute():
                 cylindrical=cylindrical,
                 order=order,
             )
-            selected = [0, 16, 30, 38, 49]
+            selected = paper.EBEAM_REFINED
             result.update(
                 {
                     "order": order,
@@ -424,19 +419,8 @@ def recompute():
                     },
                 }
             )
-            inverse_wavelength = np.linspace(
-                1 / (500 if cylindrical else 600), 1 / 250, 200
-            )
-            notebook_energy = (
-                2
-                * np.pi
-                * inverse_wavelength
-                * (paper.constants.hbar / paper.constants.e)
-                * paper.constants.c
-                * 1e9
-            )
-            dispersion_hbar = (
-                6.582e-16 if cylindrical else paper.constants.hbar / paper.constants.e
+            notebook_energy, wavelength, dispersion_hbar = paper.notebook_grid(
+                cylindrical
             )
             notebook = curve(
                 paper.electron_spectrum_point,
@@ -448,7 +432,7 @@ def recompute():
             )
             notebook.update(
                 {
-                    "wavelength_nm": (1 / inverse_wavelength).tolist(),
+                    "wavelength_nm": wavelength.tolist(),
                     "dispersion_hbar_eV_seconds": dispersion_hbar,
                     "source_correction": 'Explicit .changepoltype("parity") in the cylinder T-matrix, matching the author regression test; omitted by the original notebook.'
                     if cylindrical
@@ -457,41 +441,27 @@ def recompute():
             )
             result["author_notebook_grid"] = notebook
             raw["ebeam"]["curves"][name] = result
-        for name, function, bounds, count, columns in (
-            ("sphere", paper.cpc_sphere_point, (1 / 700, 1 / 300), 200, 4),
-            ("chiral_slab", paper.cpc_slab_point, (1 / 1000, 1 / 300), 50, 4),
-            (
-                "sphere_array_above_slab",
-                paper.cpc_array_point,
-                (1 / 600, 1 / 350),
-                100,
-                2,
-            ),
-        ):
-            grid = 2 * np.pi * np.linspace(*bounds, count)
-            if name == "sphere_array_above_slab":
-                grid = grid[:-1]
+        for name, function, bounds, count, columns in paper.CPC_CURVES:
+            grid = paper.cpc_grid(name, bounds, count)
             result = curve(function, grid, columns)
             if name == "sphere_array_above_slab":
-                selected = [0, 25, 50, 75, 98]
+                selected = paper.ARRAY_REFINED
                 result["convergence"] = {
                     "indices": selected,
-                    "original_order": 3,
-                    "refined_order": 5,
+                    "original_order": paper.ARRAY_ORDER,
+                    "refined_order": paper.ARRAY_REFINED_ORDER,
                     "refined_native": sample(
-                        function, paper.tr, grid[selected], 2, order=5
+                        function,
+                        paper.tr,
+                        grid[selected],
+                        columns,
+                        order=paper.ARRAY_REFINED_ORDER,
                     ),
                 }
-                result["excluded_author_samples"] = [
-                    {
-                        "index": 99,
-                        "wavelength_nm": 350,
-                        "reason": "Exact lattice/radiation threshold poles are not assigned upstream's finite surrogates.",
-                    }
-                ]
-                wavelength = 350 * (1 + np.array([-1e-4, 1e-4, -1e-6, 1e-6]))
+                result["excluded_author_samples"] = [dict(paper.EXCLUDED_ARRAY_SAMPLE)]
+                wavelength = paper.threshold_wavelengths()
                 result["threshold_approach"] = {
-                    **curve(function, 2 * np.pi / wavelength, 2),
+                    **curve(function, 2 * np.pi / wavelength, columns),
                     "wavelength_nm": wavelength.tolist(),
                     "scope": "Two-sided approach, not evaluation at the singular endpoint.",
                 }
@@ -525,17 +495,10 @@ def main():
             )
             if key in raw
         }
-        source["historical_result_sha256"] = digest(args.normalize_existing)
+        source["historical_result_sha256"] = file_sha256(args.normalize_existing)
         source["historical_platform"] = raw.get("platform")
     else:
-        for key in (
-            "RAYON_NUM_THREADS",
-            "OPENBLAS_NUM_THREADS",
-            "OMP_NUM_THREADS",
-            "MKL_NUM_THREADS",
-            "VECLIB_MAXIMUM_THREADS",
-        ):
-            os.environ[key] = str(args.threads)
+        os.environ.update(pinned_threads(args.threads))
         from benchmark_illumination import fingerprints
         from threadpoolctl import threadpool_limits
 
@@ -562,9 +525,9 @@ def main():
         "failures": failures,
         "source": {
             **source,
-            "collector_sha256": digest(Path(__file__)),
-            "reference_harness_sha256": digest(ROOT / "scripts/qualify_papers.py"),
-            "fixture_sha256": {name: digest(FIXTURES / name) for name in fixture},
+            "collector_sha256": file_sha256(__file__),
+            "reference_harness_sha256": file_sha256(ROOT / "scripts/qualify_papers.py"),
+            "fixture_sha256": {name: file_sha256(FIXTURES / name) for name in fixture},
             "provenance": fixture["source-provenance.json"],
         },
         "environment": {

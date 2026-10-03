@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 9631baf986c9e3ef4a66c083730cc8e7625868dcffd7465c5e6096a1fd35ddeb # shrinks to spheres = Spheres { lmax: 2, k0: 0.712480039355871, radii: [0.1, 0.1, 0.1], materials: [Material { epsilon: Complex { re: 1.2, im: 0.0 }, mu: Complex { re: 0.8, im: 0.0 }, kappa: Complex { re: 0.0, im: 0.0 } }, Material { epsilon: Complex { re: 1.2, im: 0.0 }, mu: Complex { re: 0.8, im: 0.0 }, kappa: Complex { re: 0.0, im: 0.0 } }, Material { epsilon: Complex { re: 1.2, im: 0.0 }, mu: Complex { re: 1.41208149687095, im: 0.07275674099788955 }, kappa: Complex { re: -0.12988469459618682, im: 0.0 } }], embedding: Material { epsilon: Complex { re: 1.405504162742097, im: 0.0 }, mu: Complex { re: 0.8709530539013809, im: 0.0 }, kappa: Complex { re: -0.24146578779331115, im: 0.0 } }, positions: [[-0.07054309625775099, 0.0644963040695502, -0.09312176957864972], [0.971630839701808, 0.28567252848281527, 0.2777437975485103], [-0.33504671480032217, 0.7222465505455359, -0.5408885797955223]] }, angles = [-2.6976842663697718, 3.0221249352391064, -2.2515922578662497], seed = -0.7429169861209873

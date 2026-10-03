@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://yaugenst.github.io/treams-rs/
+    about: Guides, the treams name map, differences from treams and the API reference.
+  - name: Report a security vulnerability
+    url: https://github.com/yaugenst/treams-rs/security/advisories/new
+    about: Report security problems privately, never in a public issue.

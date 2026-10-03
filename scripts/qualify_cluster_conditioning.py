@@ -2,11 +2,15 @@
 # requires-python = ">=3.12"
 # dependencies = ["numpy>=2.1", "scipy>=1.14,<1.17", "treams==0.4.5", "threadpoolctl>=3.6", "mpmath==1.3.0"]
 # ///
-"""Targeted high-cutoff diagnostic for the benchmark's eight-sphere chain.
+"""High-cutoff conditioning collector for benchmark_cluster.py's eight-sphere chain.
 
-This post-failure investigation keeps the original entrywise comparison gate.
-It separately records equation residuals, conditioning, and convergence of three
-illuminated scattering responses. It does not modify the numerical solvers.
+For each cutoff it compares the native and upstream coupled, local and interaction
+matrices under the benchmark's entrywise tolerance (atol 1e-12, rtol 2e-9) and
+records backward errors, 1-norm condition estimates, passivity and the cutoff
+convergence of three illuminated responses. From lmax 6 on, it also checks the
+native response against an independently balanced upstream system with a
+forward-error bound, under the same entrywise tolerance. It does not modify the
+numerical solvers.
 """
 
 import argparse
@@ -229,24 +233,23 @@ def certify_cluster_reference(
 ):
     """Qualify native output against a stable, independently assembled reference.
 
-    Original upstream disagreement is preserved. The replacement reference must
+    The disagreement with treams stays recorded. The independent reference must
     carry a full encoded-equation forward-error bound, and native/reference
-    distance plus that uncertainty must meet the original elementwise gate.
+    distance plus that uncertainty must meet the benchmark's elementwise tolerance.
     This function imports no Rust implementation or native solver.
     """
     import hashlib
 
     import numpy as np
     import treams
+    from _harness import file_sha256
     from benchmark_illumination import fingerprints
     from qualify_upstream import residuals
 
     original, details = residuals(actual, upstream, rtol=rtol, atol=atol)
     source = {
         **fingerprints(upstream=True),
-        "reference_collector_sha256": hashlib.sha256(
-            Path(__file__).read_bytes()
-        ).hexdigest(),
+        "reference_collector_sha256": file_sha256(__file__),
     }
     result = {
         "passed": False,
@@ -382,17 +385,27 @@ def chain_geometry(particles):
 def evaluate_order(c, degree, particles, block_degree):
     import numpy as np
     import treams
+    from scipy.linalg import block_diag
 
     import treams_rs as tr
 
     radii, epsilon, positions = chain_geometry(particles)
     k0 = 1.3
-    native_local = tr.TMatrix._assemble(
-        [
-            tr.TMatrix.sphere(degree, k0, radius, [eps, 1])
-            for radius, eps in zip(radii, epsilon, strict=True)
-        ],
-        positions,
+    native_particles = [
+        tr.TMatrix.sphere(degree, k0, radius, [eps, 1])
+        for radius, eps in zip(radii, epsilon, strict=True)
+    ]
+    native_local = tr.TMatrix(
+        block_diag(*(particle.array for particle in native_particles)),
+        basis=tr.SphericalBasis(
+            [
+                (index, *mode[1:])
+                for index, particle in enumerate(native_particles)
+                for mode in particle.basis
+            ],
+            positions,
+        ),
+        k0=k0,
     )
     upstream_local = treams.TMatrix.cluster(
         [
@@ -421,7 +434,7 @@ def evaluate_order(c, degree, particles, block_degree):
         raise ValueError("native/upstream mode ordering differs")
 
     # These are the exact two full-T paths used by benchmark_cluster's cluster case.
-    native, context = tr.diff.cluster(degree, k0, radii, epsilon, positions)
+    native, context = tr.diff.sphere_cluster(degree, k0, radii, epsilon, positions)
     del context
     upstream = upstream_local.interaction.solve()
     upstream_array = np.asarray(upstream)
@@ -480,17 +493,15 @@ def evaluate_order(c, degree, particles, block_degree):
     )
 
     directions = ([1, 0, 0], [0, 0, 1], [0, 0, 1])
-    polarizations = ([0, 1, 0], [1, 0, 0], [0, 1, 0])
+    pols = ([0, 1, 0], [1, 0, 0], [0, 1, 0])
     waves = {
         "treams-rs": [
-            tr.plane_wave(direction, polarization, k0=k0)
-            for direction, polarization in zip(directions, polarizations, strict=True)
+            tr.plane_wave(direction, pol, k0=k0)
+            for direction, pol in zip(directions, pols, strict=True)
         ],
         "treams": [
-            treams.plane_wave(
-                direction, polarization, k0=k0, material=1, poltype="helicity"
-            )
-            for direction, polarization in zip(directions, polarizations, strict=True)
+            treams.plane_wave(direction, pol, k0=k0, material=1, poltype="helicity")
+            for direction, pol in zip(directions, pols, strict=True)
         ],
     }
     results = {}
@@ -582,7 +593,7 @@ def evaluate_order(c, degree, particles, block_degree):
                 },
                 illumination={
                     "direction": directions[index],
-                    "electric_polarization": polarizations[index],
+                    "electric_polarization": pols[index],
                 },
                 conditioning=condition,
             )
@@ -623,7 +634,8 @@ def evaluate_order(c, degree, particles, block_degree):
 
 
 def source_metadata():
-    from benchmark_illumination import digest, fingerprints
+    from _harness import file_sha256
+    from benchmark_illumination import fingerprints
 
     from treams_rs import _native
 
@@ -632,10 +644,10 @@ def source_metadata():
     source.update(
         {
             "native_profile": _native.build_profile(),
-            "script_sha256": digest(Path(__file__)),
-            "physics_collector_sha256": digest(folder / "qualify_physics.py"),
-            "residual_helper_sha256": digest(folder / "qualify_upstream.py"),
-            "benchmark_harness_sha256": digest(folder / "benchmark_cluster.py"),
+            "script_sha256": file_sha256(__file__),
+            "physics_collector_sha256": file_sha256(folder / "qualify_physics.py"),
+            "residual_helper_sha256": file_sha256(folder / "qualify_upstream.py"),
+            "benchmark_harness_sha256": file_sha256(folder / "benchmark_cluster.py"),
         }
     )
     return source
@@ -732,7 +744,7 @@ def qualify(particles=8, orders=(3, 4, 6, 8, 12)):
             "geometry": "Exactly benchmark_cluster.py's cluster defaults: k0=1.3, radii=linspace(0.15,0.25,N), epsilon=4+0.1j, positions=(0.8*i,0,0), vacuum exterior.",
             "entrywise_gate": "Original atol=1e-12 and rtol=2e-9. max_scaled_error <= 1; every violating entry counted, no gate relaxation.",
             "equation": "A X = Tlocal, A = I - Tlocal C; X is the full coupled T matrix and C is singular spherical translation excluding self-coupling. Each backend assembles the same algebraic equation, with its own floating-point coefficients. A assembly differences and upstream illuminated residuals in native A are recorded separately.",
-            "full_response_paths": "Native diff.cluster(...)[0] and upstream TMatrix._assemble(...).interaction.solve(), exactly as in benchmark_cluster.",
+            "full_response_paths": "Native diff.sphere_cluster(...)[0] and upstream treams.TMatrix.cluster(...).interaction.solve(), exactly as in benchmark_cluster.",
             "normwise_backward_error": "||A X-B||_F / (||A||_F ||X||_F + ||B||_F). This may be small despite inaccurate entries when coordinates are badly scaled.",
             "componentwise_backward_error": "max |A X-B| / (|A||X|+|B|), evaluated for three physical illuminated columns; zero/zero=0, nonzero/zero=nonfinite error.",
             "condition": "LAPACK gecon estimates reciprocal condition in the induced matrix 1-norm from SciPy LU. This is the unbalanced multipole-coordinate equation, not a coordinate-independent physical condition number. No SVD.",
@@ -763,26 +775,17 @@ def main():
     args = parser.parse_args()
     if args.particles < 1 or args.threads < 1 or min(args.lmax) < 1:
         parser.error("particles, threads, and lmax must be positive")
-    for name in (
-        "RAYON_NUM_THREADS",
-        "OMP_NUM_THREADS",
-        "OPENBLAS_NUM_THREADS",
-        "MKL_NUM_THREADS",
-        "VECLIB_MAXIMUM_THREADS",
-        "BLIS_NUM_THREADS",
-    ):
-        os.environ[name] = str(args.threads)
+    from _harness import pinned_threads, threadpools
+
+    os.environ.update(pinned_threads(args.threads))
     import numpy  # noqa: F401 -- Load BLAS before applying threadpool limits.
     import scipy.linalg  # noqa: F401
-    from threadpoolctl import threadpool_info, threadpool_limits
+    from threadpoolctl import threadpool_limits
 
     start = time.perf_counter()
     with threadpool_limits(limits=args.threads):
         report = qualify(args.particles, tuple(sorted(set(args.lmax))))
-        report["environment"]["threadpools"] = [
-            {**pool, "filepath": Path(pool["filepath"]).name}
-            for pool in threadpool_info()
-        ]
+        report["environment"]["threadpools"] = threadpools()
     report["environment"]["requested_threads"] = args.threads
     report["elapsed_seconds"] = time.perf_counter() - start
     encoded = json.dumps(report, indent=2, allow_nan=False)

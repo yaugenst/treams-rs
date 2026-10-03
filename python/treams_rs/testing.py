@@ -1,7 +1,10 @@
-"""Directional finite-difference checks for first-order gradients and native pullbacks.
+"""Finite-difference checks of first-order gradients and pullbacks.
 
-These are diagnostic test oracles, never production derivative implementations.
-Complex derivatives use the native real pairing ``Re(vdot(gradient, direction))``.
+A pullback maps the gradient of a real loss with respect to an output to the
+gradients with respect to the inputs; ``treams_rs.diff`` defines records,
+contexts and pullbacks. Complex gradients follow dL = Re(vdot(g, dx)). These
+checks are test tools: treams-rs never computes a gradient by finite
+differences.
 """
 
 from __future__ import annotations
@@ -10,21 +13,21 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ._adapters import execute, input_array
+from ._records import apply_pullback as _apply_pullback
+from ._records import input_array as _input_array
+from ._records import run_record as _run_record
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from numpy.typing import ArrayLike
 
-    from ._adapters import Array, Record
+    from ._records import Array, Record
 
 __all__ = ["check_gradient", "check_pullback"]
 
 
-def _shaped(
-    value: ArrayLike, reference: Array, label: str, *, gradient: bool = False
-) -> Array:
+def _shaped(value: ArrayLike, reference: Array, label: str) -> Array:
     array = np.asarray(value)
     if array.shape != reference.shape:
         raise ValueError(
@@ -32,10 +35,8 @@ def _shaped(
         )
     if not np.all(np.isfinite(array)):
         raise ValueError(f"{label}: values must be finite")
-    if not gradient and not np.iscomplexobj(reference) and np.any(array.imag != 0):
+    if not np.iscomplexobj(reference) and np.any(array.imag != 0):
         raise ValueError(f"{label}: a real value requires a real probe/output")
-    # The imaginary part of a gradient for a real input does not contribute to
-    # the real pairing. Directions/cotangents are checked separately below.
     return np.asarray(
         array if np.iscomplexobj(reference) else array.real, dtype=reference.dtype
     )
@@ -61,25 +62,45 @@ def check_pullback(
     atol: float = 1e-7,
     seed: int = 0,
 ) -> None:
-    """Assert a native record's pullback agrees with central finite differences.
+    """Check the pullback of a record against central finite differences.
 
-    ``record(*parameters)`` returns ``(output, context)``; context is callable or
-    has ``pullback(*cotangents)``. An output is an array/scalar or a tuple of them.
-    A pullback returns one gradient per parameter, as a tuple for multiple inputs.
-    Static labels/options must be captured in a closure. Dynamic inputs require
-    float64/complex128, and output/gradient shapes must remain unchanged.
+    The check records once and calls the pullback once with the cotangents.
+    For each parameter it compares Re(vdot(gradient, direction)) with the
+    central difference of Re(vdot(cotangents, value)) along the direction;
+    the other parameters stay fixed. The shifted forward calls never use
+    their contexts.
 
-    One random direction per parameter and random output cotangents are generated
-    reproducibly from ``seed`` unless supplied. ``directions`` is always a tuple;
-    ``cotangents`` must have the same single-array/tuple structure as the output.
-    Each parameter is perturbed separately by ``+/- step * direction``. Repeat
-    with different seeds for additional coverage; tune step/tolerances for scale
-    and conditioning, and keep both perturbations inside the physical domain.
+    Args:
+        record: function of the dynamic inputs that returns
+            ``(value, context)``. The context has ``pullback(*cotangents)`` or
+            is the pullback itself; the pullback returns one gradient per
+            parameter, a tuple for several. The value is an array, a scalar or
+            a tuple of them. Bind labels and options with a closure.
+        *parameters: the dynamic inputs: nonempty, finite, float64 or
+            complex128.
+        directions: tuple with one direction per parameter, each nonzero.
+            Default: random directions drawn from ``seed``.
+        cotangents: gradient of the loss with respect to the value, one array
+            or a tuple like the value. Default: random arrays drawn from
+            ``seed``.
+        step: finite-difference step; each parameter moves by
+            ``+/- step * direction``. Keep both points inside the physical
+            domain and scale the step to the problem.
+        rtol: relative tolerance on the finite difference.
+        atol: absolute tolerance; a parameter passes when
+            ``|pullback - finite difference| <= atol + rtol * |finite
+            difference|``.
+        seed: seed of the random directions and cotangents. Repeat with other
+            seeds for more coverage.
 
-    Calls a fresh record and consumes its pullback exactly once. Further forward
-    records supply the finite differences without consuming their contexts.
-    Returns None on success; raises AssertionError with the parameter index and
-    directional error on disagreement, or ValueError for an invalid contract.
+    Returns:
+        None when every parameter passes.
+
+    Raises:
+        AssertionError: a pullback disagrees; the message names the
+            parameter, both values and the error.
+        ValueError: the record or the arguments break these rules, for example
+            a wrong number of gradients, a wrong shape or non-finite values.
     """
     if not parameters:
         raise ValueError("check_pullback requires at least one dynamic parameter")
@@ -87,7 +108,7 @@ def check_pullback(
         raise ValueError("step must be finite and positive")
     if not all(np.isfinite(x) and x >= 0 for x in (rtol, atol)):
         raise ValueError("rtol and atol must be finite and nonnegative")
-    primals = tuple(input_array(value) for value in parameters)
+    primals = tuple(_input_array(value) for value in parameters)
     for i, value in enumerate(primals):
         if not value.size or not np.all(np.isfinite(value)):
             raise ValueError(f"parameter {i}: require nonempty, finite values")
@@ -104,7 +125,7 @@ def check_pullback(
     )
     if any(not np.any(direction) for direction in probes):
         raise ValueError("each direction must be nonzero")
-    outputs, pullback, multiple = execute(record, primals)
+    outputs, pullback, multiple = _run_record(record, primals)
     if cotangents is not None and isinstance(cotangents, tuple) != multiple:
         raise ValueError(
             "cotangents must match the output's single-array/tuple structure"
@@ -122,16 +143,19 @@ def check_pullback(
         raise ValueError("cotangents must not all be zero")
     for i, output in enumerate(outputs):
         _shaped(output, output, f"output {i}")
+    # The adapters' rules: arity, shapes and the real projection for real
+    # parameters (whose imaginary gradient part does not enter the pairing).
+    # Finiteness is checked before that projection, so a non-finite imaginary
+    # part for a real parameter still exposes a pullback bug.
     result = pullback(*weights)
-    raw_gradients = result if isinstance(result, tuple) else (result,)
-    if len(raw_gradients) != len(primals):
-        raise ValueError(
-            f"pullback returned {len(raw_gradients)} gradients for {len(primals)} parameters"
-        )
-    gradients = tuple(
-        _shaped(gradient, value, f"gradient for parameter {i}", gradient=True)
-        for i, (gradient, value) in enumerate(zip(raw_gradients, primals, strict=True))
-    )
+
+    def returned(*_: Array) -> object:
+        return result
+
+    gradients = _apply_pullback(returned, weights, primals, conjugate=False)
+    for i, raw in enumerate(result if isinstance(result, tuple) else (result,)):
+        if not np.all(np.isfinite(np.asarray(raw))):
+            raise ValueError(f"gradient for parameter {i}: values must be finite")
     for i, (gradient, direction) in enumerate(zip(gradients, probes, strict=True)):
         shifted_outputs = []
         for sign in (1, -1):
@@ -139,7 +163,7 @@ def check_pullback(
             shifted[i] = np.asarray(
                 primals[i] + sign * step * direction, dtype=primals[i].dtype
             )
-            values, _, is_multiple = execute(record, tuple(shifted))
+            values, _, is_multiple = _run_record(record, tuple(shifted))
             if is_multiple != multiple or len(values) != len(outputs):
                 raise ValueError(f"parameter {i}: perturbed output structure changed")
             shifted_outputs.append(
@@ -177,12 +201,31 @@ def check_gradient(
     atol: float = 1e-7,
     seed: int = 0,
 ) -> None:
-    """Check a real scalar objective and its first-order gradient callable.
+    """Check the gradient of a real scalar objective against finite differences.
 
-    ``gradient(*parameters)`` returns an array/scalar for one input or a tuple
-    with one gradient per input. Complex gradients use ``Re(vdot(g, dx))``.
-    Other options and failure diagnostics are those of :func:`check_pullback`.
-    The gradient is evaluated once; the objective is evaluated 1 + 2*n times.
+    The check calls ``gradient`` once and ``function`` 1 + 2n times for n
+    parameters. It runs ``check_pullback`` on the record
+    ``(function(*p), lambda g: gradient(*p))`` with the cotangent 1.0.
+
+    Args:
+        function: objective of the parameters; returns a real scalar.
+        gradient: function of the parameters that returns the gradient, an
+            array for one parameter or a tuple with one gradient per
+            parameter. Complex gradients follow dL = Re(vdot(g, dx)).
+        *parameters: as in ``check_pullback``.
+        directions: as in ``check_pullback``.
+        step: as in ``check_pullback``.
+        rtol: as in ``check_pullback``.
+        atol: as in ``check_pullback``.
+        seed: as in ``check_pullback``.
+
+    Returns:
+        None when every parameter passes.
+
+    Raises:
+        AssertionError: as in ``check_pullback``.
+        ValueError: as in ``check_pullback``, and for a complex or non-scalar
+            objective.
     """
 
     def record(*values: Array) -> tuple[Array, Callable[..., object]]:

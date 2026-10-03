@@ -12,12 +12,10 @@ from __future__ import annotations
 
 import argparse
 import gc
-import hashlib
 import importlib.metadata
 import json
 import os
 import platform
-import resource
 import statistics
 import subprocess
 import sys
@@ -26,43 +24,34 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-
-def digest(path: Path) -> str:
-    with path.open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
+from _harness import (
+    cpu_affinity,
+    file_sha256,
+    package_sha256,
+    peak_rss_mib,
+    pinned_threads,
+    python_source_sha256,
+    threadpools,
+)
 
 
 def fingerprints(upstream: bool = False) -> dict[str, str]:
+    """Measured package identity; accuracy collectors record the same fields."""
     if upstream:
         import treams
 
         folder = Path(treams.__file__).parent
-        source = hashlib.sha256()
-        for path in sorted(folder.rglob("*")):
-            if path.suffix in (".py", ".so", ".pyd"):
-                source.update(path.relative_to(folder).as_posix().encode())
-                source.update(bytes.fromhex(digest(path)))
         return {
-            "treams_package_sha256": source.hexdigest(),
-            "benchmark_sha256": digest(Path(__file__)),
+            "treams_package_sha256": package_sha256(folder, (".py", ".so", ".pyd")),
+            "benchmark_sha256": file_sha256(__file__),
         }
     from treams_rs import _native
 
-    folder = Path(_native.__file__).parent
-    source = hashlib.sha256()
-    for path in sorted(folder.glob("*.py")):
-        source.update(path.name.encode())
-        source.update(bytes.fromhex(digest(path)))
     return {
-        "native_sha256": digest(Path(_native.__file__)),
-        "python_source_sha256": source.hexdigest(),
-        "benchmark_sha256": digest(Path(__file__)),
+        "native_sha256": file_sha256(_native.__file__),
+        "python_source_sha256": python_source_sha256(Path(_native.__file__).parent),
+        "benchmark_sha256": file_sha256(__file__),
     }
-
-
-def peak_mib() -> float:
-    divisor = 1024 * 1024 if sys.platform == "darwin" else 1024
-    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / divisor
 
 
 def case(args, upstream=False):
@@ -99,7 +88,7 @@ def case(args, upstream=False):
 
 def worker(args) -> None:
     import numpy as np
-    from threadpoolctl import threadpool_info, threadpool_limits
+    from threadpoolctl import threadpool_limits
 
     upstream = args.backend.startswith("treams-")
     if upstream:
@@ -120,7 +109,7 @@ def worker(args) -> None:
         start = time.perf_counter()
         radii, epsilon, positions, basis, incident = case(args, upstream)
         common_setup = time.perf_counter() - start
-        baseline = peak_mib()
+        baseline = peak_rss_mib()
         options = dict(
             rtol=args.rtol, restart=args.restart, max_iterations=args.max_iterations
         )
@@ -143,12 +132,14 @@ def worker(args) -> None:
             if args.backend == "matrix-free":
                 return SphereCluster(args.lmax, 1.3, radii, epsilon, positions)
             if args.backend == "full":
-                value, context = tr.diff.cluster(
+                value, context = tr.diff.sphere_cluster(
                     args.lmax, 1.3, radii, epsilon, positions
                 )
                 return (value, context) if record else value
             if not record:
-                return tr.diff.cluster_factor(args.lmax, 1.3, radii, epsilon, positions)
+                return tr.diff.sphere_cluster_factor(
+                    args.lmax, 1.3, radii, epsilon, positions
+                )
             particles = [
                 tr.diff.sphere(args.lmax, 1.3, [r], [eps, 1])
                 for r, eps in zip(radii, epsilon, strict=True)
@@ -179,7 +170,7 @@ def worker(args) -> None:
         def record(prepared):
             nonlocal latest_reports
             if args.backend == "matrix-free":
-                solution, context = prepared.solve_with_pullback(incident, **options)
+                solution, context = prepared.record(incident, **options)
                 latest_reports = [list(report) for report in solution.convergence]
                 return solution.coefficients, context
             if args.backend == "full":
@@ -204,7 +195,7 @@ def worker(args) -> None:
             if args.backend == "full":
                 value, context = context
                 gincident = (value.T @ cotangent.conj()).conj()
-                gr, gp, ge, gk = context.pullback(cotangent @ incident.conj().T)
+                gk, gr, ge, gp = context.pullback(cotangent @ incident.conj().T)
             else:
                 interaction, particles, expansion = context
                 blocks, coupling, gincident = interaction.pullback_blocks(cotangent)
@@ -265,7 +256,7 @@ def worker(args) -> None:
             prepared = prepare(record=True)
             value, context = record(prepared)
             output = {"value": value, **backward(context, 2 * value)}
-        peak = peak_mib()
+        peak = peak_rss_mib()
         np.savez(args.array_output, **output)
         numerical = {}
         if args.phase == "adjoint":
@@ -332,13 +323,8 @@ def worker(args) -> None:
                     "python": platform.python_version(),
                     "numpy": np.__version__,
                     "treams": importlib.metadata.version("treams"),
-                    "affinity": sorted(os.sched_getaffinity(0))
-                    if hasattr(os, "sched_getaffinity")
-                    else None,
-                    "threadpools": [
-                        {**pool, "filepath": Path(pool["filepath"]).name}
-                        for pool in threadpool_info()
-                    ],
+                    "affinity": cpu_affinity(),
+                    "threadpools": threadpools(),
                     "threads": threads,
                     "common_input_setup_seconds": common_setup,
                     "setup_seconds": setup_times,
@@ -406,14 +392,7 @@ def main() -> None:
         worker(args)
         return
     dimension = args.particles * 2 * args.lmax * (args.lmax + 2)
-    env = dict(
-        os.environ,
-        RAYON_NUM_THREADS=str(args.threads),
-        OPENBLAS_NUM_THREADS=str(args.threads),
-        OMP_NUM_THREADS=str(args.threads),
-        MKL_NUM_THREADS=str(args.threads),
-        VECLIB_MAXIMUM_THREADS=str(args.threads),
-    )
+    env = {**os.environ, **pinned_threads(args.threads)}
     backends = (
         ["full", "selected", "matrix-free"]
         if dimension <= args.dense_limit
@@ -535,7 +514,7 @@ def main() -> None:
             else "recorded matrix-free forward; independent gradient finite differences and invariants; upstream forward comparison when within oracle limit",
             "comparison_relative_errors": errors,
             "measurements": measurements,
-            "selected_assembly": "Forward/reuse use native diff.cluster_factor. Complete physical adjoints compose sphere/expansion contexts with block LU and include their generic assembly and retained memory.",
+            "selected_assembly": "Forward/reuse use native diff.sphere_cluster_factor. Complete physical adjoints compose sphere/expansion contexts with block LU and include their generic assembly and retained memory.",
             "peak_rss_scope": "Each backend and forward/adjoint phase in separate fresh process. Includes imports, common inputs, warmup, repeated fresh and reused operations; excludes finite-difference validation after capture.",
             "timing_scope": "Fresh includes geometry/local coefficients/coupling/factor setup plus requested solve. Reuse keeps the full T, selected LU, or matrix-free geometry. Common plane-wave input construction excluded and reported separately. Python result destruction excluded.",
             "complete": True,

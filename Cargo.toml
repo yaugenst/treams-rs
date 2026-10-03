@@ -9,6 +9,13 @@ edition = "2024"
 rust-version = "1.94.0"
 license = "MIT"
 description = "T-matrix scattering with a Rust numerical core and native pullbacks"
+authors = ["treams-rs contributors"]
+readme = "README.md"
+repository = "https://github.com/yaugenst/treams-rs"
+homepage = "https://yaugenst.github.io/treams-rs"
+documentation = "https://yaugenst.github.io/treams-rs/rust/treams_core/"
+keywords = ["t-matrix", "electromagnetics", "scattering", "photonics", "autodiff"]
+categories = ["science"]
 
 [workspace.dependencies]
 faer = { version = "0.24.4", default-features = false, features = ["std", "linalg"] }
@@ -37,6 +44,10 @@ nursery = { level = "warn", priority = -1 }
 unwrap_used = "deny"
 expect_used = "warn"
 panic = "warn"
+# Stays on for new code, which indexes through iterators or checked access. A
+# numerical module that validates its indices on entry opts out once, with a
+# module-level `#![allow(clippy::indexing_slicing)] // <why the indices are in range>`;
+# the reason comment is required. Tests may index freely (clippy.toml).
 indexing_slicing = "warn"
 undocumented_unsafe_blocks = "deny"
 cast_possible_truncation = "warn"
@@ -57,9 +68,20 @@ too_many_arguments = "allow"
 too_many_lines = "allow"
 use_self = "allow"
 
+# `just rust-test` and the development extension use the dev profile. Light
+# optimization keeps debug assertions and overflow checks but runs the numerical
+# tests several times faster; dependencies are optimized further.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2
+
 [profile.release]
 lto = "thin"
 codegen-units = 1
+# Index arithmetic that overflows panics instead of silently wrapping to a wrong
+# index; the hot loops are float-bound, so the check costs nothing measurable.
 overflow-checks = true
 
 [profile.profiling]

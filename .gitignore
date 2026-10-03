@@ -1,10 +1,11 @@
 /target/
 /.venv/
-/reference/
 /dist/
+/site/
 __pycache__/
 *.so
 *.pyc
 .pytest_cache/
 .ruff_cache/
 .hypothesis/
+/benchmarks/results/local/

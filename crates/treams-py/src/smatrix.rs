@@ -1,829 +1,569 @@
-//! Native S-matrix blocks and owned reverse contexts.
-#![allow(clippy::indexing_slicing)] // Validated four-block NumPy shapes.
+//! The S-matrix records `smatrix_from_array`, `smatrix_add`, `smatrix_illuminate`,
+//! `smatrix_periodic`, `bands` and `smatrix_tr`, the planar records `fresnel`,
+//! `interface_coefficients`, `propagation_matrix` and `layer_stack`, and the
+//! chirality densities, with their contexts (`treams_core::smatrix`).
+//!
+//! An S-matrix is a `(2, 2, n, n)` array of four blocks `S[out][in]`, indexed by
+//! direction: 0 is up, towards the positive side, and 1 is down. `S[0, 0]` is the
+//! upward transmission, `S[0, 1]` the reflection of waves incident from above,
+//! `S[1, 0]` the reflection of waves incident from below and `S[1, 1]` the downward
+//! transmission: the order `[S00, S01, S10, S11]` of `smatrix::Blocks`.
 
-use faer::MatRef;
 use nalgebra::DMatrix;
 use numpy::{
-    IntoPyArray, PyArray1, PyArray2, PyArray3, PyArray4, PyArray5, PyReadonlyArray1,
-    PyReadonlyArray2, PyReadonlyArray3, PyReadonlyArray4, PyReadonlyArray5,
-    ndarray::{Array2, Array3, Array4, Array5, ArrayView2, s},
+    IntoPyArray, PyReadonlyArray1, PyReadonlyArray2, PyReadonlyArray4,
+    ndarray::{Array3, Array4, Array5, ArrayView2, ArrayView4, Axis, Ix2, Ix3, Ix4, Ix5, s},
 };
 use pyo3::{exceptions::PyValueError, prelude::*};
 use treams_core::{
     Complex,
-    smatrix::{self, ArrayResidual, Blocks, FresnelResidual, PropagationResidual, StackResidual},
+    fpenv::ieee,
+    smatrix::{self, AddResidual, Blocks, FresnelResidual, FromArrayResidual, PropagationResidual},
 };
 
-use crate::error;
+use crate::{
+    context::{context, cotangent_error, detached},
+    convert::{
+        C1, C2, C3, C4, C5, Cotangent, LentMatrix, R1, R2, RealCotangent, all_finite,
+        cotangent_view, finite_cotangent, from_array, layout_error, matrix, matrix_cotangent,
+        matrix_from_view, owned_matrix, rows, rows_array, vector_cotangent,
+    },
+};
 
-fn from_array(value: PyReadonlyArray4<'_, Complex>) -> PyResult<Blocks> {
-    let a = value.as_array();
+/// The four `(n, n)` blocks of the `(2, 2, n, n)` S-matrix argument `name`, `n > 0`.
+fn block_views<'a>(
+    a: ArrayView4<'a, Complex>,
+    name: &str,
+) -> PyResult<[ArrayView2<'a, Complex>; 4]> {
     let s = a.shape();
     if s[0] != 2 || s[1] != 2 || s[2] == 0 || s[2] != s[3] {
-        return Err(PyValueError::new_err(
-            "S matrices require shape (2, 2, n, n) with n > 0",
-        ));
+        return Err(PyValueError::new_err(format!(
+            "{name} must have shape (2, 2, n, n) with n > 0"
+        )));
     }
     Ok(std::array::from_fn(|b| {
-        crate::tmatrix::matrix_from_view(a.slice(s![b / 2, b % 2, .., ..]))
+        a.slice_move(s![b / 2, b % 2, .., ..])
     }))
 }
-fn cotangent_blocks(value: PyReadonlyArray4<'_, Complex>) -> PyResult<Blocks> {
-    let blocks = from_array(value)?;
-    if blocks
-        .iter()
-        .flatten()
-        .any(|z| !z.re.is_finite() || !z.im.is_finite())
-    {
-        return Err(PyValueError::new_err("S matrices must be finite"));
+fn blocks(value: PyReadonlyArray4<'_, Complex>, name: &str) -> PyResult<Blocks> {
+    Ok(block_views(value.as_array(), name)?.map(matrix_from_view))
+}
+/// Finite blocks of a cotangent of shape `(2, 2, rows, columns)`.
+fn cotangent_blocks(
+    cotangent: &Cotangent<'_>,
+    (rows, columns): (usize, usize),
+) -> PyResult<Blocks> {
+    let expected = [2, 2, rows, columns];
+    let a = cotangent_view::<_, Ix4>(cotangent, &expected)?;
+    let blocks: Blocks =
+        std::array::from_fn(|b| matrix_from_view(a.slice(s![b / 2, b % 2, .., ..])));
+    if blocks.iter().all(|block| all_finite(block.as_slice())) {
+        Ok(blocks)
+    } else {
+        Err(cotangent_error(&expected))
     }
-    Ok(blocks)
 }
-fn array<'py>(py: Python<'py>, value: &Blocks) -> Bound<'py, PyArray4<Complex>> {
-    let (d, c) = value[0].shape();
-    Array4::from_shape_fn((2, 2, c, d), |(a, b, j, i)| value[2 * a + b][(i, j)])
-        .permuted_axes([0, 1, 3, 2])
-        .into_pyarray(py)
-}
-
-fn array_owned(py: Python<'_>, value: Blocks) -> PyResult<Bound<'_, PyArray4<Complex>>> {
-    let (rows, cols) = value[0].shape();
-    let [first, second, third, fourth] = value;
+/// The column-major storage of four equally shaped matrices, one after another.
+///
+/// The first allocation grows to hold all four, so only three are copied.
+/// `Vec::extend` of an owned `Vec` copies with `memcpy`, while `extend_from_slice`
+/// of `Complex64` compiles to an element-by-element loop.
+fn concatenated([first, rest @ ..]: [DMatrix<Complex>; 4]) -> Vec<Complex> {
     let mut data = Vec::from(first.data);
-    data.reserve(3 * rows * cols);
-    for block in [second, third, fourth] {
+    data.reserve_exact(3 * data.len());
+    for block in rest {
         data.extend(Vec::from(block.data));
     }
-    Array4::from_shape_vec((2, 2, cols, rows), data)
-        .map(|a| a.permuted_axes([0, 1, 3, 2]).into_pyarray(py))
-        .map_err(|e| PyValueError::new_err(e.to_string()))
+    data
+}
+/// Four equally shaped blocks as a `(2, 2, rows, columns)` array.
+fn blocks_array(py: Python<'_>, value: Blocks) -> PyResult<C4<'_>> {
+    let (rows, columns) = value[0].shape();
+    Ok(
+        Array4::from_shape_vec((2, 2, columns, rows), concatenated(value))
+            .map_err(layout_error)?
+            .permuted_axes([0, 1, 3, 2])
+            .into_pyarray(py),
+    )
+}
+/// Four equally shaped field matrices as a `(4, rows, columns)` array.
+fn fields_array(py: Python<'_>, value: [DMatrix<Complex>; 4]) -> PyResult<C3<'_>> {
+    let (rows, columns) = value[0].shape();
+    Ok(
+        Array3::from_shape_vec((4, columns, rows), concatenated(value))
+            .map_err(layout_error)?
+            .permuted_axes([0, 2, 1])
+            .into_pyarray(py),
+    )
 }
 
-#[allow(clippy::expect_used)] // Caller packs every non-contiguous view.
-fn borrowed_matrix<'a>(
-    a: &'a ArrayView2<'_, Complex>,
-    packed: Option<&'a DMatrix<Complex>>,
-) -> MatRef<'a, Complex> {
-    if let Some(packed) = packed {
-        MatRef::from_column_major_slice(packed.as_slice(), a.nrows(), a.ncols())
-    } else {
-        let data = a
-            .as_slice_memory_order()
-            .expect("contiguous input or packed copy");
-        if a.strides()[0] == 1 {
-            MatRef::from_column_major_slice(data, a.nrows(), a.ncols())
-        } else {
-            MatRef::from_row_major_slice(data, a.nrows(), a.ncols())
-        }
-    }
-}
-
-#[pyclass]
-#[derive(Debug)]
-struct ArrayContext {
-    residual: Option<ArrayResidual>,
-}
-type ArrayGradient<'py> = (Bound<'py, PyArray2<Complex>>, Bound<'py, PyArray4<Complex>>);
+context!(SMatrixFromArrayContext(FromArrayResidual));
 #[pymethods]
-impl ArrayContext {
+impl SMatrixFromArrayContext {
     fn pullback<'py>(
         &mut self,
         py: Python<'py>,
-        cotangent: PyReadonlyArray4<'py, Complex>,
-    ) -> PyResult<ArrayGradient<'py>> {
-        let g = cotangent_blocks(cotangent)?;
-        let residual = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        if g[0].shape() != residual.value[0].shape() {
-            return Err(PyValueError::new_err(
-                "cotangent shape does not match forward output",
-            ));
-        }
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let (response, channels) = py.detach(move || residual.pullback(&g)).map_err(error)?;
-        Ok((
-            crate::tmatrix::owned_matrix(py, response)?,
-            array_owned(py, channels)?,
-        ))
+        cotangent: Cotangent<'py>,
+    ) -> PyResult<(C2<'py>, C4<'py>)> {
+        ieee(|| {
+            let (residual, g) = self
+                .residual
+                .take_if(|residual| cotangent_blocks(&cotangent, residual.shape()))?;
+            let gradient = detached(py, move || residual.pullback(&g))?;
+            Ok((
+                owned_matrix(py, gradient.response)?,
+                blocks_array(py, gradient.channels)?,
+            ))
+        })
     }
 }
+/// Record the S-matrix of a periodic array from its response and channels: `smatrix::from_array`.
 #[pyfunction]
-fn smatrix_from_array<'py>(
+pub(crate) fn smatrix_from_array<'py>(
     py: Python<'py>,
     response: PyReadonlyArray2<'py, Complex>,
     channels: PyReadonlyArray4<'py, Complex>,
-) -> PyResult<(Bound<'py, PyArray4<Complex>>, ArrayContext)> {
-    let response = crate::tmatrix::from_array(response)?;
-    let a = channels.as_array();
-    let s = a.shape();
-    if s[0] != 2 || s[1] != 2 {
-        return Err(PyValueError::new_err(
-            "channels require shape (2, 2, multipoles, plane modes)",
-        ));
-    }
-    let channels =
-        std::array::from_fn(|b| DMatrix::from_fn(s[2], s[3], |i, j| a[(b / 2, b % 2, i, j)]));
-    let residual = py
-        .detach(move || smatrix::from_array(response, channels))
-        .map_err(error)?;
-    Ok((
-        array(py, &residual.value),
-        ArrayContext {
-            residual: Some(residual),
-        },
-    ))
+) -> PyResult<(C4<'py>, SMatrixFromArrayContext)> {
+    ieee(|| {
+        let response = from_array(response, "response")?;
+        let a = channels.as_array();
+        if a.shape()[..2] != [2, 2] {
+            return Err(PyValueError::new_err(
+                "channels require shape (2, 2, multipoles, plane modes)",
+            ));
+        }
+        let channels = std::array::from_fn(|b| matrix_from_view(a.slice(s![b / 2, b % 2, .., ..])));
+        let (value, residual) = detached(py, move || smatrix::from_array(response, channels))?;
+        Ok((
+            blocks_array(py, value)?,
+            SMatrixFromArrayContext::new(residual),
+        ))
+    })
 }
 
-#[pyclass]
-#[derive(Debug)]
-struct SMatrixContext {
-    residual: Option<StackResidual>,
-}
-
-type Pair<'py> = (Bound<'py, PyArray4<Complex>>, Bound<'py, PyArray4<Complex>>);
+context!(SMatrixAddContext(AddResidual));
 
 #[pymethods]
-impl SMatrixContext {
+impl SMatrixAddContext {
     fn pullback<'py>(
         &mut self,
         py: Python<'py>,
-        cotangent: PyReadonlyArray4<'py, Complex>,
-    ) -> PyResult<Pair<'py>> {
-        let g = cotangent_blocks(cotangent)?;
-        let residual = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        if g[0].shape() != residual.value[0].shape() {
-            return Err(PyValueError::new_err(
-                "cotangent shape does not match forward output",
-            ));
-        }
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let (lower, upper) = py.detach(move || residual.pullback(&g)).map_err(error)?;
-        Ok((array_owned(py, lower)?, array_owned(py, upper)?))
+        cotangent: Cotangent<'py>,
+    ) -> PyResult<(C4<'py>, C4<'py>)> {
+        ieee(|| {
+            let (residual, g) = self
+                .residual
+                .take_if(|residual| cotangent_blocks(&cotangent, residual.shape()))?;
+            let gradient = detached(py, move || residual.pullback(&g))?;
+            Ok((
+                blocks_array(py, gradient.lower)?,
+                blocks_array(py, gradient.upper)?,
+            ))
+        })
     }
 }
 
+/// Record the S-matrix of `upper` stacked on `lower`: `smatrix::add`.
 #[pyfunction]
-fn smatrix_add<'py>(
+pub(crate) fn smatrix_add<'py>(
     py: Python<'py>,
     lower: PyReadonlyArray4<'py, Complex>,
     upper: PyReadonlyArray4<'py, Complex>,
-) -> PyResult<(Bound<'py, PyArray4<Complex>>, SMatrixContext)> {
-    let lower = from_array(lower)?;
-    let upper = from_array(upper)?;
-    let residual = py
-        .detach(move || smatrix::add(lower, upper))
-        .map_err(error)?;
-    Ok((
-        array(py, &residual.value),
-        SMatrixContext {
-            residual: Some(residual),
-        },
-    ))
+) -> PyResult<(C4<'py>, SMatrixAddContext)> {
+    ieee(|| {
+        let lower = blocks(lower, "lower")?;
+        let upper = blocks(upper, "upper")?;
+        let (value, residual) = detached(py, move || smatrix::add(lower, upper))?;
+        Ok((blocks_array(py, value)?, SMatrixAddContext::new(residual)))
+    })
 }
 
-pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_class::<TransmissionContext>()?;
-    module.add_function(wrap_pyfunction!(smatrix_transmittance, module)?)?;
-    module.add_class::<ChiralityContext>()?;
-    module.add_function(wrap_pyfunction!(chirality_density, module)?)?;
-    module.add_class::<OrientedChiralityContext>()?;
-    module.add_function(wrap_pyfunction!(oriented_chirality, module)?)?;
-    module.add_class::<IlluminationContext>()?;
-    module.add_class::<SMatrixPeriodicContext>()?;
-    module.add_class::<BandContext>()?;
-    module.add_function(wrap_pyfunction!(smatrix_illuminate, module)?)?;
-    module.add_function(wrap_pyfunction!(smatrix_illuminate_forward, module)?)?;
-    module.add_function(wrap_pyfunction!(smatrix_periodic, module)?)?;
-    module.add_function(wrap_pyfunction!(bands, module)?)?;
-    module.add_class::<ArrayContext>()?;
-    module.add_function(wrap_pyfunction!(smatrix_from_array, module)?)?;
-    module.add_class::<SMatrixContext>()?;
-    module.add_function(wrap_pyfunction!(smatrix_add, module)?)?;
-    module.add_class::<FresnelContext>()?;
-    module.add_class::<PropagationContext>()?;
-    module.add_function(wrap_pyfunction!(fresnel, module)?)?;
-    module.add_class::<InterfaceContext>()?;
-    module.add_class::<LayersContext>()?;
-    module.add_function(wrap_pyfunction!(layer_stack, module)?)?;
-    module.add_function(wrap_pyfunction!(interface, module)?)?;
-    module.add_function(wrap_pyfunction!(propagation, module)?)?;
-    Ok(())
-}
-
-#[pyclass]
-#[derive(Debug)]
-struct ChiralityContext {
-    residual: Option<smatrix::ChiralityResidual>,
-}
-
-type ChiralityGradient<'py> = (
-    Bound<'py, PyArray1<Complex>>,
-    Bound<'py, PyArray1<Complex>>,
-    Bound<'py, PyArray1<f64>>,
-);
+context!(ChiralityDensityContext(smatrix::ChiralityDensityResidual));
 
 #[pymethods]
-impl ChiralityContext {
+impl ChiralityDensityContext {
     fn pullback<'py>(
         &mut self,
         py: Python<'py>,
-        cotangent: PyReadonlyArray2<'py, Complex>,
-    ) -> PyResult<ChiralityGradient<'py>> {
-        let g = crate::tmatrix::from_array(cotangent)?;
-        let residual = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        if g.shape() != residual.shape() {
-            return Err(PyValueError::new_err(
-                "chirality cotangent shape must match output",
-            ));
-        }
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let gradient = py.detach(move || residual.pullback(&g)).map_err(error)?;
-        Ok((
-            gradient.ks.into_pyarray(py),
-            gradient.normal.into_pyarray(py),
-            gradient.interval.to_vec().into_pyarray(py),
-        ))
+        cotangent: Cotangent<'py>,
+    ) -> PyResult<(C1<'py>, C1<'py>, R1<'py>)> {
+        ieee(|| {
+            let (residual, g) = self
+                .residual
+                .take_with_matrix(&cotangent, smatrix::ChiralityDensityResidual::shape)?;
+            let gradient = detached(py, move || residual.pullback(&g))?;
+            Ok((
+                gradient.ks.into_pyarray(py),
+                gradient.normal.into_pyarray(py),
+                gradient.interval.to_vec().into_pyarray(py),
+            ))
+        })
     }
 }
 
+/// Record the chirality-density coefficients of plane modes: `smatrix::chirality_density`.
 #[pyfunction]
-fn chirality_density<'py>(
+pub(crate) fn chirality_density<'py>(
     py: Python<'py>,
     ks: PyReadonlyArray1<'py, Complex>,
     normal: PyReadonlyArray1<'py, Complex>,
     interval: [f64; 2],
-) -> PyResult<(Bound<'py, PyArray2<Complex>>, ChiralityContext)> {
-    let ks = ks.as_array().to_vec();
-    let normal = normal.as_array().to_vec();
-    let (value, residual) = py
-        .detach(move || smatrix::chirality_density(ks, normal, interval))
-        .map_err(error)?;
-    Ok((
-        crate::tmatrix::owned_matrix(py, value)?,
-        ChiralityContext {
-            residual: Some(residual),
-        },
-    ))
+) -> PyResult<(C2<'py>, ChiralityDensityContext)> {
+    ieee(|| {
+        let ks = ks.as_array().to_vec();
+        let normal = normal.as_array().to_vec();
+        let (value, residual) =
+            detached(py, move || smatrix::chirality_density(ks, normal, interval))?;
+        Ok((
+            owned_matrix(py, value)?,
+            ChiralityDensityContext::new(residual),
+        ))
+    })
 }
 
-#[pyclass]
-#[derive(Debug)]
-struct OrientedChiralityContext {
-    residual: Option<smatrix::OrientedChiralityResidual>,
-}
-
-type OrientedChiralityGradient<'py> = (
-    Bound<'py, PyArray2<f64>>,
-    Bound<'py, PyArray1<Complex>>,
-    Bound<'py, PyArray1<f64>>,
-);
+context!(OrientedChiralityContext(smatrix::OrientedChiralityResidual));
 
 #[pymethods]
 impl OrientedChiralityContext {
     fn pullback<'py>(
         &mut self,
         py: Python<'py>,
-        cotangent: PyReadonlyArray2<'py, Complex>,
-    ) -> PyResult<OrientedChiralityGradient<'py>> {
-        let g = crate::tmatrix::from_array(cotangent)?;
-        let residual = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        if g.shape() != residual.shape() {
-            return Err(PyValueError::new_err(
-                "chirality cotangent shape must match output",
-            ));
-        }
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let gradient = py.detach(move || residual.pullback(&g)).map_err(error)?;
-        Ok((
-            Array2::from_shape_fn((gradient.transverse.len(), 2), |(i, j)| {
-                gradient.transverse[i][j]
-            })
-            .into_pyarray(py),
-            gradient.normal.into_pyarray(py),
-            gradient.interval.to_vec().into_pyarray(py),
-        ))
+        cotangent: Cotangent<'py>,
+    ) -> PyResult<(R2<'py>, C1<'py>, R1<'py>)> {
+        ieee(|| {
+            let (residual, g) = self
+                .residual
+                .take_with_matrix(&cotangent, smatrix::OrientedChiralityResidual::shape)?;
+            let gradient = detached(py, move || residual.pullback(&g))?;
+            Ok((
+                rows_array(py, gradient.transverse)?,
+                gradient.normal.into_pyarray(py),
+                gradient.interval.to_vec().into_pyarray(py),
+            ))
+        })
     }
 }
 
+/// Record the signed helicity forms of plane modes for any normal: `smatrix::oriented_chirality`.
 #[pyfunction]
-fn oriented_chirality<'py>(
+pub(crate) fn oriented_chirality<'py>(
     py: Python<'py>,
     transverse: PyReadonlyArray2<'py, f64>,
     normal: PyReadonlyArray1<'py, Complex>,
     polarizations: Vec<u8>,
     axis: usize,
     interval: [f64; 2],
-) -> PyResult<(Bound<'py, PyArray2<Complex>>, OrientedChiralityContext)> {
-    let q = transverse.as_array();
-    if q.ncols() != 2 {
-        return Err(PyValueError::new_err(
-            "transverse components must have shape (N, 2)",
-        ));
-    }
-    let transverse = q.rows().into_iter().map(|row| [row[0], row[1]]).collect();
-    let normal = normal.as_array().to_vec();
-    let (value, residual) = py
-        .detach(move || {
+) -> PyResult<(C2<'py>, OrientedChiralityContext)> {
+    ieee(|| {
+        let transverse = rows(transverse.as_array(), "transverse")?;
+        let normal = normal.as_array().to_vec();
+        let (value, residual) = detached(py, move || {
             smatrix::oriented_chirality(transverse, normal, polarizations, axis, interval)
-        })
-        .map_err(error)?;
-    let output = Array2::from_shape_vec((value.ncols(), 3), Vec::from(value.data))
-        .map_err(|e| PyValueError::new_err(e.to_string()))?
-        .reversed_axes()
-        .into_pyarray(py);
-    Ok((
-        output,
-        OrientedChiralityContext {
-            residual: Some(residual),
-        },
-    ))
+        })?;
+        Ok((
+            owned_matrix(py, value)?,
+            OrientedChiralityContext::new(residual),
+        ))
+    })
 }
 
-#[pyclass]
-#[derive(Debug)]
-struct IlluminationContext {
-    residual: Option<smatrix::IlluminationResidual>,
-}
-
-type IlluminationGradient<'py> = (
-    Bound<'py, PyArray4<Complex>>,
-    Bound<'py, PyArray4<Complex>>,
-    Bound<'py, PyArray2<Complex>>,
-    Bound<'py, PyArray2<Complex>>,
-);
+context!(SMatrixIlluminateContext(smatrix::IlluminateResidual));
 
 #[pymethods]
-impl IlluminationContext {
+impl SMatrixIlluminateContext {
     fn pullback<'py>(
         &mut self,
         py: Python<'py>,
-        cotangent: PyReadonlyArray3<'py, Complex>,
-    ) -> PyResult<IlluminationGradient<'py>> {
-        let residual = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let (n, p) = residual.shape();
-        let a = cotangent.as_array();
-        if a.dim() != (4, n, p) || a.iter().any(|z| !z.re.is_finite() || !z.im.is_finite()) {
-            return Err(PyValueError::new_err(
-                "cotangent must be finite and match the field coefficient shape",
-            ));
-        }
-        let g = std::array::from_fn(|b| DMatrix::from_fn(n, p, |i, j| a[(b, i, j)]));
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let (lower, upper, [up, down]) = py.detach(move || residual.pullback(&g)).map_err(error)?;
+        cotangent: Cotangent<'py>,
+    ) -> PyResult<(C4<'py>, C4<'py>, C2<'py>, C2<'py>)> {
+        ieee(|| {
+            let (residual, g) = self.residual.take_if(|residual| {
+                let (modes, columns) = residual.shape();
+                let expected = [4, modes, columns];
+                let a = cotangent_view::<_, Ix3>(&cotangent, &expected)?;
+                let g = std::array::from_fn(|b| matrix_from_view(a.index_axis(Axis(0), b)));
+                if g.iter()
+                    .all(|field: &DMatrix<Complex>| all_finite(field.as_slice()))
+                {
+                    Ok(g)
+                } else {
+                    Err(cotangent_error(&expected))
+                }
+            })?;
+            let gradient = detached(py, move || residual.pullback(&g))?;
+            let [up, down] = gradient.incoming;
+            Ok((
+                blocks_array(py, gradient.lower)?,
+                blocks_array(py, gradient.upper)?,
+                owned_matrix(py, up)?,
+                owned_matrix(py, down)?,
+            ))
+        })
+    }
+}
+
+/// Record the outgoing and internal fields of two stacked S-matrices: `smatrix::illuminate`.
+#[pyfunction]
+pub(crate) fn smatrix_illuminate<'py>(
+    py: Python<'py>,
+    lower: PyReadonlyArray4<'py, Complex>,
+    upper: PyReadonlyArray4<'py, Complex>,
+    up: PyReadonlyArray2<'py, Complex>,
+    down: PyReadonlyArray2<'py, Complex>,
+) -> PyResult<(C3<'py>, SMatrixIlluminateContext)> {
+    ieee(|| {
+        let lower = block_views(lower.as_array(), "lower")?.map(LentMatrix::new);
+        let upper = block_views(upper.as_array(), "upper")?.map(LentMatrix::new);
+        let lower = lower.each_ref().map(LentMatrix::faer);
+        let upper = upper.each_ref().map(LentMatrix::faer);
+        let incoming = [from_array(up, "up")?, from_array(down, "down")?];
+        let (value, residual) = detached(py, move || smatrix::illuminate(lower, upper, incoming))?;
         Ok((
-            array_owned(py, lower)?,
-            array_owned(py, upper)?,
-            crate::tmatrix::owned_matrix(py, up)?,
-            crate::tmatrix::owned_matrix(py, down)?,
+            fields_array(py, value)?,
+            SMatrixIlluminateContext::new(residual),
         ))
-    }
+    })
 }
 
+/// The fields of `smatrix_illuminate` without a context: `smatrix::illuminate_value`.
 #[pyfunction]
-fn smatrix_illuminate<'py>(
+pub(crate) fn smatrix_illuminate_value<'py>(
     py: Python<'py>,
     lower: PyReadonlyArray4<'py, Complex>,
     upper: PyReadonlyArray4<'py, Complex>,
     up: PyReadonlyArray2<'py, Complex>,
     down: PyReadonlyArray2<'py, Complex>,
-) -> PyResult<(Bound<'py, PyArray3<Complex>>, IlluminationContext)> {
-    let arrays = [lower.as_array(), upper.as_array()];
-    for a in &arrays {
-        let s = a.shape();
-        if s[0] != 2 || s[1] != 2 || s[2] == 0 || s[2] != s[3] {
-            return Err(PyValueError::new_err(
-                "S matrices require shape (2, 2, n, n) with n > 0",
-            ));
-        }
-    }
-    let blocks: [ArrayView2<'_, Complex>; 8] =
-        std::array::from_fn(|i| arrays[i / 4].slice(s![i / 2 % 2, i % 2, .., ..]));
-    let packed = blocks.each_ref().map(|a| {
-        a.as_slice_memory_order()
-            .is_none()
-            .then(|| crate::tmatrix::matrix_from_view(*a))
-    });
-    let lower = std::array::from_fn(|i| borrowed_matrix(&blocks[i], packed[i].as_ref()));
-    let upper = std::array::from_fn(|i| borrowed_matrix(&blocks[i + 4], packed[i + 4].as_ref()));
-    let incoming = [
-        crate::tmatrix::from_array(up)?,
-        crate::tmatrix::from_array(down)?,
-    ];
-    let (value, residual) = py
-        .detach(move || smatrix::illuminate_borrowed(lower, upper, incoming))
-        .map_err(error)?;
-    let (n, p) = residual.shape();
-    let value = Array3::from_shape_fn((4, n, p), |(b, i, j)| value[b][(i, j)]).into_pyarray(py);
-    Ok((
-        value,
-        IlluminationContext {
-            residual: Some(residual),
-        },
-    ))
+) -> PyResult<C3<'py>> {
+    ieee(|| {
+        let lower = block_views(lower.as_array(), "lower")?.map(LentMatrix::new);
+        let upper = block_views(upper.as_array(), "upper")?.map(LentMatrix::new);
+        let incoming = [up.as_array(), down.as_array()].map(LentMatrix::new);
+        let lower = lower.each_ref().map(LentMatrix::faer);
+        let upper = upper.each_ref().map(LentMatrix::faer);
+        let incoming = incoming.each_ref().map(LentMatrix::faer);
+        let value = detached(py, || smatrix::illuminate_value(lower, upper, incoming))?;
+        fields_array(py, value)
+    })
 }
 
-#[pyfunction]
-fn smatrix_illuminate_forward<'py>(
-    py: Python<'py>,
-    lower: PyReadonlyArray4<'py, Complex>,
-    upper: PyReadonlyArray4<'py, Complex>,
-    up: PyReadonlyArray2<'py, Complex>,
-    down: PyReadonlyArray2<'py, Complex>,
-) -> PyResult<Bound<'py, PyArray3<Complex>>> {
-    let arrays = [lower.as_array(), upper.as_array()];
-    if arrays.iter().any(|a| a.shape()[0..2] != [2, 2]) {
-        return Err(PyValueError::new_err(
-            "S matrices require shape (2, 2, n, n)",
-        ));
-    }
-    let blocks: [ArrayView2<'_, Complex>; 8] =
-        std::array::from_fn(|i| arrays[i / 4].slice(s![i / 2 % 2, i % 2, .., ..]));
-    let inputs = [up.as_array(), down.as_array()];
-    let packed = blocks.each_ref().map(|a| {
-        a.as_slice_memory_order()
-            .is_none()
-            .then(|| crate::tmatrix::matrix_from_view(*a))
-    });
-    let packed_inputs = inputs.each_ref().map(|a| {
-        a.as_slice_memory_order()
-            .is_none()
-            .then(|| crate::tmatrix::matrix_from_view(*a))
-    });
-    let lower = std::array::from_fn(|i| borrowed_matrix(&blocks[i], packed[i].as_ref()));
-    let upper = std::array::from_fn(|i| borrowed_matrix(&blocks[i + 4], packed[i + 4].as_ref()));
-    let incoming = std::array::from_fn(|i| borrowed_matrix(&inputs[i], packed_inputs[i].as_ref()));
-    let value = py
-        .detach(|| smatrix::illuminate_forward(lower, upper, incoming))
-        .map_err(error)?;
-    let (n, p) = value[0].shape();
-    Ok(Array3::from_shape_fn((4, n, p), |(b, i, j)| value[b][(i, j)]).into_pyarray(py))
-}
-
-#[pyclass]
-#[derive(Debug)]
-struct SMatrixPeriodicContext {
-    residual: Option<smatrix::PeriodicResidual>,
-}
+context!(SMatrixPeriodicContext(smatrix::PeriodicResidual));
 
 #[pymethods]
 impl SMatrixPeriodicContext {
-    fn pullback<'py>(
-        &mut self,
-        py: Python<'py>,
-        cotangent: PyReadonlyArray2<'py, Complex>,
-    ) -> PyResult<Bound<'py, PyArray4<Complex>>> {
-        let g = crate::tmatrix::from_array(cotangent)?;
-        let n = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?
-            .dimension();
-        if g.shape() != (2 * n, 2 * n) {
-            return Err(PyValueError::new_err(
-                "cotangent shape does not match transfer matrix",
-            ));
-        }
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let result = py.detach(move || residual.pullback(&g)).map_err(error)?;
-        array_owned(py, result)
+    fn pullback<'py>(&mut self, py: Python<'py>, cotangent: Cotangent<'py>) -> PyResult<C4<'py>> {
+        ieee(|| {
+            let (residual, g) = self
+                .residual
+                .take_with_matrix(&cotangent, smatrix::PeriodicResidual::shape)?;
+            blocks_array(py, detached(py, move || residual.pullback(&g))?)
+        })
     }
 }
 
+/// Record the transfer matrix of one period of a stack: `smatrix::periodic`.
 #[pyfunction]
-fn smatrix_periodic<'py>(
+pub(crate) fn smatrix_periodic<'py>(
     py: Python<'py>,
     smats: PyReadonlyArray4<'py, Complex>,
-) -> PyResult<(Bound<'py, PyArray2<Complex>>, SMatrixPeriodicContext)> {
-    let smats = from_array(smats)?;
-    let (value, residual) = py.detach(move || smatrix::periodic(smats)).map_err(error)?;
-    Ok((
-        crate::tmatrix::owned_matrix(py, value)?,
-        SMatrixPeriodicContext {
-            residual: Some(residual),
-        },
-    ))
+) -> PyResult<(C2<'py>, SMatrixPeriodicContext)> {
+    ieee(|| {
+        let smats = blocks(smats, "smats")?;
+        let (value, residual) = detached(py, move || smatrix::periodic(smats))?;
+        Ok((
+            owned_matrix(py, value)?,
+            SMatrixPeriodicContext::new(residual),
+        ))
+    })
 }
 
-#[pyclass]
-#[derive(Debug)]
-struct BandContext {
-    residual: Option<smatrix::BandResidual>,
-}
+context!(BandsContext(smatrix::BandsResidual));
 
 #[pymethods]
-impl BandContext {
+impl BandsContext {
     fn pullback<'py>(
         &mut self,
         py: Python<'py>,
-        wavenumbers: PyReadonlyArray1<'py, Complex>,
-        eigenvectors: PyReadonlyArray2<'py, Complex>,
-    ) -> PyResult<(Bound<'py, PyArray4<Complex>>, f64)> {
-        let g: Vec<_> = wavenumbers.as_array().iter().copied().collect();
-        let vectors = crate::tmatrix::from_array(eigenvectors)?;
-        let residual = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        if g.len() != residual.wavenumbers.len()
-            || vectors.shape() != residual.vectors().shape()
-            || g.iter().any(|z| !z.re.is_finite() || !z.im.is_finite())
-        {
-            return Err(PyValueError::new_err(
-                "cotangent shapes must match finite Bloch outputs",
-            ));
-        }
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let (smats, period) = py
-            .detach(move || residual.pullback(&g, vectors))
-            .map_err(error)?;
-        Ok((array_owned(py, smats)?, period))
+        wavenumbers: Cotangent<'py>,
+        eigenvectors: Cotangent<'py>,
+    ) -> PyResult<(C4<'py>, f64)> {
+        ieee(|| {
+            let (residual, (g, vectors)) = self.residual.take_if(|residual| {
+                let g = vector_cotangent(&wavenumbers, residual.wavenumbers().len())?;
+                let vectors = matrix_cotangent(&eigenvectors, residual.vectors().shape())?;
+                Ok((g, vectors))
+            })?;
+            let gradient = detached(py, move || residual.pullback(&g, vectors))?;
+            Ok((blocks_array(py, gradient.blocks)?, gradient.period))
+        })
     }
 }
 
-type BandResult<'py> = (
-    Bound<'py, PyArray1<Complex>>,
-    Bound<'py, PyArray2<Complex>>,
-    BandContext,
-);
-
+/// Record the Bloch wavenumbers and eigenvectors of a periodic stack: `smatrix::bands`.
 #[pyfunction]
-fn bands<'py>(
+pub(crate) fn bands<'py>(
     py: Python<'py>,
     smats: PyReadonlyArray4<'py, Complex>,
     period: f64,
-) -> PyResult<BandResult<'py>> {
-    let blocks = from_array(smats)?;
-    let residual = py
-        .detach(move || smatrix::bands(blocks, period))
-        .map_err(error)?;
-    Ok((
-        residual.wavenumbers.clone().into_pyarray(py),
-        crate::tmatrix::matrix(py, residual.vectors()),
-        BandContext {
-            residual: Some(residual),
-        },
-    ))
+) -> PyResult<(C1<'py>, C2<'py>, BandsContext)> {
+    ieee(|| {
+        let blocks = blocks(smats, "smats")?;
+        let residual = detached(py, move || smatrix::bands(blocks, period))?;
+        // The wavenumbers and the C-ordered eigenvectors leave as copies: the residual
+        // keeps both for the pullback.
+        Ok((
+            residual.wavenumbers().to_vec().into_pyarray(py),
+            matrix(py, residual.vectors()),
+            BandsContext::new(residual),
+        ))
+    })
 }
 
-#[pyclass]
-#[derive(Debug)]
-struct FresnelContext {
-    residual: Option<FresnelResidual>,
-}
-
-type FresnelGradient<'py> = (
-    Bound<'py, PyArray2<Complex>>,
-    Bound<'py, PyArray2<Complex>>,
-    Bound<'py, PyArray1<Complex>>,
-);
+context!(FresnelContext(FresnelResidual));
 
 #[pymethods]
 impl FresnelContext {
     fn pullback<'py>(
         &mut self,
         py: Python<'py>,
-        cotangent: PyReadonlyArray4<'py, Complex>,
-    ) -> PyResult<FresnelGradient<'py>> {
-        let g = cotangent_blocks(cotangent)?;
-        if g[0].nrows() != 2 {
-            return Err(PyValueError::new_err(
-                "Fresnel cotangent requires shape (2, 2, 2, 2)",
-            ));
-        }
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let (ks, kz, z) = py.detach(move || residual.pullback(&g)).map_err(error)?;
-        Ok((
-            Array2::from_shape_fn((2, 2), |(i, j)| ks[i][j]).into_pyarray(py),
-            Array2::from_shape_fn((2, 2), |(i, j)| kz[i][j]).into_pyarray(py),
-            z.to_vec().into_pyarray(py),
-        ))
+        cotangent: Cotangent<'py>,
+    ) -> PyResult<(C2<'py>, C2<'py>, C1<'py>)> {
+        ieee(|| {
+            let g = cotangent_blocks(&cotangent, (2, 2))?;
+            let residual = self.residual.take()?;
+            let gradient = detached(py, move || residual.pullback(&g))?;
+            Ok((
+                rows_array(py, Vec::from(gradient.ks))?,
+                rows_array(py, Vec::from(gradient.kz))?,
+                gradient.z.to_vec().into_pyarray(py),
+            ))
+        })
     }
 }
 
+/// Record the Fresnel blocks of a chiral interface: `smatrix::fresnel`.
 #[pyfunction]
-fn fresnel(
+pub(crate) fn fresnel(
     py: Python<'_>,
     ks: [[Complex; 2]; 2],
-    kz: [[Complex; 2]; 2],
-    z: [Complex; 2],
-) -> PyResult<(Bound<'_, PyArray4<Complex>>, FresnelContext)> {
-    let residual = py
-        .detach(move || smatrix::fresnel(ks, kz, z))
-        .map_err(error)?;
-    Ok((
-        array(py, &residual.value),
-        FresnelContext {
-            residual: Some(residual),
-        },
-    ))
+    kzs: [[Complex; 2]; 2],
+    zs: [Complex; 2],
+) -> PyResult<(C4<'_>, FresnelContext)> {
+    ieee(|| {
+        let (value, residual) = detached(py, move || smatrix::fresnel(ks, kzs, zs))?;
+        Ok((blocks_array(py, value)?, FresnelContext::new(residual)))
+    })
 }
 
-#[pyclass]
-#[derive(Debug)]
-struct InterfaceContext {
-    residual: Option<smatrix::InterfaceResidual>,
-    fixed_q: bool,
-}
-type InterfaceGradient<'py> = (
-    Bound<'py, PyArray2<Complex>>,
-    Bound<'py, PyArray1<Complex>>,
-    Bound<'py, PyArray1<f64>>,
-);
+context!(InterfaceCoefficientsContext(smatrix::InterfaceResidual));
 #[pymethods]
-impl InterfaceContext {
+impl InterfaceCoefficientsContext {
     fn pullback<'py>(
         &mut self,
         py: Python<'py>,
-        cotangent: PyReadonlyArray4<'py, Complex>,
-    ) -> PyResult<InterfaceGradient<'py>> {
-        let g = cotangent_blocks(cotangent)?;
-        if g[0].nrows() != 2 {
-            return Err(PyValueError::new_err(
-                "interface cotangent requires shape (2, 2, 2, 2)",
-            ));
-        }
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let fixed_q = self.fixed_q;
-        let (ks, z, q) = py
-            .detach(move || residual.pullback(&g, fixed_q))
-            .map_err(error)?;
-        Ok((
-            Array2::from_shape_fn((2, 2), |(i, j)| ks[i][j]).into_pyarray(py),
-            z.to_vec().into_pyarray(py),
-            q.to_vec().into_pyarray(py),
-        ))
+        cotangent: Cotangent<'py>,
+    ) -> PyResult<(C2<'py>, C1<'py>, R1<'py>)> {
+        ieee(|| {
+            let g = cotangent_blocks(&cotangent, (2, 2))?;
+            let residual = self.residual.take()?;
+            let gradient = detached(py, move || residual.pullback(&g))?;
+            Ok((
+                rows_array(py, Vec::from(gradient.ks))?,
+                gradient.z.to_vec().into_pyarray(py),
+                gradient.q.to_vec().into_pyarray(py),
+            ))
+        })
     }
 }
+/// Record the S-matrix of a planar interface: `smatrix::interface`.
 #[pyfunction]
-fn interface(
+pub(crate) fn interface_coefficients(
     py: Python<'_>,
     ks: [[Complex; 2]; 2],
-    z: [Complex; 2],
+    zs: [Complex; 2],
     q: [f64; 2],
     axis: usize,
     fixed_q: bool,
-) -> PyResult<(Bound<'_, PyArray4<Complex>>, InterfaceContext)> {
-    let residual = py
-        .detach(move || smatrix::interface(ks, z, q, axis))
-        .map_err(error)?;
-    Ok((
-        array(py, &residual.value),
-        InterfaceContext {
-            residual: Some(residual),
-            fixed_q,
-        },
-    ))
+) -> PyResult<(C4<'_>, InterfaceCoefficientsContext)> {
+    ieee(|| {
+        let (value, residual) = detached(py, move || smatrix::interface(ks, zs, q, axis, fixed_q))?;
+        Ok((
+            blocks_array(py, value)?,
+            InterfaceCoefficientsContext::new(residual),
+        ))
+    })
 }
 
-#[pyclass]
-#[derive(Debug)]
-struct PropagationContext {
-    residual: Option<PropagationResidual>,
-}
-
-type PropagationGradient<'py> = (Bound<'py, PyArray2<Complex>>, Bound<'py, PyArray1<f64>>);
+context!(PropagationMatrixContext(PropagationResidual));
 
 #[pymethods]
-impl PropagationContext {
+impl PropagationMatrixContext {
     fn pullback<'py>(
         &mut self,
         py: Python<'py>,
-        cotangent: PyReadonlyArray4<'py, Complex>,
-    ) -> PyResult<PropagationGradient<'py>> {
-        let g = cotangent_blocks(cotangent)?;
-        let residual = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        if g[0].shape() != residual.value[0].shape() {
-            return Err(PyValueError::new_err(
-                "cotangent shape does not match forward output",
-            ));
-        }
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let (vectors, distance) = py.detach(move || residual.pullback(&g)).map_err(error)?;
-        Ok((
-            Array2::from_shape_fn((vectors.len(), 3), |(i, j)| vectors[i][j]).into_pyarray(py),
-            distance.to_vec().into_pyarray(py),
-        ))
+        cotangent: Cotangent<'py>,
+    ) -> PyResult<(C2<'py>, R1<'py>)> {
+        ieee(|| {
+            let (residual, g) = self
+                .residual
+                .take_if(|residual| cotangent_blocks(&cotangent, residual.shape()))?;
+            let gradient = detached(py, move || residual.pullback(&g))?;
+            Ok((
+                rows_array(py, gradient.vectors)?,
+                gradient.distance.to_vec().into_pyarray(py),
+            ))
+        })
     }
 }
 
+/// Record the S-matrix of propagation over a distance: `smatrix::propagation`.
 #[pyfunction]
-fn propagation(
+pub(crate) fn propagation_matrix(
     py: Python<'_>,
     vectors: Vec<[Complex; 3]>,
     distance: [f64; 3],
-) -> PyResult<(Bound<'_, PyArray4<Complex>>, PropagationContext)> {
-    let residual = py
-        .detach(move || smatrix::propagation(vectors, distance))
-        .map_err(error)?;
-    Ok((
-        array(py, &residual.value),
-        PropagationContext {
-            residual: Some(residual),
-        },
-    ))
+) -> PyResult<(C4<'_>, PropagationMatrixContext)> {
+    ieee(|| {
+        let (value, residual) = detached(py, move || smatrix::propagation(vectors, distance))?;
+        Ok((
+            blocks_array(py, value)?,
+            PropagationMatrixContext::new(residual),
+        ))
+    })
 }
 
-#[pyclass]
-#[derive(Debug)]
-struct LayersContext {
-    residual: Option<treams_core::layers::LayersResidual>,
-    fixed_q: bool,
-}
-type LayersGradient<'py> = (
-    Bound<'py, PyArray2<Complex>>,
-    Bound<'py, PyArray1<Complex>>,
-    Bound<'py, PyArray2<f64>>,
-    Bound<'py, PyArray1<f64>>,
-);
+context!(LayerStackContext(smatrix::LayerStackResidual));
 #[pymethods]
-impl LayersContext {
+impl LayerStackContext {
     fn pullback<'py>(
         &mut self,
         py: Python<'py>,
-        cotangent: PyReadonlyArray5<'py, Complex>,
-    ) -> PyResult<LayersGradient<'py>> {
-        let g = cotangent.as_array();
-        let residual = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        if g.shape() != [residual.channel_count(), 2, 2, 2, 2]
-            || g.iter().any(|v| !v.re.is_finite() || !v.im.is_finite())
-        {
-            return Err(PyValueError::new_err(
-                "compact layer cotangent must be finite and match shape (channels, 2, 2, 2, 2)",
-            ));
-        }
-        let g = (0..residual.channel_count())
-            .map(|q| {
-                std::array::from_fn(|b| DMatrix::from_fn(2, 2, |i, j| g[(q, b / 2, b % 2, i, j)]))
-            })
-            .collect();
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let fixed_q = self.fixed_q;
-        let result = py
-            .detach(move || residual.pullback(g, fixed_q))
-            .map_err(error)?;
-        Ok((
-            Array2::from_shape_fn((result.ks.len(), 2), |(i, j)| result.ks[i][j]).into_pyarray(py),
-            result.zs.into_pyarray(py),
-            Array2::from_shape_fn((result.q.len(), 2), |(i, j)| result.q[i][j]).into_pyarray(py),
-            result.thickness.into_pyarray(py),
-        ))
+        cotangent: Cotangent<'py>,
+    ) -> PyResult<(C2<'py>, C1<'py>, R2<'py>, R1<'py>)> {
+        ieee(|| {
+            let (residual, g) = self.residual.take_if(|residual| {
+                let expected = [residual.channel_count(), 2, 2, 2, 2];
+                finite_cotangent::<_, Ix5>(&cotangent, &expected)
+            })?;
+            let g = (0..g.shape()[0])
+                .map(|q| {
+                    std::array::from_fn(|b| {
+                        DMatrix::from_fn(2, 2, |i, j| g[(q, b / 2, b % 2, i, j)])
+                    })
+                })
+                .collect();
+            let result = detached(py, move || residual.pullback(g))?;
+            Ok((
+                rows_array(py, result.ks)?,
+                result.zs.into_pyarray(py),
+                rows_array(py, result.q)?,
+                result.thickness.into_pyarray(py),
+            ))
+        })
     }
 }
+/// Record the S-matrices of a layer stack, one per plane-wave channel: `smatrix::layer_stack`.
 #[pyfunction]
-fn layer_stack(
+pub(crate) fn layer_stack(
     py: Python<'_>,
     ks: Vec<[Complex; 2]>,
     zs: Vec<Complex>,
@@ -831,83 +571,67 @@ fn layer_stack(
     thickness: Vec<f64>,
     axis: usize,
     fixed_q: bool,
-) -> PyResult<(Bound<'_, PyArray5<Complex>>, LayersContext)> {
-    let (values, residual) = py
-        .detach(move || treams_core::layers::stack(ks, &zs, q, &thickness, axis))
-        .map_err(error)?;
-    let array = Array5::from_shape_fn((values.len(), 2, 2, 2, 2), |(q, a, b, i, j)| {
-        values[q][2 * a + b][(i, j)]
+) -> PyResult<(C5<'_>, LayerStackContext)> {
+    ieee(|| {
+        let (values, residual) = detached(py, move || {
+            smatrix::layer_stack(ks, &zs, q, &thickness, axis, fixed_q)
+        })?;
+        let array = Array5::from_shape_fn((values.len(), 2, 2, 2, 2), |(q, a, b, i, j)| {
+            values[q][2 * a + b][(i, j)]
+        })
+        .into_pyarray(py);
+        Ok((array, LayerStackContext::new(residual)))
     })
-    .into_pyarray(py);
-    Ok((
-        array,
-        LayersContext {
-            residual: Some(residual),
-            fixed_q,
-        },
-    ))
 }
 
-#[pyclass]
-#[derive(Debug)]
-struct TransmissionContext {
-    residual: Option<smatrix::TransmissionResidual>,
-    fixed_q: bool,
-}
-type TransmissionGradient<'py> = (
-    Bound<'py, PyArray4<Complex>>,
-    Bound<'py, PyArray2<Complex>>,
-    Bound<'py, PyArray2<Complex>>,
-    Bound<'py, PyArray1<Complex>>,
-    Bound<'py, PyArray2<f64>>,
-);
+context!(SMatrixTrContext(smatrix::TrResidual));
 #[pymethods]
-impl TransmissionContext {
+impl SMatrixTrContext {
+    /// The powers are real, so only the real part of a complex cotangent
+    /// enters the real pairing.
     fn pullback<'py>(
         &mut self,
         py: Python<'py>,
-        cotangent: PyReadonlyArray2<'_, Complex>,
-    ) -> PyResult<TransmissionGradient<'py>> {
-        let residual = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let a = cotangent.as_array();
-        if a.dim() != residual.value.shape()
-            || a.iter().any(|z| !z.re.is_finite() || !z.im.is_finite())
-        {
-            return Err(PyValueError::new_err(
-                "power cotangent must be finite and match output shape",
-            ));
-        }
-        let g = DMatrix::from_fn(a.nrows(), a.ncols(), |i, j| a[(i, j)].re);
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let fixed_q = self.fixed_q;
-        let gradient = py
-            .detach(move || residual.pullback(&g, fixed_q))
-            .map_err(error)?;
-        let shape = gradient.incident.shape();
-        let incident =
-            Array2::from_shape_vec((shape.1, shape.0), Vec::from(gradient.incident.data))
-                .map_err(|e| PyValueError::new_err(e.to_string()))?
-                .reversed_axes()
-                .into_pyarray(py);
-        Ok((
-            array_owned(py, gradient.matrices)?,
-            incident,
-            Array2::from_shape_fn((2, 2), |(i, j)| gradient.ks[i][j]).into_pyarray(py),
-            gradient.zs.to_vec().into_pyarray(py),
-            Array2::from_shape_fn((gradient.q.len(), 2), |(i, j)| gradient.q[i][j])
-                .into_pyarray(py),
-        ))
+        cotangent: RealCotangent<'_>,
+    ) -> PyResult<(C4<'py>, C2<'py>, C2<'py>, C1<'py>, R2<'py>)> {
+        ieee(|| {
+            let (residual, a) = self.residual.take_if(|residual| {
+                finite_cotangent::<_, Ix2>(&cotangent, &<[usize; 2]>::from(residual.shape()))
+            })?;
+            let g = DMatrix::from_fn(a.nrows(), a.ncols(), |i, j| a[(i, j)]);
+            let gradient = detached(py, move || residual.pullback(&g))?;
+            Ok((
+                blocks_array(py, gradient.matrices)?,
+                owned_matrix(py, gradient.incident)?,
+                rows_array(py, Vec::from(gradient.ks))?,
+                gradient.zs.to_vec().into_pyarray(py),
+                rows_array(py, gradient.q)?,
+            ))
+        })
     }
 }
 
+/// The blocks that light incident in `direction` meets: transmission
+/// `[direction, direction]` and reflection `[1 - direction, direction]`.
+fn tr_blocks(
+    a: ArrayView4<'_, Complex>,
+    direction: usize,
+) -> PyResult<[ArrayView2<'_, Complex>; 2]> {
+    let shape = a.shape();
+    if shape[..2] != [2, 2] || shape[2] != shape[3] || direction > 1 {
+        return Err(PyValueError::new_err(
+            "require square (2,2,n,n) scattering blocks and direction 0/1",
+        ));
+    }
+    Ok([
+        a.slice_move(s![direction, direction, .., ..]),
+        a.slice_move(s![1 - direction, direction, .., ..]),
+    ])
+}
+
+/// Record the transmitted and reflected powers of illuminations: `smatrix::tr`.
 #[pyfunction]
-fn smatrix_transmittance<'py>(
+pub(crate) fn smatrix_tr<'py>(
     py: Python<'py>,
     matrices: PyReadonlyArray4<'_, Complex>,
     incident: PyReadonlyArray2<'_, Complex>,
@@ -917,71 +641,59 @@ fn smatrix_transmittance<'py>(
     modes: Vec<(usize, u8)>,
     axis: usize,
     helicity: bool,
-    transmission: usize,
+    direction: usize,
     fixed_q: bool,
-    record: bool,
-) -> PyResult<(Bound<'py, PyArray2<f64>>, Option<TransmissionContext>)> {
-    let a = matrices.as_array();
-    let shape = a.shape();
-    if shape[..2] != [2, 2] || shape[2] != shape[3] || transmission > 1 {
-        return Err(PyValueError::new_err(
-            "require square (2,2,n,n) scattering blocks and direction 0/1",
-        ));
-    }
-    let blocks = [
-        a.slice(s![transmission, transmission, .., ..]),
-        a.slice(s![1 - transmission, transmission, .., ..]),
-    ];
-    let packed = blocks.each_ref().map(|a| {
-        a.as_slice_memory_order()
-            .is_none()
-            .then(|| crate::tmatrix::matrix_from_view(*a))
-    });
-    let views = std::array::from_fn(|i| borrowed_matrix(&blocks[i], packed[i].as_ref()));
-    let incident = crate::tmatrix::from_array(incident)?;
-    let (value, residual) = py
-        .detach(move || {
-            if record {
-                let residual = smatrix::transmittance(
-                    views,
-                    incident,
-                    ks,
-                    zs,
-                    q,
-                    modes,
-                    axis,
-                    helicity,
-                    transmission,
-                )?;
-                Ok((residual.value.clone(), Some(residual)))
-            } else {
-                Ok((
-                    smatrix::transmittance_value(
-                        views,
-                        &incident,
-                        ks,
-                        zs,
-                        &q,
-                        &modes,
-                        axis,
-                        helicity,
-                        transmission,
-                    )?,
-                    None,
-                ))
-            }
-        })
-        .map_err(error)?;
-    let shape = value.shape();
-    let value = Array2::from_shape_vec((shape.1, shape.0), Vec::from(value.data))
-        .map_err(|e| PyValueError::new_err(e.to_string()))?
-        .reversed_axes()
-        .into_pyarray(py);
-    Ok((
-        value,
-        residual.map(|residual| TransmissionContext {
-            residual: Some(residual),
-            fixed_q,
-        }),
-    ))
+) -> PyResult<(R2<'py>, SMatrixTrContext)> {
+    ieee(|| {
+        let blocks = tr_blocks(matrices.as_array(), direction)?.map(LentMatrix::new);
+        let views = blocks.each_ref().map(LentMatrix::faer);
+        let incident = from_array(incident, "incident")?;
+        let ports = smatrix::TrPorts {
+            ks,
+            zs,
+            q,
+            modes,
+            axis,
+            helicity,
+            direction,
+        };
+        let (value, residual) = detached(py, move || {
+            // The residual keeps the powers for the pullback; the output is a copy.
+            let residual = smatrix::tr(views, incident, ports, fixed_q)?;
+            Ok((residual.value().clone(), residual))
+        })?;
+        Ok((owned_matrix(py, value)?, SMatrixTrContext::new(residual)))
+    })
+}
+
+/// The powers of `smatrix_tr` without a context: `smatrix::tr_value`.
+#[pyfunction]
+pub(crate) fn smatrix_tr_value<'py>(
+    py: Python<'py>,
+    matrices: PyReadonlyArray4<'_, Complex>,
+    incident: PyReadonlyArray2<'_, Complex>,
+    ks: [[Complex; 2]; 2],
+    zs: [Complex; 2],
+    q: Vec<[f64; 2]>,
+    modes: Vec<(usize, u8)>,
+    axis: usize,
+    helicity: bool,
+    direction: usize,
+) -> PyResult<R2<'py>> {
+    ieee(|| {
+        let blocks = tr_blocks(matrices.as_array(), direction)?.map(LentMatrix::new);
+        let views = blocks.each_ref().map(LentMatrix::faer);
+        let incident = from_array(incident, "incident")?;
+        let ports = smatrix::TrPorts {
+            ks,
+            zs,
+            q,
+            modes,
+            axis,
+            helicity,
+            direction,
+        };
+        let value = detached(py, move || smatrix::tr_value(views, &incident, &ports))?;
+        owned_matrix(py, value)
+    })
 }

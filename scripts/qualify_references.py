@@ -6,11 +6,10 @@
 
 Run in the release development environment after timing experiments:
 uv run --no-sync --with mpmath python scripts/qualify_references.py --output result.json
-The default grid is fixed before execution; --limit is only for harness smoke checks.
+The default grid is fixed before execution; --limit is only for quick test runs of the script.
 """
 
 import argparse
-import hashlib
 import importlib.metadata
 import json
 import math
@@ -27,7 +26,8 @@ from pathlib import Path
 import mpmath as mp
 import numpy as np
 import treams
-from threadpoolctl import threadpool_info, threadpool_limits
+from _harness import file_sha256, package_sha256, pinned_threads, threadpools
+from threadpoolctl import threadpool_limits
 
 import treams_rs
 from treams_rs import _native, coeffs, diff, special
@@ -72,32 +72,21 @@ SOURCES = [
 ]
 
 
-def digest(path):
-    with Path(path).open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
-
-
 def package_digest(package, suffixes):
-    directory = Path(package.__file__).parent
-    result = hashlib.sha256()
-    for path in sorted(directory.rglob("*")):
-        if path.suffix in suffixes:
-            result.update(path.relative_to(directory).as_posix().encode())
-            result.update(bytes.fromhex(digest(path)))
-    return result.hexdigest()
+    return package_sha256(Path(package.__file__).parent, suffixes)
 
 
 def fingerprints():
     return {
-        "native_sha256": digest(_native.__file__),
+        "native_sha256": file_sha256(_native.__file__),
         "native_profile": _native.build_profile(),
         "python_source_sha256": package_digest(treams_rs, (".py",)),
         "upstream_package_sha256": package_digest(
             treams, (".py", ".so", ".dylib", ".pyd")
         ),
         "mpmath_source_sha256": package_digest(mp, (".py",)),
-        "script_sha256": digest(__file__),
-        "ferrers_reference_script_sha256": digest(
+        "script_sha256": file_sha256(__file__),
+        "ferrers_reference_script_sha256": file_sha256(
             Path(__file__).with_name("qualify_legendre.py")
         ),
     }
@@ -198,7 +187,7 @@ def wigner_smalld(degree, m_out, m_in, beta):
 
 @lru_cache(maxsize=12)
 def rotation_block(backend, degree, angles, polarization):
-    """Evaluate the exact matrix API path implicated by the performance gate."""
+    """Evaluate the matrix API path that the failed benchmark check used."""
     library = treams_rs if backend == "treams-rs" else treams
     basis = (
         treams_rs.SphericalBasis
@@ -215,12 +204,12 @@ def rotation_block(backend, degree, angles, polarization):
 def certify_rotation_disagreements(
     actual, upstream, basis, angles, *, atol=1e-12, rtol=2e-9
 ):
-    """Adjudicate every original rotation mismatch, preserving the upstream gate.
+    """Resolve every rotation mismatch with treams, keeping the treams tolerance.
 
     ``basis`` explicitly lists (particle, degree, order, polarization) for each
-    row/column. Originally matching entries retain upstream-comparison evidence;
+    row/column. Entries that match treams keep the treams comparison as evidence;
     only mismatches receive independent 80/120-digit factorial-sum references.
-    Load this collector lazily after a benchmark's original gate fails so normal
+    Load this collector lazily after a benchmark's agreement check fails so normal
     benchmark validation does not require mpmath. Reference work is untimed.
     """
     actual, upstream = np.asarray(actual), np.asarray(upstream)
@@ -326,7 +315,7 @@ def certify_rotation_disagreements(
                         }
             except (
                 Exception
-            ) as exc:  # Preserve an unresolvable disagreement as a failed gate.
+            ) as exc:  # Keep an unresolvable disagreement as a failed check.
                 entry.update(reference_stable=False, reference_error=neutral(exc))
             entries.append(entry)
     with mp.workdps(120):
@@ -351,14 +340,14 @@ def certify_rotation_disagreements(
             "basis_order": ["particle", "degree", "order", "polarization"],
             "reference_precision_digits": [80, 120],
             "source": "https://arxiv.org/pdf/1507.04535 (equation 1)",
-            "script_sha256": digest(__file__),
+            "script_sha256": file_sha256(__file__),
             "mpmath_version": mp.__version__,
         },
     }
 
 
 def case_grid():
-    """Fixed reference grid followed by explicitly tagged post-failure diagnostics."""
+    """Fixed reference grid followed by explicitly tagged diagnostic cases."""
     arguments = [
         ("small", 0.01 + 0.002j),
         ("real", 0.3),
@@ -568,12 +557,17 @@ def evaluate(case, backend):
     return [value]
 
 
-def finite_number(value):
-    """JSON number when representable; high-precision strings retain other errors."""
-    if value is None:
+def finite_number(text):
+    """The float Python, json and NumPy read from `text`.
+
+    None if float64 cannot hold it: the value overflows or underflows to zero.
+    """
+    if text is None:
         return None
-    result = float(value)
-    return result if math.isfinite(result) and (result != 0 or value == 0) else None
+    result = float(text)
+    if math.isfinite(result) and (result != 0 or mp.mpf(text) == 0):
+        return result
+    return None
 
 
 def errors(actual, expected, atol, rtol):
@@ -594,13 +588,14 @@ def errors(actual, expected, atol, rtol):
             for err, ref in zip(residuals, expected, strict=True)
         ),
     }
+    published = {
+        key: str(value) if value is not None else None for key, value in metrics.items()
+    }
     return {
         "value": [pair(x) for x in actual],
-        **{key: finite_number(value) for key, value in metrics.items()},
-        "errors_high_precision": {
-            key: str(value) if value is not None else None
-            for key, value in metrics.items()
-        },
+        # Read each number from its string so both forms give the same float.
+        **{key: finite_number(text) for key, text in published.items()},
+        "errors_high_precision": published,
         "status": "passed" if metrics["max_scaled_error"] <= 1 else "failed",
     }
 
@@ -740,14 +735,7 @@ def main():
         parser.error(
             "reference precision must be >=60 digits; threads and limit positive"
         )
-    for name in (
-        "RAYON_NUM_THREADS",
-        "OMP_NUM_THREADS",
-        "OPENBLAS_NUM_THREADS",
-        "MKL_NUM_THREADS",
-        "VECLIB_MAXIMUM_THREADS",
-    ):
-        os.environ[name] = str(args.threads)
+    os.environ.update(pinned_threads(args.threads))
     selected = [
         {"id": f"reference-{index:05d}", **case}
         for index, case in enumerate(case_grid())
@@ -758,10 +746,7 @@ def main():
         selected = selected[: args.limit]
     identity, started = fingerprints(), time.monotonic()
     with threadpool_limits(limits=args.threads):
-        pools = [
-            {**pool, "filepath": Path(pool["filepath"]).name}
-            for pool in threadpool_info()
-        ]
+        pools = threadpools()
         rows = [qualify_case(case, args.digits) for case in selected]
     if fingerprints() != identity:
         raise RuntimeError("reference or solver source changed during qualification")

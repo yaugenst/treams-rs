@@ -3,8 +3,8 @@ import Mathlib
 /-!
 # Pullback of the requested-illumination solve
 
-A model of `Factor::record` and `Residual::pullback` in
-`crates/treams-core/src/illumination.rs` for a dense local matrix `T`, coupling `C` and
+A model of `InteractionFactor::record` and `IlluminateResidual::pullback` in
+`crates/treams-core/src/cluster/interaction.rs` for a dense local matrix `T`, coupling `C` and
 incident fields `a`. The forward solve is `X = (I - T C)⁻¹ T a`; the pullback computes
 
 * `adjoint = (I - T C)ᴴ⁻¹ G` (`solve_adjoint_in_place`),

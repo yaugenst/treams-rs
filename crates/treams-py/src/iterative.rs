@@ -1,39 +1,53 @@
-//! Native reusable matrix-free sphere operators and one-use implicit pullbacks.
+//! `IterativeSphereCluster` and `IterativeContext`: the matrix-free sphere cluster,
+//! solved with GMRES (`treams_core::cluster::IterativeSphereCluster`).
 use std::sync::Arc;
 
-use numpy::{
-    IntoPyArray, PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2,
-    ndarray::Array2,
-};
-use pyo3::{exceptions::PyValueError, prelude::*};
+use numpy::{IntoPyArray, PyReadonlyArray1, PyReadonlyArray2};
+use pyo3::prelude::*;
 use treams_core::{
     Complex,
-    iterative::{Convergence, GmresOptions, IterativeResidual, SphereCluster},
+    cluster::{self as core_cluster, IterativeResidual},
+    fpenv::ieee,
+    linalg::{Convergence, GmresOptions},
 };
 
 use crate::{
-    error,
-    tmatrix::{from_array, matrix, owned_matrix},
+    args::spheres,
+    context::{context, detached},
+    convert::{C1, C2, Cotangent, R1, R2, from_array, matrix, owned_matrix, rows_array},
 };
 
-type Reports = Vec<(usize, f64, f64)>;
+/// GMRES convergence of each illumination as `(iterations, residual_norm, rhs_norm)`.
+type ConvergenceTuples = Vec<(usize, f64, f64)>;
 
-fn reports(values: &[Convergence]) -> Reports {
+fn convergence_tuples(values: &[Convergence]) -> ConvergenceTuples {
     values
         .iter()
-        .map(|report| (report.iterations, report.residual_norm, report.rhs_norm))
+        .map(|entry| (entry.iterations, entry.residual_norm, entry.rhs_norm))
         .collect()
 }
 
+/// GMRES options of a solve.
+const fn gmres(rtol: f64, atol: f64, restart: usize, max_iterations: usize) -> GmresOptions {
+    GmresOptions {
+        rtol,
+        atol,
+        restart,
+        max_iterations,
+    }
+}
+
 /// Matrix-free geometry shared across illumination calls and their residuals.
-#[pyclass(name = "NativeSphereCluster")]
+#[pyclass(module = "treams_rs._native", frozen)]
 #[derive(Debug)]
-struct Cluster {
-    operator: Arc<SphereCluster>,
+pub(crate) struct IterativeSphereCluster {
+    operator: Arc<core_cluster::IterativeSphereCluster>,
 }
 
 #[pymethods]
-impl Cluster {
+impl IterativeSphereCluster {
+    /// The matrix-free cluster of homogeneous spheres in vacuum:
+    /// `cluster::IterativeSphereCluster::new`.
     #[new]
     fn new(
         py: Python<'_>,
@@ -43,32 +57,25 @@ impl Cluster {
         epsilon: PyReadonlyArray1<'_, Complex>,
         positions: PyReadonlyArray2<'_, f64>,
     ) -> PyResult<Self> {
-        let radii = radii.to_vec()?;
-        let epsilon = epsilon.to_vec()?;
-        let positions = positions.as_array();
-        if positions.ncols() != 3 {
-            return Err(PyValueError::new_err(
-                "positions must have shape (particles, 3)",
-            ));
-        }
-        let positions: Vec<_> = positions
-            .rows()
-            .into_iter()
-            .map(|p| [p[0], p[1], p[2]])
-            .collect();
-        let operator = py
-            .detach(|| SphereCluster::new(lmax, k0, &radii, &epsilon, &positions))
-            .map_err(error)?;
-        Ok(Self {
-            operator: Arc::new(operator),
+        ieee(|| {
+            let (radii, epsilon, positions) = spheres(&radii, &epsilon, positions)?;
+            let operator = detached(py, || {
+                core_cluster::IterativeSphereCluster::new(lmax, k0, &radii, &epsilon, &positions)
+            })?;
+            Ok(Self {
+                operator: Arc::new(operator),
+            })
         })
     }
 
+    /// The number of rows of `I - T C`.
     #[getter]
     fn dimension(&self) -> usize {
-        self.operator.dimension()
+        ieee(|| self.operator.dimension())
     }
 
+    /// The scattered coefficients of each incident column, solved with GMRES, and the
+    /// convergence of each solve.
     #[pyo3(signature = (incident, *, rtol=1e-10, atol=0.0, restart=30, max_iterations=300))]
     fn solve<'py>(
         &self,
@@ -78,25 +85,21 @@ impl Cluster {
         atol: f64,
         restart: usize,
         max_iterations: usize,
-    ) -> PyResult<(Bound<'py, PyArray2<Complex>>, Reports)> {
-        let incident = from_array(incident)?;
-        let options = GmresOptions {
-            rtol,
-            atol,
-            restart,
-            max_iterations,
-        };
-        let solution = py
-            .detach(|| self.operator.solve(&incident, options))
-            .map_err(error)?;
-        Ok((
-            owned_matrix(py, solution.value)?,
-            reports(&solution.reports),
-        ))
+    ) -> PyResult<(C2<'py>, ConvergenceTuples)> {
+        ieee(|| {
+            let incident = from_array(incident, "incident")?;
+            let options = gmres(rtol, atol, restart, max_iterations);
+            let solution = detached(py, || self.operator.solve(&incident, options))?;
+            Ok((
+                owned_matrix(py, solution.value)?,
+                convergence_tuples(&solution.convergence),
+            ))
+        })
     }
 
+    /// As `solve`, with the context between the coefficients and the convergence.
     #[pyo3(signature = (incident, *, rtol=1e-10, atol=0.0, restart=30, max_iterations=300))]
-    fn solve_with_pullback<'py>(
+    fn record<'py>(
         &self,
         py: Python<'py>,
         incident: PyReadonlyArray2<'_, Complex>,
@@ -104,85 +107,50 @@ impl Cluster {
         atol: f64,
         restart: usize,
         max_iterations: usize,
-    ) -> PyResult<(Bound<'py, PyArray2<Complex>>, Context, Reports)> {
-        let incident = from_array(incident)?;
-        let options = GmresOptions {
-            rtol,
-            atol,
-            restart,
-            max_iterations,
-        };
-        let residual = py
-            .detach(|| self.operator.clone().record(incident, options))
-            .map_err(error)?;
-        let convergence = reports(&residual.solution.reports);
-        Ok((
-            matrix(py, &residual.solution.value),
-            Context {
-                residual: Some(residual),
-            },
-            convergence,
-        ))
+    ) -> PyResult<(C2<'py>, IterativeContext, ConvergenceTuples)> {
+        ieee(|| {
+            let incident = from_array(incident, "incident")?;
+            let options = gmres(rtol, atol, restart, max_iterations);
+            let residual = detached(py, || self.operator.clone().record(incident, options))?;
+            let convergence = convergence_tuples(&residual.solution().convergence);
+            // A C-ordered copy: the residual keeps the solution for the pullback.
+            Ok((
+                matrix(py, &residual.solution().value),
+                IterativeContext::new(residual),
+                convergence,
+            ))
+        })
     }
 }
 
-/// First-order native illumination residual, consumed by one pullback.
-#[pyclass(name = "IterativeContext")]
-#[derive(Debug)]
-struct Context {
-    residual: Option<IterativeResidual>,
-}
-
-type Gradients<'py> = (
-    Bound<'py, PyArray1<f64>>,
-    Bound<'py, PyArray2<f64>>,
-    Bound<'py, PyArray1<Complex>>,
-    f64,
-    Bound<'py, PyArray2<Complex>>,
-    Reports,
+context!(
+    /// The context of `IterativeSphereCluster.record`, whose pullback solves the
+    /// adjoint systems with GMRES.
+    IterativeContext(IterativeResidual)
 );
 
 #[pymethods]
-impl Context {
+impl IterativeContext {
+    /// Cotangents of `(k0, radii, epsilon, positions, incident)`, in the forward
+    /// argument order, then the convergence of each adjoint solve.
     fn pullback<'py>(
         &mut self,
         py: Python<'py>,
-        cotangent: PyReadonlyArray2<'_, Complex>,
-    ) -> PyResult<Gradients<'py>> {
-        let g = from_array(cotangent)?;
-        let shape = self
-            .residual
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?
-            .solution
-            .value
-            .shape();
-        if g.shape() != shape {
-            return Err(PyValueError::new_err(
-                "cotangent shape does not match forward output",
-            ));
-        }
-        let residual = self
-            .residual
-            .take()
-            .ok_or_else(|| PyValueError::new_err("pullback residual has already been consumed"))?;
-        let result = py.detach(|| residual.pullback(&g)).map_err(error)?;
-        let positions = Array2::from_shape_fn((result.cluster.positions.len(), 3), |(i, j)| {
-            result.cluster.positions[i][j]
-        });
-        Ok((
-            result.cluster.radii.into_pyarray(py),
-            positions.into_pyarray(py),
-            result.cluster.epsilon.into_pyarray(py),
-            result.cluster.k0,
-            owned_matrix(py, result.incident)?,
-            reports(&result.reports),
-        ))
+        cotangent: Cotangent<'_>,
+    ) -> PyResult<(f64, R1<'py>, C1<'py>, R2<'py>, C2<'py>, ConvergenceTuples)> {
+        ieee(|| {
+            let (residual, g) = self
+                .residual
+                .take_with_matrix(&cotangent, IterativeResidual::shape)?;
+            let result = detached(py, || residual.pullback(&g))?;
+            Ok((
+                result.cluster.k0,
+                result.cluster.radii.into_pyarray(py),
+                result.cluster.epsilon.into_pyarray(py),
+                rows_array(py, result.cluster.positions)?,
+                owned_matrix(py, result.incident)?,
+                convergence_tuples(&result.convergence),
+            ))
+        })
     }
-}
-
-/// Register the matrix-free CPU solver independently of GPU features.
-pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_class::<Cluster>()?;
-    module.add_class::<Context>()
 }

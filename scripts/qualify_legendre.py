@@ -8,15 +8,17 @@ Run: uv run --no-sync --with mpmath python scripts/qualify_legendre.py
 """
 
 import argparse
-import hashlib
 import json
 import math
 from pathlib import Path
 
 import mpmath as mp
 import numpy as np
+from _harness import file_sha256
 
 from treams_rs import _native, diff
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def ferrers(degree, order, x):
@@ -34,7 +36,7 @@ def main():
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("benchmarks/results/fractional-legendre-physical.json"),
+        default=ROOT / "benchmarks/results/fractional-legendre-physical.json",
     )
     args = parser.parse_args()
     rows = []
@@ -93,11 +95,9 @@ def main():
                             relative_error=error,
                         )
                     )
-    with Path(_native.__file__).open("rb") as stream:
-        native_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
     result = dict(
         precision_digits=70,
-        native_sha256=native_sha256,
+        native_sha256=file_sha256(_native.__file__),
         cases=len(rows),
         finite_cases=sum(not row["expected_overflow"] for row in rows),
         max_relative_error=max(row["relative_error"] for row in rows),

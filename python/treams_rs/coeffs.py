@@ -1,4 +1,34 @@
-"""Scattering coefficients in the upstream treams helicity convention."""
+"""Mie and Fresnel coefficients in the helicity basis.
+
+Mirrors ``treams.coeffs``. ``mie`` and ``mie_cyl`` return one complex128
+(2, 2) block per call: rows are the scattered and columns the incident
+helicity, with index 0 for negative and 1 for positive helicity. Materials
+are (epsilon, mu, kappa): relative permittivity, relative permeability and
+chirality parameter, ordered from the innermost layer out to the embedding
+medium. ``diff.mie``, ``diff.mie_cyl`` and ``diff.fresnel`` return the same
+values together with a context that computes gradients.
+
+Differences from treams:
+    - treams' functions are generalized ufuncs that broadcast over leading
+      axes, for example ``mie(l[:, None], ...)``. Here ``mie`` takes one
+      degree, ``mie_cyl`` one order and ``fresnel`` one interface: loop over
+      the degrees, orders or interfaces. An array degree or order raises
+      ValueError.
+    - Invalid layers raise ValueError, for example a zero or decreasing
+      radius; treams raises ZeroDivisionError for a zero radius.
+
+Example::
+
+    import numpy as np
+    from treams_rs import coeffs
+
+    # A sphere of size parameter k0 r = 0.5 and permittivity 4 in vacuum.
+    dipole = coeffs.mie(1, [0.5], [4, 1], [1, 1], [0, 0])
+    assert dipole.shape == (2, 2)
+    # Both helicities scatter alike from an achiral sphere.
+    assert np.isclose(dipole[0, 0], dipole[1, 1])
+    assert np.isclose(dipole[0, 1], dipole[1, 0])
+"""
 
 from __future__ import annotations
 
@@ -6,78 +36,82 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from . import _native
+from . import diff
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
 
-
-def fresnel_with_context(
-    ks: ArrayLike, kzs: ArrayLike, zs: ArrayLike
-) -> tuple[NDArray[np.complex128], _native.FresnelContext]:
-    """One chiral interface; native pullback returns (ks, kzs, zs) cotangents."""
-    return _native.fresnel(
-        np.asarray(ks, dtype=np.complex128).tolist(),
-        np.asarray(kzs, dtype=np.complex128).tolist(),
-        np.asarray(zs, dtype=np.complex128).tolist(),
-    )
+__all__ = [
+    "fresnel",
+    "mie",
+    "mie_cyl",
+]
 
 
 def fresnel(ks: ArrayLike, kzs: ArrayLike, zs: ArrayLike) -> NDArray[np.complex128]:
-    """Fresnel blocks with wavenumbers shaped (2, 2) and impedances shaped (2,)."""
-    return fresnel_with_context(ks, kzs, zs)[0]
+    """Fresnel coefficients of one planar interface between two chiral media.
 
+    Mirrors ``treams.coeffs.fresnel``. The interface is the plane z = 0 between
+    the negative side (z < 0) and the positive side (z > 0). The result
+    ``r[d_out, d_in, p_out, p_in]`` maps an incident wave of direction ``d_in``
+    and helicity ``p_in`` to an outgoing wave of direction ``d_out`` and helicity
+    ``p_out``; direction 0 travels up (towards +z) and 1 down. So ``r[0, 0]``
+    transmits from the negative to the positive side, and ``r[1, 0]`` reflects
+    back into the negative side.
 
-def mie_with_context(
-    l: int,  # noqa: E741 - upstream multipole-degree argument
-    x: ArrayLike,
-    epsilon: ArrayLike,
-    mu: ArrayLike,
-    kappa: ArrayLike,
-) -> tuple[NDArray[np.complex128], _native.MieContext]:
-    """Mie matrix and its one-use native pullback for x, epsilon, mu and kappa.
+    Args:
+        ks: Wavenumbers, shape (2, 2): negative then positive side, each as
+            (negative, positive) helicity.
+        kzs: z components of the wavevectors, same shape and order.
+        zs: Relative impedances of the negative and the positive side, shape
+            (2,).
 
-    The pullback uses dL = Re(sum(conj(cotangent) * doutput)).
+    Returns:
+        complex128 array of shape (2, 2, 2, 2).
+
+    Differences from treams:
+        treams broadcasts over leading axes of the inputs; here the inputs
+        describe one interface.
     """
-    return _native.mie(
-        l,
-        np.ascontiguousarray(x, dtype=np.float64),
-        np.ascontiguousarray(epsilon, dtype=np.complex128),
-        np.ascontiguousarray(mu, dtype=np.complex128),
-        np.ascontiguousarray(kappa, dtype=np.complex128),
-    )
+    return diff.fresnel(ks, kzs, zs)[0]
 
 
 def mie(
-    l: int,  # noqa: E741 - upstream multipole-degree argument
+    l: int,
     x: ArrayLike,
     epsilon: ArrayLike,
     mu: ArrayLike,
     kappa: ArrayLike,
 ) -> NDArray[np.complex128]:
-    """Multilayer sphere coefficients, ordered as treams.coeffs.mie."""
-    return mie_with_context(l, x, epsilon, mu, kappa)[0]
+    """Mie coefficients of a multilayer chiral sphere for one degree l.
 
+    Mirrors ``treams.coeffs.mie``. The (2, 2) block maps incident to scattered
+    helicities: the T-matrix entries of degree l, which do not depend on the
+    order m.
 
-def mie_cyl_with_context(
-    kz: float,
-    m: int,
-    k0: float,
-    radii: ArrayLike,
-    epsilon: ArrayLike,
-    mu: ArrayLike,
-    kappa: ArrayLike,
-) -> tuple[NDArray[np.complex128], _native.CylinderContext]:
-    """Cylinder coefficients; pullback returns (kz, k0, radii, epsilon, mu, kappa)."""
-    return _native.mie_cyl(
-        kz,
-        m,
-        k0,
-        np.ascontiguousarray(radii, dtype=np.float64),
-        np.ascontiguousarray(epsilon, dtype=np.complex128),
-        np.ascontiguousarray(mu, dtype=np.complex128),
-        np.ascontiguousarray(kappa, dtype=np.complex128),
-    )
+    Args:
+        l: Degree, an integer from 1 to 128.
+        x: Size parameters k0 * radius of the layers from the inside out, shape
+            (layers,), increasing.
+        epsilon: Relative permittivities, shape (layers + 1,): the layers from
+            the inside out, then the embedding medium.
+        mu: Relative permeabilities, same shape and order.
+        kappa: Chirality parameters, same shape and order.
+
+    Returns:
+        complex128 array of shape (2, 2): rows scattered, columns incident
+        helicity.
+
+    Differences from treams:
+        treams broadcasts over arrays of degrees and layers; here ``l`` is one
+        integer and ``x`` one 1-D array. An array ``l`` raises ValueError, so
+        loop over the degrees.
+    """
+    if np.ndim(l) != 0:
+        raise ValueError(
+            "mie takes one integer degree; loop over degrees (treams broadcasts)"
+        )
+    return diff.mie(l, x, epsilon, mu, kappa)[0]
 
 
 def mie_cyl(
@@ -89,5 +123,34 @@ def mie_cyl(
     mu: ArrayLike,
     kappa: ArrayLike,
 ) -> NDArray[np.complex128]:
-    """Multilayer chiral-cylinder coefficients, following treams argument order."""
-    return mie_cyl_with_context(kz, m, k0, radii, epsilon, mu, kappa)[0]
+    """Scattering coefficients of a multilayer chiral cylinder for one order m.
+
+    Mirrors ``treams.coeffs.mie_cyl``. The cylinder is infinite along z. The
+    (2, 2) block maps incident to scattered helicities: the T-matrix entries of
+    the axial wavenumber ``kz`` and the order ``m``.
+
+    Args:
+        kz: Axial wavenumber, real.
+        m: Order, one integer.
+        k0: Vacuum wavenumber.
+        radii: Radii of the layers from the inside out, shape (layers,),
+            increasing.
+        epsilon: Relative permittivities, shape (layers + 1,): the layers from
+            the inside out, then the embedding medium.
+        mu: Relative permeabilities, same shape and order.
+        kappa: Chirality parameters, same shape and order.
+
+    Returns:
+        complex128 array of shape (2, 2): rows scattered, columns incident
+        helicity.
+
+    Differences from treams:
+        treams broadcasts over arrays of orders and layers; here ``m`` is one
+        integer and ``radii`` one 1-D array. An array ``m`` raises ValueError, so
+        loop over the orders.
+    """
+    if np.ndim(m) != 0:
+        raise ValueError(
+            "mie_cyl takes one integer order; loop over orders (treams broadcasts)"
+        )
+    return diff.mie_cyl(kz, m, k0, radii, epsilon, mu, kappa)[0]

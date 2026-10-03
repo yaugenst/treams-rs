@@ -1,0 +1,158 @@
+site_name: treams-rs
+site_description: >-
+  T-matrix electromagnetic scattering with a Rust numerical core, a typed
+  Python API and analytic derivatives, following the conventions of treams.
+site_url: https://yaugenst.github.io/treams-rs/
+repo_url: https://github.com/yaugenst/treams-rs
+repo_name: yaugenst/treams-rs
+edit_uri: edit/main/docs/
+copyright: treams-rs contributors, MIT license
+strict: true
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - getting-started/install.md
+      - getting-started/quickstart.md
+  - Coming from treams:
+      - coming-from-treams/index.md
+      - Name map: coming-from-treams/names.md
+      - coming-from-treams/conventions.md
+      - coming-from-treams/differences.md
+  - User guide:
+      - guide/index.md
+      - guide/particles-and-waves.md
+      - guide/clusters.md
+      - guide/large-clusters.md
+      - guide/periodic.md
+      - guide/planar.md
+      - guide/numerical-namespaces.md
+      - guide/io.md
+      - guide/api-discovery.md
+  - Examples:
+      - examples/index.md
+      - examples/sphere.md
+      - examples/cluster.md
+      - examples/chain.md
+      - examples/grid.md
+      - examples/crystal.md
+      - examples/slab.md
+      - examples/array_spheres.md
+      - examples/band_structure.md
+      - examples/cylinder.md
+      - examples/cylindrical_chain.md
+      - examples/cylindrical_cluster.md
+      - examples/cylindrical_crystal.md
+      - examples/grating.md
+      - examples/cylindrical_array.md
+      - examples/sphere_radius_optimization.md
+      - examples/array_transmission_gradient.md
+  - Differentiation:
+      - differentiation/index.md
+      - differentiation/frameworks.md
+      - differentiation/custom-records.md
+      - differentiation/gradient-checks.md
+  - Design:
+      - design/index.md
+      - design/python-api.md
+      - design/pullbacks.md
+      - design/adapters.md
+      - design/floating-point.md
+      - design/numerics.md
+      - design/formal-proofs.md
+  - Validation:
+      - validation/index.md
+      - validation/capabilities.md
+      - validation/numerical-limits.md
+      - validation/published-applications.md
+  - Performance:
+      - performance/index.md
+      - performance/large-problems.md
+      - performance/platform-comparison.md
+      - performance/evidence.md
+  - Reference:
+      - reference/index.md
+      - Python API:
+          - reference/python/index.md
+          - reference/python/treams_rs.md
+          - reference/python/special.md
+          - reference/python/sw.md
+          - reference/python/cw.md
+          - reference/python/pw.md
+          - reference/python/lattice.md
+          - reference/python/coeffs.md
+          - reference/python/misc.md
+          - reference/python/ebcm.md
+          - reference/python/io.md
+          - reference/python/operators.md
+          - reference/python/iterative.md
+          - reference/python/diff.md
+          - reference/python/testing.md
+          - reference/python/advect.md
+          - reference/python/jax.md
+          - reference/python/torch.md
+          - reference/python/native-types.md
+      - Rust crate: reference/rust.md
+      - reference/glossary.md
+  - Development:
+      - development/index.md
+      - development/architecture.md
+      - development/testing.md
+      - development/documentation.md
+      - development/benchmarks.md
+      - development/releasing.md
+  - Changelog: changelog.md
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - search.suggest
+    - content.code.copy
+    - content.tabs.link
+
+# The hook strips the test modes from python fences and points links that
+# leave docs/ at GitHub.
+hooks:
+  - docs/_hooks/site.py
+exclude_docs: |
+  _hooks/
+watch:
+  - CHANGELOG.md
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+    absolute_links: warn
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: warn
+    unrecognized_links: warn
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
