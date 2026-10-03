@@ -8,7 +8,7 @@
 //! `treams-core` is an internal crate. The Python package `treams_rs` calls it through
 //! the bindings crate `treams-py`, which Python imports as `treams_rs._native`; neither
 //! crate is published on crates.io. The user documentation, with examples and the
-//! design rationale, is at <https://yaugenst.github.io/treams-rs/>.
+//! design rationale, is at <https://yaugenst.github.io/treams-rs/latest/>.
 //!
 //! Upstream: [treams](https://github.com/tfp-photonics/treams) 0.4.5 at commit `1f5d0d6`.
 //! The kernels follow its formulas, conventions and mode order. Each module names the
@@ -234,7 +234,7 @@
 //! A test of one module's implementation goes inline; a physical, analytic or adjoint
 //! identity goes into its domain file. Both tiers use crate-private items, so the crate
 //! has no `tests/` directory. `cargo test -p treams-core` runs both.
-//! [Testing](https://yaugenst.github.io/treams-rs/development/testing/) on the docs site
+//! [Testing](https://yaugenst.github.io/treams-rs/latest/development/testing/) on the docs site
 //! gives the helpers and conventions of both tiers.
 //!
 //! # Module map

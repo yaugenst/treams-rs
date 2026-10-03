@@ -240,6 +240,8 @@ class Backend:
         axes: Sequence[int],
     ) -> Any:
         """``change_polarization`` of plane ports labelled (group, pol)."""
+        if source == target:
+            return value
         # The group index stands in for kx (ky = 0). The change only pairs
         # modes whose labels agree, so it never reads the wavevector values.
         labels = PlaneWavePorts([(float(group), 0.0, pol) for group, pol in modes])

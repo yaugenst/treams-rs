@@ -4,9 +4,9 @@ description: The numerical namespaces special, sw, cw, pw, lattice, coeffs, misc
 
 # Numerical namespaces
 
-The numerical namespaces keep the module, function and argument names of
-treams, so a call such as `treams.sw.translate(...)` runs as
-`treams_rs.sw.translate(...)` with the same numbers. They take and return
+These modules keep the function and argument names of treams, so a call such
+as `treams.sw.translate(...)` runs as
+`treams_rs.sw.translate(...)` with the same arguments. They take and return
 NumPy arrays, and most broadcast like NumPy ufuncs. The
 [differences page](../coming-from-treams/differences.md) lists every case where
 a result differs from treams; the
@@ -175,7 +175,7 @@ Mirrors the operators of treams (`treams.efield`, `treams.Rotate`, ...) and
 `treams.PhysicsArray`. `efield` and the other field operators, `rotate`,
 `translate`, `expand`, `expandlattice`, `changepoltype` and `permute` return
 explicit matrices. `PhysicsArray` holds an array with its basis, `k0`, material
-and conventions, and binds these operators:
+and conventions, and provides these operations as methods:
 
 ```python exec
 import numpy as np
@@ -192,9 +192,8 @@ np.testing.assert_allclose(expansion, operators.expand((larger, basis), k0=1.3))
 assert isinstance(array * 2, np.ndarray)  # arithmetic returns plain arrays
 ```
 
-A `PhysicsArray` keeps no metadata through arithmetic. `operators.expand` and
-`operators.expandlattice` between spherical and cylindrical waves add the terms
+Arithmetic with a `PhysicsArray` returns plain arrays without metadata.
+`operators.expand` and `operators.expandlattice` between spherical and cylindrical waves add the terms
 of every pair of positions, where treams pairs only equal particle indices;
 see [spheres and cylinders at several positions](../coming-from-treams/differences.md#spheres-and-cylinders-at-several-positions).
-For physics, prefer the methods of `TMatrix`, `Wave` and `SMatrix`, which keep
-their metadata.
+Use the methods of `TMatrix`, `Wave` and `SMatrix` to retain physical metadata.

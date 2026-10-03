@@ -20,4 +20,5 @@
       differ from treams are listed in `python/treams_rs/_upstream.py`.
 - [ ] Numerical or hot-path changes: parity evidence (treams 0.4.7 or an independent
       reference) and before/after performance from a release build are attached.
-- [ ] Nothing under `benchmarks/results/` is modified.
+- [ ] Existing benchmark measurements are preserved; privacy-only changes follow
+      the [privacy and provenance rules](../benchmarks/README.md#privacy-and-provenance).

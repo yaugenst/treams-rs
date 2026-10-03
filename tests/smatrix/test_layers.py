@@ -5,7 +5,6 @@ import advect
 import advect.numpy as anp
 import numpy as np
 import pytest
-import treams
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from numpy.testing import assert_allclose
@@ -64,6 +63,8 @@ def test_compact_slab_preserves_basis_order_and_partial_semantics(
 @pytest.mark.reference
 @pytest.mark.parametrize("poltype", ["helicity", "parity"])
 def test_partial_slab_projects_full_channels_and_retains_only_their_power(poltype):
+    import treams
+
     full = tr.PlaneWavePorts.default([[0.6, 0.2]])
     partial = full[:1]
     reference = treams.SMatrices.slab(0.4, to_oracle(full), 1.3, [1, 2.3, 1])

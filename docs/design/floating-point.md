@@ -1,5 +1,5 @@
 ---
-description: How native results stay independent of the flush-to-zero modes that JAX and PyTorch set, and how that is tested.
+description: How native calculations preserve subnormal numbers when callers flush them to zero.
 ---
 
 # Floating-point environment
@@ -26,12 +26,12 @@ the solve of the 1 × 1 system `(1 + 0.1i) x = 1`.
 
 ## The guard
 
-`fpenv::ieee` runs a closure with subnormals on the calling thread and then
-restores the caller's flushing bits exactly, also after an error or a panic. It
-writes MXCSR on x86-64 (FTZ, bit 15, and DAZ, bit 6) and FPCR on AArch64 (FZ,
-bit 24, and FIZ, bit 0). On other targets it only runs the closure. Every Python
-entry point of the bindings, including each NumPy ufunc loop, runs its whole body
-inside `fpenv::ieee`.
+`fpenv::ieee` runs the supplied function with subnormals on the calling thread,
+then restores the caller's flushing bits exactly, also after an error or a
+panic. It writes MXCSR on x86-64 (FTZ, bit 15, and DAZ, bit 6) and FPCR on
+AArch64 (FZ, bit 24, and FIZ, bit 0). On other targets it only runs the function.
+Every Python entry point of the bindings, including each NumPy ufunc loop,
+runs its whole body inside `fpenv::ieee`.
 
 The compiler does not know about the control register, so it could move
 arithmetic across the two register writes. Each write is an inline-assembly
@@ -45,10 +45,9 @@ The rustdoc of `fpenv` explains why this holds and what it does not cover.
 
 The thread pool of `treams_core::threads` starts in the first parallel region of
 the process. Linux threads inherit the mode of the thread that creates them, so
-each worker clears its flushing bits once, as it starts, before it runs any
-work: the workers keep subnormals whatever the mode of the thread that starts
-the pool, also when a JAX callback starts it. treams-rs never uses Rayon's
-global pool ([parallelism](parallelism.md)).
+each worker clears its flushing bits once before starting work. Workers keep
+subnormals regardless of which thread starts the pool, including a JAX callback.
+treams-rs never uses Rayon's global pool ([parallelism](parallelism.md)).
 
 ## Limits
 

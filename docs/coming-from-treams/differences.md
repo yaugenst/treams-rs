@@ -67,7 +67,7 @@ independent reference.
   `Z = sqrt(mu / epsilon)`, they require `mu / Z = n` and both `n - kappa` and
   `n + kappa` on the principal square-root branch: positive real part, or zero
   real part and nonnegative imaginary part. This excludes strong chirality with
-  a negative real helicity index and double-negative-index materials. The expert
+  a negative real helicity index and double-negative-index materials. The numerical
   wave and coefficient functions still accept literal wavevectors and wavenumbers.
 - **Compatibility power forms.** `poynting_avg_z` retains treams' normalization
   and complex-medium conventions, including a factor of one half for parity
@@ -168,9 +168,9 @@ treams-rs sums these cases as follows:
   sum, and the real-space terms take the series of their Kambe integrals where
   the closed forms would lose more. The degree-5 and degree-7 sums above are
   within 2.2e-13.
-- Each sum predicts the rounding of its cancelling parts. It fails with "Ewald
-  split too small" where that rounding exceeds 1e-3 of the value, or of a
-  derivative of a jet (a value computed together with its derivatives).
+- Each sum estimates the rounding error of its cancelling parts. It fails with
+  "Ewald split too small" where that error exceeds 1e-3 of the value or one of
+  its derivatives.
 - Complete sums whose real-space shells settle at the shell limit are returned
   where they match the automatic split.
 - Sums that vanish by symmetry are exactly zero at every split.
@@ -219,11 +219,11 @@ in treams. The [published-application checks](../validation/published-applicatio
 link the unchanged source and keep the results of both versions.
 
 The thermal-radiation reproduction has strongly unbalanced multipole linear
-systems. treams-rs equilibrates (rescales rows and columns of) these systems
-before the LU factorization, with the same scales in the forward solve and its
-gradient. The published absorption tables differ from the reproduced spectrum
+systems. treams-rs rescales their rows and columns before the LU factorization,
+with the same scales in the forward solve and its gradient. The published
+absorption tables differ from the reproduced spectrum
 by up to 0.577%, and the report keeps that difference. It is not classified as
-a treams defect, and exact agreement with the stored results is not claimed.
+a treams defect.
 
 ## Spheres and cylinders at several positions
 

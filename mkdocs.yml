@@ -1,7 +1,6 @@
 site_name: treams-rs
 site_description: >-
-  T-matrix electromagnetic scattering with a Rust numerical core, a typed
-  Python API and analytic derivatives, following the conventions of treams.
+  A Rust port of treams with a Python interface and analytic gradients.
 site_url: https://yaugenst.github.io/treams-rs/
 repo_url: https://github.com/yaugenst/treams-rs
 repo_name: yaugenst/treams-rs
@@ -126,6 +125,9 @@ hooks:
   - docs/_hooks/site.py
 exclude_docs: |
   _hooks/
+# Rustdoc bundles font licenses as Markdown alongside its static assets.
+not_in_nav: |
+  /rust/static.files/*.md
 watch:
   - CHANGELOG.md
 

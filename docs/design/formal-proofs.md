@@ -1,5 +1,5 @@
 ---
-description: Lean 4 proofs about six treams-core kernels and the tests that tie the Lean models to the Rust code.
+description: Lean 4 proofs of six numerical algorithms, their limits and their checks against Rust.
 ---
 
 # Formal proofs
@@ -44,10 +44,10 @@ gradient of the loss with respect to `X`. `IlluminateResidual` is what
 
 ## Why the diffraction-order code clamps at zero
 
-Rounding can put the distance of a row of orders just above the cutoff,
-although the row holds an order exactly on the cutoff circle. On a 0.3 by 0.51
-rectangular lattice with the cutoff at `|G10|`, the row of the orders `(±1, 0)`
-is such a row. The square-root argument `(radius - distance) (radius + distance)`
+Rounding can put a row of orders just beyond the cutoff even when it contains
+an order on the cutoff circle. This occurs for `(±1, 0)` on a 0.3 by 0.51
+rectangular lattice with the cutoff at `|G10|`.
+The square-root argument `(radius - distance) (radius + distance)`
 is then slightly negative. The Rust code clamps it at zero, as `Real.sqrt` does
 in the model, so the row keeps its orders and the `hypot` test decides each one.
 `mem_orders` holds for the model because of this clamp. The regression test
@@ -68,9 +68,9 @@ functions with these files exactly, including the order of the output:
 | `degrees_match_lean_model` | `sw/coupling.rs` | `sw::coupling::degrees` | `SelectionRules.termDegrees` | `degrees.txt` |
 | `harmonics_match_lean_model` | `sw/plan.rs` | `sw::plan::harmonics` | `Harmonics.table` | `harmonics.txt` |
 
-Each test also requires the file to list exactly the cases that `Golden.lean`
-enumerates, in its order, so a duplicated or missing line fails even when the
-line count is unchanged. `cargo test` runs these tests on every CI run, and
+Each test also requires the file to list exactly the cases from `Golden.lean`
+in the same order, so a duplicated or missing line fails even when the
+line count is unchanged. `cargo test` runs these tests in CI, and
 `just formal` fails when `golden/` no longer matches the Lean models. A change
 on either side therefore fails a check. For example, shifting the lower bound
 of the degree loop by one would drop terms without an error; it fails

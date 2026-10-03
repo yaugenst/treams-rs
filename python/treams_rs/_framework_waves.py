@@ -438,14 +438,42 @@ class PortWave(HasPorts, _Fields):
     @override
     def _combined(self, electric: Any, magnetic: Any, points: Any) -> Any:
         if self.polarization != "helicity":
-            return self.with_polarization("helicity")._combined(
-                electric, magnetic, points
+            return (
+                self._complete_polarizations()
+                .with_polarization("helicity")
+                ._combined(electric, magnetic, points)
             )
         signs = 2 * self.ports.pols - 1
         # Derived port waves copy themselves: the constructor reads an SMatrix.
         wave = copy(self)
         wave.coefficients = self.coefficients * self._weights(electric, magnetic, signs)
         return wave.efield(points)
+
+    def _complete_polarizations(self) -> PortWave:
+        """Internal representation with zero amplitudes for missing partner ports."""
+
+        wave = self
+        modes = tuple(
+            dict.fromkeys((group, p) for group, _ in self.ports.modes for p in (0, 1))
+        )
+        if len(modes) != len(self.ports.modes):
+            # A missing parity amplitude is zero, but its partner is needed
+            # to represent the magnetic field in the helicity convention.
+            b = self._backend
+            indices = {mode: i for i, mode in enumerate(self.ports.modes)}
+            wave = copy(self)
+            wave.ports = PortSet(
+                None,
+                modes,
+                self.ports.alignment,
+                self.ports.transverse_wavevectors,
+                self.ports.fixed_q,
+            )
+            padded = b.concat((self.coefficients, b.array([0], complex_=True)))
+            wave.coefficients = padded[
+                np.array([indices.get(mode, len(indices)) for mode in modes])
+            ]
+        return wave
 
     def with_polarization(self, polarization: str) -> PortWave:
         """Change the polarization convention with a fixed basis matrix."""

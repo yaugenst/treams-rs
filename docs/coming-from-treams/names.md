@@ -4,8 +4,8 @@ description: The treams names that treams-rs spells differently, member by membe
 
 # Name map
 
-Most treams names work unchanged: the numerical namespaces keep their function
-and argument names, and physics objects answer to the treams member names. The
+Most treams names work unchanged: the numerical modules keep their function
+and argument names, and physics objects accept the treams member names. The
 tables list every treams name that treams-rs spells differently.
 
 A treams class name raises an `AttributeError` that names the replacement:
@@ -154,8 +154,8 @@ except AttributeError as error:
 
 The numerical namespaces, `operators` and the class constructors such as
 `TMatrix(array, k0=..., basis=..., material=..., poltype=...)` keep the treams
-keywords. The factories and methods of the physics objects use these keywords
-instead:
+keywords. Functions such as `sphere_tmatrix` and the methods of physics
+objects use these keywords instead:
 
 | treams keyword | treams-rs keyword | Note |
 | --- | --- | --- |

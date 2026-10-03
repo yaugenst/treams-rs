@@ -4,8 +4,9 @@ description: Measured speed and memory against treams 0.4.5, with methods and ca
 
 # Performance
 
-treams-rs is faster than treams 0.4.5 in every case of the Linux reference
-grid, with a median speedup of 5.12× and a median of 0.66 times the peak memory.
+In the recorded Linux reference grid, treams-rs is faster than treams 0.4.5 in
+every case, with a median speedup of 5.12× and a median of 0.66 times the peak
+memory.
 The [evidence provenance](evidence.md#evidence-provenance) table gives the
 date, source commit, host and raw files of each set of measurements.
 
@@ -32,13 +33,12 @@ illuminations at the matrix sizes and column counts where the solve switches
 method, plus scalar `tl_vcw_r` calls; three of them are slower than treams.
 The macOS row comes from the [macOS dispatch record](../../benchmarks/mac-qualification.json).
 
-The cases that use more memory are recorded calls. A recorded call keeps the
-data that its pullback needs later; the pullback is the reverse pass that turns
-the gradient of a result into gradients of the inputs. treams computes only the
-forward result.
+The cases that use more memory keep data for computing gradients later. This
+is called a recorded call; its pullback turns the gradient of a result into
+gradients of the inputs. treams computes only the forward result.
 
-For large sphere clusters, solving only for the requested incident fields pays
-off ([large problems](large-problems.md)):
+For large sphere clusters, solving only for the requested incident fields can
+save time and memory ([large problems](large-problems.md)):
 
 - 512 spheres, one illumination: a dense solve for the requested column takes
   0.381 s against 0.940 s for the full interacting T-matrix (2.47× faster).
@@ -75,13 +75,13 @@ factor, so both packages compute the same quantity
   of 1e-12.
 - **Isolated processes.** Each package runs in its own process, so importing
   one does not add to the memory of the other.
-- **Matched threads.** Both packages get the same budget of BLAS and Rayon
-  threads: four, unless the case measures thread scaling.
+- **Matched threads.** Both packages get the same BLAS and Rayon thread limit:
+  four, unless the case measures thread scaling.
 - **Small calls.** When both medians are below 1 ms, the two packages also run
   in one process in alternating order: 14 paired samples, each a batch of at
   least 20 ms. The speedup is the median of the paired ratios.
-- **Peak memory.** Peak RSS is the process high-water mark, including imports,
-  inputs and memory the allocator keeps.
+- **Peak memory.** Peak RSS is the highest resident memory observed for the
+  process, including imports, inputs and memory retained for reuse.
 - **Pass criteria.** A case passes when treams-rs is at least as fast as treams
   (speedup ≥ 1) and uses no more peak memory (RSS ratio ≤ 1).
 - **Two memory exceptions.** Recorded internal illumination at 1,024 channels
@@ -101,8 +101,7 @@ factor, so both packages compute the same quantity
 
 ## Caveats
 
-- These are finite measurements, not guarantees for every input size, host or
-  conditioning.
+- Results can differ with input size, host and numerical conditioning.
 - Each result belongs to the platform and source revision recorded with it.
   Later revisions were not rerun through every measurement.
 - Speed and memory checks are separate from the accuracy checks on the

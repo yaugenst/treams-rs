@@ -4,9 +4,8 @@ description: Large sphere clusters with a reusable dense LU factor or the matrix
 
 # Large clusters
 
-The full T-matrix of a cluster answers every possible incident wave. Most
-problems need only a few. Two solvers compute only the incident waves you ask
-for:
+The full T-matrix of a cluster gives the response to every incident mode.
+For a few incident waves, two solvers compute only the responses you need:
 
 | Solver | Stores | Best for |
 | --- | --- | --- |
@@ -82,9 +81,9 @@ assert gradient.positions.shape == (2, 3)
 solution and returns a `Gradient` with one entry per input of `SphereCluster`
 and `record`, in their order, followed by the convergence of the adjoint
 solves. An adjoint solve is the linear system with the conjugate transpose
-matrix that carries the gradient back to the inputs. [Differentiation](../differentiation/index.md) defines how complex
-gradients pair with their values. The context works once; record again for a
-second pullback.
+matrix that carries the gradient back to the inputs.
+[Differentiation](../differentiation/index.md) defines how complex gradients
+pair with their values. A context allows one pullback; record again for a second.
 
 The gradients hold the incident coefficients fixed while the geometry changes.
 If the incident field depends on the geometry, apply its own pullback to
@@ -137,8 +136,9 @@ solution, and accepts the column only if
 ```
 
 The defaults are `rtol = 1e-10`, `atol = 0`, `restart = 30` and
-`max_iterations = 300` (`iterative.DEFAULT_RTOL` and its siblings). The
-adjoint solves `Aᴴ Λ = G` with the same check. A solve that reaches
+`max_iterations = 300` (also available as constants such as
+`iterative.DEFAULT_RTOL`). The adjoint solves `Aᴴ Λ = G` with the same check.
+A solve that reaches
 `max_iterations`, breaks down because GMRES cannot extend its stored vectors,
 or produces a non-finite residual raises `ValueError`. Each `Convergence(iterations, residual_norm,
 rhs_norm)` reports one column.
@@ -155,8 +155,8 @@ per `lmax` and shared by every pair, so it does not grow with N.
 
 The solver recomputes the pair translations in every iteration and keeps no
 Krylov vectors for the adjoint solve. It trades time for memory: a reused dense
-factor answers another incident wave in milliseconds, the matrix-free solver in
-a fresh GMRES run. Measure both for your geometry.
+factor computes another response in milliseconds, while the matrix-free solver
+runs GMRES again. Measure both for your geometry.
 
 The dense `diff.sphere_cluster` forward peaks at about four complex `NM × NM`
 buffers, `64 (NM)²` bytes: the coupling, the LU factors, the solution and its

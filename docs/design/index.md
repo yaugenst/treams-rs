@@ -1,11 +1,11 @@
 ---
-description: Goals and layers of treams-rs, which layer owns what, the Rust-Python-treams crosswalk and what treams-rs leaves out.
+description: The layers of treams-rs, their responsibilities and their treams counterparts.
 ---
 
 # Design
 
-treams-rs computes what treams computes, with the same conventions, and adds
-gradients. Four goals shape the code:
+treams-rs follows treams' numerical conventions and adds analytic gradients.
+Four goals shape the code:
 
 - **treams numerics.** Mode order, normalization and the helicity convention follow
   treams at a pinned commit (see [conventions](../coming-from-treams/conventions.md)).
@@ -15,8 +15,8 @@ gradients. Four goals shape the code:
   first-order pullback in Rust: a function that turns the gradient with respect to
   an output into gradients with respect to the inputs (see
   [analytic pullbacks](pullbacks.md)).
-- **Speed.** Numerical loops run in compiled Rust, in parallel over independent
-  items where that pays off (see [performance](../performance/index.md)).
+- **Speed.** Numerical loops run in compiled Rust. Independent items run in
+  parallel when this reduces runtime (see [performance](../performance/index.md)).
 - **A Python-free core.** The Rust crate `treams-core` depends on faer, nalgebra,
   Rayon and a few special-function crates, and on no Python package. `cargo test`
   checks it without an interpreter.
@@ -39,8 +39,8 @@ scattering (`coeffs`, `tmatrix`, `ebcm`, `cluster`) and planar S-matrices
 
 ## Crosswalk
 
-Each Rust module mirrors one treams namespace where one exists. A dash marks a
-module without a counterpart.
+The table pairs Rust modules with their Python and treams counterparts. A dash
+marks a module without a counterpart.
 
 <!-- generated: rust-crosswalk -->
 
@@ -78,9 +78,8 @@ module without a counterpart.
   one-use pullback data. A Rust error becomes a `ValueError`, except
   `Error::OutOfMemory`, which becomes a `MemoryError`. Some allocation paths
   still abort on failure ([memory limits](parallelism.md#audit-and-open-work)).
-- **Python package:** physical metadata and meaning: bases, `k0`, media,
-  polarization conventions, lattices, Bloch vectors, the names of results and
-  which numerical call a physics method makes.
+- **Python package:** bases, `k0`, media, polarization conventions, lattices,
+  Bloch vectors, named results and the numerical calls behind physics methods.
 - **Framework adapters:** composition only. They wrap native records as Advect,
   JAX or PyTorch operations and add no numerical code (see
   [framework adapters](adapters.md)).

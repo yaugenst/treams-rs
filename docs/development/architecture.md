@@ -37,7 +37,7 @@ repository root. Run the Python checks as `uv run --no-sync pytest ...` after
 | `test_support` | `testing.rs` (`*_jet` hooks) | - | `tests/_support.py`, `tests/_scripts.py`, `tests/test_suite_rules.py` | `pytest tests/test_suite_rules.py` |
 
 The [crate docs](https://yaugenst.github.io/treams-rs/latest/rust/treams_core/#module-map)
-and the [design crosswalk](../design/index.md#crosswalk) pair each Rust module
+and the [design module table](../design/index.md#crosswalk) pair each Rust module
 with its `treams_rs` and treams namespaces. [Testing](testing.md) describes the
 test directories.
 
@@ -91,18 +91,17 @@ These rules hold everywhere:
 
 The crate docs of `treams-py`, in
 [`crates/treams-py/src/lib.rs`](../../crates/treams-py/src/lib.rs), hold the
-checklist under "Adding a binding". In short: the core function and its tests
-come first; the binding goes into the file of its core module, with its
-context and its `pullback`; then the export line, the stub, a `CASES` entry in
-`tests/bindings/test_native_contexts.py` (or a `REGISTRY_ROWS` row for a
-ufunc), the Python caller and `just docs`.
+checklist under "Adding a binding". Start with the core function and its tests.
+Add the binding, context and `pullback` to the file for that core module.
+Then add the export, stub, Python caller and a `CASES` entry in
+`tests/bindings/test_native_contexts.py` (or a `REGISTRY_ROWS` row for a ufunc).
+Finish with `just docs`.
 
 ## Adding a physics feature
 
-A feature travels through every layer. For a new function `X` that computes a
-value (a forward):
+For a new function `X` that computes a value:
 
-1. **Rust.** Write `X` in the module of its layer in `treams-core`. If it
+1. **Rust.** Write `X` in the relevant `treams-core` module. If it
    supports gradients, it returns `(value, XResidual)`, where the residual
    holds what the gradient needs. When the pullback reads the value, it
    returns only `XResidual` with a `value()` accessor, as `coeffs::mie` does
@@ -120,8 +119,8 @@ value (a forward):
    messages in treams terms.
 4. **Framework adapters.** If a physics object exposes the feature, route it
    through `_framework_*.py`, so that Advect, JAX and PyTorch differentiate it.
-5. **Tests.** Add tests to `tests/<domain>/`: a comparison with the pinned treams oracle or
-   another reference, a physical identity, and `check_pullback` for the
+5. **Tests.** Add tests to `tests/<domain>/`: a comparison with the pinned
+   treams version or another reference, a physical identity, and `check_pullback` for the
    gradients ([adding a test](testing.md#adding-a-test)).
 6. **Docs.** Write the docstring with units, shapes and conventions, add a
    runnable example to the matching guide page, update
@@ -138,12 +137,12 @@ and "Naming rules" in
 [`crates/treams-py/src/lib.rs`](../../crates/treams-py/src/lib.rs). The rules
 that cross layers:
 
-- **Residuals and contexts.** The Rust forward `X` returns `XResidual`, and its
+- **Residuals and contexts.** The Rust function `X` returns `XResidual`, and its
   pullback returns `XGradient`. The native context of the record `diff.x` is
   `<X>Context`, the diff name in CamelCase: `diff.smatrix_tr` returns an
   `SMatrixTrContext`.
-- **Value-only twins.** A function that returns the value of a record without a
-  context ends in `_value`: `smatrix::tr_value` in Rust,
+- **Value-only functions.** A function that returns the value of a record
+  without a context ends in `_value`: `smatrix::tr_value` in Rust,
   `smatrix_tr_value` in the bindings.
 - **treams counterparts.** The doc of a Rust item that mirrors treams ends with
   ``Upstream: `treams.sw.translate`.``, followed by `Differences: ...` where it

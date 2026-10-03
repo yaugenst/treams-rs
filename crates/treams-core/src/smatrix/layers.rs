@@ -6,13 +6,15 @@
 #![allow(clippy::indexing_slicing)] // Validated layer counts and two-polarization channels.
 
 use nalgebra::DMatrix;
-use rayon::prelude::*;
 
 use super::{AddGradient, AddResidual, Blocks, InterfaceGradient, InterfaceResidual};
 use crate::{
     Complex, Error, Result,
     linalg::product,
-    numerics::{finite, parallel::try_fold_ordered},
+    numerics::{
+        finite,
+        parallel::{try_fold_ordered, try_map},
+    },
     pw::wave_vector_z,
 };
 
@@ -148,38 +150,35 @@ pub fn layer_stack(
     {
         return Err(Error::InvalidInput("layers require at least two media, matching impedances, nonempty transverse channels and nonnegative interior thicknesses".into()));
     }
-    let results: Vec<_> = crate::threads::install(|| {
-        q.par_iter()
-            .map(|&q| -> Result<_> {
-                let mut steps = Vec::with_capacity(thickness.len());
-                let (mut value, initial) =
-                    super::interface([ks[0], ks[1]], [zs[0], zs[1]], q, axis, fixed_q)?;
-                for (layer, &d) in thickness.iter().enumerate() {
-                    let medium = layer + 1;
-                    // Outgoing normal wavenumbers keep |phase| <= 1 for d >= 0.
-                    let normal = ks[medium].map(|k| wave_vector_z(q[0].into(), q[1].into(), k));
-                    let phase = normal.map(|kz| (Complex::i() * (kz * d)).exp());
-                    let (spaced, below) = propagate(value, phase);
-                    let (matching, interface) = super::interface(
-                        [ks[medium], ks[medium + 1]],
-                        [zs[medium], zs[medium + 1]],
-                        q,
-                        axis,
-                        fixed_q,
-                    )?;
-                    let boundary;
-                    (value, boundary) = super::add(spaced, matching)?;
-                    steps.push(Step {
-                        normal,
-                        phase,
-                        below,
-                        boundary,
-                        interface,
-                    });
-                }
-                Ok((value, Channel { initial, steps }))
-            })
-            .collect::<Result<_>>()
+    let results = try_map(q.len(), q.len() > 1, |channel| -> Result<_> {
+        let q = q[channel];
+        let mut steps = Vec::with_capacity(thickness.len());
+        let (mut value, initial) =
+            super::interface([ks[0], ks[1]], [zs[0], zs[1]], q, axis, fixed_q)?;
+        for (layer, &d) in thickness.iter().enumerate() {
+            let medium = layer + 1;
+            // Outgoing normal wavenumbers keep |phase| <= 1 for d >= 0.
+            let normal = ks[medium].map(|k| wave_vector_z(q[0].into(), q[1].into(), k));
+            let phase = normal.map(|kz| (Complex::i() * (kz * d)).exp());
+            let (spaced, below) = propagate(value, phase);
+            let (matching, interface) = super::interface(
+                [ks[medium], ks[medium + 1]],
+                [zs[medium], zs[medium + 1]],
+                q,
+                axis,
+                fixed_q,
+            )?;
+            let boundary;
+            (value, boundary) = super::add(spaced, matching)?;
+            steps.push(Step {
+                normal,
+                phase,
+                below,
+                boundary,
+                interface,
+            });
+        }
+        Ok((value, Channel { initial, steps }))
     })?;
     let (values, channels) = results.into_iter().unzip();
     Ok((

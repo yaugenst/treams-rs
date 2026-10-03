@@ -4,17 +4,17 @@ description: The Mac and Linux benchmark comparison of treams-rs and treams 0.4.
 
 # Mac and Linux benchmark comparison
 
-The comparison runs treams 0.4.5 and treams-rs on an Apple M3 and on an AMD
-Ryzen 9 9950X. Every result of the comparison belongs to the treams-rs build at
-source commit `7421ca9`. Its median speedups over the 527-case reference grid
+This comparison measured treams 0.4.5 and treams-rs on an Apple M3 and an AMD
+Ryzen 9 9950X. The Linux results belong to the treams-rs build at
+source commit `7421ca9`. The median speedups over the 527-case reference grid
 are 5.17× on the M3 and 5.04× on the Ryzen. The
 Linux-only measurements of 2026-09-19 and 2026-09-20 are summarized in
 [Linux core validation](../../benchmarks/linux-core-qualification.md); macOS
 results come only from this comparison and the
 [macOS dispatch grid](../../benchmarks/mac-qualification.json).
 
-The generated report (figures, a combined PDF, a searchable case table,
-machine-readable measurements and the source manifests) lives outside the
+The full report (figures, a combined PDF, a searchable case table,
+measurement files and source records) is stored outside the
 repository. It keeps every planned case, including errors and resource limits.
 The repository keeps the per-case results of the Linux reference grid under
 `benchmarks/results/final/` and those of the 30-case macOS dispatch grid under
@@ -37,8 +37,8 @@ run.
 
 Each platform gets its own runtime, memory, speedup, and scaling plots. A separate
 cross-platform figure compares identical cases without pooling their samples.
-These are comparisons of the complete hardware/software configurations, not an
-isolated experiment on the effect of an operating system.
+The results reflect both hardware and software differences; they do not isolate
+the effect of the operating system.
 
 The main budget is four threads for each implementation. Thread-scaling cases
 request one, two, four, eight, and, on Linux, sixteen threads. Linux workers use
@@ -54,17 +54,16 @@ checks on both platforms. Its figures separate three questions: whether
 the implementations agree, whether independently known mathematical or physical
 relations hold, and whether the selected discretization has converged.
 
-For reference agreement, the collector records absolute, normwise relative and
+For reference agreement, the script records absolute, normwise relative and
 tolerance-scaled errors of every broad reference check, and each check still
 asserts its own tolerance. The scaled residual is
 `abs(actual-reference)/(atol + rtol*abs(reference))`, with a passing bound of one.
 Near-zero values are judged with an absolute scale; a large pointwise relative
 error at a cancellation is not automatically a large observable error. Non-finite
-outputs and undefined metrics remain explicit rather than becoming zero-error
-passes.
+outputs and undefined metrics are reported as such.
 
 Independent references use arbitrary-precision functions and direct analytical
-formulas, with a second, higher precision evaluation to test reference stability.
+formulas. A second evaluation at higher precision checks their stability.
 Spherical Bessel definitions and derivative relations follow
 [DLMF 10.47](https://dlmf.nist.gov/10.47) and
 [DLMF 10.51](https://dlmf.nist.gov/10.51). Physical checks include conservation,
@@ -176,15 +175,15 @@ is never timed against a different treams calculation. See [differences from tre
 
 ## Memory and large problems
 
-Peak RSS is the process high-water mark, including imports, inputs, native
-allocations, and allocator retention. Additional RSS is the increase above the
-high-water mark after input setup; it is not an allocation count and can be zero
+Peak RSS is the highest resident memory observed for the process, including
+imports, inputs and memory retained for reuse. Additional RSS is the increase
+above the peak after input setup; it is not an allocation count and can be zero
 when earlier allocations already set a higher peak. Forward and retained
 forward-plus-reverse peaks are labelled separately.
 
 The runner applies an explicit process-group RSS budget and per-case time limit
 to avoid exhausting the host. Its sampled group total can count shared pages
-more than once; it is a cleanup guard, not the plotted memory measurement.
+more than once, so it is used only to stop excessive memory use, not in plots.
 Timeouts and memory-limit stops remain in the case table. They establish a limit of
 this run, not a universal limit of either package.
 
@@ -192,8 +191,8 @@ Two Mac cases hit the 8 GiB group-memory guard: the 256-particle dense
 cluster and the 262,144-point plane-wave operator. A process-cleanup error kept
 their sampled peaks and elapsed times from being saved, so both count as
 memory-limit outcomes, with no reconstructed measurement and no retry. The
-controller waits for macOS exit teardown and saves limit decisions before
-cleanup. The manifests of both runs, the controller versions and a synthetic
+controller waits for worker processes to exit on macOS and saves limit decisions
+before cleanup. The records of both runs, the controller versions and a synthetic
 cleanup check are kept with the comparison results outside the repository. The
 numerical code and timing scripts are the same in both runs.
 
@@ -202,7 +201,7 @@ T-matrix in treams, a dense treams/SciPy solve for only the requested columns,
 dense treams-rs methods, and matrix-free iteration in treams-rs. A case
 compares the two packages at the same size only where the treams calculation
 and its numerical check ran. Beyond the dense cutoff, results labelled
-treams-rs only show how treams-rs scales. Matrix-free
+"treams-rs only" show how treams-rs scales. Matrix-free
 results include convergence checks and the chosen coupling regime. Above that
 cutoff, the saved checks cover equation residuals, physical invariants and one
 radius-direction finite difference, not a complete independent gradient.
@@ -215,8 +214,8 @@ gradient arrays.
 The gradient grid covers finite clusters, multilayer spheres, planar stacks,
 spherical fields, and cylindrical fields. Parameter sets include geometry,
 material properties, wavelength or wavenumber, and complex field coefficients.
-Every timed finite-difference gradient evaluates every selected real coordinate;
-a directional derivative is never presented as a complete gradient.
+Every timed finite-difference gradient evaluates every selected real coordinate.
+Directional derivatives are reported separately from complete gradients.
 
 Full treams-rs and finite-difference gradients are compared, with step-size
 checks and archived validation arrays. Complex inputs use separate real and
@@ -224,7 +223,7 @@ imaginary coordinates. For coefficient-field objectives, the report also
 includes an exact dense linear adjoint computed with treams. This keeps the
 finite-difference baseline from overstating the benefit where a simple exact
 adjoint is available.
-Forward recording, reverse execution, and their total remain separately visible.
+The report lists forward recording, reverse execution and their total separately.
 These checks differentiate the stated discretized objective; finite-difference
 agreement alone does not establish convergence with multipole cutoff.
 
@@ -253,6 +252,5 @@ and environment identities.
 
 Render saved evidence with `scripts/plot_benchmarks.py`, passing one `--manifest`
 per suite and an empty output directory. Plotting does not run either solver.
-The report's distributions weight sampled cases equally; they are not a forecast
-of speedup for an arbitrary application or a claim of a universal performance
-guarantee.
+The report weights sampled cases equally. Its distributions do not predict the
+speedup of an arbitrary application.

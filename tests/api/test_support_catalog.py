@@ -305,7 +305,7 @@ def test_agent_index_uses_new_reference_pages_before_they_are_written(
         monkeypatch.setitem(generate.__globals__, name, value)
     files = generate()
     assert (
-        "[New module](docs/reference/python/new.md): A new module."
+        f"[New module]({page.relative_to(tmp_path).as_posix()}): A new module."
         in files[tmp_path / "llms.txt"]
     )
     assert not page.exists()

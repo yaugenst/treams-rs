@@ -6,10 +6,9 @@ description: Accuracy limits of special functions, waves and lattice sums, with 
 
 ## How to read these limits
 
-A label bound that treams-rs accepts is not an accuracy guarantee over the whole
-range. Extreme orders and arguments, resonant conditioning and very many layers
-need case-specific convergence checks. A finite set of passing tests does not
-establish correctness or speed for every parameter choice.
+Accepted mode labels do not guarantee accuracy over the whole range. Extreme
+orders and arguments, resonant conditioning and many layers need their own
+convergence checks. Passing tests cover only the parameter ranges tested.
 
 Errors are relative to max(|S|, 1) for a sum or value S. For a derivative dS they
 are relative to |dS| + max(|S|, 1) s, with s = |k| for derivatives with respect
@@ -73,8 +72,8 @@ to a length and 1 / |k| for derivatives with respect to an inverse length.
     For positive degrees with |z| < n, a Kummer sum of the lower function replaces
     the cancelling recurrence and power series. The largest errors, 1.2e-13 to
     1.4e-13, come from the continued fraction at degrees below -88 with |z| near
-    |n|, and at |z| near 1.14 n next to the positive real axis. Arguments outside
-    these ranges are not certified.
+    |n|, and at |z| near 1.14 n next to the positive real axis. These checks do not
+    cover arguments outside these ranges.
 
 - **Kambe integrals** are checked against 181 quadrature values of orders -14 to 7
   with real eta at 1e-13 relative. They are also checked against 1249 70-digit
@@ -96,7 +95,7 @@ to a length and 1 / |k| for derivatives with respect to an inverse length.
       which cancels by 1 / |w| as in treams (1e-7 at |w| = 1e-8). The lattice
       sums do not reach it there.
 
-    Arguments outside these ranges are not certified.
+    These checks do not cover arguments outside these ranges.
 
 ## Lattice sums
 
@@ -131,8 +130,8 @@ A sum that would be inaccurate fails instead. In Python each failure raises
 | "Ewald sum lost its accuracy to cancelling Kambe integrals; reduce the split parameter" | A 1D spherical sum off the axis cancels where its spectral series is not available ([below](#1d-spherical-sums-off-the-axis)). | Reduce the split. |
 | "non-finite Ewald summand" | (k eta)^2 turns 90 degrees or more off the real axis, so the Gaussians of both parts grow. | Change the split or reduce the order. |
 
-The automatic split avoids the limits of explicit splits described below. The
-other limits have no workaround.
+Use the automatic split to avoid the explicit-split limits described below. It
+does not remove the other limits.
 
 ### Branches and sheets
 
@@ -324,19 +323,19 @@ treams, up to 54 times. Degrees 1 to 8 stay within 1.3e-12 where they trail.
 
 ## Floating-point environment
 
-Native results do not depend on the flush-to-zero mode of the caller; see
+Rust results do not depend on the caller's flush-to-zero mode; see
 [floating-point environment](../design/floating-point.md). This protection starts
 at the native call. Argument conversion and the NumPy arithmetic of the Python
 layer come first, so float32 subnormals, and float64 values that Python computes
-from subnormal inputs, can still read as zero on a flushing thread.
+from subnormal inputs, can still become zero when this mode is enabled.
 
 ## Scale and platform
 
 - Dense outputs and LU storage grow quadratically with the channel dimension, and
   factorization work grows cubically.
-- Requested-illumination factors avoid the full interacting T-matrix. The
-  matrix-free sphere path avoids global quadratic storage in both the forward and
-  the physical-parameter adjoint evaluation. It recomputes pair translations in
+- Solving for the requested illuminations avoids the full interacting T-matrix.
+  The matrix-free sphere method avoids global quadratic storage in both the forward
+  solve and physical-parameter adjoint. It recomputes pair translations in
   each GMRES iteration and checks the actual residual, so it can be slower than a
   reused dense factor. See [large problems](../performance/large-problems.md).
 - Optimized homogeneous sphere clusters need non-overlapping nonmagnetic spheres

@@ -5,8 +5,7 @@ description: Numerical choices of the Rust core - equilibrated LU, LU worker cou
 # Numerical choices
 
 The Rust core makes these choices for accuracy or speed.
-[Numerical limits](../validation/numerical-limits.md) lists the accuracy that
-results.
+[Numerical limits](../validation/numerical-limits.md) reports the measured accuracy.
 
 ## Equilibrated LU
 
@@ -14,7 +13,7 @@ Small particles at high multipole orders give interaction matrices with a unit
 diagonal and off-diagonal entries above `1e20`. A plain LU of such a matrix loses
 digits even when a rescaled system is well conditioned. The
 [thermal-radiation reproduction](../validation/published-applications.md#thermal-radiation)
-meets such a system: four 250 nm SiC spheres at multipole order 10. Rescaling
+has such a system: four 250 nm SiC spheres at multipole order 10. Rescaling
 makes its absorption at the lowest frequency stable.
 
 `linalg::equilibrate` therefore rescales rows and columns before the LU, so the
@@ -34,8 +33,8 @@ nonzero scales.
 ## LU worker count
 
 faer's recursive LU and triangular solves split the work into many narrow
-panels. On a large Rayon pool, scheduling these panels costs more than the
-workers gain. The private function `lu_threads` in `linalg` therefore picks the
+panels. On a large Rayon pool, scheduling these panels can outweigh the benefit
+of more workers. The private function `lu_threads` in `linalg` therefore picks the
 number of faer workers from the matrix size:
 
 ```text
@@ -68,7 +67,7 @@ Times are factor plus solve, with one warm-up and three samples per case in
 Cargo's default release profile. They measure scheduling only, not complete
 calculations. At 8192 rows the factorization took 3.14 s with four workers,
 3.28 s with eight and 5.03 s with sixteen. Sizes above 8192 rows were not timed;
-there the worker count grows with the panel work, as a heuristic.
+there the worker count grows with the estimated panel work.
 
 To repeat a measurement, run the benchmark with matrix rows, right-hand sides,
 requested faer workers and repetitions, and compare 1, 2, 4, 8 and 16 workers on
@@ -148,9 +147,9 @@ shape this leaves a unitarity error of about 1e-3 at degrees 2 to 6, against
 
 ## Parallel thresholds
 
-Small inputs run on the calling thread, because starting Rayon tasks costs more
-than the work, and so does everything with a one-thread budget. Each kernel sets
-the size from which it runs in parallel:
+Small inputs run on the calling thread because starting Rayon tasks costs more
+than the work. A one-thread budget also keeps work on the calling thread. Each
+kernel sets the size from which it runs in parallel:
 
 | Rust item | Parallel from | Used by |
 |---|---|---|

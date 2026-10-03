@@ -4,10 +4,9 @@ description: How many CPU threads treams-rs uses, how to change it, and how it w
 
 # Threads and process pools
 
-treams-rs runs its parallel kernels and its dense linear algebra on one pool of
-threads that it owns. Nothing needs configuring: the pool uses the CPUs this
-process may use, it starts with the first parallel call, process pools work,
-and results do not depend on the number of threads.
+treams-rs uses one thread pool for parallel computations and dense linear
+algebra. The pool starts with the first parallel call and, by default, uses
+the CPUs available to the current process.
 
 ```python exec
 import numpy as np
@@ -27,32 +26,32 @@ assert np.array_equal(serial, reference)  # bit for bit
 
 | Control | Effect |
 |---|---|
-| `tr.set_num_threads(n)` | Budget of every later parallel call in this process. A parallel step that has started finishes with its threads. `None` restores the default. |
-| `with tr.threads(n):` | The same, restored when the block ends. The budget is process-wide, not per Python thread. |
-| `tr.get_num_threads()`, `tr.thread_info()` | The budget, where it came from, the CPUs available, the pool size, and settings that were ignored. Neither starts the pool. |
-| `TREAMS_RS_NUM_THREADS` | Default budget for treams-rs alone. |
+| `tr.set_num_threads(n)` | Thread limit for later parallel calls in this process. A step already running finishes with its previous limit. `None` restores the default. |
+| `with tr.threads(n):` | The same, restored when the block ends. The limit applies to the whole process, not one Python thread. |
+| `tr.get_num_threads()`, `tr.thread_info()` | The thread limit, where it came from, the CPUs available, the pool size, and settings that were ignored. Neither starts the pool. |
+| `TREAMS_RS_NUM_THREADS` | Default thread limit for treams-rs alone. |
 | `RAYON_NUM_THREADS` | Default when `TREAMS_RS_NUM_THREADS` is unset. |
 | `OMP_NUM_THREADS` | Default when both are unset; the first entry of a list such as `8,4`. |
 
 The environment is read once, when Python imports `treams_rs`. Later changes to
 it have no effect; call `tr.set_num_threads` instead. Empty and zero values mean
 "not set". A value that is not a positive integer is ignored with a
-`tr.parallel.ThreadingWarning` at import. Without a setting, the budget is the
+`tr.parallel.ThreadingWarning` at import. Without a setting, the limit is the
 number of CPUs this process may use, which follows `taskset`, CPU affinity and
 container CPU limits. `tr.set_num_threads` accepts more threads than CPUs with a
 `ThreadingWarning`: dense linear algebra slows down when threads outnumber CPUs.
 
-`thread_info()["diagnostics"]` lists ignored values, budgets above the CPU count,
-and an `OMP_NUM_THREADS` that limits treams-rs. Launchers such as `torchrun` and
-some cluster environments export `OMP_NUM_THREADS=1`, which makes treams-rs run
-on one thread; set `TREAMS_RS_NUM_THREADS` to override it.
+`thread_info()["diagnostics"]` lists ignored values, thread limits above the
+CPU count, and an `OMP_NUM_THREADS` that limits treams-rs. Launchers such as
+`torchrun` and some cluster environments export `OMP_NUM_THREADS=1`, which makes
+treams-rs run on one thread; set `TREAMS_RS_NUM_THREADS` to override it.
 
 ## Process pools
 
 `multiprocessing` with any start method, `concurrent.futures.ProcessPoolExecutor`
 and PyTorch `DataLoader` workers work, also after the parent has computed in
-parallel: a forked child starts a pool of its own with the parent's budget. Each
-of `p` worker processes should get about `cpus / p` threads:
+parallel: a forked child starts a pool of its own with the parent's thread
+limit. Each of `p` worker processes should get about `cpus / p` threads:
 
 ```python no-exec
 import os
@@ -93,12 +92,12 @@ at any number of threads, from run to run, and in a forked child. A parallel ste
 splits its work at boundaries that depend on the problem size only and adds
 partial results in a fixed order; [parallelism](../design/parallelism.md)
 explains how. Different processors or builds can differ in the last bits,
-because matrix products choose AVX2 or AVX-512 kernels when they run and libm
-comes from the system.
+because matrix products use processor-specific instructions and some
+mathematical functions come from the system.
 
 ## Memory
 
-Each thread that multiplies matrices keeps a packing buffer of up to twice the
-processor's last-level cache. treams-rs also keeps the pool of the previous
-budget, so alternating between two budgets does not restart threads; the buffers
-of both pools count.
+Each thread that multiplies matrices keeps a temporary buffer of up to twice the
+processor's last-level cache. treams-rs also keeps the pool for the previous
+thread limit, so alternating between two limits does not restart threads.
+The buffers of both pools count towards memory use.

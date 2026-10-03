@@ -31,7 +31,7 @@ from ._framework_backend import (
 from ._framework_smatrix import SMatrix
 from ._framework_tmatrix import TMatrix
 from ._framework_waves import PlaneWave, PortSet, Wave
-from ._polarization import resolve_poltype
+from ._polarization import PARITY_CHANGE, resolve_poltype
 from ._validation import check_kind
 
 __all__ = ["Constructors", "Operations"]
@@ -402,6 +402,7 @@ class Constructors(_BoundToBackend):
 
         Parity ports need every layer achiral, not only the two exteriors.
         """
+        polarization = resolve_poltype(polarization)
         b = self.backend
         media = tuple(as_material(m) for m in materials)
         ports = PortSet.from_basis(basis, b)
@@ -422,9 +423,8 @@ class Constructors(_BoundToBackend):
         )
         if polarization == "parity":
             compact = b.require_achiral(compact, *media[1:-1])
-        compact = b.change_port_polarization(
-            compact, ((0, 0), (0, 1)), "helicity", polarization, (3, 4)
-        )
+            change = b.array(PARITY_CHANGE, complex_=True)
+            compact = change @ compact @ change.T
         # One gather builds the (2, 2, ports, ports) blocks from the compact
         # per-group channels; ports in different transverse groups do not couple.
         outgoing = np.arange(2)[:, None, None, None]

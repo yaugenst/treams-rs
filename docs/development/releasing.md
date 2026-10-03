@@ -4,7 +4,7 @@ description: Prepare a version, test its distributions, publish through TestPyPI
 
 # Releasing
 
-`workspace.package.version` in [`Cargo.toml`](../../Cargo.toml) owns the
+`workspace.package.version` in [`Cargo.toml`](../../Cargo.toml) sets the
 version of both Rust crates and the Python package. Maturin reads it through
 the dynamic version in `pyproject.toml`; `Cargo.lock` records the same value.
 The Rust crates are internal and are not published to crates.io.
@@ -67,7 +67,7 @@ gh api --method POST repos/yaugenst/treams-rs/dispatches \
 The [publication workflow](../../.github/workflows/publish-release.yml)
 fixes the candidate to the current `main` commit and requires a successful
 `CI Success` from a push to that commit. It builds and checks the complete
-wheel family and source distribution, checks metadata and local-path removal,
+set of wheels and source distribution, checks metadata and local-path removal,
 publishes the candidate to TestPyPI, and tests a clean installation.
 
 When `Approve production release` starts waiting, use the candidate revision

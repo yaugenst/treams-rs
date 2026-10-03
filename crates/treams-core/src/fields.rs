@@ -14,13 +14,14 @@ use std::{
     f64::consts::{FRAC_1_SQRT_2, PI},
 };
 
-use rayon::prelude::*;
-
 use crate::{
     Complex, Error, Result,
     basis::{ModeLabel, MultipoleBasis, validate_wavenumbers},
     cw,
-    numerics::{self, Jet, finite, parallel::try_fold_ordered},
+    numerics::{
+        self, Jet, finite,
+        parallel::{try_fill_chunks, try_fold_ordered, try_map},
+    },
     special::{Radial, SERIES_RADIUS, Solid, bessel, helicity_sign, polarized_wave, solid},
     sw::Mode,
 };
@@ -693,21 +694,16 @@ pub fn field(
         ));
     }
     let (waves, points) = sampled_waves(basis, points, ks, helicity, radial)?;
-    let value = crate::threads::install(|| {
-        points
-            .par_iter()
-            .map(|&point| {
-                let mut cache = waves.cache::<VALUES>();
-                let mut value = [Complex::default(); 3];
-                for (i, &amplitude) in coefficients.iter().enumerate() {
-                    let (wave, _) = waves.wave(i, point, &mut cache)?;
-                    for (v, f) in value.iter_mut().zip(wave.value) {
-                        *v += amplitude * f;
-                    }
-                }
-                Ok(value)
-            })
-            .collect::<Result<Vec<_>>>()
+    let value = try_map(points.len(), points.len() > 1, |index| -> Result<_> {
+        let mut cache = waves.cache::<VALUES>();
+        let mut value = [Complex::default(); 3];
+        for (i, &amplitude) in coefficients.iter().enumerate() {
+            let (wave, _) = waves.wave(i, points[index], &mut cache)?;
+            for (v, f) in value.iter_mut().zip(wave.value) {
+                *v += amplitude * f;
+            }
+        }
+        Ok(value)
     })?;
     Ok((
         value,
@@ -803,22 +799,23 @@ pub fn operator(
                 columns.push(rows);
             }
         }
-        crate::threads::install(|| {
-            blocks
-                .into_par_iter()
-                .enumerate()
-                .try_for_each(|(index, mut columns)| -> Result<()> {
-                    let block_points = points.iter().skip(index * block).take(block);
-                    for (sample, &point) in block_points.enumerate() {
-                        let mut cache = waves.cache::<VALUES>();
-                        for (i, column) in columns.iter_mut().enumerate() {
-                            let (wave, _) = waves.wave(i, point, &mut cache)?;
-                            column[3 * sample..3 * sample + 3].copy_from_slice(&wave.value);
-                        }
+        try_fill_chunks(
+            &mut blocks,
+            1,
+            samples > block,
+            |index, chunk| -> Result<()> {
+                let columns = &mut chunk[0];
+                let block_points = points.iter().skip(index * block).take(block);
+                for (sample, &point) in block_points.enumerate() {
+                    let mut cache = waves.cache::<VALUES>();
+                    for (i, column) in columns.iter_mut().enumerate() {
+                        let (wave, _) = waves.wave(i, point, &mut cache)?;
+                        column[3 * sample..3 * sample + 3].copy_from_slice(&wave.value);
                     }
-                    Ok(())
-                })
-        })?;
+                }
+                Ok(())
+            },
+        )?;
     }
     Ok((value, OperatorResidual { waves, points }))
 }

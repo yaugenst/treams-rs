@@ -1074,7 +1074,10 @@ def poynting_avg_z(
     if basis.alignment != "xy":
         raise ValueError("axial power forms require xy-aligned plane bases")
     medium = Material(material)
-    kx, ky, kz = basis.kvecs(k0, medium)
+    kx, ky = basis.components.T
+    # This compatibility helper keeps upstream branches, including materials
+    # unsupported by the physical plane-wave constructors.
+    kz = medium.kzs(k0, kx, ky, basis.pol)
     gamma = kz / (medium.ks(k0)[basis.pol] * medium.impedance)
     selection = (kx[:, None] == kx) & (ky[:, None] == ky)
     pol = basis.pol

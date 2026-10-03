@@ -35,7 +35,7 @@ pullbacks. Install ``treams-rs[jax]`` and keep the CPU backend: host callbacks
 run the Rust code, and ``vmap`` calls them one after another. Run another
 record with ``wrap``.
 
-Framework adapters guide: https://yaugenst.github.io/treams-rs/differentiation/frameworks/
+Framework adapters guide: https://yaugenst.github.io/treams-rs/latest/differentiation/frameworks/
 
 ## `BandModes`
 
@@ -1752,7 +1752,7 @@ Turn a record into a JAX function with a first-order gradient.
 of the inputs and outputs; later calls must use the same input shapes and
 dtypes. For example, ``wrap(diff.eig, matrix)`` differentiates an
 eigensystem. Custom records:
-https://yaugenst.github.io/treams-rs/differentiation/custom-records/
+https://yaugenst.github.io/treams-rs/latest/differentiation/custom-records/
 
 **Args**
 

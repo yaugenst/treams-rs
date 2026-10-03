@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = []
+# dependencies = ["pytest>=9.1"]
 # ///
 """Check versioned links and the published Markdown without a native build."""
 
@@ -11,6 +11,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
+pytestmark = pytest.mark.interface
+
 HOOK = runpy.run_path(str(Path(__file__).resolve().parents[2] / "docs/_hooks/site.py"))
 
 
@@ -19,11 +23,16 @@ class DocumentationSiteTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "docs/guide").mkdir(parents=True)
-            (root / "site").mkdir()
+            (root / "site/rust/treams_core").mkdir(parents=True)
+            rust_page = root / "site/rust/treams_core/index.html"
+            rust_page.write_text(
+                '<a href="https://yaugenst.github.io/treams-rs/latest/development/testing/">Testing</a>'
+            )
             (root / "Cargo.toml").write_text("# source file\n")
+            source = "guide/example.md"
             (root / "llms.txt").write_text(
                 "The Markdown sources linked below are in this repository, at the same Git revision as this file.\n"
-                "- [Guide](docs/guide/example.md)\n"
+                f"- [Guide](docs/{source})\n"
             )
             config = {
                 "docs_dir": root / "docs",
@@ -31,7 +40,7 @@ class DocumentationSiteTest(unittest.TestCase):
                 "config_file_path": root / "mkdocs.yml",
             }
             page = SimpleNamespace(
-                file=SimpleNamespace(src_uri="guide/example.md", url="guide/example/")
+                file=SimpleNamespace(src_uri=source, url="guide/example/")
             )
             with patch.dict(
                 "os.environ",
@@ -41,6 +50,7 @@ class DocumentationSiteTest(unittest.TestCase):
                 markdown = HOOK["on_page_markdown"](
                     "[Source](../../Cargo.toml)\n"
                     "[Rust](https://yaugenst.github.io/treams-rs/latest/rust/treams_core/index.html#modules)\n"
+                    "<https://yaugenst.github.io/treams-rs/latest/rust/treams_core/>\n"
                     "`[Literal](https://yaugenst.github.io/treams-rs/latest/)`\n"
                     "```python exec\nassert True\n```\n",
                     page,
@@ -60,12 +70,18 @@ class DocumentationSiteTest(unittest.TestCase):
                 self.assertIn('href="../../rust/treams_core/"', html)
                 self.assertIn('href="../../llms.txt"', html)
                 HOOK["on_post_build"](config)
+                self.assertIn(
+                    'href="../../development/testing/"', rust_page.read_text()
+                )
                 published = (root / "site/guide/example.md").read_text()
                 self.assertEqual(
                     published,
                     markdown.replace(
                         "](https://yaugenst.github.io/treams-rs/latest/rust/",
                         "](../rust/",
+                    ).replace(
+                        "<https://yaugenst.github.io/treams-rs/latest/rust/treams_core/>",
+                        "[https://yaugenst.github.io/treams-rs/latest/rust/treams_core/](../rust/treams_core/)",
                     ),
                 )
                 index = (root / "site/llms.txt").read_text()

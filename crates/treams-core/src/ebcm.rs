@@ -6,7 +6,7 @@
 //! - `radial_area_factor = true` includes the factor `r` of the surface element
 //!   `(r rhat - r' theta-hat) r sin(theta) dtheta dphi`, which treams omits; `false`
 //!   reproduces treams. See
-//!   <https://yaugenst.github.io/treams-rs/coming-from-treams/differences/>.
+//!   <https://yaugenst.github.io/treams-rs/latest/coming-from-treams/differences/>.
 //! - It sums over the fixed polar nodes and weights of a [`Surface`]; the Python
 //!   `ebcm.qmat` passes Gauss-Legendre nodes. treams integrates each matrix entry with
 //!   the adaptive `scipy.integrate.quad`.
