@@ -343,5 +343,7 @@ from subnormal inputs, can still read as zero on a flushing thread.
   high-precision reproducer).
 - HDF5 layout compatibility is not certification against every external T-matrix
   database.
-- treams-rs installs on Python 3.12 and 3.13 only. Wider wheel platforms are
-  untested.
+- The release targets CPython 3.12–3.15 on the platforms listed under
+  [Install](../getting-started/install.md). Historical numerical measurements
+  cover the hosts and versions recorded with them; a wheel build does not
+  extend those measurements to other platforms.

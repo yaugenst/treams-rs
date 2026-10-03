@@ -1,56 +1,144 @@
 name: Docs
 
 on:
-  pull_request:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-permissions:
-  contents: read
+  workflow_call:
+    inputs:
+      source_revision:
+        description: Immutable source commit to document; defaults to the triggering commit
+        required: false
+        type: string
+        default: ""
+      version:
+        description: Version to publish with mike; empty builds without publishing
+        required: false
+        type: string
+        default: ""
 
 concurrency:
-  group: docs-${{ github.ref }}
-  # Pull-request builds cancel each other; a deployment from main finishes.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: docs-${{ inputs.version != '' && 'deploy' || github.ref }}
+  cancel-in-progress: false
+
+env:
+  FORCE_COLOR: "1"
+  NO_MKDOCS_2_WARNING: "1"
 
 jobs:
-  build:
+  docs:
+    name: Documentation
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
+    env:
+      TREAMS_RS_DOCS_SOURCE_REF: ${{ inputs.source_revision || github.sha }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@89428adc381502888d30f3ce6abbb7ea52739d01
-        with:
-          toolchain: "1.94.0"
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
-        with:
-          version: "0.12.3"
-      - uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6
-        with:
-          just-version: "1.48.0"
-      - name: Build the site
+          ref: ${{ inputs.source_revision || github.sha }}
+
+      - name: Validate documentation source and version
         env:
-          NO_MKDOCS_2_WARNING: 1
-        run: just docs-build
-      - name: Add the treams-core rustdoc
-        run: just docs-rust
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+          SOURCE_REVISION: ${{ inputs.source_revision || github.sha }}
+          DOCS_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$SOURCE_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "source_revision must be a full commit SHA" >&2
+            exit 1
+          fi
+          test "$(git rev-parse HEAD)" = "$SOURCE_REVISION"
+          if [[ -n "$DOCS_VERSION" && "$DOCS_VERSION" != dev && ! "$DOCS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "version must be dev or X.Y.Z" >&2
+            exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with:
-          path: site
+          toolchain: 1.94.0
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          version-file: pyproject.toml
+
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: "1.58.0"
+
+      - name: Install documentation tools
+        if: inputs.version == ''
+        run: uv sync --locked --only-group docs --python 3.13
+
+      - name: Install package dependencies and documentation tools
+        if: inputs.version != ''
+        run: |
+          uv sync --locked --no-install-project --group dev --group docs --extra jax --python 3.13
+          torch_version="$(
+            uv export --locked --extra torch --no-emit-project --no-hashes \
+              --no-header --no-annotate | sed -n 's/^torch==\([^ ;]*\).*/\1/p'
+          )"
+          test -n "$torch_version"
+          uv pip install --python .venv/bin/python \
+            --index-url https://download.pytorch.org/whl/cpu "torch==${torch_version}+cpu"
+
+      - name: Check generated pages and documentation examples
+        if: inputs.version != ''
+        env:
+          HYPOTHESIS_PROFILE: ci
+        run: |
+          just build-ext
+          uv run --no-sync python scripts/generate_docs.py --check
+          uv run --no-sync pytest tests/api/test_docs.py tests/api/test_examples.py
+
+      # Stage rustdoc after the source checks. MkDocs copies it unchanged, so
+      # mike includes it in both the version directory and its aliases.
+      - name: Include the treams-core rustdoc
+        run: |
+          just docs-rust
+          mv site/rust docs/rust
+
+      - name: Build documentation
+        if: inputs.version == ''
+        run: uv run --no-sync mkdocs build --strict
+
+      - name: Update the versioned documentation tree
+        if: inputs.version != ''
+        env:
+          DOCS_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          gh auth setup-git
+          newest_tag="$(
+            git tag --list 'v[0-9]*' --sort=-v:refname |
+              awk '/^v[0-9]+\.[0-9]+\.[0-9]+$/ { if (newest == "") newest = $0 } END { print newest }'
+          )"
+          if [[ "$DOCS_VERSION" == dev ]]; then
+            uv run --no-sync mike deploy --alias-type copy dev
+            if [[ -z "$newest_tag" ]]; then
+              uv run --no-sync mike set-default dev
+            fi
+          elif [[ "$newest_tag" == "v$DOCS_VERSION" ]]; then
+            uv run --no-sync mike deploy --alias-type copy --update-aliases "$DOCS_VERSION" latest
+            uv run --no-sync mike set-default latest
+          else
+            uv run --no-sync mike deploy --alias-type copy "$DOCS_VERSION"
+          fi
+          git push origin gh-pages
+          mkdir -p "$RUNNER_TEMP/pages"
+          git archive gh-pages | tar -x -C "$RUNNER_TEMP/pages"
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        if: inputs.version != ''
+        with:
+          path: ${{ runner.temp }}/pages
 
   deploy:
-    # Publishing stays off until the repository variable DOCS_DEPLOY is 'true'.
-    needs: build
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.DOCS_DEPLOY == 'true'
+    needs: docs
+    if: inputs.version != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    permissions:
-      pages: write
-      id-token: write
+    # Publishing callers grant contents: write, pages: write and id-token: write.
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

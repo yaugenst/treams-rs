@@ -24,7 +24,7 @@ no extension build: the site holds only committed Markdown.
 
 `just docs-rust` documents `treams-core` with its private items, which makes
 the rustdoc the reference for the numerical code. The site serves it at
-`/rust/treams_core/`.
+`rust/treams_core/` within each documentation version.
 
 ## Adding a page
 
@@ -50,9 +50,13 @@ a `docs/` path or a site page that does not exist.
 The site holds only the `docs/` tree. The hook `docs/_hooks/site.py`
 turns a relative link that leaves `docs/`, such as
 `[conftest](../../tests/conftest.py)`, into a GitHub link at the commit that
-the site was built from (at `main` in a local build). A link to a missing file
+the site was built from (`TREAMS_RS_DOCS_SOURCE_REF`, or `main` locally). A link to a missing file
 stops the build with the page and the target named. Write repository links as
 relative paths, so they also work in the GitHub file view.
+
+The published site keeps links to its own pages in the displayed version,
+including rustdoc. Every version also publishes `llms.txt` and the Markdown
+sources beside the HTML; links in that index name the same version's sources.
 
 ## Code examples
 
@@ -137,8 +141,9 @@ review the change in `output/`.
 
 ## Publishing
 
-The [Docs workflow](../../.github/workflows/docs.yml) builds the site and the
-rustdoc on every pull request and push to `main`. It publishes the site to
-GitHub Pages only from `main`, and only when the repository variable
-`DOCS_DEPLOY` is `true`; [releasing](releasing.md#documentation-site) shows how
-to turn it on.
+The reusable [Docs workflow](../../.github/workflows/docs.yml) builds the site
+and rustdoc for pull requests. Main publishes `dev`; a release publishes its
+version and updates `latest`. Mike keeps every version in `gh-pages`, and
+the workflow deploys the complete tree through GitHub Pages artifacts.
+[Releasing](releasing.md#documentation-site) describes setup and corrections
+to released documentation.

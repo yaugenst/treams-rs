@@ -1,9 +1,9 @@
 # treams-rs
 
 [![CI](https://github.com/yaugenst/treams-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/yaugenst/treams-rs/actions/workflows/ci.yml)
-[![Docs](https://github.com/yaugenst/treams-rs/actions/workflows/docs.yml/badge.svg)](https://yaugenst.github.io/treams-rs/)
+[![Docs](https://github.com/yaugenst/treams-rs/actions/workflows/docs.yml/badge.svg)](https://yaugenst.github.io/treams-rs/latest/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/yaugenst/treams-rs/blob/main/LICENSE)
-[![Python 3.12 | 3.13](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg)](https://yaugenst.github.io/treams-rs/getting-started/install/)
+[![Python 3.12–3.15](https://img.shields.io/badge/python-3.12%E2%80%933.15-blue.svg)](https://yaugenst.github.io/treams-rs/latest/getting-started/install/)
 
 treams-rs computes electromagnetic scattering with T-matrices: spheres,
 cylinders and layered or chiral particles, finite clusters, periodic arrays and
@@ -18,8 +18,9 @@ and PyTorch use directly.
 treams-rs follows [treams](https://github.com/tfp-photonics/treams) by Dominik
 Beutel and coworkers:
 
-- **Same numbers.** treams-rs uses the units, polarization, mode ordering and
-  normalization of treams 0.4.5, so arrays agree entry by entry.
+- **Same conventions.** treams-rs uses treams' units, polarization, mode
+  ordering and normalization. Reference tests use treams 0.4.7; historical
+  comparisons and benchmarks identify their original treams version.
 - **Same numerical namespaces.** `special`, `sw`, `cw`, `pw`, `lattice`,
   `coeffs`, `misc`, `ebcm` and `io` keep the treams function and argument
   names.
@@ -28,22 +29,24 @@ Beutel and coworkers:
   annotated arrays.
 - **A Rust core.** At run time it needs only NumPy: no treams, SciPy or Cython.
 
-[Coming from treams](https://yaugenst.github.io/treams-rs/coming-from-treams/)
+[Coming from treams](https://yaugenst.github.io/treams-rs/latest/coming-from-treams/)
 maps treams workflows and names to treams-rs.
 
 ## Install
 
-treams-rs is not on PyPI yet. Install it from GitHub; pip compiles the Rust
-core, so [rustup](https://rustup.rs) must be on the `PATH`:
-
 ```sh
-pip install "treams-rs @ git+https://github.com/yaugenst/treams-rs"
+pip install treams-rs
 ```
 
+The 0.1.0 core wheel targets are CPython 3.12–3.15 on Linux (glibc 2.17 or
+newer, x86-64 and arm64), macOS (Intel and Apple silicon), and Windows
+(x86-64). Installing a wheel needs no Rust toolchain.
+
 Extras add optional packages: `[advect]`, `[jax]` and `[torch]` for gradients,
-and `[io]` for HDF5 files. See
-[Install](https://yaugenst.github.io/treams-rs/getting-started/install/) for
-details.
+and `[io]` for HDF5 files. Standard PyPI installs of the `torch` and `io`
+extras on CPython 3.15 are outside the 0.1.0 release qualification. See
+[Install](https://yaugenst.github.io/treams-rs/latest/getting-started/install/)
+for optional dependencies and source builds.
 
 ## Example
 
@@ -82,29 +85,29 @@ print(grad(scattering)(0.2))
 
 `treams_rs.jax` and `treams_rs.torch` work the same way with `jax.grad` and
 `torch.autograd`. Rust computes each derivative analytically; see
-[Differentiation](https://yaugenst.github.io/treams-rs/differentiation/).
+[Differentiation](https://yaugenst.github.io/treams-rs/latest/differentiation/).
 
 ## Documentation
 
-The documentation lives at <https://yaugenst.github.io/treams-rs/>:
+The documentation lives at <https://yaugenst.github.io/treams-rs/latest/>:
 
-- [Getting started](https://yaugenst.github.io/treams-rs/getting-started/quickstart/):
+- [Getting started](https://yaugenst.github.io/treams-rs/latest/getting-started/quickstart/):
   four short examples.
-- [Coming from treams](https://yaugenst.github.io/treams-rs/coming-from-treams/):
+- [Coming from treams](https://yaugenst.github.io/treams-rs/latest/coming-from-treams/):
   workflows, names and conventions side by side.
-- [User guide](https://yaugenst.github.io/treams-rs/guide/): particles, clusters,
+- [User guide](https://yaugenst.github.io/treams-rs/latest/guide/): particles, clusters,
   periodic arrays, planar stacks and the numerical namespaces.
-- [Differentiation](https://yaugenst.github.io/treams-rs/differentiation/):
+- [Differentiation](https://yaugenst.github.io/treams-rs/latest/differentiation/):
   gradients through Advect, JAX, PyTorch and the `diff` module.
-- [Examples](https://yaugenst.github.io/treams-rs/examples/): the treams gallery
+- [Examples](https://yaugenst.github.io/treams-rs/latest/examples/): the treams gallery
   in treams-rs, plus gradient-based design.
-- [Validation](https://yaugenst.github.io/treams-rs/validation/): tests against
+- [Validation](https://yaugenst.github.io/treams-rs/latest/validation/): tests against
   treams, analytic results and published spectra.
-- [Performance](https://yaugenst.github.io/treams-rs/performance/): CPU timings
+- [Performance](https://yaugenst.github.io/treams-rs/latest/performance/): CPU timings
   against treams 0.4.5.
-- [Reference](https://yaugenst.github.io/treams-rs/reference/): every public
+- [Reference](https://yaugenst.github.io/treams-rs/latest/reference/): every public
   function and class.
-- [Development](https://yaugenst.github.io/treams-rs/development/): building
+- [Development](https://yaugenst.github.io/treams-rs/latest/development/): building
   from a checkout, tests and
   [contributing](https://github.com/yaugenst/treams-rs/blob/main/CONTRIBUTING.md).
 

@@ -40,8 +40,10 @@ from correctness checks.
 
 ## Rust properties and proofs
 
-Hosted CI runs `just ci-rust` once and `just ci-python` with `just check-wheel` on
-Python 3.12 and 3.13 ([development](../development/index.md)). Native proptest
+Hosted CI checks Rust on the minimum and stable toolchains and Python on
+CPython 3.12–3.15. The complete oracle suite runs on 3.12 and 3.13; later
+versions omit tests whose reference dependencies are unavailable
+([development](../development/index.md)). Native proptest
 properties, mostly in `crates/treams-core/src/properties/`, check:
 
 - the group laws of translations;
@@ -80,6 +82,10 @@ Errors are relative unless stated otherwise. The workflow comparisons and the
 9950X, Python 3.13.1); the [performance](../performance/index.md) page lists
 its build.
 
+The active development oracle is treams 0.4.7. Archived workflow and gallery
+measurements retain their recorded treams 0.4.5 identity. The results below
+belong to those measurements, not automatically to a later release build.
+
 | Evidence | Scope | Outcome | Source |
 | --- | --- | --- | --- |
 | Rust property tests | Physical, analytic and adjoint identities above, on bounded random domains with saved regressions | Pass in CI | [`crates/treams-core/src/properties/`](../../crates/treams-core/src/properties/) |
@@ -87,7 +93,7 @@ its build.
 | High precision: incomplete gamma | 1494 40-digit mpmath values; 60-digit sweeps over \|n\| <= 128 | Within 1e-13 relative; sweeps within 1.5e-13 | [`incgamma.txt`](../../crates/treams-core/references/incgamma.txt), [limits](numerical-limits.md#special-functions-and-waves) |
 | High precision: Kambe integrals | 181 quadrature values; 1249 70-digit values at the lattice-sum arguments | 1e-13 relative; even orders within 1e-11 | [`kambe.txt`](../../crates/treams-core/references/kambe.txt), [`kambe_lattice.txt`](../../crates/treams-core/references/kambe_lattice.txt) |
 | High precision: lattice sums | Ewald sums and derivatives against mpmath, near and off the plane or axis | Values within 5e-14 to 2e-13 near the plane or axis; 1D spherical sums off the axis within 1.4e-13 | [`lattice_sums.txt`](../../crates/treams-core/references/lattice_sums.txt), [`lattice_chain.txt`](../../crates/treams-core/references/lattice_chain.txt), [`generate_references.py`](../../scripts/generate_references.py) |
-| High precision: fractional Legendre | 530 finite value and derivative cases and two expected overflows against 70-digit hypergeometric values | Largest relative error 2.17e-13 | [`qualify_legendre.py`](../../scripts/qualify_legendre.py) |
+| High precision: fractional Legendre, archived pre-release implementation | 530 finite value and derivative cases and two expected overflows against 70-digit hypergeometric values | Largest relative error 2.17e-13 in that record | [`qualify_legendre.py`](../../scripts/qualify_legendre.py), [record](../../benchmarks/results/fractional-legendre-physical.json) |
 | High precision: reference collector | 2,032 finite-output reference cases, including a metallic sphere of size parameter 80; 18 inputs beyond the float64 range are excluded | All pass | [`qualify_references.py`](../../scripts/qualify_references.py), [`linux-core-qualification.json`](../../benchmarks/linux-core-qualification.json) |
 | treams workflow comparisons | 527 complete workflows against treams 0.4.5, plus 51 complete-gradient cases | All pass | [`qualify_upstream.py`](../../scripts/qualify_upstream.py), [`linux-core-qualification.json`](../../benchmarks/linux-core-qualification.json) |
 | Published applications | Electron-beam spectra, treams paper spectra and thermal radiation | Within the stated tolerances of the author data, for example all 300 thermal absorption values within 0.577% | [Published applications](published-applications.md), [`benchmarks/papers/`](../../benchmarks/papers/) |

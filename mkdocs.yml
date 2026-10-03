@@ -116,6 +116,10 @@ theme:
     - content.code.copy
     - content.tabs.link
 
+extra:
+  version:
+    provider: mike
+
 # The hook strips the test modes from python fences and points links that
 # leave docs/ at GitHub.
 hooks:

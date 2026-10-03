@@ -4,12 +4,16 @@ description: Run the benchmarks on an idle host, compare two builds and record n
 
 # Benchmarks
 
-The benchmark scripts compare treams-rs with treams 0.4.5 for speed, peak
+The benchmark scripts compare treams-rs with the installed treams for speed, peak
 memory and agreement. [`scripts/README.md`](../../scripts/README.md) lists every
 script with its purpose and its test, and
 [`benchmarks/README.md`](../../benchmarks/README.md) lists the plans, manifests,
 summaries and raw results. The [performance](../performance/index.md) pages
 summarize the results.
+
+The locked development environment uses treams 0.4.7; historical records use
+the version written in each record, often 0.4.5. Record the actual comparator
+version for each new run rather than relabeling an archived measurement.
 
 ## Running the benchmarks
 

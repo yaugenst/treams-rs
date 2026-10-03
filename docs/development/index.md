@@ -6,27 +6,70 @@ description: Set up a development checkout, run the checks that hosted CI runs, 
 
 ## Setup
 
-You need Python 3.12 or 3.13, [uv](https://docs.astral.sh/uv/) 0.12.3,
-[just](https://just.systems/) and the Rust toolchain pinned in
-[`rust-toolchain.toml`](../../rust-toolchain.toml). From the repository root:
+You need CPython 3.12–3.15, [uv](https://docs.astral.sh/uv/) 0.12.22,
+[just](https://just.systems/) and Rust 1.94.0, pinned in
+[`rust-toolchain.toml`](../../rust-toolchain.toml). Use Python 3.12 or 3.13
+for the complete reference suite. From the repository root:
 
 ```sh
-uv sync --locked --group dev --extra jax --extra torch
+uv sync --locked --no-install-project --group dev --extra jax
 just build-ext
 uv run --no-sync pre-commit install
 ```
 
 - `uv sync` installs the development tools and the test references: treams
-  0.4.5, SciPy and mpmath. treams-rs itself needs only NumPy. The `jax` and
-  `torch` extras are optional; without them the JAX and PyTorch tests skip.
+  0.4.7, SciPy and mpmath. treams-rs itself needs only NumPy. Historical
+  comparisons against treams 0.4.5 retain that version in their evidence.
+- JAX and PyTorch are optional; without them their adapter tests skip.
 - `just build-ext` compiles the extension into `.venv`. Run it again after
   every change under `crates/`.
-- `pre-commit install` runs rustfmt, Clippy, Ruff and Pyrefly before each
-  commit.
+
+On Linux, add the locked CPU build of PyTorch as hosted CI does:
+
+```sh
+torch_version="$(
+  uv export --locked --extra torch --no-emit-project --no-hashes \
+    --no-header --no-annotate | sed -n 's/^torch==\([^ ;]*\).*/\1/p'
+)"
+uv pip install --index-url https://download.pytorch.org/whl/cpu "torch==${torch_version}+cpu"
+```
+
+This CPU index covers Python 3.15 in the release dependency set. On macOS,
+add `--extra torch` to the initial `uv sync` command on Python 3.12–3.14;
+that installs PyTorch from PyPI. The standard PyPI `torch` extra on 3.15
+is outside the release qualification.
 
 Run Python commands as `uv run --no-sync python ...` or
 `uv run --no-sync pytest ...`. `--no-sync` keeps the environment and the
 extension of `just build-ext` as they are.
+
+The development dependency set omits the upstream treams oracle on Python
+3.14–3.15 and h5py on 3.15. Tests that require an unavailable dependency skip
+and appear in the test summary; independent tests still run. On 3.12 and
+3.13, a missing oracle is an error.
+
+## Repository hooks
+
+`uv run --no-sync pre-commit install` installs both the `pre-commit` and
+`commit-msg` hooks from [`.pre-commit-config.yaml`](../../.pre-commit-config.yaml).
+Git worktrees share these hooks. Their first run downloads the hook tools.
+
+| Hooks | Checks |
+| --- | --- |
+| `pre-commit-hooks` | Whitespace, final newlines, line endings, YAML and JSON, conflict markers, symlinks, file sizes and private keys |
+| `markdownlint-cli2` | Markdown formatting with [`.markdownlint-cli2.yaml`](../../.markdownlint-cli2.yaml); needs Node 22 or newer, which pre-commit downloads if Node is absent |
+| `taplo-format` | TOML formatting |
+| `typos` | Spelling, with exceptions in [`_typos.toml`](../../_typos.toml) |
+| `commitizen` | Conventional Commit messages: `type(optional scope): subject` |
+| Local `just` hooks | rustfmt, Clippy, Ruff and Pyrefly using the locked tools |
+
+Review and stage any automatic formatting changes before committing again.
+`just file-hygiene`, part of `just check` and CI, runs the file hooks over the
+whole repository. Commitizen checks messages; it does not manage versions.
+`Cargo.toml` owns the package version ([releasing](releasing.md)). Fix
+generated documentation in its source or in
+[`scripts/generate_docs.py`](../../scripts/generate_docs.py), then run
+`just docs`.
 
 ## Checks
 
@@ -34,19 +77,19 @@ extension of `just build-ext` as they are.
 just ci
 ```
 
-`just ci` runs the Rust and Python checks of hosted CI, through the same
-recipes. Hosted CI also runs `just check-wheel` and 100 Hypothesis examples per
-property (`HYPOTHESIS_PROFILE=ci`; the local default is 30). `just ci` has two
-halves:
+`just ci` runs the local Rust and Python checks through the same recipes
+used by hosted CI. Use `HYPOTHESIS_PROFILE=ci` for 100 examples per property
+(the local default is 30). `just ci` has two halves:
 
-| Recipe | Checks | Hosted CI |
-|---|---|---|
-| `just ci-rust` | rustfmt, Clippy, the `treams-core` tests and rustdoc, with warnings as errors | once |
-| `just ci-python` | file hygiene, lock files, Ruff format and lint, strict Pyrefly, and the Python tests against a fresh development extension | on Python 3.12 with `TREAMS_RS_NUM_THREADS=1` and on Python 3.13 with every CPU, with `HYPOTHESIS_PROFILE=ci` |
-| `just check-wheel` | builds an optimized wheel and checks it in a clean environment ([clean wheel](#clean-wheel)); not part of `just ci` | after `just ci-python`, on Python 3.12 and 3.13 |
+| Recipe | Checks |
+|---|---|
+| `just ci-rust` | rustfmt, Clippy, the `treams-core` tests and rustdoc, with warnings as errors |
+| `just ci-python` | file hygiene, lock files, Ruff format and lint, strict Pyrefly, and the Python tests against a fresh development extension |
+| `just check-wheel` | builds an optimized wheel and checks it in a clean environment ([clean wheel](#clean-wheel)); not part of `just ci` |
 
 The Python tests include the check that the generated reference pages and
-`llms.txt` match the code.
+`llms.txt` match the code. Tests live under `tests/<domain>/`; the
+[testing guide](testing.md) maps each directory to its subject.
 
 `just check` runs the lint checks without tests: file hygiene, lock files,
 rustfmt, Clippy, Ruff, Pyrefly and `just docs-check`. Use it while you work and
@@ -55,11 +98,27 @@ holds the exact commands.
 
 ## Workflows
 
+These are the configured checks; a release needs successful runs for its
+exact source revision, as described in [releasing](releasing.md).
+
 | Workflow | Runs on | Runs |
 |---|---|---|
-| [CI](../../.github/workflows/ci.yml) | every pull request and push to `main` | `just ci-rust`; `just ci-python` and `just check-wheel` on Python 3.12 (one thread) and 3.13 |
-| [Docs](../../.github/workflows/docs.yml) | every pull request and push to `main`, and by hand | `just docs-build` and `just docs-rust`; publishes the site from `main` once [publishing is turned on](releasing.md#documentation-site) |
+| [CI](../../.github/workflows/ci.yml) | pull requests and pushes to `main` | Python 3.12–3.15, supported dependency bounds, Rust checks, coverage, native wheels, documentation and a history secret scan |
+| [Native Wheels](../../.github/workflows/native-wheels.yml) | CI and release-candidate workflows, or by hand | The [core wheel family](../getting-started/install.md#install-from-pypi), installed-wheel smoke checks and a source-distribution rebuild |
+| [Docs](../../.github/workflows/docs.yml) | pull requests, pushes to `main`, and by hand | Strict Material site build and rustdoc; mike maintains `dev`, released versions and the `latest` alias, then the complete site is deployed through a GitHub Pages artifact |
+| [Release Candidate](../../.github/workflows/release-candidate.yml) | by hand | Eligible source revision, immutable distribution artifacts and TestPyPI candidate |
+| [Publish Release](../../.github/workflows/publish-release.yml) | a version tag | The matching tested candidate, PyPI publication and release documentation |
 | [Formal](../../.github/workflows/formal.yml) | pull requests and pushes that change `formal/`, a Rust file with a Lean model, the `justfile` or the workflow | `just formal` |
+
+CI runs the complete oracle suite on Python 3.12 and 3.13 and the available
+tests on 3.14 and 3.15. Separate lanes cover NumPy 2.1–2.5, all declared
+dependency floors together on 3.12, and current framework releases on 3.13
+and 3.14. Rust checks cover 1.94.0 and stable. The coverage upload and these
+required jobs feed the `CI Success` release gate.
+
+When a dependency range changes, update its matrix lane too. A change to a
+Rust dependency linked into wheels also needs `just licenses` to refresh the
+bundled license texts.
 
 ## Development builds
 

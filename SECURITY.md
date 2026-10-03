@@ -2,7 +2,8 @@
 
 ## Supported versions
 
-treams-rs has no release yet. Security fixes go to the `main` branch.
+Security fixes for the 0.1 series go to the `main` branch and are included in
+subsequent 0.1.x releases. Pre-release checkouts should update to `main`.
 
 ## Reporting a vulnerability
 
