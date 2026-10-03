@@ -109,7 +109,7 @@ Every version includes its Rust reference and Markdown sources. Source links
 refer to the documented commit.
 
 To correct released documentation without changing the package, run
-[Deploy docs](../../.github/workflows/deploy-docs.yml). Set `version` to an
+[Deploy docs](../../.github/workflows/deploy-docs.yml) from `main`. Set `version` to an
 existing release `X.Y.Z` and `source_revision` to the full commit SHA of the
 correction. The workflow requires the existing release and immutable tag.
 It replaces that version's documentation and updates `latest` only for the

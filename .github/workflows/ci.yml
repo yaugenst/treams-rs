@@ -435,7 +435,7 @@ jobs:
       - name: Scan Git history
         env:
           SOURCE_REVISION: ${{ github.sha }}
-        run: ./gitleaks git --redact --verbose --log-opts="$SOURCE_REVISION"
+        run: ./gitleaks git --redact --verbose --max-archive-depth 3 --log-opts="$SOURCE_REVISION"
 
   ci-success:
     name: CI Success
