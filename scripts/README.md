@@ -18,7 +18,7 @@ The benchmark and validation scripts write evidence that is indexed in
 
 | Script | Purpose | Run by | Test |
 | --- | --- | --- | --- |
-| [`smoke_wheel_install.py`](smoke_wheel_install.py) | Checks an installed release wheel in clean base, Advect and HDF5 dependency profiles without the upstream scientific stack. | `just check-wheel`, native-wheel and publication workflows | none (CI runs it) |
+| [`smoke_wheel_install.py`](smoke_wheel_install.py) | Checks an installed release wheel in clean base, Advect, HIPS Autograd and HDF5 dependency profiles without the upstream scientific stack. | `just check-wheel`, native-wheel and publication workflows | none (CI runs it) |
 | [`wheel_build_paths.py`](wheel_build_paths.py) | Generates Rust path-remapping flags and checks wheels for local build paths. | `just`, native-wheel workflow | [`tests/scripts/test_release_artifacts.py`](../tests/scripts/test_release_artifacts.py) |
 | [`dependency_minimums.py`](dependency_minimums.py) | Reads declared dependency floors for simultaneous minimum-version smoke checks. | native-wheel workflow | [`tests/scripts/test_release_artifacts.py`](../tests/scripts/test_release_artifacts.py) |
 | [`check_source_distribution.py`](check_source_distribution.py) | Checks source archive contents and the wheel rebuilt from that archive. | native-wheel workflow | [`tests/scripts/test_release_artifacts.py`](../tests/scripts/test_release_artifacts.py) |
@@ -27,6 +27,16 @@ The benchmark and validation scripts write evidence that is indexed in
 | [`float_environment.py`](float_environment.py) | Requires native results for callers that flush subnormals (XLA, `torch.set_flush_denormal`) to equal those of IEEE callers bit for bit. | `smoke_wheel_install.py` | [`tests/bindings/test_float_environment.py`](../tests/bindings/test_float_environment.py) |
 
 ## Benchmark scripts (evidence-bound)
+
+The suite records measurements; audits and plots read that saved evidence.
+
+```mermaid
+flowchart TD
+    Plan["Declared benchmark plan"] --> Run["run_benchmark_suite.py<br/>Benchmark and validation runs"]
+    Run --> Evidence["Suite manifest and raw results"]
+    Evidence --> Audit["audit_qualification.py<br/>Evidence checks"]
+    Evidence --> Plots["plot_benchmarks.py<br/>Figures and tables"]
+```
 
 | Script | Purpose | Run by | Test |
 | --- | --- | --- | --- |

@@ -13,5 +13,16 @@ keeps their outgoing-wave branches consistent. [spectral.rs](spectral.rs)
 provides diffraction-order series for off-axis spherical chains when Ewald
 cancellation loses accuracy. [batch.rs](batch.rs) evaluates arrays.
 
+In the Ewald path, arrows point from a calculation to the helpers it uses:
+
+```mermaid
+flowchart TD
+    ewald["ewald.rs: combine and check the parts"] --> real["real.rs: real-space terms"]
+    ewald --> reciprocal["reciprocal.rs: reciprocal-space and self terms"]
+    ewald --> shells["shells.rs: convergence"]
+    ewald --> accuracy["accuracy.rs: rounding estimates"]
+    ewald -. "Off-axis spherical chains" .-> spectral["spectral.rs: diffraction-order series"]
+```
+
 The Bloch factor is `exp(+i kpar · R)`. Supported wavenumbers, singular
 thresholds and derivative conventions are defined in [mod.rs](mod.rs).

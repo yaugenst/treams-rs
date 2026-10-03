@@ -15,7 +15,20 @@ The calculation layers build on those above them in this table:
 | Planar scattering | [S-matrices](src/smatrix/README.md) |
 
 Values use double precision. Calculations save the quantities needed to compute
-input gradients. [lib.rs](src/lib.rs) defines conventions and dependency rules.
+input gradients. These saved quantities form a residual, which connects the two
+calculations:
+
+```mermaid
+flowchart TD
+    inputs["Inputs"] --> forward["Forward calculation"]
+    forward --> value["Result"]
+    forward --> saved["Saved quantities"]
+    saved --> pullback["Analytic pullback"]
+    gradient["Gradient with respect to result"] --> pullback
+    pullback --> gradients["Gradients with respect to inputs"]
+```
+
+[lib.rs](src/lib.rs) defines conventions and dependency rules.
 [Property tests](src/properties/README.md) check physical identities and gradients;
 tests beside each implementation check its numerical methods. Run both with
 `cargo test -p treams-core`.

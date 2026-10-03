@@ -3,6 +3,14 @@
 This module turns Mie coefficients into T-matrices for multilayer chiral
 spheres and cylinders, and measures their helicity response.
 
+```mermaid
+flowchart TD
+    coefficients["Mie blocks: negative, positive helicity"] --> order["Reverse both block axes"]
+    order --> matrix["T-matrix: polarization 1, then 0"]
+    matrix --> metrics["Helicity measures: metric.rs"]
+    matrix --> cluster["Multiple scattering: cluster module"]
+```
+
 [sphere.rs](sphere.rs) places one coefficient block per spherical degree into
 the full matrix. [cylinder.rs](cylinder.rs) places blocks by axial wavenumber
 and azimuthal order, reusing mirrored boundary solves when possible.

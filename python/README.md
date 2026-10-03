@@ -6,6 +6,16 @@ and matrices. It checks physical arguments, calls the
 results. Numerical kernels and their analytic derivatives live in
 [treams-core](../crates/treams-core/).
 
+```mermaid
+flowchart TD
+    api[Public Python API] --> dispatch[Select from input values]
+    dispatch -->|Python or NumPy| numpy[NumPy physics and numerical functions]
+    dispatch -->|Framework values| shared[Shared framework physics and array functions]
+    shared --> adapter[Selected optional adapter]
+    numpy --> native[Rust values and pullbacks]
+    adapter -->|Native records| native
+```
+
 | Files in `treams_rs/` | Job |
 |---|---|
 | `__init__.py`, `__main__.py` | Public imports and command-line help. |
@@ -14,17 +24,19 @@ results. Numerical kernels and their analytic derivatives live in
 | `_array.py`, `_operators.py`, `_operator_objects.py`, `_results.py` | Arrays with physical metadata, operations on them and named results. |
 | `special.py`, `lattice.py`, `sw.py`, `cw.py`, `pw.py`, `coeffs.py`, `ebcm.py`, `iterative.py`, `operators.py`, `misc.py` | Function namespaces for numerical and physics operations. |
 | `diff.py`, `_records.py`, `testing.py` | Explicit gradients, shared gradient handling and derivative checks. |
-| `advect.py`, `jax.py`, `torch.py`, `_framework*.py` | Optional differentiation frameworks and their shared physics objects. |
+| `_dispatch.py`, `_promotion.py`, `_autodiff_functions.py` | Lazy input selection and constant promotion at the public API boundary. |
+| `advect.py`, `jax.py`, `torch.py`, `autograd.py`, `_framework*.py` | Optional differentiation frameworks and their shared physics objects. |
 | `_validation.py`, `_native.pyi`, `_upstream.py`, `_catalog.py` | Argument checks, native type declarations, treams name mapping and API documentation. |
 | `parallel.py`, `io.py` | Thread controls and optional HDF5 file support. |
 
-The ordinary API uses NumPy. `diff` returns a value and a context whose
-`pullback` computes input gradients. Advect, JAX and PyTorch connect those
+The ordinary API selects its backend from input values and defaults to NumPy.
+`diff` returns a value and a context whose `pullback` computes input gradients.
+Advect, JAX, PyTorch and HIPS Autograd connect those
 calculations to their own differentiation; `_framework*.py` keeps their
 physical objects consistent. Continuous quantities stay in framework arrays,
 while mode labels and cutoffs stay fixed. Native calculations run on the CPU
 and support first-order reverse-mode differentiation. Frameworks and h5py are
-imported only when requested.
+imported only when selected or explicitly requested.
 
 Python checks argument types and physical conventions; the bindings check
 array shapes and the Rust core checks numerical domains. The

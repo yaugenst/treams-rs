@@ -14,6 +14,17 @@ kernels as the gradient-recording functions.
 | [`kinds.rs`](kinds.rs) | Name kernel variants and the array sizes that justify parallel execution. |
 | [`fast_paths.rs`](fast_paths.rs) | Call kernels directly for scalar arguments; send array options through NumPy. |
 
+Functions with a fast path take one of two routes:
+
+```mermaid
+flowchart TD
+    Call["Python call"] -->|"Supported scalar, vector or cell<br/>without array options"| Direct["fast_paths.rs"]
+    Call -->|"Other inputs or array options"| NumPy["NumPy: broadcasting, masks and output"]
+    Direct --> Core["treams-core kernel"]
+    NumPy --> Loops["loops.rs + ffi.rs"]
+    Loops --> Core
+```
+
 Raw-pointer access stays in `ffi.rs`; `loops.rs` calls it under NumPy's array
 contracts. Each call preserves subnormal floating-point values. Parallel
 loops collect results before writing them on the calling thread.

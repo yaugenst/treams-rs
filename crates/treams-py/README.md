@@ -6,6 +6,21 @@ objects that hold the data needed for gradients. Numerical kernels and their
 analytic derivatives belong to the core; the [Python package](../../python/)
 adds bases, materials and physical results.
 
+```mermaid
+sequenceDiagram
+    participant P as Python package
+    participant B as treams-py
+    participant C as treams-core
+    P->>B: record(inputs)
+    B->>C: Checked inputs
+    C-->>B: Value and saved gradient data
+    B-->>P: Value and context
+    P->>B: context.pullback(g)
+    B->>C: Saved data and checked g
+    C-->>B: Input gradients
+    B-->>P: Input gradients
+```
+
 | Files | Job |
 |---|---|
 | [`src/lib.rs`](src/lib.rs) | Export the native module; document binding conventions and how to add a function. |
