@@ -92,9 +92,10 @@ The Python tests include the check that the generated reference pages and
 [testing guide](testing.md) maps each directory to its subject.
 
 `just check` runs the lint checks without tests: file hygiene, lock files,
-rustfmt, Clippy, Ruff, Pyrefly and `just docs-check`. Use it while you work and
-`just ci` before you open a pull request. The [`justfile`](../../justfile)
-holds the exact commands.
+rustfmt, Clippy, Ruff, Pyrefly and `just docs-check`. `just check-static` runs
+all of them except `just docs-check`, which needs a built extension. Use
+`just check` while you work and `just ci` before you open a pull request. The
+[`justfile`](../../justfile) holds the exact commands.
 
 ## Workflows
 
@@ -103,7 +104,7 @@ exact source revision, as described in [releasing](releasing.md).
 
 | Workflow | Runs on | Runs |
 |---|---|---|
-| [CI](../../.github/workflows/ci.yml) | pull requests and pushes to `main` | Python 3.12–3.15, supported dependency bounds, Rust checks, coverage, native wheels, documentation and a history secret scan |
+| [CI](../../.github/workflows/ci.yml) | pull requests and pushes to `main` | Python 3.12–3.15, supported dependency bounds, Rust checks, coverage, repository checks, the host release wheel, native wheels, documentation and a history secret scan |
 | [Native Wheels](../../.github/workflows/native-wheels.yml) | called by CI and Release Candidate, or by hand | All [supported wheels](../getting-started/install.md#install-from-pypi), installed-wheel checks and a source-distribution rebuild |
 | [Docs](../../.github/workflows/docs.yml) | called by CI, publication and manual [Deploy docs](../../.github/workflows/deploy-docs.yml) | Strict Material site build and rustdoc; mike maintains `dev`, released versions and the `latest` alias, then the complete site is deployed through a GitHub Pages artifact |
 | [Release Candidate](../../.github/workflows/release-candidate.yml) | called by Publish Release | Verify the source revision and build distribution files that cannot change during publication |

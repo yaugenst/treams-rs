@@ -37,7 +37,10 @@ dependency-lock-check:
 file-hygiene:
     uv run --no-sync pre-commit run --all-files --hook-stage manual --show-diff-on-failure
 
-check: file-hygiene dependency-lock-check rust-fmt-check rust-lint py-format-check py-lint py-types docs-check
+# The checks of `check` that need no built extension.
+check-static: file-hygiene dependency-lock-check rust-fmt-check rust-lint py-format-check py-lint py-types
+
+check: check-static docs-check
 
 # Regenerate the generated documentation (API reference pages, generated regions, llms.txt) from a freshly built extension.
 docs: build-ext

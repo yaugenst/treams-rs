@@ -1,12 +1,12 @@
 # https://pre-commit.com for more information
 # `uv run --no-sync pre-commit install` installs both hook types below.
-# `just file-hygiene` (part of `just check`, which CI runs) executes every hook
-# of the `manual` stage over all files. `default_stages` below gives each hook
-# without its own `stages` the `manual` stage, so CI enforces it, but not the
-# commit-msg stage, where it would check the message file instead of the
-# repository. The commit-msg and local `just` hooks are deliberately staged:
-# CI does not lint commit messages, and `just check` runs the `just`
-# recipes directly.
+# `just file-hygiene` (part of `just check-static`, which CI runs) executes
+# every hook of the `manual` stage over all files. `default_stages` below
+# gives each hook without its own `stages` the `manual` stage, so CI enforces
+# it, but not the commit-msg stage, where it would check the message file
+# instead of the repository. The commit-msg and local `just` hooks are
+# deliberately staged: CI does not lint commit messages, and
+# `just check-static` runs the `just` recipes directly.
 #
 # Advect also sets `default_language_version: {python: python3.12}`; that is
 # left out here because development environments may use Python 3.12 to 3.15
@@ -94,7 +94,7 @@ repos:
   # These take the place of Advect's ruff-pre-commit hooks (and add Rust and
   # type checks). They run the tools from the locked environment and toolchain
   # (uv.lock, rust-toolchain.toml) with the same arguments as CI instead of a
-  # second pinned copy; `just check` runs the recipes directly in CI.
+  # second pinned copy; `just check-static` runs the recipes directly in CI.
   - repo: local
     hooks:
       - id: no-diff3-base-markers
