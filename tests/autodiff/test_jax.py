@@ -41,6 +41,27 @@ def test_jit_vmap_and_repeated_pullbacks():
         assert_allclose(pullback(weight)[0], native, atol=1e-14)
 
 
+def test_gradient_of_jit_with_scalar_constant_residuals():
+    @jax.jit
+    def objective(radius):
+        matrix = tj.sphere(
+            2, 1.2, jnp.reshape(radius, (1,)), jnp.array([3.0 + 0.1j, 1.0])
+        )
+        return jnp.sum(jnp.abs(matrix) ** 2)
+
+    def reference(radius):
+        matrix, _ = diff.sphere(2, 1.2, [radius], [3.0 + 0.1j, 1.0])
+        return np.vdot(matrix, matrix).real
+
+    radius, step = 0.3, 1e-6
+    value, gradient = jax.value_and_grad(objective)(radius)
+    expected_gradient = (reference(radius + step) - reference(radius - step)) / (
+        2 * step
+    )
+    assert_allclose(value, reference(radius), rtol=1e-13)
+    assert_allclose(gradient, expected_gradient, rtol=1e-8)
+
+
 @pytest.mark.interface
 def test_adapter_contract_precision_shape_higher_derivatives():
     with jax.enable_x64(False), pytest.raises(ValueError, match="jax_enable_x64"):

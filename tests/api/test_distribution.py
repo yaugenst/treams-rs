@@ -15,7 +15,8 @@ def test_version_matches_distribution_metadata():
     assert tr.__version__ == version("treams-rs")
 
 
-def test_module_help_names_the_invocation():
+def test_module_help_names_the_invocation(monkeypatch):
+    monkeypatch.setenv("NO_COLOR", "1")
     result = subprocess.run(
         [sys.executable, "-m", "treams_rs", "--help"],
         check=True,

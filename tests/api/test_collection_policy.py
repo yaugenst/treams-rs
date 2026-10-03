@@ -62,7 +62,7 @@ def test_conditional_oracle_collection(tmp_path, required, pytestconfig):
         "def test_script():\n    pass\n"
     )
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", str(tests)],
+        [sys.executable, "-m", "pytest", "-q", "--color=no", str(tests)],
         cwd=tmp_path,
         env={**os.environ, "HYPOTHESIS_PROFILE": "ci"},
         capture_output=True,
