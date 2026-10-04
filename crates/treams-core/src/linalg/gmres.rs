@@ -90,116 +90,256 @@ pub(crate) fn gmres(
     options: GmresOptions,
     apply: impl Fn(&[Complex]) -> Result<Vec<Complex>>,
 ) -> Result<(Vec<Complex>, Convergence)> {
-    let dimension = rhs.len();
+    let (answer, reports) = gmres_batch(rhs, 1, options, |x, _| apply(x))?;
+    Ok((answer, reports[0]))
+}
+
+/// Independent GMRES solves of `columns` column-major right-hand sides. Only the
+/// operator applications are shared: each column keeps its own Krylov basis,
+/// rotations, restart decisions and true-residual convergence certificate.
+///
+/// The caller bounds `columns` to set the Krylov memory budget. `apply` receives
+/// only columns that still need that application, in column-major order.
+pub(crate) fn gmres_batch(
+    rhs: &[Complex],
+    columns: usize,
+    options: GmresOptions,
+    apply: impl Fn(&[Complex], usize) -> Result<Vec<Complex>>,
+) -> Result<(Vec<Complex>, Vec<Convergence>)> {
+    let dimension = rhs.len() / columns;
     let restart = options.restart.min(dimension).min(options.max_iterations);
-    let rhs_norm = norm(rhs);
-    let tolerance = options.atol.max(options.rtol * rhs_norm);
-    let mut answer = vec![Complex::default(); dimension];
-    let mut residual = rhs.to_vec();
-    let mut iterations = 0;
+    let mut states: Vec<_> = (0..columns)
+        .map(|column| Krylov::new(&rhs[column * dimension..][..dimension], options))
+        .collect();
     loop {
-        let residual_norm = norm(&residual);
-        if residual_norm.is_finite() && residual_norm <= tolerance {
-            return Ok((
-                answer,
-                Convergence {
-                    iterations,
-                    residual_norm,
-                    rhs_norm,
-                },
-            ));
+        let mut cycle = Vec::with_capacity(columns);
+        for (column, state) in states.iter_mut().enumerate() {
+            if !state.converged(options)? {
+                state.start(restart);
+                cycle.push(column);
+            }
+        }
+        if cycle.is_empty() {
+            break;
+        }
+        let mut extending = cycle.clone();
+        for j in 0..restart {
+            let mut product = apply_columns(
+                &extending,
+                |column| states[column].basis[j].as_slice(),
+                &apply,
+            )?;
+            let mut next = Vec::with_capacity(extending.len());
+            for (&column, w) in extending.iter().zip(product.chunks_exact_mut(dimension)) {
+                if states[column].step(w, j, restart, options)? {
+                    next.push(column);
+                }
+            }
+            extending = next;
+            if extending.is_empty() {
+                break;
+            }
+        }
+        for &column in &cycle {
+            states[column].update(restart);
+        }
+        // Never certify convergence using the Hessenberg estimate alone.
+        let product = apply_columns(&cycle, |column| states[column].answer.as_slice(), &apply)?;
+        for (&column, product) in cycle.iter().zip(product.chunks_exact(dimension)) {
+            states[column].residual = rhs[column * dimension..][..dimension]
+                .iter()
+                .zip(product)
+                .map(|(b, a)| b - a)
+                .collect();
+        }
+    }
+    let reports = states.iter().map(|state| state.report).collect();
+    let answer = if let [state] = states.as_mut_slice() {
+        std::mem::take(&mut state.answer)
+    } else {
+        states.into_iter().flat_map(|state| state.answer).collect()
+    };
+    Ok((answer, reports))
+}
+
+/// Pack active columns only when there is more than one: scalar solves and the
+/// tail of a batch lend their existing Krylov or answer buffer directly.
+fn apply_columns<'a>(
+    columns: &[usize],
+    vector: impl Fn(usize) -> &'a [Complex],
+    apply: &impl Fn(&[Complex], usize) -> Result<Vec<Complex>>,
+) -> Result<Vec<Complex>> {
+    if let [column] = columns {
+        apply(vector(*column), 1)
+    } else {
+        let input: Vec<_> = columns
+            .iter()
+            .flat_map(|&column| vector(column).iter().copied())
+            .collect();
+        apply(&input, columns.len())
+    }
+}
+
+/// One column's independent Arnoldi iteration. Batching changes when its operator
+/// products run, not its arithmetic or convergence decisions.
+struct Krylov {
+    answer: Vec<Complex>,
+    residual: Vec<Complex>,
+    tolerance: f64,
+    report: Convergence,
+    basis: Vec<Vec<Complex>>,
+    h: Vec<Complex>,
+    rotations: Vec<(f64, Complex)>,
+    g: Vec<Complex>,
+    used: usize,
+}
+
+impl Krylov {
+    fn new(rhs: &[Complex], options: GmresOptions) -> Self {
+        let rhs_norm = norm(rhs);
+        Self {
+            answer: vec![Complex::default(); rhs.len()],
+            residual: rhs.to_vec(),
+            tolerance: options.atol.max(options.rtol * rhs_norm),
+            report: Convergence {
+                iterations: 0,
+                residual_norm: rhs_norm,
+                rhs_norm,
+            },
+            basis: Vec::new(),
+            h: Vec::new(),
+            rotations: Vec::new(),
+            g: Vec::new(),
+            used: 0,
+        }
+    }
+
+    fn converged(&mut self, options: GmresOptions) -> Result<bool> {
+        self.report.residual_norm = norm(&self.residual);
+        let Convergence {
+            residual_norm,
+            iterations,
+            ..
+        } = self.report;
+        if residual_norm.is_finite() && residual_norm <= self.tolerance {
+            return Ok(true);
         }
         if !residual_norm.is_finite() || iterations >= options.max_iterations {
             return Err(Error::NotConverged(format!(
-                "GMRES did not converge after {iterations} iterations: residual {residual_norm:e}, tolerance {tolerance:e}"
+                "GMRES did not converge after {iterations} iterations: residual {residual_norm:e}, tolerance {:e}",
+                self.tolerance
             )));
         }
-        let mut basis = Vec::with_capacity(restart + 1);
-        basis.push(
-            residual
+        Ok(false)
+    }
+
+    fn start(&mut self, restart: usize) {
+        // Initially converged columns need no Krylov workspace, even when the
+        // requested restart budget is large. Reuse it after the first cycle.
+        self.basis.clear();
+        self.basis.reserve(restart + 1);
+        self.basis.push(
+            self.residual
                 .iter()
-                .map(|z| z / residual_norm)
-                .collect::<Vec<_>>(),
+                .map(|z| z / self.report.residual_norm)
+                .collect(),
         );
-        let mut h = vec![Complex::default(); (restart + 1) * restart];
-        let mut rotations = Vec::<(f64, Complex)>::with_capacity(restart);
-        let mut g = vec![Complex::default(); restart + 1];
-        g[0] = Complex::new(residual_norm, 0.0);
-        let mut used = 0;
-        for j in 0..restart {
-            let mut w = apply(&basis[j])?;
-            // Two modified Gram-Schmidt passes keep orthogonality near resonance.
-            for _ in 0..2 {
-                for i in 0..=j {
-                    let dot: Complex = basis[i].iter().zip(&w).map(|(v, w)| v.conj() * w).sum();
-                    h[j * (restart + 1) + i] += dot;
-                    for (w, v) in w.iter_mut().zip(&basis[i]) {
-                        *w -= dot * v;
-                    }
+        self.h.clear();
+        self.h.resize((restart + 1) * restart, Complex::default());
+        self.rotations.clear();
+        self.rotations.reserve(restart);
+        self.g.clear();
+        self.g.resize(restart + 1, Complex::default());
+        self.g[0] = Complex::new(self.report.residual_norm, 0.0);
+        self.used = 0;
+    }
+
+    /// Advance one Arnoldi step and return whether this cycle needs another.
+    fn step(
+        &mut self,
+        w: &mut [Complex],
+        j: usize,
+        restart: usize,
+        options: GmresOptions,
+    ) -> Result<bool> {
+        // Two modified Gram-Schmidt passes keep orthogonality near resonance.
+        for _ in 0..2 {
+            for i in 0..=j {
+                let dot: Complex = self.basis[i]
+                    .iter()
+                    .zip(&*w)
+                    .map(|(v, w)| v.conj() * w)
+                    .sum();
+                self.h[j * (restart + 1) + i] += dot;
+                for (w, v) in w.iter_mut().zip(&self.basis[i]) {
+                    *w -= dot * v;
                 }
             }
-            let next = norm(&w);
-            h[j * (restart + 1) + j + 1] = Complex::new(next, 0.0);
-            for (i, &(c, s)) in rotations.iter().enumerate() {
-                let offset = j * (restart + 1) + i;
-                let a = h[offset];
-                let b = h[offset + 1];
-                h[offset] = c * a + s * b;
-                h[offset + 1] = -s.conj() * a + c * b;
-            }
-            let diagonal = j * (restart + 1) + j;
-            let a = h[diagonal];
-            let b = h[diagonal + 1];
-            let length = a.norm().hypot(b.norm());
-            if !length.is_finite() || length == 0.0 {
-                return Err(Error::NotConverged(
-                    "GMRES Arnoldi breakdown before convergence".into(),
-                ));
-            }
-            let phase = if a.norm() == 0.0 {
-                Complex::new(1.0, 0.0)
-            } else {
-                a / a.norm()
-            };
-            let c = a.norm() / length;
-            let s = phase * b.conj() / length;
-            h[diagonal] = phase * length;
-            h[diagonal + 1] = Complex::default();
-            rotations.push((c, s));
-            g[j + 1] = -s.conj() * g[j];
-            g[j] *= c;
-            used = j + 1;
-            iterations += 1;
-            if g[j + 1].norm() <= tolerance || next == 0.0 || iterations == options.max_iterations {
-                break;
-            }
-            basis.push(w.into_iter().map(|z| z / next).collect());
         }
-        for i in (0..used).rev() {
-            let tail: Complex = ((i + 1)..used)
-                .map(|j| h[j * (restart + 1) + i] * g[j])
+        let next = norm(w);
+        self.h[j * (restart + 1) + j + 1] = Complex::new(next, 0.0);
+        for (i, &(c, s)) in self.rotations.iter().enumerate() {
+            let offset = j * (restart + 1) + i;
+            let a = self.h[offset];
+            let b = self.h[offset + 1];
+            self.h[offset] = c * a + s * b;
+            self.h[offset + 1] = -s.conj() * a + c * b;
+        }
+        let diagonal = j * (restart + 1) + j;
+        let a = self.h[diagonal];
+        let b = self.h[diagonal + 1];
+        let length = a.norm().hypot(b.norm());
+        if !length.is_finite() || length == 0.0 {
+            return Err(Error::NotConverged(
+                "GMRES Arnoldi breakdown before convergence".into(),
+            ));
+        }
+        let phase = if a.norm() == 0.0 {
+            Complex::new(1.0, 0.0)
+        } else {
+            a / a.norm()
+        };
+        let c = a.norm() / length;
+        let s = phase * b.conj() / length;
+        self.h[diagonal] = phase * length;
+        self.h[diagonal + 1] = Complex::default();
+        self.rotations.push((c, s));
+        self.g[j + 1] = -s.conj() * self.g[j];
+        self.g[j] *= c;
+        self.used = j + 1;
+        self.report.iterations += 1;
+        if self.g[j + 1].norm() <= self.tolerance
+            || next == 0.0
+            || self.report.iterations == options.max_iterations
+        {
+            return Ok(false);
+        }
+        self.basis.push(w.iter().map(|z| z / next).collect());
+        Ok(true)
+    }
+
+    fn update(&mut self, restart: usize) {
+        for i in (0..self.used).rev() {
+            let tail: Complex = ((i + 1)..self.used)
+                .map(|j| self.h[j * (restart + 1) + i] * self.g[j])
                 .sum();
-            g[i] = (g[i] - tail) / h[i * (restart + 1) + i];
-            for (x, v) in answer.iter_mut().zip(&basis[i]) {
-                *x += g[i] * v;
+            self.g[i] = (self.g[i] - tail) / self.h[i * (restart + 1) + i];
+            for (x, v) in self.answer.iter_mut().zip(&self.basis[i]) {
+                *x += self.g[i] * v;
             }
         }
-        // Never certify convergence using the Hessenberg estimate alone.
-        residual = rhs
-            .iter()
-            .zip(apply(&answer)?)
-            .map(|(b, a)| b - a)
-            .collect();
     }
 }
 
 /// Convergence, restarts and failures of GMRES against direct solves.
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
+
     use nalgebra::{DMatrix, DVector};
     use proptest::{prelude::*, test_runner::TestCaseError};
 
-    use super::{GmresOptions, gmres, norm};
+    use super::{GmresOptions, Krylov, gmres, gmres_batch, norm};
     use crate::{
         Complex,
         test_support::{DEFAULT_CASES, complex_matrix, prop_assert_close},
@@ -304,5 +444,127 @@ mod tests {
         assert!(report.iterations > 1);
         assert!(report.residual_norm <= restarted.rtol * report.rhs_norm);
         assert!(gmres(&rhs, options(), |_| Ok(vec![Complex::default(); 3])).is_err());
+    }
+
+    /// Sharing operator applications preserves each column's arithmetic, even when
+    /// zero columns skip the solve and eigenvectors finish before the other columns.
+    #[test]
+    fn batched_columns_keep_independent_convergence() {
+        let diagonal = [
+            Complex::new(1.0, 0.1),
+            Complex::new(1.3, 0.1),
+            Complex::new(1.6, 0.1),
+        ];
+        let apply = |input: &[Complex]| {
+            Ok(input
+                .iter()
+                .enumerate()
+                .map(|(i, x)| diagonal[i % 3] * x)
+                .collect::<Vec<_>>())
+        };
+        for (rtol, atol) in [(1e-10, 0.0), (0.0, 1e-10)] {
+            let options = GmresOptions {
+                rtol,
+                atol,
+                restart: 2,
+                max_iterations: 100,
+            };
+            let mut rhs = vec![Complex::default(); 18];
+            rhs[0] = Complex::new(1.0, 2.0);
+            for (column, scale) in [0.7, 1e-120, if rtol > 0.0 { 1e120 } else { 1e-3 }]
+                .into_iter()
+                .enumerate()
+            {
+                for (i, z) in [
+                    Complex::new(0.2, -0.3),
+                    Complex::new(0.5, 0.7),
+                    Complex::new(0.6, -0.1),
+                ]
+                .into_iter()
+                .enumerate()
+                {
+                    rhs[(column + 2) * 3 + i] = z * scale;
+                }
+            }
+            rhs[16] = Complex::new(1.0, -0.3);
+            let widths = RefCell::new(Vec::new());
+            let (answer, reports) = gmres_batch(&rhs, 6, options, |input, columns| {
+                assert_eq!(input.len(), columns * 3);
+                widths.borrow_mut().push(columns);
+                apply(input)
+            })
+            .unwrap();
+            for (column, right) in rhs.chunks_exact(3).enumerate() {
+                let (independent, report) = gmres(right, options, apply).unwrap();
+                assert_eq!(&answer[column * 3..][..3], independent.as_slice());
+                assert_eq!(reports[column].iterations, report.iterations);
+                assert_eq!(
+                    reports[column].rhs_norm.to_bits(),
+                    report.rhs_norm.to_bits()
+                );
+                assert_eq!(
+                    reports[column].residual_norm.to_bits(),
+                    report.residual_norm.to_bits()
+                );
+                assert!(report.residual_norm <= atol.max(rtol * report.rhs_norm));
+            }
+            assert_eq!(reports[1].iterations, 0);
+            assert_eq!(reports[0].iterations, 1);
+            assert!(reports[2].iterations > 2);
+            let widths = widths.into_inner();
+            assert!(widths[0] > 1);
+            assert!(widths.last().unwrap() < &widths[0]);
+            let independent_calls: usize = reports
+                .iter()
+                .map(|report| report.iterations + report.iterations.div_ceil(2))
+                .sum();
+            assert!(widths.len() < independent_calls);
+        }
+    }
+
+    /// Different eigenvector columns each need one iteration. A shared Krylov
+    /// polynomial would incorrectly exhaust this independently sufficient budget.
+    #[test]
+    fn batched_eigenvectors_obey_each_columns_iteration_limit() {
+        let rhs = [1.0, 0.0, 0.0, 1.0].map(Complex::from);
+        let options = GmresOptions {
+            restart: 1,
+            max_iterations: 1,
+            ..options()
+        };
+        let (answer, reports) = gmres_batch(&rhs, 2, options, |input, _| {
+            Ok(input
+                .iter()
+                .enumerate()
+                .map(|(i, x)| x * if i % 2 == 0 { 2.0 } else { 3.0 })
+                .collect())
+        })
+        .unwrap();
+        assert_eq!(answer, [0.5, 0.0, 0.0, 1.0 / 3.0].map(Complex::from));
+        assert!(reports.iter().all(|report| report.iterations == 1));
+        let (answer, reports) = gmres_batch(&[Complex::default(); 8], 4, options, |_, _| {
+            panic!("zero right-hand sides must not apply the operator")
+        })
+        .unwrap();
+        assert_eq!(answer, vec![Complex::default(); 8]);
+        assert!(reports.iter().all(|report| report.iterations == 0));
+    }
+
+    #[test]
+    fn initially_converged_columns_allocate_no_krylov_workspace() {
+        let options = GmresOptions {
+            atol: 1e-12,
+            restart: usize::MAX,
+            max_iterations: usize::MAX,
+            ..options()
+        };
+        for scale in [0.0, 1e-14] {
+            let mut state = Krylov::new(&[Complex::from(scale); 3], options);
+            assert!(state.converged(options).unwrap());
+            assert_eq!(state.basis.capacity(), 0);
+            assert_eq!(state.h.capacity(), 0);
+            assert_eq!(state.rotations.capacity(), 0);
+            assert_eq!(state.g.capacity(), 0);
+        }
     }
 }

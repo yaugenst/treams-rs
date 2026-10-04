@@ -607,6 +607,77 @@ fn check_illumination_composition(
     Ok(())
 }
 
+/// A thin illumination above the Krylov threshold obeys the lossless scattering
+/// power identity and differentiates the physical reflection/transmission angles.
+#[test]
+fn thin_internal_illumination_conserves_power_and_differentiates() -> Result<(), TestCaseError> {
+    let n = 512;
+    let scattering = |angle: f64| {
+        let transmission = DMatrix::identity(n, n) * Complex::new(angle.cos(), 0.0);
+        let reflection = DMatrix::identity(n, n) * Complex::new(0.0, angle.sin());
+        [
+            transmission.clone(),
+            reflection.clone(),
+            reflection,
+            transmission,
+        ]
+    };
+    let angles = [0.13_f64, 0.21_f64];
+    let lower = scattering(angles[0]);
+    let upper = scattering(angles[1]);
+    let incoming = [0.2, 0.7].map(|seed| crate::test_support::patterned(n, 2, seed));
+    let g = [0.1, 0.4, 0.6, 0.8].map(|seed| crate::test_support::patterned(n, 2, seed));
+    let (fields, residual) = smatrix::illuminate(
+        lower.each_ref().map(view),
+        upper.each_ref().map(view),
+        incoming.clone(),
+    )
+    .unwrap();
+    let power_in = incoming.iter().map(DMatrix::norm_squared).sum::<f64>();
+    let power_out = fields[0].norm_squared() + fields[1].norm_squared();
+    prop_assert_close!(power_out, power_in, 2e-13 * power_in);
+    let [tl, tu] = angles.map(|angle| Complex::new(angle.cos(), 0.0));
+    let [rl, ru] = angles.map(|angle| Complex::new(0.0, angle.sin()));
+    let up = (&incoming[0] * tl + &incoming[1] * (rl * tu)) / (Complex::new(1.0, 0.0) - rl * ru);
+    let down = &up * ru + &incoming[1] * tu;
+    prop_assert_close!(&fields[2], &up, 2e-13 * up.norm());
+    prop_assert_close!(&fields[3], &down, 2e-13 * down.norm());
+    let gradient = residual.pullback(&g).unwrap();
+    for parameter in 0..2 {
+        let blocks = if parameter == 0 {
+            &gradient.lower
+        } else {
+            &gradient.upper
+        };
+        let dt = Complex::new(-angles[parameter].sin(), 0.0);
+        let dr = Complex::new(0.0, angles[parameter].cos());
+        let analytic: f64 = blocks
+            .iter()
+            .zip([dt, dr, dr, dt])
+            .map(|(g, derivative)| {
+                g.diagonal()
+                    .iter()
+                    .map(|z| (z.conj() * derivative).re)
+                    .sum::<f64>()
+            })
+            .sum();
+        let fd = central(1e-5, |h| {
+            let mut changed = angles;
+            changed[parameter] += h;
+            let [lower, upper] = changed.map(scattering);
+            let fields = smatrix::illuminate_value(
+                lower.each_ref().map(view),
+                upper.each_ref().map(view),
+                incoming.each_ref().map(view),
+            )
+            .unwrap();
+            fields.iter().zip(&g).map(|(v, g)| re_dot(g, v)).sum()
+        });
+        prop_assert_close!(analytic, fd, 2e-8 * (1.0 + analytic.abs()));
+    }
+    Ok(())
+}
+
 /// Layer stacks obey the Euler identity of joint thickness, wavenumber and
 /// transverse scaling, and are invariant under that scaling.
 fn check_compact_layer_scale(k: f64, d: f64, axis: usize) -> Result<(), TestCaseError> {

@@ -180,16 +180,47 @@ impl SolidTable {
         position: [f64; 3],
         mut emit: impl FnMut(usize, i32, Complex, [Complex; 3]),
     ) {
+        self.visit_impl::<GRADIENT, false>(position, |index, degree, solid| {
+            emit(index, degree, solid.value, solid.gradient);
+        });
+    }
+
+    /// Visits every solid harmonic with its gradient and, if `SECOND`, Hessian.
+    /// Entries equal the corresponding single [`solid`] evaluation bit for bit.
+    pub(crate) fn visit_solid<const SECOND: bool>(
+        &self,
+        position: [f64; 3],
+        emit: impl FnMut(usize, i32, Solid),
+    ) {
+        self.visit_impl::<true, SECOND>(position, emit);
+    }
+
+    fn visit_impl<const GRADIENT: bool, const SECOND: bool>(
+        &self,
+        position: [f64; 3],
+        mut emit: impl FnMut(usize, i32, Solid),
+    ) {
         let [x, y, z] = position;
         let r2 = x * x + y * y + z * z;
         let xy = Complex::new(x, y);
         let e = [Complex::new(1.0, 0.0), Complex::i(), Complex::default()];
         let (mut diagonal, mut diagonal_gradient) =
             (Complex::new(1.0, 0.0), [Complex::default(); 3]);
+        let mut diagonal_hessian = [[Complex::default(); 3]; 3];
         for order in 0..=self.order {
             if order > 0 {
                 // One step of `solid`'s ladder to P_order^order.
                 let factor = -f64::from(2 * order - 1);
+                if SECOND {
+                    diagonal_hessian = std::array::from_fn(|i| {
+                        std::array::from_fn(|j| {
+                            factor
+                                * (diagonal_hessian[i][j] * xy
+                                    + diagonal_gradient[i] * e[j]
+                                    + diagonal_gradient[j] * e[i])
+                        })
+                    });
+                }
                 if GRADIENT {
                     diagonal_gradient = std::array::from_fn(|i| {
                         factor * (diagonal_gradient[i] * xy + diagonal * e[i])
@@ -198,7 +229,9 @@ impl SolidTable {
                 diagonal *= factor * xy;
             }
             let (mut p, mut grad) = (diagonal, diagonal_gradient);
+            let mut hessian = diagonal_hessian;
             let (mut prev, mut prev_grad) = (Complex::default(), [Complex::default(); 3]);
+            let mut prev_hessian = [[Complex::default(); 3]; 3];
             for degree in order..=self.order {
                 if degree > order {
                     let a = f64::from(2 * degree - 1) / f64::from(degree - order);
@@ -212,10 +245,37 @@ impl SolidTable {
                     } else {
                         grad
                     };
+                    if SECOND {
+                        let next_hessian = std::array::from_fn(|i| {
+                            std::array::from_fn(|j| {
+                                a * (z * hessian[i][j]
+                                    + if i == 2 { grad[j] } else { Complex::default() }
+                                    + if j == 2 { grad[i] } else { Complex::default() })
+                                    - b * (r2 * prev_hessian[i][j]
+                                        + 2.0 * position[i] * prev_grad[j]
+                                        + 2.0 * position[j] * prev_grad[i]
+                                        + if i == j {
+                                            2.0 * prev
+                                        } else {
+                                            Complex::default()
+                                        })
+                            })
+                        });
+                        prev_hessian = hessian;
+                        hessian = next_hessian;
+                    }
                     (prev, prev_grad) = (p, grad);
                     (p, grad) = (next, next_grad);
                 }
-                emit(table_index(degree, order), degree, p, grad);
+                emit(
+                    table_index(degree, order),
+                    degree,
+                    Solid {
+                        value: p,
+                        gradient: grad,
+                        hessian,
+                    },
+                );
                 if order > 0 {
                     let index = table_index(degree, -order);
                     let factor = self.reflection[index];
@@ -224,7 +284,20 @@ impl SolidTable {
                     } else {
                         grad
                     };
-                    emit(index, degree, factor * p.conj(), gradient);
+                    let hessian = if SECOND {
+                        hessian.map(|row| row.map(|g| factor * g.conj()))
+                    } else {
+                        hessian
+                    };
+                    emit(
+                        index,
+                        degree,
+                        Solid {
+                            value: factor * p.conj(),
+                            gradient,
+                            hessian,
+                        },
+                    );
                 }
             }
         }
@@ -322,6 +395,17 @@ mod tests {
                 if with_gradient {
                     prop_assert_eq!(gradient, expected.gradient, "{} {}", p, m);
                 }
+            }
+        }
+        let mut second = vec![super::Solid::default(); table.len()];
+        table.visit_solid::<true>(position, |index, _, solid| second[index] = solid);
+        for p in 0..=order {
+            for m in -p..=p {
+                let expected = solid::<true>(p, m, position);
+                let actual = second[super::table_index(p, m)];
+                prop_assert_eq!(actual.value, expected.value, "{} {}", p, m);
+                prop_assert_eq!(actual.gradient, expected.gradient, "{} {}", p, m);
+                prop_assert_eq!(actual.hessian, expected.hessian, "{} {}", p, m);
             }
         }
         Ok(())

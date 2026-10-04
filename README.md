@@ -62,7 +62,7 @@ pip install "treams-rs[io]"       # HDF5 T-matrix files
 Wheels cover CPython 3.12–3.15 on Linux (glibc 2.17 or newer, x86-64 and
 arm64), macOS (Intel and Apple silicon) and Windows (x86-64), and need no Rust
 toolchain. Standard PyPI installs of the `torch` and `io` extras on CPython
-3.15 are outside the 0.1.0 release qualification. NumPy 2.3 and newer have
+3.15 are outside the release qualification. NumPy 2.3 and newer have
 Linux wheels only for glibc 2.27 or newer; with an older glibc, use CPython 3.12
 or 3.13 and `pip install treams-rs "numpy<2.3"`. JAX and PyTorch have no Intel
 macOS wheels; use the `advect` or `autograd` extra there. See

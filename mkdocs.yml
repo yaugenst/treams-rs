@@ -68,6 +68,7 @@ nav:
       - validation/published-applications.md
   - Performance:
       - performance/index.md
+      - performance/cpu-speedups.md
       - performance/large-problems.md
       - performance/platform-comparison.md
       - performance/evidence.md

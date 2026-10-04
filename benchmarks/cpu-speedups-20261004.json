@@ -1,0 +1,391 @@
+{
+  "schema_version": 1,
+  "kind": "Historical pre-scheduling CPU performance qualification",
+  "recorded_at": "2026-10-04T00:10:57.062357+00:00",
+  "scope": "CPU only; matched complex128/f64, tolerances and inputs against rebuilt v0.1.0 numerical/Python sources on Ryzen 9 9950X Linux",
+  "source": {
+    "baseline_tag": "v0.1.0",
+    "baseline_commit": "8bbcb87aaeaccd9293fc8c09eecb8727c37c4970",
+    "baseline_sources_match_release": true,
+    "candidate": "Uncommitted stage6-final.patch on the baseline; predates scheduling changes",
+    "patch_sha256": "72039ec484ab21902cc034cb12835841eed69360e9de60f385075d1d432f0950",
+    "native_sha256": "68919ce62085ca79a34719aa03a1171c2da530cab33da4559c3d9b5a1148e4f4",
+    "benchmark_sha256": "925aeb12247fc09ae0d7d14e3b9fee26f601b4273e10ce2b5696c321b7c38361",
+    "full_identity": "benchmarks/results/cpu-speedups-20261004/source-final.json"
+  },
+  "environment": {
+    "cpu": "AMD Ryzen 9 9950X, 16 physical cores / 32 logical CPUs",
+    "platform": "Linux-7.2.8-200.fc44.x86_64-x86_64-with-glibc2.43",
+    "python": "3.13.1",
+    "numpy": "2.5.3",
+    "rustc": "rustc 1.94.0 (4a4ef493e 2026-03-02)",
+    "profile": "release",
+    "precision": "complex128 / f64"
+  },
+  "measurement": {
+    "primary_threads": 4,
+    "primary_cpu_affinity": [
+      8,
+      9,
+      10,
+      11
+    ],
+    "primary_rounds": 7,
+    "samples_per_round": 3,
+    "minimum_sample_seconds": 0.06,
+    "worker_policy": "Fresh sequential processes per tree/call, ABBA ordering; no competing idle BLAS worker and no modified BLAS policy",
+    "gradient_scope": "Gradient timings include their forward calculation and analytic pullbacks. Cluster incident construction is outside timing; field maps use prepared scattering coefficients; slab internal fields use prepared slab matrices."
+  },
+  "selected_results": {
+    "iterative-n512-l1-p1-forward": {
+      "baseline_seconds": 0.15763064500060864,
+      "candidate_seconds": 0.059709441498853266,
+      "paired_median_speedup": 2.6368359013322817,
+      "speedup_range": [
+        2.5834371987314295,
+        2.68988739634586
+      ],
+      "relative_difference": 1.150219390418715e-16,
+      "peak_rss_mib": {
+        "baseline": 54.28125,
+        "candidate": 53.40625
+      }
+    },
+    "iterative-n512-l1-p8-forward": {
+      "baseline_seconds": 1.2351858459878713,
+      "candidate_seconds": 0.10024679999332875,
+      "paired_median_speedup": 12.340489538577852,
+      "speedup_range": [
+        12.291026606277287,
+        12.497625394017106
+      ],
+      "relative_difference": 2.3666202197232716e-16,
+      "peak_rss_mib": {
+        "baseline": 55.75390625,
+        "candidate": 58.70703125
+      }
+    },
+    "iterative-n512-l1-p8-gradient": {
+      "baseline_seconds": 2.5673933069920167,
+      "candidate_seconds": 0.23263918998418376,
+      "paired_median_speedup": 11.03594500637044,
+      "speedup_range": [
+        10.831697215574291,
+        11.056292351038547
+      ],
+      "relative_difference": 6.2096006834205846e-18,
+      "peak_rss_mib": {
+        "baseline": 57.96875,
+        "candidate": 60.6875
+      }
+    },
+    "iterative-n32-l3-p8-forward": {
+      "baseline_seconds": 0.21209195101982914,
+      "candidate_seconds": 0.06289104200550355,
+      "paired_median_speedup": 3.3739241698351905,
+      "speedup_range": [
+        3.3524701304168976,
+        3.3866068093527595
+      ],
+      "relative_difference": 6.257884561743603e-16,
+      "peak_rss_mib": {
+        "baseline": 53.9609375,
+        "candidate": 56.69140625
+      }
+    },
+    "prepared-dipole-cluster-map-n32-l1-p4096-forward": {
+      "baseline_seconds": 0.012192832003347576,
+      "candidate_seconds": 0.005219395415527591,
+      "paired_median_speedup": 2.3362769898277422,
+      "speedup_range": [
+        2.3298765898951084,
+        2.354477870384426
+      ],
+      "relative_difference": 8.095092803570734e-16,
+      "peak_rss_mib": {
+        "baseline": 57.0859375,
+        "candidate": 55.9453125
+      }
+    },
+    "prepared-dipole-cluster-map-n32-l1-p4096-field-gradient": {
+      "baseline_seconds": 0.04844541000784375,
+      "candidate_seconds": 0.026515778998145834,
+      "paired_median_speedup": 1.8299378987963848,
+      "speedup_range": [
+        1.8198508164941172,
+        1.8479055369600217
+      ],
+      "relative_difference": 2.762826066817721e-16,
+      "peak_rss_mib": {
+        "baseline": 57.171875,
+        "candidate": 56.5
+      }
+    },
+    "mie-nearfield-l12-p4096-forward": {
+      "baseline_seconds": 0.013446317397756502,
+      "candidate_seconds": 0.006320983998011798,
+      "paired_median_speedup": 2.127250662552841,
+      "speedup_range": [
+        2.121365208005397,
+        2.147811610176658
+      ],
+      "relative_difference": 7.808099978258461e-16,
+      "peak_rss_mib": {
+        "baseline": 53.30078125,
+        "candidate": 50.26953125
+      }
+    },
+    "mie-nearfield-l12-p4096-gradient": {
+      "baseline_seconds": 0.06782446400029585,
+      "candidate_seconds": 0.039425253999070264,
+      "paired_median_speedup": 1.7215997046280833,
+      "speedup_range": [
+        1.7088663282294667,
+        1.7347213034649636
+      ],
+      "relative_difference": 1.2944064523260709e-14,
+      "peak_rss_mib": {
+        "baseline": 53.453125,
+        "candidate": 51.14453125
+      }
+    },
+    "periodic-array-n4-l6-size1-forward": {
+      "baseline_seconds": 0.057740023999940604,
+      "candidate_seconds": 0.026717594329966232,
+      "paired_median_speedup": 2.1648133964846084,
+      "speedup_range": [
+        2.1554537107300233,
+        2.1858883296660925
+      ],
+      "relative_difference": 0.0,
+      "peak_rss_mib": {
+        "baseline": 76.81640625,
+        "candidate": 76.125
+      }
+    },
+    "periodic-array-n4-l6-size1-gradient": {
+      "baseline_seconds": 0.2381137459888123,
+      "candidate_seconds": 0.11158069301745854,
+      "paired_median_speedup": 2.1317687917299306,
+      "speedup_range": [
+        2.104222268542044,
+        2.1553744178991794
+      ],
+      "relative_difference": 0.0,
+      "peak_rss_mib": {
+        "baseline": 86.5703125,
+        "candidate": 88.5703125
+      }
+    },
+    "slab-internal-h1024-forward": {
+      "baseline_seconds": 0.031644540998968296,
+      "candidate_seconds": 0.01553353524650447,
+      "paired_median_speedup": 2.0344030308473218,
+      "speedup_range": [
+        2.00828256444136,
+        2.1424784593479638
+      ],
+      "relative_difference": 5.23888172480196e-16,
+      "peak_rss_mib": {
+        "baseline": 335.203125,
+        "candidate": 310.92578125
+      }
+    },
+    "slab-internal-h1024-gradient": {
+      "baseline_seconds": 0.06329757202183828,
+      "candidate_seconds": 0.04786783999588806,
+      "paired_median_speedup": 1.328750427902815,
+      "speedup_range": [
+        1.307173395199298,
+        1.356686860879007
+      ],
+      "relative_difference": 6.208974605607069e-16,
+      "peak_rss_mib": {
+        "baseline": 335.9140625,
+        "candidate": 327.2421875
+      }
+    }
+  },
+  "performance_gates": {
+    "targeted": {
+      "file": "final-isolated-4threads.json",
+      "cases": 36,
+      "passed": 36,
+      "failed": [],
+      "numerical_failures": [],
+      "maximum_relative_difference": 1.2944064523260709e-14
+    },
+    "broader": {
+      "file": "final-isolated-broad-4threads.json",
+      "cases": 92,
+      "passed": 88,
+      "failed": [
+        "stack-power-h64",
+        "advect-grad-cluster-solve-n16",
+        "jax-grad-cluster-solve-n4",
+        "torch-grad-cluster-solve-n4"
+      ],
+      "numerical_failures": [],
+      "maximum_relative_difference": 1.8445125568146892e-16
+    },
+    "broader_outlier_rechecks": {
+      "file": "final-broad-outlier-recheck.json",
+      "cases": 4,
+      "passed": 4,
+      "failed": [],
+      "numerical_failures": [],
+      "maximum_relative_difference": 1.7304041743423012e-16
+    },
+    "same_build_outlier_controls": {
+      "file": "null-broad-outliers.json",
+      "cases": 4,
+      "passed": 4,
+      "failed": [],
+      "numerical_failures": [],
+      "maximum_relative_difference": 0.0
+    },
+    "broader_adjudication": "Four short-run timing failures remain in the original 92-case report. Identical-build controls passed with longer batches; all four baseline/candidate rechecks then passed at seven rounds, five samples and minimum 0.15 seconds per sample. The small 64-mode stack still has about 60 microseconds overhead (paired median +6.1 percent), within the unchanged 10 percent submillisecond limit. Do not describe this as proof of zero regressions.",
+    "thread_counts": {
+      "1": {
+        "file": "final-isolated-1threads.json",
+        "cases": 17,
+        "passed": 17,
+        "failed": [],
+        "numerical_failures": [],
+        "maximum_relative_difference": 1.2944064523260709e-14
+      },
+      "16": {
+        "file": "final-isolated-16threads.json",
+        "cases": 17,
+        "passed": 17,
+        "failed": [],
+        "numerical_failures": [],
+        "maximum_relative_difference": 1.2944064523260709e-14
+      },
+      "32": {
+        "file": "final-isolated-32threads.json",
+        "cases": 17,
+        "passed": 16,
+        "failed": [
+          "stack-power-h64"
+        ],
+        "numerical_failures": [],
+        "maximum_relative_difference": 1.2944064523260709e-14
+      }
+    },
+    "thread32_outlier_control": {
+      "file": "null-stack-32threads.json",
+      "cases": 1,
+      "passed": 1,
+      "failed": [],
+      "numerical_failures": [],
+      "maximum_relative_difference": 0.0
+    },
+    "thread32_outlier_recheck": {
+      "file": "final-stack-32threads-recheck.json",
+      "cases": 1,
+      "passed": 1,
+      "failed": [],
+      "numerical_failures": [],
+      "maximum_relative_difference": 0.0
+    },
+    "thread32_adjudication": "All 16 targeted optimization cases pass. The extra 64-mode stack timing fails in the short screen; both its same-build control and longer baseline/candidate recheck pass at seven rounds, five samples, minimum 0.3 seconds. The longer paired ratio is 1.036. Original failure is preserved."
+  },
+  "memory_gate": {
+    "passed": false,
+    "limit": "Candidate call growth <= 1.05 * baseline growth when baseline growth >= 16 MiB",
+    "failures": {
+      "periodic-array-n4-l6-forward": {
+        "baseline": {
+          "median_growth_mib": 27.7265625,
+          "median_peak_mib": 76.76171875
+        },
+        "candidate": {
+          "median_growth_mib": 29.2109375,
+          "median_peak_mib": 75.60546875
+        }
+      },
+      "periodic-array-n4-l6-gradient": {
+        "baseline": {
+          "median_growth_mib": 36.12109375,
+          "median_peak_mib": 84.890625
+        },
+        "candidate": {
+          "median_growth_mib": 42.45703125,
+          "median_peak_mib": 88.80078125
+        }
+      },
+      "periodic-array-n4-l6-size1-forward": {
+        "baseline": {
+          "median_growth_mib": 27.79296875,
+          "median_peak_mib": 76.81640625
+        },
+        "candidate": {
+          "median_growth_mib": 29.78125,
+          "median_peak_mib": 76.125
+        }
+      },
+      "periodic-array-n4-l6-size1-gradient": {
+        "baseline": {
+          "median_growth_mib": 37.55078125,
+          "median_peak_mib": 86.5703125
+        },
+        "candidate": {
+          "median_growth_mib": 42.2265625,
+          "median_peak_mib": 88.5703125
+        }
+      }
+    },
+    "explanation": "Eight independent Krylov spaces add roughly 5 MiB of call growth in the measured 512-dipole case. Periodic l6 gradients add 4.7-6.3 MiB growth and 2-4 MiB total peak. Parallel gathered cotangents explain up to 4.22 MiB extra for 16 blocks, plus bounded per-group Ewald caches; this is source-based attribution, not an allocation profile.",
+    "scratch_bounds": "At most eight simultaneous Krylov spaces. Periodic gathers normally at most 32 MiB per batch, except one oversized block. Real Ewald cache at most 1024 points per active group; reciprocal cache at most floor(1024/(l+2)) points. These are scratch bounds, not total RSS bounds."
+  },
+  "validation": {
+    "command": "just ci",
+    "rust_passed": 262,
+    "rust_ignored": 2,
+    "python_passed": 6625,
+    "python_skipped": 22,
+    "log": "ci-stage6-final.log",
+    "additional_field_contract_seeds": 16,
+    "release_rebuild_log": "build-stage6-final.log"
+  },
+  "additional_evidence": {
+    "native_dense_comparison": "512-dipole eight-column forward and physical pullbacks agree with native full-T reference to at most 3.06e-12 at iterative rtol=1e-10",
+    "convergence_and_cutoffs": [
+      "cluster-convergence.json",
+      "mie-cutoff.json",
+      "periodic-cutoff.json"
+    ],
+    "hankel": "Rust reference, identity and gradient tests plus six 90-digit goldens; separate matching-formula Python qualification covers 184,860 components with maximum jet-scaled error 7.23e-15. The Python sweep is not a bitwise Rust qualification.",
+    "small_strong_cluster": "At tightened rtol=1e-12 (unchanged agreement gate), selected dense LU is about 5x faster fresh and 71x faster reused than matrix-free for N=32, lmax=3, eight columns. At default rtol=1e-10 a strict componentwise diagnostic gate failed on small coefficients; failure and original script preserved. Production tolerances were not changed."
+  },
+  "evidence_corrections": [
+    "final-4threads.json memory entries inherit the driver ru_maxrss and are invalid; stage6-memory.json supersedes those entries using Linux VmHWM.",
+    "Earlier persistent-worker timings are retained as exploratory evidence. Same-build control proved idle BLAS contention; final-isolated reports use corrected worker isolation and measured-duration calibration. Earlier failures remain in their original files."
+  ],
+  "limitations": [
+    "Performance measured on one Linux Ryzen host; no macOS or Windows performance validation.",
+    "Full historical 1,300-case benchmark grid not replayed.",
+    "Existing two ignored Rust tests and 22 skipped Python dtype/alias cases remain.",
+    "The 1,024-particle diagnostic skips dense/upstream comparisons above their existing size limits; no same-size independent dense accuracy claim.",
+    "Additional 16 field-contract seeds were run before stage6 on the unchanged high-order field path; final full CI and stage6-specific field checks cover the final tree.",
+    "Predates later small-matrix-product scheduling; no timing attributed to that later implementation."
+  ],
+  "evidence_archive": {
+    "path": "benchmarks/results/cpu-speedups-20261004.tar.gz",
+    "sha256": "6d011aaf16dd3f0f952a5b742afb077d405835dc7046e68a14ec307c2896417a",
+    "bytes": 170742,
+    "files": 38,
+    "manifest": "benchmarks/results/cpu-speedups-20261004/manifest.json",
+    "extract_from_repository_root": "tar -xzf benchmarks/results/cpu-speedups-20261004.tar.gz",
+    "privacy_provenance": "benchmarks/privacy-provenance.json"
+  },
+  "distribution_verification": {
+    "json_non_string_primitives_preserved": 9934,
+    "archive_members_read_back": 38,
+    "reconstructed_source_files_matching_original_sha256": 28,
+    "source_reconstruction": "Applied archived stage6-final.patch to its recorded Git base in a temporary directory and restored the separately archived untracked test; all modified_files_sha256 entries matched.",
+    "native_binaries_included": false,
+    "measurements_rerun": false
+  }
+}

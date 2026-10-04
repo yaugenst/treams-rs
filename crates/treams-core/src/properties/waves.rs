@@ -1033,6 +1033,50 @@ struct FieldInputs {
     direction: FieldDirection,
 }
 
+/// Complete outgoing fields at the order used for a resolved large-sphere nearfield
+/// retain the operator, permutation, physical and analytic-gradient contracts.
+#[test]
+fn high_order_outgoing_fields_preserve_the_field_contract() {
+    for ks in [
+        [Complex::new(1.3, 0.0); 2],
+        [Complex::new(1.3, 0.03), Complex::new(1.4, 0.03)],
+    ] {
+        let mut basis = spherical_basis(12, [0.0; 3]);
+        let modes = basis.modes.clone();
+        basis.positions.push([0.2, -0.1, 0.0]);
+        basis
+            .modes
+            .extend(modes.into_iter().map(|(_, mode)| (1, mode)));
+        let modes = basis.modes.len();
+        let case = FieldCase {
+            basis: basis.into(),
+            points: vec![[0.7, -0.3, 3.0], [-2.0, 1.2, 3.0], [0.0, 0.0, 3.0]],
+            ks,
+            helicity: true,
+            radial: Radial::Singular,
+        };
+        let inputs = FieldInputs {
+            coefficients: patterned(modes, 1, 0.2).as_slice().to_vec(),
+            cotangent: patterned(3, 3, 0.9).as_slice().as_chunks::<3>().0.to_vec(),
+            direction: FieldDirection {
+                points: vec![
+                    [0.03, -0.02, 0.04],
+                    [-0.01, 0.03, 0.02],
+                    [0.04, 0.01, -0.03],
+                ],
+                positions: vec![[0.02, -0.03, 0.01], [-0.01, 0.02, 0.04]],
+                ks: [Complex::new(0.03, -0.02); 2],
+                kzs: Vec::new(),
+                coefficients: patterned(modes, 1, 0.4).as_slice().to_vec(),
+            },
+        };
+        let keys: Vec<_> = (0..modes)
+            .map(|i| u32::try_from(i * 37 % 997).unwrap())
+            .collect();
+        check_field_evaluation(&case, &inputs, &keys).unwrap();
+    }
+}
+
 impl FieldInputs {
     /// Independent entries of modulus at most `√2` sized to `case`. The direction
     /// keeps equal wavenumbers equal, since parity bases require an achiral medium.

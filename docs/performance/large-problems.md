@@ -4,6 +4,10 @@ description: Measured time and memory of requested illuminations for large spher
 
 # Requested illuminations and larger clusters
 
+This page retains the September measurements. For the subsequent CPU changes
+against treams-rs 0.1.0, including multiple simultaneous illuminations and a
+strongly coupled case, see [CPU speedups](cpu-speedups.md).
+
 These results compare three ways to solve a sphere cluster for a few incident
 fields: the full interacting T-matrix ("Full T"), a dense LU solve for the
 requested columns only ("Selected LU") and a matrix-free GMRES solve. The grid

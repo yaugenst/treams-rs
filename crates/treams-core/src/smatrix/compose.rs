@@ -137,7 +137,8 @@ impl AddResidual {
         let down = product_views(view(&transmission).adjoint(), view(&bottom));
         let adjoint = product_views(view(&top_transmission).adjoint(), view(&top))
             + product_views(view(&bottom_reflection).adjoint(), view(&down));
-        let AdjointSolve { adjoint, value: up } = solve.solve_adjoint(adjoint)?;
+        let AdjointSolve { adjoint, value: up } =
+            solve.solve_adjoint(view(&reflection), view(&bottom_reflection), adjoint)?;
         let incident = down + product_views(view(&reflection).adjoint(), view(&adjoint));
         // The saved input blocks are read for the last time above; overwrite them with
         // their gradients.

@@ -47,6 +47,31 @@ Key = tuple[Any, ...]
 Values = list[complex]
 
 
+# Spherical Hankel functions ------------------------------------------------------
+
+SPHERICAL_HANKEL_ROWS: list[Key] = [
+    (0, 0.5),
+    (64, 0.5),
+    (64, 64.0),
+    (57, 56.7),
+    (0, 1e4),
+    (64, 1e4),
+]
+
+
+def spherical_hankel_reference(key: Key) -> Values:
+    degree, x = key
+    with mp.workdps(90):
+        z = mp.mpf(x)
+        value = mp.sqrt(mp.pi / (2 * z)) * mp.hankel1(degree + mp.mpf("0.5"), z)
+        polynomial = spherical_hankel(int(degree), z)
+        if abs(value - polynomial) > mp.mpf("1e-70") * abs(value):
+            raise ArithmeticError(
+                f"h_{degree}({x}): cylindrical and finite-sum references disagree"
+            )
+        return [complex(value)]
+
+
 # Upper incomplete gamma function -------------------------------------------------
 
 INCGAMMA_DEGREES = [-8, -7.5, -6.5, -5, -4.5, -3, -2.5, -1.5, -1, -0.5, 0, 0.5, 1]
@@ -753,6 +778,19 @@ class Table:
 ROUNDING = 2.0**-52
 
 TABLES = {
+    "spherical-hankel": Table(
+        REFERENCES / "spherical_hankel.txt",
+        """\
+# Outgoing spherical Hankel h_l(x) at positive real arguments: `l x: re im`.
+# Generated with mpmath 1.3.0 at 90 digits: sqrt(pi / (2*x)) * hankel1(l + 1/2, x).
+# Arguments are the exact binary64 inputs; rows cover the real recurrence boundaries
+# and turning points. DLMF 10.49.6's finite polynomial agrees to 1e-70 relative.
+""",
+        lambda _: SPHERICAL_HANKEL_ROWS,
+        spherical_hankel_reference,
+        (0,),
+        ROUNDING,
+    ),
     "incgamma": Table(
         REFERENCES / "incgamma.txt",
         """\

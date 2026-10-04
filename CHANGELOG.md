@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 0.1.1 (2026-10-04)
+
+- Faster CPU sphere-cluster solves for multiple illuminations by sharing pair
+  translations across up to eight independent GMRES solves, with bounded
+  Krylov storage and unchanged per-column convergence criteria.
+- Faster spherical field maps and translations through shared harmonic and radial
+  sequences, including a qualified positive-real outgoing Hankel recurrence.
+- Reuse Ewald geometry and radial integrals across spherical harmonic orders in
+  periodic-array values and analytic gradients, with bounded temporary storage.
+- Avoid forming dense reflection products for certified thin internal-field
+  solves between layered structures; retain the dense solve otherwise.
+- Limit small dense matrix products to workers supported by their work size,
+  avoiding excessive scheduling on machines with large thread budgets.
+- Record matched-build CPU timing and memory evidence, and document solver
+  tradeoffs. Public APIs, convergence tolerances and thread controls are unchanged.
+
 ## 0.1.0 (2026-10-03)
 
 First public release of treams-rs: electromagnetic T-matrix scattering with a

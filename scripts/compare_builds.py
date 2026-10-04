@@ -16,10 +16,11 @@ needs the native sources (``crates/``, ``Cargo.lock``) of the ref and of the
 working tree to agree. The candidate is ``python/`` of this checkout unless
 ``--candidate`` names another directory.
 
-Each round starts one worker process per tree, with the same pinned thread
-counts, and the two workers then time each selected public call in turn, in
-ABBA order from call to call, so that the two measurements of a call are
-seconds apart. A measurement repeats the call until it lasts at least
+Each round starts a fresh worker process for each tree and selected call, with
+the same pinned thread counts. Workers run sequentially in ABBA order from call
+to call, so that an idle numerical thread pool cannot compete with its peer.
+Imports and input preparation stay outside timing. A measurement repeats the
+call until it lasts at least
 ``--min-sample`` seconds and keeps the fastest of ``--samples`` such samples.
 The first round also records each call's values, and the trees must agree to
 ``--rtol`` before any timing counts. The ratio of a call is the median over
@@ -49,11 +50,17 @@ import sys
 import tarfile
 import tempfile
 import time
-from contextlib import ExitStack, contextmanager, redirect_stdout
+from contextlib import closing, contextmanager, redirect_stdout
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from _harness import file_sha256, peak_rss_mib, pinned_threads, python_source_sha256
+from _harness import (
+    cpu_affinity,
+    file_sha256,
+    peak_rss_mib,
+    pinned_threads,
+    python_source_sha256,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -255,6 +262,286 @@ def _periodic(tr):
     return run
 
 
+# CPU workflows: complete solves and objectives, including their analytic pullbacks.
+
+
+for _particles, _lmax, _columns, _strong in (
+    (128, 1, 1, False),
+    (128, 1, 8, False),
+    (512, 1, 1, False),
+    (512, 1, 8, False),
+    (64, 3, 4, False),
+    (32, 3, 8, True),
+):
+    for _gradient_enabled in (False, True):
+        _suffix = "gradient" if _gradient_enabled else "forward"
+
+        @call(f"iterative-n{_particles}-l{_lmax}-p{_columns}-{_suffix}")
+        def _iterative_workflow(
+            tr,
+            particles=_particles,
+            lmax=_lmax,
+            columns=_columns,
+            strong=_strong,
+            gradient=_gradient_enabled,
+        ):
+            import numpy as np
+
+            from treams_rs.iterative import SphereCluster
+
+            side = math.ceil(particles ** (1 / 3))
+            positions = (
+                np.column_stack(
+                    np.unravel_index(np.arange(particles), (side, side, side))
+                )
+                * 1.3
+            )
+            # A reproducible disordered cluster, not a displacement-cache benchmark.
+            positions += np.random.default_rng(617).uniform(
+                -0.06, 0.06, positions.shape
+            )
+            k0 = 1.7 if strong else 1.3
+            radii = (
+                np.linspace(0.45, 0.52, particles)
+                if strong
+                else np.linspace(0.12, 0.18, particles)
+            )
+            epsilon = np.full(particles, 8.0 + 0.1j if strong else 2.2 + 0.02j)
+            basis = tr.SphericalBasis.default(lmax, particles, positions=positions)
+            incident = np.column_stack(
+                [
+                    tr.plane_wave(
+                        [0.13 + 0.07 * p, -0.11 + 0.03 * p, 1.0], p % 2, k0=k0
+                    ).expand(basis)
+                    for p in range(columns)
+                ]
+            )
+
+            def run():
+                solver = SphereCluster(lmax, k0, radii, epsilon, positions)
+                if not gradient:
+                    return solver.solve(incident).coefficients
+                solution, context = solver.record(incident)
+                value = solution.coefficients
+                derivatives = context.pullback(2 * value / value.size)
+                return (abs(value) ** 2).mean(), derivatives[:-1]
+
+            return run
+
+
+for _lmax in (3, 10):
+
+    @call(f"sphere-efield-l{_lmax}-p4096-gradient")
+    def _field_gradient(tr, lmax=_lmax):
+        scattered = _sphere(tr, lmax).scatter(_plane(tr))
+
+        def run():
+            value, context = tr.diff.field(
+                scattered.coefficients,
+                FIELD_POINTS[4096],
+                scattered.basis,
+                [1.3, 1.3],
+                singular=True,
+            )
+            return (abs(value) ** 2).mean(), context.pullback(2 * value / value.size)
+
+        return run
+
+
+for _lmax, _radius in ((3, 0.25), (12, 2.5)):
+    for _gradient_enabled in (False, True):
+        _suffix = "gradient" if _gradient_enabled else "forward"
+
+        @call(f"mie-nearfield-l{_lmax}-p4096-{_suffix}")
+        def _mie_nearfield(tr, lmax=_lmax, radius=_radius, gradient=_gradient_enabled):
+            import numpy as np
+
+            sphere = tr.sphere_tmatrix(
+                k0=1.3, lmax=lmax, radius=radius, material=2.5 + 0.02j
+            )
+            scattered = sphere.scatter(_plane(tr))
+            axis = np.linspace(-1.5 * radius, 1.5 * radius, 64)
+            x, y = np.meshgrid(axis, axis)
+            points = np.column_stack(
+                (x.ravel(), y.ravel(), np.full(x.size, 1.2 * radius))
+            )
+
+            def run():
+                if not gradient:
+                    return scattered.efield(points)
+                value, context = tr.diff.field(
+                    scattered.coefficients,
+                    points,
+                    scattered.basis,
+                    [1.3, 1.3],
+                    singular=True,
+                )
+                return (abs(value) ** 2).mean(), context.pullback(
+                    2 * value / value.size
+                )
+
+            return run
+
+
+for _gradient_enabled in (False, True):
+    _suffix = "field-gradient" if _gradient_enabled else "forward"
+
+    @call(f"prepared-dipole-cluster-map-n32-l1-p4096-{_suffix}")
+    def _prepared_dipole_cluster_map(tr, gradient=_gradient_enabled):
+        """Sample a solved disordered cluster; particle preparation and solve are untimed.
+
+        The gradient case includes field evaluation and its analytic pullback in
+        coefficients, sample points, expansion centres and medium wavenumbers.
+        It does not differentiate through the preceding multiple-scattering solve.
+        """
+        import numpy as np
+
+        positions = np.column_stack(np.unravel_index(np.arange(32), (4, 4, 2))) * 0.8
+        positions -= positions.mean(axis=0)
+        positions += np.random.default_rng(317).uniform(-0.05, 0.05, positions.shape)
+        particles = [
+            tr.sphere_tmatrix(k0=1.3, lmax=1, radius=radius, material=2.5 + 0.02j)
+            for radius in np.linspace(0.1, 0.14, 32)
+        ]
+        scattered = tr.Cluster(particles, positions=positions).scatter(_plane(tr))
+        axes = [
+            np.linspace(positions[:, i].min() - 0.5, positions[:, i].max() + 0.5, 64)
+            for i in (0, 1)
+        ]
+        x, y = np.meshgrid(*axes)
+        points = np.column_stack(
+            (x.ravel(), y.ravel(), np.full(x.size, positions[:, 2].max() + 0.6))
+        )
+
+        def run():
+            if not gradient:
+                return scattered.efield(points)
+            value, context = tr.diff.field(
+                scattered.coefficients,
+                points,
+                scattered.basis,
+                [1.3, 1.3],
+                singular=True,
+            )
+            return (abs(value) ** 2).mean(), context.pullback(2 * value / value.size)
+
+        return run
+
+
+@call("plane-near-origin-l3-p4096-gradient")
+def _regular_field_gradient(tr):
+    import numpy as np
+
+    basis = tr.SphericalBasis.default(3)
+    coefficients = _plane(tr).expand(basis)
+    axis = np.linspace(-0.15, 0.15, 64)
+    x, y = np.meshgrid(axis, axis)
+    points = np.column_stack((x.ravel(), y.ravel(), np.full(x.size, 0.1)))
+
+    def run():
+        value, context = tr.diff.field(coefficients, points, basis, [1.3, 1.3])
+        return (abs(value) ** 2).mean(), context.pullback(2 * value / value.size)
+
+    return run
+
+
+for _particles, _lmax, _k0, _case in (
+    (1, 3, 1.3, "n1-l3"),
+    (4, 3, 1.3, "n4-l3"),
+    (4, 6, 1.3, "n4-l6"),
+    (4, 6, 4.5, "n4-l6-size1"),
+):
+    for _gradient_enabled in (False, True):
+        _suffix = "gradient" if _gradient_enabled else "forward"
+
+        @call(f"periodic-array-{_case}-{_suffix}")
+        def _periodic_workflow(
+            tr,
+            count=_particles,
+            lmax=_lmax,
+            k0=_k0,
+            gradient=_gradient_enabled,
+        ):
+            import numpy as np
+
+            positions = [[0, 0, 0], [0.8, 0, 0], [0, 0.8, 0], [0.8, 0.8, 0]][:count]
+            basis = tr.SphericalBasis.default(lmax, count, positions=positions)
+            vectors = np.diag([1.6, 1.6])
+            bloch = np.array([0.1, 0.15])
+            ports = tr.PlaneWavePorts.default([bloch])
+            block = len(basis) // count
+
+            def run():
+                particles = [
+                    tr.diff.sphere(lmax, k0, [radius], [4 + 0.1j, 1])
+                    for radius in np.linspace(0.15, 0.25, count)
+                ]
+                local = np.zeros((len(basis), len(basis)), complex)
+                for i, (value, _) in enumerate(particles):
+                    local[i * block : (i + 1) * block, i * block : (i + 1) * block] = (
+                        value
+                    )
+                coupling, coupling_context = tr.diff.lattice_expansion(
+                    basis, basis, [k0, k0], bloch, vectors
+                )
+                response, solve_context = tr.diff.interaction(local, coupling)
+                channels, channel_context = tr.diff.spherical_channels(
+                    basis, [k0, k0], ports.components, ports.pol, 1.6**2
+                )
+                value, radiation_context = tr.diff.smatrix_from_array(
+                    response, channels
+                )
+                if not gradient:
+                    return value
+                response_gradient, channel_gradient = radiation_context.pullback(
+                    2 * value
+                )
+                local_gradient, coupling_gradient = solve_context.pullback(
+                    response_gradient
+                )
+                physical = tuple(
+                    context.pullback(
+                        local_gradient[
+                            i * block : (i + 1) * block, i * block : (i + 1) * block
+                        ]
+                    )
+                    for i, (_, context) in enumerate(particles)
+                )
+                return (
+                    (abs(value) ** 2).sum(),
+                    physical,
+                    coupling_context.pullback(coupling_gradient),
+                    channel_context.pullback(channel_gradient),
+                )
+
+            return run
+
+
+for _modes in (512, 1024):
+    for _gradient_enabled in (False, True):
+        _suffix = "gradient" if _gradient_enabled else "forward"
+
+        @call(f"slab-internal-h{_modes}-{_suffix}")
+        def _slab_internal(tr, modes=_modes, gradient=_gradient_enabled):
+            import numpy as np
+
+            ports = _ports(tr, modes)
+            lower = tr.slab(k0=1.3, basis=ports, thickness=0.3, material=2.3 + 0.1j)
+            upper = tr.slab(k0=1.3, basis=ports, thickness=0.2, material=1.7 + 0.05j)
+            up = np.asarray(_amplitudes(modes), complex)[:, None]
+            down = np.zeros_like(up)
+
+            def run():
+                value, context = tr.diff.smatrix_illuminate(
+                    lower.array, upper.array, up, down
+                )
+                if not gradient:
+                    return value
+                return (abs(value) ** 2).sum(), context.pullback(2 * value)
+
+            return run
+
+
 # Framework calls: value and gradient of one real objective in each namespace.
 
 
@@ -376,16 +663,21 @@ def available(name: str) -> bool:
 
 def time_call(function: Callable[[], Any], min_sample: float, samples: int) -> float:
     """Fastest seconds per call over ``samples`` samples of at least ``min_sample``."""
-    start = time.perf_counter()
     function()
-    single = time.perf_counter() - start
-    number = max(1, math.ceil(min_sample / max(single, 1e-9)))
+    number = 1
     seconds = []
     for _ in range(samples):
-        start = time.perf_counter()
-        for _ in range(number):
-            function()
-        seconds.append((time.perf_counter() - start) / number)
+        while True:
+            start = time.perf_counter()
+            for _ in range(number):
+                function()
+            elapsed = time.perf_counter() - start
+            if elapsed >= min_sample:
+                seconds.append(elapsed / number)
+                break
+            number = max(
+                number + 1, math.ceil(number * min_sample / max(elapsed, 1e-9))
+            )
     return min(seconds)
 
 
@@ -397,14 +689,11 @@ def serve(tree: Path, min_sample: float, samples: int) -> None:
         tr = importlib.import_module("treams_rs")
     if not Path(tr.__file__).resolve().is_relative_to(tree.resolve()):
         raise RuntimeError(f"treams_rs resolved outside {tree}")
-    functions: dict[str, Callable[[], Any]] = {}
     for line in sys.stdin:
         request = json.loads(line)
         name = request["name"]
         with redirect_stdout(sys.stderr):
-            if name not in functions:
-                functions[name] = CALLS[name](tr)
-            function = functions[name]
+            function = CALLS[name](tr)
             entry: dict[str, Any] = {}
             if request["record"]:
                 entry["values"] = [[v.real, v.imag] for v in values(function())]
@@ -416,14 +705,27 @@ def serve(tree: Path, min_sample: float, samples: int) -> None:
         print(json.dumps(entry), flush=True)
 
 
+def memory_peak_mib() -> float:
+    """Resident high-water mark since this worker's exec, including freed buffers."""
+    if sys.platform == "linux":
+        # ru_maxrss also keeps the memory inherited from the driver before exec.
+        # VmHWM belongs to the new address space and preserves temporary peaks.
+        for line in Path("/proc/self/status").read_text().splitlines():
+            if line.startswith("VmHWM:"):
+                return int(line.split()[1]) / 1024
+        raise RuntimeError("/proc/self/status has no resident high-water mark")
+    return peak_rss_mib()
+
+
 def run_memory_worker(name: str, tree: Path) -> dict:
     tr = importlib.import_module("treams_rs")
     if not Path(tr.__file__).resolve().is_relative_to(tree.resolve()):
         raise RuntimeError(f"treams_rs resolved outside {tree}")
     function = CALLS[name](tr)
-    before = peak_rss_mib()
+    before = memory_peak_mib()
     function()
-    return {"growth_mib": peak_rss_mib() - before}
+    peak = memory_peak_mib()
+    return {"growth_mib": peak - before, "peak_mib": peak}
 
 
 # Driver -----------------------------------------------------------------------------
@@ -488,23 +790,18 @@ class Worker:
 def run_round(
     trees: dict[str, Path], names: list[str], arguments: argparse.Namespace, index: int
 ) -> dict[str, dict]:
-    """One worker per tree; each call measured by both, in alternating order."""
+    """Each call measured by both trees, with only one worker alive at a time."""
     measured: dict[str, dict] = {label: {} for label in trees}
-    with ExitStack() as cleanup:
-        workers = {}
-        for label, tree in trees.items():
-            worker = Worker(tree, arguments)
-            cleanup.callback(worker.close)
-            workers[label] = worker
-        # The order alternates from call to call and flips from round to round.
-        orders = list(abba(len(names) + index))[index:]
-        for name, order in zip(names, orders, strict=True):
-            for label in order:
-                measured[label][name] = workers[label].measure(name, index == 0)
+    # The order alternates from call to call and flips from round to round.
+    orders = list(abba(len(names) + index))[index:]
+    for name, order in zip(names, orders, strict=True):
+        for label in order:
+            with closing(Worker(trees[label], arguments)) as worker:
+                measured[label][name] = worker.measure(name, index == 0)
     return measured
 
 
-def measure_memory(tree: Path, name: str, threads: int) -> float:
+def measure_memory(tree: Path, name: str, threads: int) -> dict:
     completed = subprocess.run(
         [sys.executable, __file__, "--memory-call", name, "--tree", str(tree)],
         env=environment(tree, threads),
@@ -514,7 +811,7 @@ def measure_memory(tree: Path, name: str, threads: int) -> float:
     )
     if completed.returncode:
         raise RuntimeError(f"worker for {tree} failed:\n{completed.stderr[-4000:]}")
-    return json.loads(completed.stdout.strip().splitlines()[-1])["growth_mib"]
+    return json.loads(completed.stdout.strip().splitlines()[-1])
 
 
 def agreement(baseline: list, candidate: list, rtol: float) -> float | None:
@@ -555,6 +852,9 @@ def summarize(rounds: list[dict[str, dict]], names: list[str], rtol: float) -> d
         calls[name] = {
             "baseline_seconds": median_baseline,
             "candidate_seconds": statistics.median(candidate),
+            "baseline_round_seconds": baseline,
+            "candidate_round_seconds": candidate,
+            "paired_ratios": ratios,
             "ratio": ratio,
             "ratio_range": [min(ratios), max(ratios)],
             "relative_difference": difference,
@@ -627,16 +927,20 @@ def compare(arguments: argparse.Namespace, baseline: Path, candidate: Path) -> d
     calls = summarize(rounds, names, arguments.rtol)
     if arguments.memory:
         for name in names:
-            growth = [
+            memory = [
                 measure_memory(trees[label], name, arguments.threads) for label in trees
             ]
+            growth = [entry["growth_mib"] for entry in memory]
             calls[name]["memory_mib"] = growth
+            calls[name]["memory_peak_mib"] = [entry["peak_mib"] for entry in memory]
             calls[name]["passed"] &= memory_verdict(*growth)
     return {
         "baseline": provenance(baseline),
         "candidate": provenance(candidate),
         "baseline_ref": arguments.baseline_ref,
+        "benchmark_sha256": file_sha256(__file__),
         "host": platform.node(),
+        "cpu_affinity": cpu_affinity(),
         "threads": arguments.threads,
         "rounds": arguments.rounds,
         "samples": arguments.samples,

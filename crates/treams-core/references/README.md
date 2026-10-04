@@ -18,22 +18,23 @@ Two terms appear below:
 
 | File | Quantity | Precision | Generator | Read by |
 | --- | --- | --- | --- | --- |
+| [`spherical_hankel.txt`](spherical_hankel.txt) | Outgoing spherical Hankel functions at the real recurrence boundaries and turning points | 90 digits; terminating polynomial agrees to 1e-70 | `spherical-hankel` | `real_hankel_sequences_match_high_precision` |
 | [`incgamma.txt`](incgamma.txt) | Upper incomplete gamma function `Gamma(n, z)` on a grid of degrees and arguments, on both sides of the cut | 40 digits | `incgamma` | `incgamma_matches_reference_table` |
 | [`kambe.txt`](kambe.txt) | Kambe integral `I_n(z, eta)` at a real split `eta` | 40 digits; Gauss-Legendre agrees with tanh-sinh to 1e-15 | `kambe` | `intkambe_matches_quadrature` |
 | [`kambe_lattice.txt`](kambe_lattice.txt) | `I_n(x, eta)` at the complex arguments the lattice sums pass to it | 70 digits; 100 digits agree to 1e-48 | `kambe-lattice` | `intkambe_at_lattice_arguments` |
 | [`lattice_sums.txt`](lattice_sums.txt) | Ewald lattice sums, their real-space and reciprocal parts, and their `k` and Bloch-vector derivatives | 30 to 60 digits, by section | `lattice-sums` | `sums_match_high_precision_references` |
 | [`lattice_chain.txt`](lattice_chain.txt) | 1D spherical lattice sums 2 to 5 periods off the axis and their first derivatives | 30 digits; derivatives by central differences at 55 digits | `lattice-chain` | `far_off_axis_chains_match_high_precision_references` |
 
-The special-function unit tests in `special::integrals` read the first three
-tables through their `reference()` helper. The lattice property tests read the
-last two. Each file's header comments give the exact grid, recipe and row
-format.
+The special-function unit tests in `special::bessel` read the Hankel table with
+`table`; those in `special::integrals` read the gamma and Kambe tables through
+their `reference()` helper. The lattice property tests read the last two.
+Each file's header comments give the exact grid, recipe and row format.
 
 ## Row formats
 
 `#` starts a comment. Every other line has the form `key: values`:
 
-- In `incgamma.txt`, `kambe.txt`, `kambe_lattice.txt` and `lattice_chain.txt`
+- In `spherical_hankel.txt`, `incgamma.txt`, `kambe.txt`, `kambe_lattice.txt` and `lattice_chain.txt`
   the key is a list of numbers, such as `n re(z) im(z)`, and the values are
   pairs `re im` of complex numbers.
 - `lattice_sums.txt` rows have the form `key part jet tolerance: values`. The

@@ -15,7 +15,7 @@ from _support import assert_one_use_context, complex_normal
 
 @pytest.mark.gradients
 @pytest.mark.interface
-@pytest.mark.parametrize("columns", [1, 3])
+@pytest.mark.parametrize("columns", [1, 3, 11])
 def test_requested_illuminations_match_the_dense_binding(columns):
     # The Rust iterative requested_columns_match_dense_and_obey_symmetries
     # property owns the physics (scale, translation and Ward identities); this
@@ -30,6 +30,9 @@ def test_requested_illuminations_match_the_dense_binding(columns):
     storage = np.asfortranarray(complex_normal(rng, (op.dimension, 2 * columns)))
     incident = storage[:, ::2]
     cotangent = complex_normal(rng, incident.shape)
+    if columns == 11:
+        # Inactive adjoint columns must retain their places across batches.
+        cotangent[:, [0, 8]] = 0
     value, context, convergence = op.record(incident, rtol=2e-12)
     dense, dense_context = _native.sphere_cluster(2, 1.2, radii, eps, positions)
     assert_allclose(value, dense @ incident, rtol=2e-9, atol=1e-13)
@@ -44,6 +47,38 @@ def test_requested_illuminations_match_the_dense_binding(columns):
     assert all(residual <= 2e-12 * rhs for _, residual, rhs in adjoint_convergence)
     single = [op.solve(incident[:, i : i + 1], rtol=2e-12)[0] for i in range(columns)]
     assert_allclose(np.column_stack(single), value, rtol=2e-11, atol=1e-13)
+
+
+@pytest.mark.interface
+@pytest.mark.parametrize("rtol,atol", [(2e-12, 0.0), (0.0, 1e-12)])
+def test_mixed_scale_columns_keep_independent_convergence(rtol, atol):
+    op = _native.IterativeSphereCluster(
+        1,
+        1.2,
+        np.array([0.2, 0.25]),
+        np.array([2.2, 2.7 + 0.02j]),
+        np.array([[0.0, 0.0, 0.0], [1.1, 0.2, 0.0]]),
+    )
+    rng = np.random.default_rng(452)
+    # Zero, small and large columns occupy both a full batch and its tail.
+    scales = np.array([0.0, 1e-9, 1.0, 1e2, 0.0, 1e-12, 1e-3, 1e-6, 0.0, 1e1, 1e-7])
+    incident = complex_normal(rng, (op.dimension, len(scales))) * scales
+    value, convergence = op.solve(incident, rtol=rtol, atol=atol, restart=2)
+    assert len(convergence) == len(scales)
+    for column, report in enumerate(convergence):
+        expected, reports = op.solve(
+            incident[:, column : column + 1], rtol=rtol, atol=atol, restart=2
+        )
+        iterations, residual, rhs = report
+        assert iterations == reports[0][0]
+        assert residual <= max(atol, rtol * rhs)
+        # Match each column on its own scale, including the absolute-only
+        # tolerance's intentionally uniterated very small right-hand side.
+        assert_allclose(value[:, column], expected[:, 0], rtol=2e-12, atol=atol)
+        if scales[column] == 0:
+            assert report == (0, 0.0, 0.0)
+            assert_allclose(value[:, column], 0, rtol=0, atol=0)
+    assert (convergence[5][0] == 0) == (atol > 0)
 
 
 @pytest.mark.interface

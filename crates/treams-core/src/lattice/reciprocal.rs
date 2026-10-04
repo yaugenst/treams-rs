@@ -45,7 +45,15 @@ fn polynomial_sw2d<const N: usize>(
     azimuth: Jet<N>,
 ) -> Jet<N> {
     let mut sum = Jet::default();
-    for s in n..=(l - m.abs()).min(2 * n) {
+    // On the lattice plane only the constant and, for jets, linear powers of z
+    // survive. In particular the linear term must stay: a vanishing sum may have a
+    // nonzero derivative normal to the plane.
+    let first = if z.value == Complex::default() {
+        n.max(2 * n - i32::from(N > 0))
+    } else {
+        n
+    };
+    for s in first..=(l - m.abs()).min(2 * n) {
         if (l - m.abs() - s) % 2 != 0 {
             continue;
         }
@@ -204,13 +212,37 @@ impl Compensated {
     }
 }
 
-/// The wavevector `q` of one diffraction order of a reciprocal summand, `kpar + G`.
+/// The wavevector `q = kpar + G` of one reciprocal summand and its shared arguments.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Diffraction<const N: usize> {
-    pub(super) q: [Jet<N>; 3],
-    /// Whether `q` carries no rounding: the zeroth order of an unreduced Bloch vector,
-    /// which takes [`compensated_threshold_distance`].
-    pub(super) exact: bool,
+    q: [Jet<N>; 3],
+    beta2: Jet<N>,
+    value: Jet<N>,
+}
+
+impl<const N: usize> Diffraction<N> {
+    /// Prepare the arguments once per diffraction point. `exact` marks the zeroth
+    /// order of an unreduced Bloch vector, which takes compensated threshold distance.
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
+    pub(super) fn new(q: [Jet<N>; 3], exact: bool, k: Jet<N>, eta: Complex) -> Result<Self> {
+        let beta2 = q.into_iter().map(|q| q * q).sum::<Jet<N>>() / (k * k);
+        let mut value = (beta2 - 1.0) / (2.0 * eta * eta);
+        let distance = beta2.value - 1.0;
+        if exact && distance.re.abs().max(distance.im.abs()) < NEAR_THRESHOLD {
+            value.value = compensated_threshold_distance(q.map(|q| q.value), k.value)
+                / (k.value * k.value)
+                / (2.0 * eta * eta);
+        }
+        value.value = lower_side(value.value);
+        if value.value.norm() <= THRESHOLD_DISTANCE {
+            return Err(Error::InvalidInput(
+                "lattice sum is at a diffraction threshold; supply a limiting complex wavenumber"
+                    .into(),
+            ));
+        }
+        Ok(Self { q, beta2, value })
+    }
 }
 
 /// One reciprocal summand `T(q)` of the sum, without the Bloch phase `exp(-i q . r)`
@@ -223,28 +255,14 @@ pub(super) fn reciprocal_term<const N: usize>(
     wave: Family,
     dim: usize,
     k: Jet<N>,
-    Diffraction { q, exact }: Diffraction<N>,
+    Diffraction { q, beta2, value }: Diffraction<N>,
     r: [Jet<N>; 3],
     eta: Complex,
     split: &Split,
     measure: Jet<N>,
     bound: &mut Rounding<N>,
+    plane_integrals: Option<&mut Vec<Option<Complex>>>,
 ) -> Result<Jet<N>> {
-    let beta2 = q.into_iter().map(|q| q * q).sum::<Jet<N>>() / (k * k);
-    let mut value = (beta2 - 1.0) / (2.0 * eta * eta);
-    let distance = beta2.value - 1.0;
-    if exact && distance.re.abs().max(distance.im.abs()) < NEAR_THRESHOLD {
-        value.value = compensated_threshold_distance(q.map(|q| q.value), k.value)
-            / (k.value * k.value)
-            / (2.0 * eta * eta);
-    }
-    value.value = lower_side(value.value);
-    if value.value.norm() <= THRESHOLD_DISTANCE {
-        return Err(Error::InvalidInput(
-            "lattice sum is at a diffraction threshold; supply a limiting complex wavenumber"
-                .into(),
-        ));
-    }
     let i = Complex::i();
     // The five summands share this one match: the term loop of every sum inlines
     // this function, and in separate functions the summands make the forward 3D sums
@@ -290,9 +308,21 @@ pub(super) fn reciprocal_term<const N: usize>(
                 split_sheet(split, q2)
             });
             let mut reduced = Reduced::new(value, (z * eta).powi(2), sheet);
-            let sum = half_integer_orders(&mut reduced, split, (factor, eta), l - m.abs(), |n| {
-                polynomial_sw2d(l, m, n, z, beta2, azimuth)
-            });
+            // Higher orders contain only powers z^2 and above on the plane, or z
+            // and above when no derivatives are requested.
+            let orders = if z.value == Complex::default() {
+                (l - m.abs()).midpoint(i32::from(N > 0))
+            } else {
+                l - m.abs()
+            };
+            let sum = half_integer_orders(
+                &mut reduced,
+                split,
+                (factor, eta),
+                orders,
+                |n| polynomial_sw2d(l, m, n, z, beta2, azimuth),
+                plane_integrals,
+            );
             f64::from(2 * l + 1).sqrt()
                 * (-i).powi(m)
                 * log_factorial(l + m).midpoint(log_factorial(l - m)).exp()
@@ -369,9 +399,14 @@ pub(super) fn reciprocal_term<const N: usize>(
                 ));
             }
             let mut reduced = Reduced::new(value, (y * eta).powi(2), sheet);
-            let sum = half_integer_orders(&mut reduced, split, (factor, eta), m.abs(), |n| {
-                polynomial_cw1d(m.abs(), n, y, beta)
-            });
+            let sum = half_integer_orders(
+                &mut reduced,
+                split,
+                (factor, eta),
+                m.abs(),
+                |n| polynomial_cw1d(m.abs(), n, y, beta),
+                None,
+            );
             2.0 * (-i).powi(m) / (PI.sqrt() * measure * k) * sum
         }
         _ => return Err(Error::InvalidInput("invalid lattice dimension".into())),
@@ -389,8 +424,9 @@ fn half_integer_orders<const N: usize>(
     (factor, eta): (Complex, Complex),
     orders: i32,
     polynomial: impl Fn(i32) -> Jet<N>,
+    mut plane_integrals: Option<&mut Vec<Option<Complex>>>,
 ) -> Jet<N> {
-    let sum = |reduced: &mut Reduced<N>| {
+    let mut sum = |reduced: &mut Reduced<N>| {
         let (mut sum, mut factor) = (Jet::default(), factor);
         for n in 0..=orders {
             let polynomial = polynomial(n);
@@ -398,7 +434,11 @@ fn half_integer_orders<const N: usize>(
                 if split.small {
                     reduced.weigh(1 - 2 * n, factor * polynomial.value);
                 }
-                sum += factor * reduced.get(1 - 2 * n).0 * polynomial;
+                let integral = match plane_integrals.as_deref_mut() {
+                    Some(cached) => reduced.get_plane_cached(1 - 2 * n, cached),
+                    None => reduced.get(1 - 2 * n).0,
+                };
+                sum += factor * integral * polynomial;
             }
             factor *= 2.0 * eta * eta;
         }
@@ -453,5 +493,64 @@ pub(super) fn self_term<const N: usize>(
                 - Complex::new(0.0, TAU * turns) * parity * (-log_factorial(n)).exp();
             Complex::i() / PI * sign * (0.5 * k * xy).powi(n) * gamma
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::polynomial_sw2d;
+    use crate::{Complex, numerics::Jet, special::log_factorial};
+
+    /// The unrestricted polynomial, including all powers that vanish on the plane,
+    /// is the reference for the shorter evaluation and its normal derivative.
+    fn full_polynomial<const N: usize>(
+        l: i32,
+        m: i32,
+        n: i32,
+        z: Jet<N>,
+        beta2: Jet<N>,
+        azimuth: Jet<N>,
+    ) -> Jet<N> {
+        let mut sum = Jet::default();
+        for s in n..=(l - m.abs()).min(2 * n) {
+            if (l - m.abs() - s) % 2 != 0 {
+                continue;
+            }
+            sum += (-z).powi(2 * n - s)
+                * beta2.powi((l - s - m.abs()) / 2)
+                * (-log_factorial(2 * n - s)
+                    - log_factorial(s - n)
+                    - log_factorial((l + m.abs() - s) / 2)
+                    - log_factorial((l - m.abs() - s) / 2))
+                .exp();
+        }
+        sum * azimuth.powi(m.abs())
+    }
+
+    fn check_polynomials<const N: usize>() {
+        for z in [0.0, 1e-20, -1e-20, 0.3] {
+            let z = Jet::<N>::variable(z, 0);
+            let beta2 = Jet::variable(Complex::new(0.73, 0.19), 1);
+            let azimuth = Jet::variable(Complex::new(-0.41, 0.24), 2);
+            for l in 0_i32..=12 {
+                for m in -l..=l {
+                    for n in 0..=l - m.abs() {
+                        let value = polynomial_sw2d(l, m, n, z, beta2, azimuth);
+                        let reference = full_polynomial(l, m, n, z, beta2, azimuth);
+                        assert_eq!(value.value, reference.value, "l={l}, m={m}, n={n}");
+                        assert_eq!(
+                            value.derivative, reference.derivative,
+                            "l={l}, m={m}, n={n}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn planar_polynomials_keep_the_full_values_and_gradients() {
+        check_polynomials::<0>();
+        check_polynomials::<3>();
     }
 }

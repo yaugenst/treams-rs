@@ -207,7 +207,9 @@ impl IlluminateResidual {
         let AdjointSolve {
             adjoint: rhs,
             value: internal_up,
-        } = self.solve.solve_adjoint(up)?;
+        } = self
+            .solve
+            .solve_adjoint(self.lower[1].view(), self.upper[2].view(), up)?;
         let direct = down + product_views(self.lower[1].view().adjoint(), view(&rhs));
         let incoming = [
             product_views(self.lower[2].view().adjoint(), view(&cotangent[1]))

@@ -98,6 +98,35 @@ proptest! {
     }
 
     #[test]
+    fn real_spherical_hankel_sequence_flux_and_wronskian(
+        l in 0_u32..=63,
+        x in log_uniform(0.5_f64.log10()..4.0),
+    ) {
+        let z = Complex::new(x, 0.0);
+        let h = spherical_radial_sequence(l, z, Radial::Singular).unwrap()[l as usize];
+        // Above the turning point the outgoing flux is well-conditioned using H
+        // alone. This also avoids the phase error in AMOS's separate J orders at
+        // large x (its J' is off by 3.7e-13 at l=40, x=856.495946507376).
+        if x > f64::from(l + 1) {
+            prop_assert_close!(
+                Complex::new((h.value.conj() * h.first).im, 0.0),
+                Complex::new(x.recip().powi(2), 0.0),
+                1e-13 * x.recip().powi(2)
+            );
+        } else {
+            // Below the turning point H alone loses its tiny regular component;
+            // independently evaluated J gives a well-conditioned Wronskian.
+            let j = spherical_radial(l, z, Radial::Regular).unwrap();
+            let scale = (j.value * h.first).norm() + (j.first * h.value).norm();
+            prop_assert_close!(
+                j.value * h.first - j.first * h.value,
+                Complex::i() / (x * x),
+                1e-13 * scale
+            );
+        }
+    }
+
+    #[test]
     fn spherical_bessel_parity_on_the_negative_real_axis(
         l in 0_u32..=30,
         x in log_uniform(-3.0..1.5),
@@ -400,6 +429,42 @@ fn check_spherical_series_and_wronskian(l: u32, z: Complex) -> Result<(), TestCa
         1e-13 * scale
     );
     Ok(())
+}
+
+/// Differentiate the positive-real recurrence in both complex directions. The
+/// imaginary perturbation crosses to AMOS, also checking agreement of the analytic
+/// derivatives at that dispatch boundary.
+#[test]
+fn real_spherical_hankel_sequence_argument_derivatives() {
+    for l in [0, 1, 2, 8, 32, 63] {
+        for x in [0.5_f64, 1.0, 17.0, 64.0, 1e4] {
+            let z = Complex::new(x, 0.0);
+            let evaluate = |argument| {
+                spherical_radial_sequence(l, argument, Radial::Singular).unwrap()[l as usize]
+            };
+            let jet = evaluate(z);
+            let step = 2e-5 * (x / f64::from(l + 1)).min(1.0);
+            for direction in [Complex::new(1.0, 0.0), Complex::i()] {
+                let upper = evaluate(z + step * direction);
+                let lower = evaluate(z - step * direction);
+                for (actual, expected) in [
+                    (
+                        (upper.value - lower.value) / (2.0 * step),
+                        direction * jet.first,
+                    ),
+                    (
+                        (upper.first - lower.first) / (2.0 * step),
+                        direction * jet.second,
+                    ),
+                ] {
+                    assert!(
+                        (actual - expected).norm() <= 2e-6 * expected.norm(),
+                        "l={l}, x={x}, direction={direction}: {actual} != {expected}"
+                    );
+                }
+            }
+        }
+    }
 }
 
 /// The spherical Bessel functions are single-valued, with `j_l(-z) = (-1)^l j_l(z)`,

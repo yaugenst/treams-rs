@@ -44,6 +44,25 @@ def test_memory_limit_applies_only_to_large_growth():
     assert not compare.memory_verdict(100.0, 106.0)
 
 
+def test_cold_first_call_does_not_shorten_timed_batches(monkeypatch):
+    clock = [0.0]
+    readings = []
+
+    def function():
+        clock[0] += 8.0 if clock[0] == 0 else 0.125
+
+    def counter():
+        readings.append(clock[0])
+        return clock[0]
+
+    monkeypatch.setattr(compare.time, "perf_counter", counter)
+    assert compare.time_call(function, min_sample=1.0, samples=2) == 0.125
+    durations = [
+        stop - start for start, stop in zip(readings[::2], readings[1::2], strict=True)
+    ]
+    assert durations[-2:] == [1.0, 1.0]
+
+
 def test_values_flatten_tuples_arrays_and_scalars():
     result = (np.array([[1, 2j]]), 3.0, (4 + 1j,))
     assert compare.values(result) == [1, 2j, 3, 4 + 1j]
@@ -76,6 +95,9 @@ def test_summary_uses_paired_ratios_and_fails_on_disagreement():
     calls = compare.summarize(rounds, ["a", "b"], 1e-12)
     assert calls["a"]["ratio"] == 1.0
     assert calls["a"]["ratio_range"] == [1.0, 1.2]
+    assert calls["a"]["baseline_round_seconds"] == [1.0, 2.0, 1.0]
+    assert calls["a"]["candidate_round_seconds"] == [1.2, 2.0, 1.0]
+    assert calls["a"]["paired_ratios"] == [1.2, 1.0, 1.0]
     assert calls["a"]["passed"]
     assert not calls["b"]["agrees"]
     assert not calls["b"]["passed"]
@@ -102,7 +124,7 @@ def test_every_call_name_is_unique_and_framework_calls_are_marked():
             assert compare.FRAMEWORK[name] == framework
 
 
-def test_worker_failure_reaps_both_processes(monkeypatch):
+def test_worker_failure_reaps_process_before_starting_another(monkeypatch):
     workers = []
     original = compare.Worker
 
@@ -120,8 +142,37 @@ def test_worker_failure_reaps_both_processes(monkeypatch):
             arguments,
             0,
         )
-    assert len(workers) == 2
+    assert len(workers) == 1
     assert all(worker.process.poll() is not None for worker in workers)
+
+
+def test_comparison_workers_never_overlap_and_keep_paired_order(monkeypatch):
+    events = []
+    live = []
+
+    class Worker:
+        def __init__(self, tree, _arguments):
+            assert not live
+            self.tree = tree
+            live.append(self)
+
+        def measure(self, name, record):
+            events.append((self.tree, name, record))
+            return {"seconds": 1.0}
+
+        def close(self):
+            live.remove(self)
+
+    monkeypatch.setattr(compare, "Worker", Worker)
+    trees = {"baseline": "old", "candidate": "new"}
+    compare.run_round(trees, ["a", "b"], argparse.Namespace(), 0)
+    assert events == [
+        ("old", "a", True),
+        ("new", "a", True),
+        ("new", "b", True),
+        ("old", "b", True),
+    ]
+    assert not live
 
 
 def test_worker_keeps_library_prints_out_of_its_protocol(monkeypatch, capsys):

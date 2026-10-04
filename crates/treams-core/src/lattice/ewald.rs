@@ -5,7 +5,7 @@
 //! spectral series of 1D spherical sums are treams-rs extensions.
 
 use std::{
-    cell::{Cell, OnceCell},
+    cell::{Cell, OnceCell, RefCell},
     f64::consts::PI,
 };
 
@@ -18,7 +18,7 @@ use super::{
     cell::{BlochLattice, Reduction},
     evaluate,
     inputs::{Evaluation, Inputs},
-    real::{RealKambe, real_term},
+    real::{RealKambe, real_term, spherical_from_radial, spherical_radial},
     reciprocal::{Diffraction, reciprocal_term, self_term},
     sheets::Split,
     shells::{
@@ -42,6 +42,7 @@ pub(super) fn ewald<const N: usize>(
     mut inputs: Inputs<N>,
     eta: Complex,
     evaluation: Evaluation,
+    shared: Option<&SphericalCache<N>>,
 ) -> Result<Jet<N>> {
     let CellReduction {
         phase,
@@ -106,6 +107,8 @@ pub(super) fn ewald<const N: usize>(
         eta,
         evaluation,
         monitor: &monitor,
+        shared: if small { None } else { shared },
+        index: Cell::new(0),
     };
     let real_summand = |n, bounds: &mut Rounding<N>| real_summands.at(n, bounds);
     let real_part = || {
@@ -183,6 +186,12 @@ pub(super) fn ewald<const N: usize>(
         kpar_reduced: reduced,
         eta,
         split: &split,
+        shared: if !small && dim == 2 && inputs.r[2].value == Complex::default() {
+            shared
+        } else {
+            None
+        },
+        index: Cell::new(0),
     };
     let mut reciprocal_summand =
         |n: [i64; 3], _: &mut Rounding<N>| reciprocal_summands.at(n, &mut rounding);
@@ -249,6 +258,70 @@ pub(super) fn ewald<const N: usize>(
     verify_settled(result?, predicted.value, automatic_split)
 }
 
+/// Ewald samples of one spherical degree, shared by its orders. Each order still
+/// follows its own shell convergence test; the shell iterator visits the same prefix
+/// of lattice points, so later orders reuse the samples already visited and append
+/// only the farther points they need. The cache lives for one degree evaluation.
+#[derive(Default)]
+pub(super) struct SphericalCache<const N: usize> {
+    samples: RefCell<Vec<SphericalRealSample<N>>>,
+    plane_samples: RefCell<Vec<SphericalReciprocalSample<N>>>,
+}
+
+/// A bounded prefix covers ordinary Ewald sums without retaining a large 3D cube
+/// at the shell limit: at most 1.4 MiB per degree for the largest (16-slot) jets.
+/// Farther samples stream through the scalar arithmetic instead.
+const SHARED_REAL_POINTS: usize = 1024;
+
+#[cfg(test)]
+mod cache_tests {
+    use super::{SHARED_REAL_POINTS, SphericalCache};
+    use crate::{
+        Complex,
+        lattice::{BlochLattice, Family, SumPart, evaluate_shared, inputs::Evaluation},
+    };
+
+    #[test]
+    fn spherical_sample_cache_keeps_only_a_bounded_prefix() {
+        let lattice = BlochLattice::new(
+            &[
+                vec![2.0, 0.2, 0.2],
+                vec![0.2, 2.0, 0.2],
+                vec![0.2, 0.2, 2.0],
+            ],
+            &[0.13; 3],
+        )
+        .unwrap();
+        let cache = SphericalCache::default();
+        for m in [-2, 0, 2] {
+            evaluate_shared::<16>(
+                Family::Spherical { l: 2, m },
+                Complex::new(1.2, 0.08),
+                &lattice,
+                [0.3, -0.2, 0.4],
+                Complex::new(0.4, 0.0),
+                Evaluation::Part(SumPart::Full),
+                Some(&cache),
+            )
+            .unwrap();
+            assert_eq!(cache.samples.borrow().len(), SHARED_REAL_POINTS);
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct SphericalRealSample<const N: usize> {
+    shift: [Jet<N>; 3],
+    radial: Jet<N>,
+    phase: Jet<N>,
+}
+
+struct SphericalReciprocalSample<const N: usize> {
+    diffraction: Diffraction<N>,
+    phase: Jet<N>,
+    integrals: Vec<Option<Complex>>,
+}
+
 /// What the real-space terms of one sum read.
 struct RealSummands<'a, const N: usize> {
     wave: Family,
@@ -258,6 +331,8 @@ struct RealSummands<'a, const N: usize> {
     eta: Complex,
     evaluation: Evaluation,
     monitor: &'a SmallSplitMonitor<'a, N>,
+    shared: Option<&'a SphericalCache<N>>,
+    index: Cell<usize>,
 }
 
 impl<const N: usize> RealSummands<'_, N> {
@@ -267,14 +342,17 @@ impl<const N: usize> RealSummands<'_, N> {
     #[allow(clippy::inline_always)]
     #[inline(always)]
     fn at(&self, n: [i64; 3], bounds: &mut Rounding<N>) -> Result<Jet<N>> {
-        let Self {
-            wave,
-            inputs,
-            direct,
-            eta,
-            evaluation,
-            monitor,
-        } = *self;
+        let (wave, inputs, direct, eta, evaluation, monitor) = (
+            self.wave,
+            self.inputs,
+            self.direct,
+            self.eta,
+            self.evaluation,
+            self.monitor,
+        );
+        if let (Some(shared), Family::Spherical { l, m }) = (self.shared, wave) {
+            return Ok(self.spherical_at(shared, l, m, n));
+        }
         let point = inputs.point(direct, n);
         let shift = inputs.image(&point);
         if shift.iter().all(|r| r.value == Complex::default()) {
@@ -309,6 +387,38 @@ impl<const N: usize> RealSummands<'_, N> {
         monitor.add_to_running(&term, bound)?;
         Ok(term)
     }
+
+    /// The ordinary spherical term, preserving its operation order while sharing its
+    /// geometry, Bloch phase and Kambe integral with the other orders of this degree.
+    fn spherical_at(&self, shared: &SphericalCache<N>, l: i32, m: i32, n: [i64; 3]) -> Jet<N> {
+        let index = self.index.replace(self.index.get() + 1);
+        let mut samples = shared.samples.borrow_mut();
+        let sample = if let Some(&sample) = samples.get(index) {
+            sample
+        } else {
+            let point = self.inputs.point(self.direct, n);
+            let shift = self.inputs.image(&point);
+            let radial = if shift.iter().all(|r| r.value == Complex::default()) {
+                Jet::default()
+            } else {
+                spherical_radial(l, self.inputs.k, shift, self.eta)
+            };
+            let sample = SphericalRealSample {
+                shift,
+                radial,
+                phase: (Complex::i() * self.inputs.phase(&point)).exp(),
+            };
+            if index < SHARED_REAL_POINTS {
+                samples.push(sample);
+            }
+            sample
+        };
+        if sample.shift.iter().all(|r| r.value == Complex::default()) {
+            return Jet::default();
+        }
+        probes::count_real_term();
+        spherical_from_radial(l, m, self.inputs.k, sample.shift, sample.radial) * sample.phase
+    }
 }
 
 /// What the reciprocal-space terms of one sum read.
@@ -323,6 +433,8 @@ struct ReciprocalSummands<'a, const N: usize> {
     kpar_reduced: bool,
     eta: Complex,
     split: &'a Split,
+    shared: Option<&'a SphericalCache<N>>,
+    index: Cell<usize>,
 }
 
 impl<const N: usize> ReciprocalSummands<'_, N> {
@@ -332,15 +444,35 @@ impl<const N: usize> ReciprocalSummands<'_, N> {
     #[allow(clippy::inline_always)]
     #[inline(always)]
     fn at(&self, n: [i64; 3], rounding: &mut Rounding<N>) -> Result<Jet<N>> {
-        let Self {
-            wave,
-            inputs,
-            rows,
-            kpar,
-            kpar_reduced,
-            eta,
-            split,
-        } = *self;
+        if let (Some(shared), Family::Spherical { l, .. }) = (self.shared, self.wave) {
+            let index = self.index.replace(self.index.get() + 1);
+            // Bound the gamma table by 1024 scalar slots per degree, regardless of
+            // multipole order, and the geometry by at most 512 samples. Farther
+            // reciprocal points use ordinary evaluation.
+            let maximum = 1024 / (usize::try_from(l).unwrap_or_default() + 2);
+            if index < maximum {
+                let mut samples = shared.plane_samples.borrow_mut();
+                if index == samples.len() {
+                    samples.push(self.prepare(n)?);
+                }
+                let sample = &mut samples[index];
+                return self.term(
+                    sample.diffraction,
+                    sample.phase,
+                    rounding,
+                    Some(&mut sample.integrals),
+                );
+            }
+        }
+        let sample = self.prepare(n)?;
+        self.term(sample.diffraction, sample.phase, rounding, None)
+    }
+
+    /// Geometry, threshold argument and Bloch phase shared by all spherical orders.
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
+    fn prepare(&self, n: [i64; 3]) -> Result<SphericalReciprocalSample<N>> {
+        let (inputs, rows, kpar) = (self.inputs, self.rows, self.kpar);
         let dim = inputs.dim;
         let vector = inputs.point(rows, n);
         let mut q = [Jet::default(); 3];
@@ -353,20 +485,39 @@ impl<const N: usize> ReciprocalSummands<'_, N> {
                 .map(|(q, r)| q * r)
                 .sum::<Jet<N>>())
         .exp();
+        Ok(SphericalReciprocalSample {
+            diffraction: Diffraction::new(
+                q,
+                !self.kpar_reduced && n == [0; 3],
+                inputs.k,
+                self.eta,
+            )?,
+            phase,
+            integrals: Vec::new(),
+        })
+    }
+
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
+    fn term(
+        &self,
+        diffraction: Diffraction<N>,
+        phase: Jet<N>,
+        rounding: &mut Rounding<N>,
+        plane_integrals: Option<&mut Vec<Option<Complex>>>,
+    ) -> Result<Jet<N>> {
         let mut bound = Rounding::default();
         let term = reciprocal_term(
-            wave,
-            dim,
-            inputs.k,
-            Diffraction {
-                q,
-                exact: !kpar_reduced && n == [0; 3],
-            },
-            inputs.r,
-            eta,
-            split,
-            inputs.measure,
+            self.wave,
+            self.inputs.dim,
+            self.inputs.k,
+            diffraction,
+            self.inputs.r,
+            self.eta,
+            self.split,
+            self.inputs.measure,
             &mut bound,
+            plane_integrals,
         )?;
         *rounding += bound.times(&phase);
         Ok(term * phase)

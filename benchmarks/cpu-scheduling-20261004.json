@@ -1,0 +1,385 @@
+{
+  "schema_version": 1,
+  "kind": "CPU scheduling qualification with separate original-release and intermediate comparators",
+  "recorded_at": "2026-10-04T01:30:51.230772+00:00",
+  "source": {
+    "baseline_tag": "v0.1.0",
+    "baseline_commit": "8bbcb87aaeaccd9293fc8c09eecb8727c37c4970",
+    "candidate": "Selected work-cap-inline build, including preceding CPU work and sw/plan allocation pruning",
+    "native": {
+      "native_sha256": "41748dd504e744b58c14842390c6aa5015591328c3bfe7f3de5e5f4998a3c6dd",
+      "python_sha256": "30fd7211c0a0a68b76e6741db630004a68bbefa914df1530ca432f217f6891f3"
+    },
+    "benchmark_sha256": "925aeb12247fc09ae0d7d14e3b9fee26f601b4273e10ce2b5696c321b7c38361",
+    "source_identity": "benchmarks/results/cpu-scheduling-20261004/selected-source.json",
+    "source_snapshot_provenance": "Selected source reconstructed from immediately subsequent large-budget-cap source snapshot by reverting its temporary <=4-worker exception; the rejected exception had changed only threads.rs. Other native sources were unchanged between those builds. Later comment edits in smatrix/solve.rs and special/bessel.rs are outside these as-run hashes.",
+    "reconstruction": {
+      "kind": "Publication-time source reconstruction, not a contemporaneous build snapshot",
+      "base_commit": "8bbcb87aaeaccd9293fc8c09eecb8727c37c4970",
+      "patch": "selected-reconstructed.patch",
+      "patch_sha256": "2a9f94e885a2e7720dd1e76066126fefc38b470197200a629bdd066538698bbd",
+      "basis": "Selected source reconstructed from immediately subsequent large-budget-cap source snapshot by reverting its temporary <=4-worker exception; the rejected exception had changed only threads.rs. Other native sources were unchanged between those builds. Later comment edits in smatrix/solve.rs and special/bessel.rs are outside these as-run hashes.",
+      "scope": "Native and Python source inventory plus two supporting build inputs; not the whole as-run documentation/test tree.",
+      "verified_source_files": 180,
+      "all_selected_source_hashes_match": true,
+      "patch_replayed_from_base_and_all_payloads_verified": true,
+      "additional_build_inputs_sha256": {
+        "pyproject.toml": "bcdf11a7de6d8c3f62b9e33841ce5e8f1a0e71f661d66b7c5ec0259b874f0864",
+        "crates/treams-core/references/spherical_hankel.txt": "65e7dc057f1e94df249c59633587425454bd04e4f12c4aa2ba8efd9e32c8c04c"
+      },
+      "additional_input_provenance": "Current supporting manifest and reference table captured for replay after timing; not present in the original source hash inventory.",
+      "measured_harness": "compare_builds-as-run.py",
+      "measured_harness_sha256": "925aeb12247fc09ae0d7d14e3b9fee26f601b4273e10ce2b5696c321b7c38361"
+    }
+  },
+  "policy": "Keep original serial condition (work<65536 or either output dimension equals one); otherwise cap current_num_threads() to floor(m*n*k/65536). No special case for small budgets.",
+  "environment": {
+    "cpu": "AMD Ryzen 9 9950X, 16 physical cores / 32 logical CPUs",
+    "platform": "Linux",
+    "precision": "complex128/f64",
+    "profile": "release"
+  },
+  "measurement": {
+    "processes": "Fresh sequential per-case workers, alternating tree order; input preparation excluded",
+    "32_threads": {
+      "cpu_affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ],
+      "rounds": 7,
+      "samples": 3,
+      "minimum_sample_seconds": 0.08
+    },
+    "4_thread_controls": {
+      "cpu_affinity": [
+        8,
+        9,
+        10,
+        11
+      ],
+      "rounds": 7,
+      "samples": 3,
+      "minimum_sample_seconds": 0.12
+    },
+    "ratio": "Median paired candidate/baseline time; smaller is faster"
+  },
+  "final_qualification": {
+    "final-inline-vs-v010-32threads.json": {
+      "threads": 32,
+      "rounds": 7,
+      "passed": 12,
+      "total": 12,
+      "all_numerical_checks_pass": true,
+      "cases": {
+        "cluster-solve-n2": {
+          "baseline_seconds": 0.00024744069115799886,
+          "candidate_seconds": 0.00024875647545880724,
+          "ratio": 1.015255999371142,
+          "ratio_range": [
+            0.9833796046711889,
+            1.1149993669802698
+          ],
+          "relative_difference": 3.5923628801921666e-18,
+          "passed": true
+        },
+        "cluster-solve-n4": {
+          "baseline_seconds": 0.006853942582286739,
+          "candidate_seconds": 0.0007003950336145848,
+          "ratio": 0.10002410467253292,
+          "ratio_range": [
+            0.08959674690629078,
+            0.13737706372329328
+          ],
+          "relative_difference": 2.837505700044596e-18,
+          "passed": true
+        },
+        "cluster-solve-n16": {
+          "baseline_seconds": 0.03609016933478415,
+          "candidate_seconds": 0.01408232816417391,
+          "ratio": 0.385654346497523,
+          "ratio_range": [
+            0.3044503834028599,
+            0.5551292258149094
+          ],
+          "relative_difference": 2.029141193795612e-17,
+          "passed": true
+        },
+        "stack-power-h2": {
+          "baseline_seconds": 1.771530181629809e-05,
+          "candidate_seconds": 1.759311123328334e-05,
+          "ratio": 0.9931025401496498,
+          "ratio_range": [
+            0.9838098020683432,
+            1.002602130889855
+          ],
+          "relative_difference": 0.0,
+          "passed": true
+        },
+        "stack-power-h16": {
+          "baseline_seconds": 5.392217103184925e-05,
+          "candidate_seconds": 5.412429466903893e-05,
+          "ratio": 1.0054856758845159,
+          "ratio_range": [
+            0.9965564754554201,
+            1.042476970486497
+          ],
+          "relative_difference": 0.0,
+          "passed": true
+        },
+        "stack-power-h64": {
+          "baseline_seconds": 0.01737596219754778,
+          "candidate_seconds": 0.0011428696055024285,
+          "ratio": 0.06514805568420318,
+          "ratio_range": [
+            0.05341448974850061,
+            0.0799015393403124
+          ],
+          "relative_difference": 0.0,
+          "passed": true
+        },
+        "stack-power-h256": {
+          "baseline_seconds": 0.039134362334152684,
+          "candidate_seconds": 0.03769869799725711,
+          "ratio": 1.008542580166332,
+          "ratio_range": [
+            0.9234061547565328,
+            1.0678121521079795
+          ],
+          "relative_difference": 0.0,
+          "passed": true
+        },
+        "periodic-to-smatrix-l3": {
+          "baseline_seconds": 0.0005053581925895737,
+          "candidate_seconds": 0.0005163909423012788,
+          "ratio": 1.012232664598379,
+          "ratio_range": [
+            0.951180141154378,
+            1.045447742579913
+          ],
+          "relative_difference": 0.0,
+          "passed": true
+        },
+        "periodic-array-n4-l6-size1-forward": {
+          "baseline_seconds": 0.024849457004165743,
+          "candidate_seconds": 0.016987066203728318,
+          "ratio": 0.6835990903495646,
+          "ratio_range": [
+            0.6451810589742374,
+            0.7334221434944729
+          ],
+          "relative_difference": 0.0,
+          "passed": true
+        },
+        "periodic-array-n4-l6-size1-gradient": {
+          "baseline_seconds": 0.09405616801814176,
+          "candidate_seconds": 0.04857009899569675,
+          "ratio": 0.5284862771809681,
+          "ratio_range": [
+            0.48561163767229953,
+            0.561383759991417
+          ],
+          "relative_difference": 0.0,
+          "passed": true
+        },
+        "slab-internal-h1024-forward": {
+          "baseline_seconds": 0.026163070993789006,
+          "candidate_seconds": 0.015743844662210904,
+          "ratio": 0.6134003744203673,
+          "ratio_range": [
+            0.5856336770994789,
+            0.6538653205847225
+          ],
+          "relative_difference": 5.23888172480196e-16,
+          "passed": true
+        },
+        "slab-internal-h1024-gradient": {
+          "baseline_seconds": 0.05573627050034702,
+          "candidate_seconds": 0.0470255139953224,
+          "ratio": 0.8499963541687746,
+          "ratio_range": [
+            0.8071027684033916,
+            0.8712043927654249
+          ],
+          "relative_difference": 6.208974605607069e-16,
+          "passed": true
+        }
+      }
+    },
+    "final-inline-vs-v010-4threads.json": {
+      "threads": 4,
+      "rounds": 7,
+      "passed": 2,
+      "total": 2,
+      "all_numerical_checks_pass": true,
+      "cases": {
+        "cluster-solve-n16": {
+          "baseline_seconds": 0.007248230412027196,
+          "candidate_seconds": 0.007313837470171754,
+          "ratio": 1.019691692031465,
+          "ratio_range": [
+            0.9662910362558066,
+            1.0423932627251604
+          ],
+          "relative_difference": 2.029141193795612e-17,
+          "passed": true
+        },
+        "stack-power-h64": {
+          "baseline_seconds": 0.000753238123488026,
+          "candidate_seconds": 0.0007645552334846917,
+          "ratio": 1.0168259548365512,
+          "ratio_range": [
+            0.9907162802544719,
+            1.0248743313216195
+          ],
+          "relative_difference": 0.0,
+          "passed": true
+        }
+      }
+    },
+    "final-inline-main-targets-4threads.json": {
+      "threads": 4,
+      "rounds": 3,
+      "passed": 2,
+      "total": 2,
+      "all_numerical_checks_pass": true,
+      "cases": {
+        "iterative-n512-l1-p8-forward": {
+          "baseline_seconds": 1.251690242002951,
+          "candidate_seconds": 0.10255861899349838,
+          "ratio": 0.08190065293601298,
+          "ratio_range": [
+            0.08151916971404598,
+            0.08193610172224751
+          ],
+          "relative_difference": 2.3666202197232716e-16,
+          "passed": true
+        },
+        "iterative-n512-l1-p8-gradient": {
+          "baseline_seconds": 2.5634277059871238,
+          "candidate_seconds": 0.23512260999996215,
+          "ratio": 0.09172195863016204,
+          "ratio_range": [
+            0.09130473057224998,
+            0.09264186260279754
+          ],
+          "relative_difference": 6.2096006834205846e-18,
+          "passed": true
+        }
+      }
+    }
+  },
+  "bitwise_qualification": {
+    "file": "final-inline-bits.json",
+    "cases": 6,
+    "budgets": [
+      1,
+      4,
+      16,
+      32
+    ],
+    "all_same_bits": true,
+    "scope": "Complete forwards/pullbacks in six representative final-build workflows; BLAS1, native budget varies."
+  },
+  "exploratory_shapes": {
+    "files": [
+      "shapes-stage6.json",
+      "shapes-work-cap.json"
+    ],
+    "cases": 14,
+    "budgets": [
+      1,
+      4,
+      16,
+      32
+    ],
+    "scope": "Stacks32-512, illumination64-768 with4or32RHS and two pullbacks. First candidate variant, identical worker-count policy but without the original early serial shortcut. All within-build and between-build output hashes agree exactly. Single sweep timing is diagnostic only; direction of budget sweep differs."
+  },
+  "retained_failed_gates": [
+    {
+      "file": "final-vs-stage6-4threads.json",
+      "case": "cluster-solve-n16",
+      "ratio": 1.3287405779150125,
+      "numerical_agreement": true
+    },
+    {
+      "file": "work-cap-4threads-pinned-recheck.json",
+      "case": "cluster-solve-n16",
+      "ratio": 1.3037883703509072,
+      "numerical_agreement": true
+    },
+    {
+      "file": "work-cap-4threads-screen.json",
+      "case": "cluster-solve-n16",
+      "ratio": 1.6557793234642628,
+      "numerical_agreement": true
+    },
+    {
+      "file": "work-cap-4threads-screen.json",
+      "case": "stack-power-h64",
+      "ratio": 1.1138830175945564,
+      "numerical_agreement": true
+    },
+    {
+      "file": "work-cap-inline-4threads-pinned-recheck.json",
+      "case": "cluster-solve-n16",
+      "ratio": 1.2977291895062542,
+      "numerical_agreement": true
+    }
+  ],
+  "interpretation": [
+    "At32threads the chosen build passes all12 comparisons against actual0.1.0; stack64 improves about15x, denseN4 about10x, denseN16 about2.6x. Larger stack256 and small controls pass unchanged regression limits.",
+    "At4threads N16 loses an intermediate stage6 build advantage: final-inline versus stage6 is1.298x, but final-inline versus actual0.1.0 is1.020x and passes the unchanged5percent limit. Stack64 passes its unchanged10percent limit versus actual0.1.0. This intermediate regression remains unresolved and is not hidden.",
+    "Read-only source and normalized-assembly inspection found N16 still performs16 products of30x480x30, each selecting4workers. LU scheduling is unchanged. Normalized instructions matched for LocalMatrix::apply_into, InteractionFactor::factorize, Lu::new and closure, gemm and inner closure, and product_into closures. Code placement or runtime behavior remains possible; no demonstrated algorithmic cause.",
+    "A temporary <=4-worker exception did not resolve the intermediate regression, so that unearned branch was removed. Its build and all raw measurements are retained.",
+    "No memory allocation or pool state added by the scheduling policy. Full Rust/Python CI is owned by the parent task and was not run during these timings. The new unit test still requires that CI pass."
+  ],
+  "limitations": [
+    "One Ryzen9950X Linux host; no macOS, ARM or Windows performance claim.",
+    "Final comparative timings cover4and32threads;1and16thread speed screens were on the initial semantically equivalent scheduling candidate. Final selected build has exact-bit checks at1/4/16/32.",
+    "N512P8 final spotcheck uses3rounds; the preceding CPU study provides the longer7round qualification.",
+    "Headline cluster memory and periodic memory-growth tradeoff remain in the separate preceding CPU evidence record.",
+    "No scheduling memory run; preceding memory exceptions remain applicable evidence limits.",
+    "Selected source snapshot is reconstructed from the immediately following rejected variant, not recorded at selected-build time.",
+    "The full 1300-case benchmark grid was not replayed."
+  ],
+  "preceding_qualification": "benchmarks/cpu-speedups-20261004.json",
+  "evidence_archive": {
+    "path": "benchmarks/results/cpu-scheduling-20261004.tar.gz",
+    "sha256": "0706aa44bc30ba60211e885895b79c1684e8fc18730d4ae1659ee39d79071e58",
+    "bytes": 125112,
+    "files": 50,
+    "manifest": "benchmarks/results/cpu-scheduling-20261004/manifest.json",
+    "extract_from_repository_root": "tar -xzf benchmarks/results/cpu-scheduling-20261004.tar.gz",
+    "privacy_provenance": "benchmarks/privacy-provenance.json"
+  }
+}

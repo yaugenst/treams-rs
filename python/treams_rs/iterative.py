@@ -230,6 +230,10 @@ class SphereCluster:
         GMRES stops when ``||A x - T b|| <= max(atol, rtol ||T b||)`` for each
         column and raises ValueError otherwise.
 
+        Up to eight columns share translation evaluations while keeping independent
+        Krylov bases and convergence checks. This uses up to eight columns' Krylov
+        workspace at once; the interaction matrix is never stored.
+
         Args:
             incident: Incident coefficients, shape (dimension,) or
                 (dimension, P).
