@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["PARALLEL_ENTRIES","PARALLEL_ITEMS","REDUCTION_CHUNKS"],"enum":["Parallel"],"fn":["try_fill_chunks","try_fold_ordered","try_map"]};

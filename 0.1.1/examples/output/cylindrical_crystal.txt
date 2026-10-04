@@ -1,0 +1,7 @@
+Smallest singular value of the lattice interaction matrix
+    k0/(2 pi)        value
+         0.01  1.67314e-05
+       0.2575    0.0111867
+        0.505    0.0424639
+       0.7525    0.0178158
+            1  0.000146804

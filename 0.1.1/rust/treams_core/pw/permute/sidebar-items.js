@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["permutation","permutation_pair","permutation_polarization","permute_xyz"],"struct":["PermutationResidual"]};

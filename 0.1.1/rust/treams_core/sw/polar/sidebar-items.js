@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["PARALLEL","PLANS"],"fn":["polar_translation_array"],"struct":["PolarTranslation","PolarTranslationResidual"]};

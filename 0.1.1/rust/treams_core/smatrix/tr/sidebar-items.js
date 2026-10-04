@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["INVALID_INPUTS","KS","Q","ZS"],"fn":["aggregate","cross","cross_pullback","evaluate","port_waves","tr","tr_value"],"struct":["TrForward","TrGradient","TrPorts","TrResidual"],"type":["PortWaves"]};

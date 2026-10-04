@@ -1,0 +1,102 @@
+/* Material with an ink header, a cerulean accent and a navy dark mode. */
+
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #0e1930;
+  --md-primary-fg-color--light: #1d2b47;
+  --md-primary-fg-color--dark: #08111f;
+  --md-primary-bg-color: #fff;
+  --md-primary-bg-color--light: #ffffffb3;
+  --md-accent-fg-color: #0891b2;
+  --md-accent-fg-color--transparent: #0891b21a;
+  --md-typeset-a-color: #0b6e99;
+  --md-code-bg-color: #f4f6fa;
+  --md-footer-bg-color: #0e1930;
+  --md-footer-bg-color--dark: #08111f;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-hue: 222;
+  --md-primary-fg-color: #0a1426;
+  --md-primary-fg-color--light: #1d2b47;
+  --md-primary-fg-color--dark: #060d1a;
+  --md-primary-bg-color: #e6edf7;
+  --md-primary-bg-color--light: #e6edf7b3;
+  --md-accent-fg-color: #7dd3fc;
+  --md-accent-fg-color--transparent: #7dd3fc1a;
+  --md-typeset-a-color: #2fc6e8;
+  --md-default-bg-color: #0e1930;
+  --md-default-bg-color--light: #0e19308a;
+  --md-default-bg-color--lighter: #0e193042;
+  --md-default-bg-color--lightest: #0e193012;
+  --md-code-bg-color: #16233d;
+  --md-code-bg-color--light: #16233de6;
+  --md-code-bg-color--lighter: #16233d8a;
+  --md-footer-bg-color: #0a1426;
+  --md-footer-bg-color--dark: #060d1a;
+}
+
+/* Headings */
+
+.md-typeset h1 {
+  color: var(--md-default-fg-color);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.md-typeset h2 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.md-typeset h3 {
+  font-weight: 600;
+}
+
+/* Code, tables and cards */
+
+.md-typeset pre > code,
+.md-typeset .tabbed-set {
+  border-radius: 0.4rem;
+}
+
+.md-typeset table:not([class]) {
+  border-radius: 0.4rem;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--md-code-bg-color);
+}
+
+.md-typeset .grid.cards > ul > li {
+  border-radius: 0.5rem;
+}
+
+/* Buttons take the link color, so they also read on the dark header color. */
+
+.md-typeset .md-button {
+  border-radius: 0.4rem;
+  color: var(--md-typeset-a-color);
+  font-size: 0.75rem;
+  padding: 0.5em 1.4em;
+}
+
+.md-typeset .md-button--primary {
+  background-color: var(--md-typeset-a-color);
+  border-color: var(--md-typeset-a-color);
+  color: var(--md-default-bg-color);
+}
+
+.md-typeset .md-button:focus,
+.md-typeset .md-button:hover {
+  background-color: var(--md-accent-fg-color);
+  border-color: var(--md-accent-fg-color);
+  color: var(--md-default-bg-color);
+}
+
+/* Home page */
+
+.md-typeset .lead {
+  color: var(--md-default-fg-color--light);
+  font-size: 1.15em;
+  line-height: 1.5;
+}

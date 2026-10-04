@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["INTERVAL","KS","KZS","Q"],"fn":["chirality_density","chirality_mode","mean_exp","mode_cotangents","mode_forms","oriented_chirality","oriented_chirality_mode"],"struct":["ChiralityDensityGradient","ChiralityDensityResidual","OrientedChiralityGradient","OrientedChiralityResidual"]};

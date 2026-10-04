@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["periodic_entry","periodic_to_cw","periodic_to_cw_matrix"],"struct":["PeriodicToCwGradient","PeriodicToCwResidual"]};

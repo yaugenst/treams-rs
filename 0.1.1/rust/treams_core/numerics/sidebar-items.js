@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["EULER"],"fn":["complex_sqrt","finite","label_bits","parity","ratio"],"mod":["broadcast","jet","memory","parallel"]};
