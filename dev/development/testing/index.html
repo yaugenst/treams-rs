@@ -3943,7 +3943,7 @@ sentences of the form <code>&lt;subject&gt;_&lt;verb&gt;_&lt;claim&gt;</code>, s
 </tbody>
 </table>
 <h3 id="helpers">Helpers<a class="headerlink" href="#helpers" title="Permanent link">&para;</a></h3>
-<p><a href="https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/crates/treams-core/src/test_support.rs"><code>crates/treams-core/src/test_support.rs</code></a>
+<p><a href="https://github.com/yaugenst/treams-rs/blob/1340631c5fe75108443b5c2defccf40e4aaaecde/crates/treams-core/src/test_support.rs"><code>crates/treams-core/src/test_support.rs</code></a>
 holds the shared helpers:</p>
 <ul>
 <li><strong>Pairings.</strong> <code>re_dot</code> is <code>Re Σ conj(a) b</code>, the pairing of a cotangent (the
@@ -4001,7 +4001,7 @@ a file for every property of its source file, before the random cases.</p>
 <h3 id="pinned-data">Pinned data<a class="headerlink" href="#pinned-data" title="Permanent link">&para;</a></h3>
 <p>Tests that compare with fixed values read them from committed tables:</p>
 <ul>
-<li><a href="https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/crates/treams-core/references/README.md"><code>crates/treams-core/references/</code></a>
+<li><a href="https://github.com/yaugenst/treams-rs/blob/1340631c5fe75108443b5c2defccf40e4aaaecde/crates/treams-core/references/README.md"><code>crates/treams-core/references/</code></a>
   holds mpmath values at 30 to 100 digits. <code>scripts/generate_references.py</code>
   regenerates or checks each table, and CI only reads them. Never change a
   committed data line; add a new table or new rows.</li>
@@ -4089,7 +4089,7 @@ renamed script needs their update too:
 <p>Every test carries at least one marker, for a whole file with <code>pytestmark</code> or
 per test; <code>tests/test_suite_rules.py</code> fails on a test without one. Select tests
 with <code>-m</code>, for example <code>pytest -m gradients tests/tmatrix</code>. The descriptions are
-those that <code>CATEGORIES</code> in <a href="https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/tests/conftest.py"><code>tests/conftest.py</code></a>
+those that <code>CATEGORIES</code> in <a href="https://github.com/yaugenst/treams-rs/blob/1340631c5fe75108443b5c2defccf40e4aaaecde/tests/conftest.py"><code>tests/conftest.py</code></a>
 registers:</p>
 <table>
 <thead>
@@ -4151,9 +4151,10 @@ examples alone or in the full suite. Never load a profile in a test module.</p>
 </tbody>
 </table>
 <p>No profile has a deadline, because debug-build timings vary. On CI, Hypothesis
-also derandomizes every profile and runs without its example database. An
-explicit <code>@settings(max_examples=...)</code> bounds an expensive property under every
-profile.</p>
+also derandomizes every profile and runs without its example database. Every
+health check stays enabled locally and on CI, including the check for slow
+input generation. An explicit <code>@settings(max_examples=...)</code> bounds an expensive
+property under every profile.</p>
 <h3 id="parallel-runs">Parallel runs<a class="headerlink" href="#parallel-runs" title="Permanent link">&para;</a></h3>
 <p>Hosted CI runs pytest with <code>-n auto</code>, one
 <a href="https://pytest-xdist.readthedocs.io/">pytest-xdist</a> worker per CPU; add it to
@@ -4161,7 +4162,7 @@ a local run to do the same. <code>tests/conftest.py</code> gathers the Rayon glo
 check and the report of unavailable test dependencies from every worker, so a
 parallel run fails and reports as a serial one does.</p>
 <h3 id="helpers-and-imports">Helpers and imports<a class="headerlink" href="#helpers-and-imports" title="Permanent link">&para;</a></h3>
-<p><a href="https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/tests/_support.py"><code>tests/_support.py</code></a> holds what several test files
+<p><a href="https://github.com/yaugenst/treams-rs/blob/1340631c5fe75108443b5c2defccf40e4aaaecde/tests/_support.py"><code>tests/_support.py</code></a> holds what several test files
 share:</p>
 <ul>
 <li><code>assert_one_use_context</code>, which checks that a context pulls back once and
@@ -4174,7 +4175,7 @@ share:</p>
 <li><code>assert_unitary_ports</code>, the <code>reciprocal</code> mode map, and <code>to_oracle</code> and
   <code>oracle_smatrix_array</code>, which build the matching treams objects.</li>
 </ul>
-<p><a href="https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/tests/_scripts.py"><code>tests/_scripts.py</code></a> imports a script of <code>scripts/</code>
+<p><a href="https://github.com/yaugenst/treams-rs/blob/1340631c5fe75108443b5c2defccf40e4aaaecde/tests/_scripts.py"><code>tests/_scripts.py</code></a> imports a script of <code>scripts/</code>
 as a module for the tests in <code>tests/scripts/</code>.</p>
 <p>Test modules import <code>treams_rs</code> as <code>tr</code>, its namespaces by name
 (<code>from treams_rs import special</code>), Advect as <code>ad</code>, treams as <code>treams</code> or

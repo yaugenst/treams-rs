@@ -3774,7 +3774,7 @@ complete workflows through the public API.</p>
   objects compose records; adapter modules supply only their framework bridge.
   Keep native derivative formulas in Rust, not in a dispatcher or adapter.</li>
 <li><strong>Recorded evidence.</strong> Numerical measurements stay unchanged. Privacy-only
-  transformations follow <a href="https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/benchmarks/README.md#privacy-and-provenance">the evidence policy</a>.</li>
+  transformations follow <a href="https://github.com/yaugenst/treams-rs/blob/1340631c5fe75108443b5c2defccf40e4aaaecde/benchmarks/README.md#privacy-and-provenance">the evidence policy</a>.</li>
 <li><strong>Renames.</strong> Every public rename gets a bullet under "Unreleased" in
   <code>CHANGELOG.md</code>. A public name that differs from its treams counterpart also
   gets an entry in <code>python/treams_rs/_upstream.py</code>, which feeds the
@@ -3783,7 +3783,7 @@ complete workflows through the public API.</p>
 </ul>
 <h2 id="adding-a-binding">Adding a binding<a class="headerlink" href="#adding-a-binding" title="Permanent link">&para;</a></h2>
 <p>The crate docs of <code>treams-py</code>, in
-<a href="https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>, hold the
+<a href="https://github.com/yaugenst/treams-rs/blob/1340631c5fe75108443b5c2defccf40e4aaaecde/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>, hold the
 checklist under "Adding a binding". Start with the core function and its tests.
 Add the binding, context and <code>pullback</code> to the file for that core module.
 Then add the export, stub, Python caller and a <code>CASES</code> entry in
@@ -3824,7 +3824,7 @@ the bindings, Python and treams. The crate docs state the rules for each
 layer: "Names" in the
 <a href="../../rust/treams_core/#names"><code>treams-core</code> docs</a>
 and "Naming rules" in
-<a href="https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>. The rules
+<a href="https://github.com/yaugenst/treams-rs/blob/1340631c5fe75108443b5c2defccf40e4aaaecde/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>. The rules
 that cross layers:</p>
 <ul>
 <li><strong>Residuals and contexts.</strong> The Rust function <code>X</code> returns <code>XResidual</code>, and its

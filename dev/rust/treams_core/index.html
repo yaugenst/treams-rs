@@ -166,7 +166,7 @@ the bindings wrap the body of every Python entry point in it: <code>ieee(|| ...)
 <code>fpenv::flushing</code> does the opposite, for tests. The <a href="fpenv/index.html" title="mod treams_core::fpenv"><code>fpenv</code></a> module docs explain
 the control registers and why the guard is sound.</p>
 <h3 id="lints"><a class="doc-anchor" href="#lints">§</a>Lints</h3>
-<p>The workspace turns on clippy’s <code>all</code>, <code>pedantic</code> and <code>nursery</code> groups, requires
+<p>The workspace keeps clippy’s default lints, adds <code>pedantic</code> and <code>nursery</code>, requires
 docs on every public item, and the checks treat every warning as an error.
 <code>clippy::indexing_slicing</code> stays on, so new code indexes through iterators or checked
 access. A numerical module that validates its indices on entry opts out once, with
