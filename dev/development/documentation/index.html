@@ -2110,6 +2110,8 @@
       
         
       
+        
+      
     
     
     
@@ -2162,6 +2164,34 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../performance/cpu-speedups/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CPU improvements after 0.1.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3614,7 +3644,7 @@
 <h1 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h1>
 <p>The site is built with <a href="https://www.mkdocs.org/">MkDocs</a> and the Material
 theme from the Markdown files under <code>docs/</code>. The <code>nav</code> of
-<a href="https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/mkdocs.yml"><code>mkdocs.yml</code></a> is the one list of pages: it sets their order
+<a href="https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/mkdocs.yml"><code>mkdocs.yml</code></a> is the one list of pages: it sets their order
 on the site and in <code>llms.txt</code>.</p>
 <h2 id="build-and-preview">Build and preview<a class="headerlink" href="#build-and-preview" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>just<span class="w"> </span>docs-serve<span class="w">   </span><span class="c1"># preview with live reload at http://127.0.0.1:8000</span>
@@ -3700,7 +3730,7 @@ claimed result, and run <code>uv run --no-sync pytest tests/api/test_docs.py</co
 changing one.</p>
 <h2 id="generated-content">Generated content<a class="headerlink" href="#generated-content" title="Permanent link">&para;</a></h2>
 <p><code>just docs</code> writes three kinds of files from
-<a href="https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/scripts/generate_docs.py"><code>scripts/generate_docs.py</code></a>:</p>
+<a href="https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/scripts/generate_docs.py"><code>scripts/generate_docs.py</code></a>:</p>
 <ul>
 <li><strong>The Python API reference</strong> under <code>docs/reference/python/</code>: one page per
   public module and a page of returned native types, rendered from
@@ -3750,7 +3780,7 @@ files:</p>
 </tr>
 </tbody>
 </table>
-<p><a href="https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/tests/api/test_examples.py"><code>tests/api/test_examples.py</code></a> runs every
+<p><a href="https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/tests/api/test_examples.py"><code>tests/api/test_examples.py</code></a> runs every
 script and compares the numbers it prints with <code>output/&lt;name&gt;.txt</code> to a
 relative tolerance of 1e-6. With treams installed, it also runs each treams
 script and compares the variables that its <code>ORACLE</code> entry names, to a relative
@@ -3773,7 +3803,7 @@ a treams tab without a treams script or the other way round. Run
 <code>just docs-examples</code> again whenever a script changes what it prints, and
 review the change in <code>output/</code>.</p>
 <h2 id="publishing">Publishing<a class="headerlink" href="#publishing" title="Permanent link">&para;</a></h2>
-<p>The reusable <a href="https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/.github/workflows/docs.yml">Docs workflow</a> builds the site
+<p>The reusable <a href="https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/.github/workflows/docs.yml">Docs workflow</a> builds the site
 and rustdoc for pull requests. Main publishes <code>dev</code>; a release publishes its
 version and updates <code>latest</code>. Mike keeps every version in <code>gh-pages</code>, and
 the workflow deploys the complete tree through GitHub Pages artifacts.

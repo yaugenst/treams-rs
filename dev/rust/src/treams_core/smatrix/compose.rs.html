@@ -137,27 +137,28 @@
 <a href=#137 id=137 data-nosnippet>137</a>        <span class="kw">let </span>down = product_views(view(<span class="kw-2">&amp;</span>transmission).adjoint(), view(<span class="kw-2">&amp;</span>bottom));
 <a href=#138 id=138 data-nosnippet>138</a>        <span class="kw">let </span>adjoint = product_views(view(<span class="kw-2">&amp;</span>top_transmission).adjoint(), view(<span class="kw-2">&amp;</span>top))
 <a href=#139 id=139 data-nosnippet>139</a>            + product_views(view(<span class="kw-2">&amp;</span>bottom_reflection).adjoint(), view(<span class="kw-2">&amp;</span>down));
-<a href=#140 id=140 data-nosnippet>140</a>        <span class="kw">let </span>AdjointSolve { adjoint, value: up } = solve.solve_adjoint(adjoint)<span class="question-mark">?</span>;
-<a href=#141 id=141 data-nosnippet>141</a>        <span class="kw">let </span>incident = down + product_views(view(<span class="kw-2">&amp;</span>reflection).adjoint(), view(<span class="kw-2">&amp;</span>adjoint));
-<a href=#142 id=142 data-nosnippet>142</a>        <span class="comment">// The saved input blocks are read for the last time above; overwrite them with
-<a href=#143 id=143 data-nosnippet>143</a>        // their gradients.
-<a href=#144 id=144 data-nosnippet>144</a>        </span>product_adjoint_right_into(<span class="kw-2">&amp;mut </span>reflection, <span class="kw-2">&amp;</span>adjoint, <span class="kw-2">&amp;</span>down_fields);
-<a href=#145 id=145 data-nosnippet>145</a>        product_adjoint_right_into(<span class="kw-2">&amp;mut </span>transmission, <span class="kw-2">&amp;</span>bottom, <span class="kw-2">&amp;</span>down_fields);
-<a href=#146 id=146 data-nosnippet>146</a>        product_adjoint_right_into(<span class="kw-2">&amp;mut </span>top_transmission, <span class="kw-2">&amp;</span>top, <span class="kw-2">&amp;</span>up);
-<a href=#147 id=147 data-nosnippet>147</a>        product_adjoint_right_into(<span class="kw-2">&amp;mut </span>bottom_reflection, <span class="kw-2">&amp;</span>incident, <span class="kw-2">&amp;</span>up);
-<a href=#148 id=148 data-nosnippet>148</a>        <span class="kw">let </span>lower = [
-<a href=#149 id=149 data-nosnippet>149</a>            adjoint.columns(<span class="number">0</span>, n).into_owned(),
-<a href=#150 id=150 data-nosnippet>150</a>            reflection,
-<a href=#151 id=151 data-nosnippet>151</a>            cotangent[<span class="number">2</span>].clone(),
-<a href=#152 id=152 data-nosnippet>152</a>            transmission,
-<a href=#153 id=153 data-nosnippet>153</a>        ];
-<a href=#154 id=154 data-nosnippet>154</a>        <span class="kw">let </span>upper = [
-<a href=#155 id=155 data-nosnippet>155</a>            top_transmission,
-<a href=#156 id=156 data-nosnippet>156</a>            cotangent[<span class="number">1</span>].clone(),
-<a href=#157 id=157 data-nosnippet>157</a>            bottom_reflection,
-<a href=#158 id=158 data-nosnippet>158</a>            incident.columns(n, n).into_owned(),
-<a href=#159 id=159 data-nosnippet>159</a>        ];
-<a href=#160 id=160 data-nosnippet>160</a>        <span class="prelude-val">Ok</span>(AddGradient { lower, upper })
-<a href=#161 id=161 data-nosnippet>161</a>    }
-<a href=#162 id=162 data-nosnippet>162</a>}
+<a href=#140 id=140 data-nosnippet>140</a>        <span class="kw">let </span>AdjointSolve { adjoint, value: up } =
+<a href=#141 id=141 data-nosnippet>141</a>            solve.solve_adjoint(view(<span class="kw-2">&amp;</span>reflection), view(<span class="kw-2">&amp;</span>bottom_reflection), adjoint)<span class="question-mark">?</span>;
+<a href=#142 id=142 data-nosnippet>142</a>        <span class="kw">let </span>incident = down + product_views(view(<span class="kw-2">&amp;</span>reflection).adjoint(), view(<span class="kw-2">&amp;</span>adjoint));
+<a href=#143 id=143 data-nosnippet>143</a>        <span class="comment">// The saved input blocks are read for the last time above; overwrite them with
+<a href=#144 id=144 data-nosnippet>144</a>        // their gradients.
+<a href=#145 id=145 data-nosnippet>145</a>        </span>product_adjoint_right_into(<span class="kw-2">&amp;mut </span>reflection, <span class="kw-2">&amp;</span>adjoint, <span class="kw-2">&amp;</span>down_fields);
+<a href=#146 id=146 data-nosnippet>146</a>        product_adjoint_right_into(<span class="kw-2">&amp;mut </span>transmission, <span class="kw-2">&amp;</span>bottom, <span class="kw-2">&amp;</span>down_fields);
+<a href=#147 id=147 data-nosnippet>147</a>        product_adjoint_right_into(<span class="kw-2">&amp;mut </span>top_transmission, <span class="kw-2">&amp;</span>top, <span class="kw-2">&amp;</span>up);
+<a href=#148 id=148 data-nosnippet>148</a>        product_adjoint_right_into(<span class="kw-2">&amp;mut </span>bottom_reflection, <span class="kw-2">&amp;</span>incident, <span class="kw-2">&amp;</span>up);
+<a href=#149 id=149 data-nosnippet>149</a>        <span class="kw">let </span>lower = [
+<a href=#150 id=150 data-nosnippet>150</a>            adjoint.columns(<span class="number">0</span>, n).into_owned(),
+<a href=#151 id=151 data-nosnippet>151</a>            reflection,
+<a href=#152 id=152 data-nosnippet>152</a>            cotangent[<span class="number">2</span>].clone(),
+<a href=#153 id=153 data-nosnippet>153</a>            transmission,
+<a href=#154 id=154 data-nosnippet>154</a>        ];
+<a href=#155 id=155 data-nosnippet>155</a>        <span class="kw">let </span>upper = [
+<a href=#156 id=156 data-nosnippet>156</a>            top_transmission,
+<a href=#157 id=157 data-nosnippet>157</a>            cotangent[<span class="number">1</span>].clone(),
+<a href=#158 id=158 data-nosnippet>158</a>            bottom_reflection,
+<a href=#159 id=159 data-nosnippet>159</a>            incident.columns(n, n).into_owned(),
+<a href=#160 id=160 data-nosnippet>160</a>        ];
+<a href=#161 id=161 data-nosnippet>161</a>        <span class="prelude-val">Ok</span>(AddGradient { lower, upper })
+<a href=#162 id=162 data-nosnippet>162</a>    }
+<a href=#163 id=163 data-nosnippet>163</a>}
 </code></pre></div></section></main></body></html>

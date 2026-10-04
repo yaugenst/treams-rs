@@ -2214,6 +2214,8 @@
       
         
       
+        
+      
     
     
     
@@ -2266,6 +2268,34 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../performance/cpu-speedups/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CPU improvements after 0.1.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3572,7 +3602,7 @@
 <p>Use CPython 3.12–3.15:</p>
 <div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>treams-rs
 </code></pre></div>
-<p>The 0.1.0 core wheel targets are:</p>
+<p>The core wheel targets are:</p>
 <table>
 <thead>
 <tr>
@@ -3646,7 +3676,7 @@ pass its arrays or traced values to the ordinary API. Python and NumPy values
 keep the NumPy path. See <a href="../../differentiation/frameworks/">framework support</a>
 for dtypes and supported transforms. JAX and PyTorch publish no Intel macOS
 (<code>x86_64</code>) wheels; use the <code>advect</code> or <code>autograd</code> extra there.</p>
-<p>For 0.1.0, use CPython 3.12–3.14 with the <code>torch</code> or <code>io</code> extras. The
+<p>Use CPython 3.12–3.14 with the <code>torch</code> or <code>io</code> extras. The
 CPython 3.15 release matrix excludes their standard PyPI installs because
 the release dependency set has no matching PyPI PyTorch or h5py wheels.
 The Linux development matrix uses PyTorch's separate CPU wheel index on

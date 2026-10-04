@@ -1,6 +1,6 @@
 # treams-rs
 
-> A Rust port of treams for electromagnetic T-matrix scattering, with a Python interface and analytic first-order gradients. Version 0.1.0.
+> A Rust port of treams for electromagnetic T-matrix scattering, with a Python interface and analytic first-order gradients. Version 0.1.1.
 
 The documentation site for these sources is [here](./).
 The Markdown sources linked below belong to this documentation version.
@@ -86,6 +86,7 @@ Use `--format json` or `--format markdown` to list all documented functions and 
 ## Performance
 
 - [Performance](performance/index.md): Measured speed and memory against treams 0.4.5, with methods and caveats.
+- [CPU improvements after 0.1.0](performance/cpu-speedups.md): CPU improvements measured against treams-rs 0.1.0, with complete gradient costs and retained exceptions.
 - [Requested illuminations and larger clusters](performance/large-problems.md): Measured time and memory of requested illuminations for large sphere clusters.
 - [Mac and Linux benchmark comparison](performance/platform-comparison.md): The Mac and Linux benchmark comparison of treams-rs and treams 0.4.5.
 - [Benchmark evidence](performance/evidence.md): Benchmark sources, methods and archived measurements of individual operations.

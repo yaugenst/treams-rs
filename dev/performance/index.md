@@ -1,5 +1,10 @@
 # Performance
 
+The [CPU speedup measurements](cpu-speedups.md) compare the optimizations after
+0.1.0 with that release on user workflows, including complete gradients. The
+older comparisons with upstream treams below retain their original results
+and source revisions; they have not all been rerun on the updated implementation.
+
 In the recorded Linux broad grid of 527 cases, treams-rs is faster than treams
 0.4.5 in every case, with a median speedup of 5.12× and a median of 0.66 times
 the peak memory.
@@ -22,12 +27,12 @@ process. Medians are unweighted over distinct cases.
 | Requested illumination, matrix-free (Linux) | 19 | 12.70× | 0.372 | 1 slower case: 0.68× at 32 columns |
 
 The Linux rows come from the
-[Linux core performance record](https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/benchmarks/linux-core-performance.json),
-summarized in [Linux core validation](https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/benchmarks/linux-core-qualification.md).
+[Linux core performance record](https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/benchmarks/linux-core-performance.json),
+summarized in [Linux core validation](https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/benchmarks/linux-core-qualification.md).
 That record also lists 33 edge cases (median 1.77×): mostly internal
 illuminations at the matrix sizes and column counts where the solve switches
 method, plus scalar `tl_vcw_r` calls; three of them are slower than treams.
-The macOS row comes from the [macOS dispatch record](https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/benchmarks/mac-qualification.json).
+The macOS row comes from the [macOS dispatch record](https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/benchmarks/mac-qualification.json).
 
 The cases that use more memory keep data for computing gradients later. This
 is called a recorded call; its pullback turns the gradient of a result into
@@ -45,7 +50,7 @@ save time and memory ([large problems](large-problems.md)):
 
 ### Selected operations from the reference grid
 
-The [reference grid](https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/benchmarks/complete-qualification.json) has 527
+The [reference grid](https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/benchmarks/complete-qualification.json) has 527
 cases on Linux. Its smallest speedup is 1.02×, and its largest RSS ratio among
 the cases that check memory is 0.912.
 
@@ -85,7 +90,7 @@ factor, so both packages compute the same quantity
   computes gradients). In the Linux broad grid, with one and eight incident
   columns, it runs 1.51× and 1.47× faster than treams but peaks at 1.44 times
   its memory; that run lists both as cases that use more memory. The
-  [reference replay grid](https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/benchmarks/complete-qualification.json)
+  [reference replay grid](https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/benchmarks/complete-qualification.json)
   exempts the same two cases from the memory check. There they run 1.40× and
   1.28× faster at 1.56 and 1.75 times the memory, and the same calls without
   recording run 1.83× and 1.71× faster at 0.91 times the memory. They still
@@ -128,4 +133,4 @@ to CPUs 8–11 of a Ryzen 9 9950X.
   more cases on an Apple M3 and a Ryzen 9 9950X, with every outcome.
 - [Evidence](evidence.md): the provenance table and archived measurements of
   individual kernels.
-- [Benchmark files](https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/benchmarks/README.md): the layout of `benchmarks/`.
+- [Benchmark files](https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/benchmarks/README.md): the layout of `benchmarks/`.

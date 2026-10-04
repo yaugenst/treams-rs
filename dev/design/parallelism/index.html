@@ -2231,6 +2231,8 @@
       
         
       
+        
+      
     
     
     
@@ -2283,6 +2285,34 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../performance/cpu-speedups/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CPU improvements after 0.1.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3645,7 +3675,11 @@ Python library:</p>
   thread that builds the pool (<a href="../floating-point/">floating-point environment</a>).</li>
 <li><strong>faer.</strong> treams-rs passes faer an explicit <code>Par</code> from the budget for every
   product, LU factorization and solve, <code>Par::Seq</code> for eigen- and singular-value
-  decompositions, and never reads <code>faer::get_global_parallelism</code>.</li>
+  decompositions, and never reads <code>faer::get_global_parallelism</code>.
+  Products use at most one worker per 65,536 multiply-add terms (<code>M N K</code>),
+  reusing faer's existing complex128 cutoff as the minimum work per worker.
+  This prevents small products from scheduling the entire pool; LU retains
+  its own size-based worker cap.</li>
 <li><strong>threadpoolctl.</strong> The extension exports the C symbol <code>treams_rs_num_threads</code>,
   by which a controller that <code>treams_rs.parallel</code> registers finds the module.</li>
 </ul>
@@ -3698,7 +3732,7 @@ from the system.</p>
 </ul>
 <h2 id="audit-and-open-work">Audit and open work<a class="headerlink" href="#audit-and-open-work" title="Permanent link">&para;</a></h2>
 <p>An audit of the previous baseline (<code>5dadf1d</code>, a revision of the original
-history; <a href="https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/benchmarks/history-provenance.json"><code>history-provenance.json</code></a>
+history; <a href="https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/benchmarks/history-provenance.json"><code>history-provenance.json</code></a>
 maps it to this repository) covered controls, process hazards, scheduling,
 reproducibility, the bindings, hardware, validation and memory on a shared
 4-vCPU Linux host. The shared host limits the timing evidence.
@@ -3718,8 +3752,10 @@ The following changes address the audit's findings:</p>
 <li>the module keeps the GIL; free-threaded CPython is outside the release scope.</li>
 </ul>
 <h3 id="further-work">Further work<a class="headerlink" href="#further-work" title="Permanent link">&para;</a></h3>
-<p>The timings and estimates below belong to that earlier audit. These follow-up
-investigations are outside the 0.1.0 release scope.</p>
+<p>The timings and estimates below belong to that earlier audit. The subsequent
+<a href="../../performance/cpu-speedups/">CPU work</a> adds the product worker cap above and
+reuses translation, field and Ewald work. It does not replace the broader
+cross-platform scheduling investigations below.</p>
 <table>
 <thead>
 <tr>
@@ -3735,8 +3771,8 @@ investigations are outside the 0.1.0 release scope.</p>
 <td>2–3 d</td>
 </tr>
 <tr>
-<td>A cost model for parallel cutoffs: items times cost per item instead of fixed element counts. One-thread helpers now execute serially on the calling thread.</td>
-<td>The audit found 32 regions without a size cutoff; a two-point field call cost 24–75 µs against 9 µs for one point.</td>
+<td>Extend work-based worker limits beyond dense products; one-thread helpers execute serially on the calling thread.</td>
+<td>The earlier audit found 32 regions without a size cutoff; a two-point field call cost 24–75 µs against 9 µs for one point.</td>
 <td>3–4 d</td>
 </tr>
 <tr>

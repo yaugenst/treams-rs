@@ -2214,6 +2214,8 @@
       
         
       
+        
+      
     
     
     
@@ -2266,6 +2268,34 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../performance/cpu-speedups/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CPU improvements after 0.1.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3586,8 +3616,8 @@ For a few incident waves, two solvers compute only the responses you need:</p>
 </tr>
 <tr>
 <td><code>iterative.SphereCluster</code></td>
-<td>one 2×2 Mie block per sphere and degree</td>
-<td>many spheres, when memory matters more than the time per incident wave</td>
+<td>one 2×2 Mie block per sphere and degree, plus bounded Krylov vectors</td>
+<td>many spheres and a few incident waves, especially when scattering is weak or dense matrices exceed memory</td>
 </tr>
 </tbody>
 </table>
@@ -3595,7 +3625,10 @@ For a few incident waves, two solvers compute only the responses you need:</p>
 wave takes 0.38 s against 0.94 s for the full T-matrix. The matrix-free
 gradient peaks at 46 MiB of memory, the gradient through the full T-matrix at
 1,368 MiB. See <a href="../../performance/large-problems/">Large problems</a> for the
-measurements.</p>
+historical measurements. The <a href="../../performance/cpu-speedups/">CPU speedup measurements</a>
+compare the updated solver with 0.1.0: batching several incident waves shares
+translation work, while each wave keeps its own convergence check. Dense LU
+can still win for strongly coupled clusters and repeated solves on one geometry.</p>
 <h2 id="matrix-free-sphere-clusters">Matrix-free sphere clusters<a class="headerlink" href="#matrix-free-sphere-clusters" title="Permanent link">&para;</a></h2>
 <p><code>iterative.SphereCluster</code> solves clusters of homogeneous, nonmagnetic spheres
 in vacuum. It takes the incident field as a physical wave or as coefficient
@@ -3704,9 +3737,14 @@ rhs_norm)</code> reports one column.</p>
 resonances, tighten <code>rtol</code> and compare with a dense solve on a smaller cluster.</p>
 <h2 id="memory-and-time">Memory and time<a class="headerlink" href="#memory-and-time" title="Permanent link">&para;</a></h2>
 <p>For N spheres, M modes per sphere, P incident columns and restart R, the
-storage for the Krylov vectors and the solution grows as <code>O(N M (R + P) + R²)</code>. Each thread holds
-one <code>M × M</code> pair block. The angular part of the translations is computed once
-per <code>lmax</code> and shared by every pair, so it does not grow with N.</p>
+storage for the Krylov vectors and the solution grows as
+<code>O(N M (B R + P) + B R²)</code>, where <code>B = min(P, 8)</code>. Up to eight columns share
+each pair translation while retaining independent Krylov spaces, restart
+decisions and residual checks. Larger inputs use successive batches.
+The forward operator applies translations directly to these columns, without
+storing dense pair blocks; the physical pullback still uses a temporary
+<code>M × M</code> pair cotangent per active worker. The angular translation plan is
+computed once per <code>lmax</code> and shared by every pair, so it does not grow with N.</p>
 <p>The solver recomputes the pair translations in every iteration and keeps no
 Krylov vectors for the adjoint solve. It trades time for memory: a reused dense
 factor computes another response in milliseconds, while the matrix-free solver

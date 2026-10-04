@@ -4,6 +4,12 @@ treams-rs uses one thread pool for parallel computations and dense linear
 algebra. The pool starts with the first parallel call and, by default, uses
 the CPUs available to the current process.
 
+The configured count is a ceiling. Kernels use fewer workers when the work is
+too small to repay scheduling costs; matrix-vector products stay sequential
+to preserve the order of floating-point additions. Raising the limit therefore
+does not guarantee a faster call. See the [CPU measurements](../performance/cpu-speedups.md)
+for qualified workloads and [parallelism](../design/parallelism.md) for the policy.
+
 ```python
 import numpy as np
 import treams_rs as tr

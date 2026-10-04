@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["ITERATIVE_MAX_COLUMNS","ITERATIVE_MIN_ROWS","KRYLOV_STEPS"],"enum":["InternalFactor"],"fn":["internal_iteration","internal_operator","is_contraction"],"struct":["AdjointSolve","InternalSolve"]};
+window.SIDEBAR_ITEMS = {"constant":["ITERATIVE_MAX_COLUMNS","ITERATIVE_MIN_ROWS","KRYLOV_STEPS"],"enum":["InternalFactor"],"fn":["absolute_row_sums","internal_iteration","internal_operator","is_contraction","reflection_action","reflections_contract"],"struct":["AdjointSolve","InternalSolve"]};

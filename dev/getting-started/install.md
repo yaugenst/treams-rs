@@ -8,7 +8,7 @@ Use CPython 3.12–3.15:
 pip install treams-rs
 ```
 
-The 0.1.0 core wheel targets are:
+The core wheel targets are:
 
 | Operating system | Architectures |
 | --- | --- |
@@ -46,7 +46,7 @@ keep the NumPy path. See [framework support](../differentiation/frameworks.md)
 for dtypes and supported transforms. JAX and PyTorch publish no Intel macOS
 (`x86_64`) wheels; use the `advect` or `autograd` extra there.
 
-For 0.1.0, use CPython 3.12–3.14 with the `torch` or `io` extras. The
+Use CPython 3.12–3.14 with the `torch` or `io` extras. The
 CPython 3.15 release matrix excludes their standard PyPI installs because
 the release dependency set has no matching PyPI PyTorch or h5py wheels.
 The Linux development matrix uses PyTorch's separate CPU wheel index on

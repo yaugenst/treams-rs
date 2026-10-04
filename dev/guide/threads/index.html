@@ -2214,6 +2214,8 @@
       
         
       
+        
+      
     
     
     
@@ -2266,6 +2268,34 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../performance/cpu-speedups/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CPU improvements after 0.1.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -3571,6 +3601,11 @@
 <p>treams-rs uses one thread pool for parallel computations and dense linear
 algebra. The pool starts with the first parallel call and, by default, uses
 the CPUs available to the current process.</p>
+<p>The configured count is a ceiling. Kernels use fewer workers when the work is
+too small to repay scheduling costs; matrix-vector products stay sequential
+to preserve the order of floating-point additions. Raising the limit therefore
+does not guarantee a faster call. See the <a href="../../performance/cpu-speedups/">CPU measurements</a>
+for qualified workloads and <a href="../../design/parallelism/">parallelism</a> for the policy.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">treams_rs</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">tr</span>
 

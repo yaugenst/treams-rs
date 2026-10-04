@@ -47,7 +47,7 @@ sides, where faer takes no parallel branch, the call stays on the calling
 thread. The worker count changes the scheduling only, not the factorization or
 the pullback, so LU results are the same at every budget.
 
-The [scheduling probe](https://github.com/yaugenst/treams-rs/blob/8bbcb87aaeaccd9293fc8c09eecb8727c37c4970/benchmarks/results/cpu-parallelism.json) measured
+The [scheduling probe](https://github.com/yaugenst/treams-rs/blob/c4d9613f910bb25ca1e38302eb67763154424acc/benchmarks/results/cpu-parallelism.json) measured
 these medians on a Ryzen 9950X with one 16-worker pool pinned to physical cores
 0-15:
 
@@ -153,7 +153,7 @@ kernel sets the size from which it runs in parallel:
 | `numerics::parallel::PARALLEL_ENTRIES` | 4096 matrix entries | plane-wave fields |
 | `numerics::parallel::Parallel::AtLeast` | 8 to 1024 elements, per kernel | broadcast special functions, vector waves, translations, lattice-sum batches |
 | `numerics::parallel::Parallel::Chunked` | 64 or 512 elements | cylindrical translation coefficients, in about four chunks per thread |
-| `threads::product` | M·N·K = 65536, faer's own threshold | matrix products; matrix-vector products stay sequential |
+| `threads::product` | At least 65536 M·N·K per worker, capped by the configured budget | matrix products; fewer than two useful workers and all matrix-vector products stay sequential |
 | `linalg::DECOMPOSITION` | never | eigen- and singular-value decompositions ([parallelism](parallelism.md#results-do-not-depend-on-the-thread-count)) |
 
 Each element is computed the same way on either path and collected in index

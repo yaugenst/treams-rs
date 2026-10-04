@@ -69,94 +69,120 @@
 <a href=#69 id=69 data-nosnippet>69</a>    z.chain(value, derivative)
 <a href=#70 id=70 data-nosnippet>70</a>}
 <a href=#71 id=71 data-nosnippet>71</a>
-<a href=#72 id=72 data-nosnippet>72</a><span class="doccomment">/// `I_n` and, for jets, `I_(n+2)` at `z` in [`RealKambe::SmallSplit`], storing their
-<a href=#73 id=73 data-nosnippet>73</a>/// bounds in the term with the factor `factor` in `bound`.
-<a href=#74 id=74 data-nosnippet>74</a>///
-<a href=#75 id=75 data-nosnippet>75</a>/// Kept out of line, like [`Shells::add_compensated`], so the term loop at the other
-<a href=#76 id=76 data-nosnippet>76</a>/// splits stays small. Calibrated: inlined, it slows 3D jets at the automatic split by
-<a href=#77 id=77 data-nosnippet>77</a>/// 1% to 2.7%.
-<a href=#78 id=78 data-nosnippet>78</a>///
-<a href=#79 id=79 data-nosnippet>79</a>/// [`Shells::add_compensated`]: super::shells::Shells::add_compensated
-<a href=#80 id=80 data-nosnippet>80</a></span><span class="attr">#[inline(never)]
-<a href=#81 id=81 data-nosnippet>81</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>small_split_kambe&lt;<span class="kw">const </span>N: usize&gt;(
-<a href=#82 id=82 data-nosnippet>82</a>    n: i32,
-<a href=#83 id=83 data-nosnippet>83</a>    z: <span class="kw-2">&amp;</span>Jet&lt;N&gt;,
-<a href=#84 id=84 data-nosnippet>84</a>    kambe: <span class="kw-2">&amp;</span>SmallSplitKambe,
-<a href=#85 id=85 data-nosnippet>85</a>    largest: <span class="kw-2">&amp;</span>Rounding&lt;N&gt;,
-<a href=#86 id=86 data-nosnippet>86</a>    bound: <span class="kw-2">&amp;mut </span>Rounding&lt;N&gt;,
-<a href=#87 id=87 data-nosnippet>87</a>    factor: <span class="kw-2">&amp;</span>Jet&lt;N&gt;,
-<a href=#88 id=88 data-nosnippet>88</a>) -&gt; (Complex, <span class="prelude-ty">Option</span>&lt;Complex&gt;) {
-<a href=#89 id=89 data-nosnippet>89</a>    <span class="kw">let </span>floor = kambe_floor(largest, factor);
-<a href=#90 id=90 data-nosnippet>90</a>    <span class="kw">let </span>(value, value_bound, next) = <span class="kw">if </span>N == <span class="number">0 </span>{
-<a href=#91 id=91 data-nosnippet>91</a>        <span class="kw">let </span>[(value, value_bound)] = kambe.get([n], z.value, floor);
-<a href=#92 id=92 data-nosnippet>92</a>        (value, value_bound, <span class="prelude-val">None</span>)
-<a href=#93 id=93 data-nosnippet>93</a>    } <span class="kw">else </span>{
-<a href=#94 id=94 data-nosnippet>94</a>        <span class="kw">let </span>[(value, value_bound), next] = kambe.get([n, n + <span class="number">2</span>], z.value, floor);
-<a href=#95 id=95 data-nosnippet>95</a>        (value, value_bound, <span class="prelude-val">Some</span>(next))
-<a href=#96 id=96 data-nosnippet>96</a>    };
-<a href=#97 id=97 data-nosnippet>97</a>    <span class="kw">let </span>(next_bound, modulus) = (next.map_or(<span class="number">0.0</span>, |(<span class="kw">_</span>, bound)| bound), z.value.l1_norm());
-<a href=#98 id=98 data-nosnippet>98</a>    <span class="kw-2">*</span>bound = Rounding {
-<a href=#99 id=99 data-nosnippet>99</a>        value: value_bound,
-<a href=#100 id=100 data-nosnippet>100</a>        derivative: z.derivative.map(|d| next_bound * modulus * d.l1_norm()),
-<a href=#101 id=101 data-nosnippet>101</a>    }
-<a href=#102 id=102 data-nosnippet>102</a>    .times(factor);
-<a href=#103 id=103 data-nosnippet>103</a>    (value, next.map(|(next, <span class="kw">_</span>)| next))
-<a href=#104 id=104 data-nosnippet>104</a>}
-<a href=#105 id=105 data-nosnippet>105</a>
-<a href=#106 id=106 data-nosnippet>106</a><span class="doccomment">/// The error, in units of epsilon, up to which [`SmallSplitKambe::get`] keeps the closed
-<a href=#107 id=107 data-nosnippet>107</a>/// forms of the Kambe integral of a real-space term with the factor `factor`: what leaves
-<a href=#108 id=108 data-nosnippet>108</a>/// less in each component of the term than the rounding `largest` of the largest term so
-<a href=#109 id=109 data-nosnippet>109</a>/// far, carried by the value of the factor or, where that vanishes (off-axis orders on a
-<a href=#110 id=110 data-nosnippet>110</a>/// 1D spherical axis, odd `l + m` in a 2D plane), by its derivatives.
-<a href=#111 id=111 data-nosnippet>111</a></span><span class="kw">fn </span>kambe_floor&lt;<span class="kw">const </span>N: usize&gt;(largest: <span class="kw-2">&amp;</span>Rounding&lt;N&gt;, factor: <span class="kw-2">&amp;</span>Jet&lt;N&gt;) -&gt; f64 {
-<a href=#112 id=112 data-nosnippet>112</a>    <span class="kw">let </span>scale = factor.value.l1_norm();
-<a href=#113 id=113 data-nosnippet>113</a>    <span class="kw">if </span>scale &gt; <span class="number">0.0 </span>{
-<a href=#114 id=114 data-nosnippet>114</a>        <span class="kw">return </span>largest.value / scale;
-<a href=#115 id=115 data-nosnippet>115</a>    }
-<a href=#116 id=116 data-nosnippet>116</a>    largest
-<a href=#117 id=117 data-nosnippet>117</a>        .derivative
-<a href=#118 id=118 data-nosnippet>118</a>        .iter()
-<a href=#119 id=119 data-nosnippet>119</a>        .zip(<span class="kw-2">&amp;</span>factor.derivative)
-<a href=#120 id=120 data-nosnippet>120</a>        .filter(|<span class="kw-2">&amp;</span>(<span class="kw">_</span>, <span class="kw-2">&amp;</span>d)| <span class="macro">d !</span>= Complex::default())
-<a href=#121 id=121 data-nosnippet>121</a>        .map(|(largest, d)| largest / d.l1_norm())
-<a href=#122 id=122 data-nosnippet>122</a>        .fold(f64::INFINITY, f64::min)
-<a href=#123 id=123 data-nosnippet>123</a>}
-<a href=#124 id=124 data-nosnippet>124</a>
-<a href=#125 id=125 data-nosnippet>125</a><span class="doccomment">/// One real-space summand at the displacement `r = -shift - R`.
-<a href=#126 id=126 data-nosnippet>126</a>///
-<a href=#127 id=127 data-nosnippet>127</a>/// # Formula
-<a href=#128 id=128 data-nosnippet>128</a>///
-<a href=#129 id=129 data-nosnippet>129</a>/// Spherical: `-i sqrt(2 / pi) k^l |r|^l Y_lm(r / |r|) I_(2l)(k |r|, eta)`, where
-<a href=#130 id=130 data-nosnippet>130</a>/// `|r|^l Y_lm` is `harmonic_normalization(l, m)` times the solid harmonic. Cylindrical:
-<a href=#131 id=131 data-nosnippet>131</a>/// `-2 i / pi (-1)^m (k (x ± i y))^|m| I_(2|m| - 1)(k |r|, eta)`, with the sign `(-1)^m`
-<a href=#132 id=132 data-nosnippet>132</a>/// and `x - i y` for negative `m` only.
-<a href=#133 id=133 data-nosnippet>133</a>///
-<a href=#134 id=134 data-nosnippet>134</a>/// [`RealKambe::SmallSplit`] stores first-order bounds on the absolute rounding errors
-<a href=#135 id=135 data-nosnippet>135</a>/// that its Kambe integral leaves in its value and derivatives (see [`kambe_jet`]).
-<a href=#136 id=136 data-nosnippet>136</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>real_term&lt;<span class="kw">const </span>N: usize&gt;(
-<a href=#137 id=137 data-nosnippet>137</a>    wave: Family,
-<a href=#138 id=138 data-nosnippet>138</a>    k: Jet&lt;N&gt;,
-<a href=#139 id=139 data-nosnippet>139</a>    r: [Jet&lt;N&gt;; <span class="number">3</span>],
-<a href=#140 id=140 data-nosnippet>140</a>    eta: Complex,
-<a href=#141 id=141 data-nosnippet>141</a>    mode: RealKambe&lt;<span class="lifetime">'_</span>, N&gt;,
-<a href=#142 id=142 data-nosnippet>142</a>) -&gt; Jet&lt;N&gt; {
-<a href=#143 id=143 data-nosnippet>143</a>    <span class="kw">let </span>radius = r.into_iter().map(|r| r * r).sum::&lt;Jet&lt;N&gt;&gt;().sqrt();
-<a href=#144 id=144 data-nosnippet>144</a>    <span class="kw">let </span>(factor, order) = <span class="kw">match </span>wave {
-<a href=#145 id=145 data-nosnippet>145</a>        Family::Spherical { l, m } =&gt; {
-<a href=#146 id=146 data-nosnippet>146</a>            <span class="kw">let </span>harmonic = solid_jet(l, m, r) * harmonic_normalization(l, m);
-<a href=#147 id=147 data-nosnippet>147</a>            (
-<a href=#148 id=148 data-nosnippet>148</a>                -Complex::i() * (<span class="number">2.0 </span>/ PI).sqrt() * k.powi(l) * harmonic,
-<a href=#149 id=149 data-nosnippet>149</a>                <span class="number">2 </span>* l,
-<a href=#150 id=150 data-nosnippet>150</a>            )
-<a href=#151 id=151 data-nosnippet>151</a>        }
-<a href=#152 id=152 data-nosnippet>152</a>        Family::Cylindrical { m } =&gt; {
-<a href=#153 id=153 data-nosnippet>153</a>            <span class="kw">let </span>(xy, sign) = (azimuthal(r[<span class="number">0</span>], r[<span class="number">1</span>], m), negative_order_sign(m));
-<a href=#154 id=154 data-nosnippet>154</a>            (
-<a href=#155 id=155 data-nosnippet>155</a>                -<span class="number">2.0 </span>* Complex::i() / PI * sign * (k * xy).powi(m.abs()),
-<a href=#156 id=156 data-nosnippet>156</a>                <span class="number">2 </span>* m.abs() - <span class="number">1</span>,
-<a href=#157 id=157 data-nosnippet>157</a>            )
-<a href=#158 id=158 data-nosnippet>158</a>        }
-<a href=#159 id=159 data-nosnippet>159</a>    };
-<a href=#160 id=160 data-nosnippet>160</a>    factor * kambe_jet(order, k * radius, eta, mode, <span class="kw-2">&amp;</span>factor)
-<a href=#161 id=161 data-nosnippet>161</a>}
+<a href=#72 id=72 data-nosnippet>72</a><span class="doccomment">/// The radial integral shared by all spherical orders of one degree at a point.
+<a href=#73 id=73 data-nosnippet>73</a>/// Used only above the small-split cancellation regime, where the integral does not
+<a href=#74 id=74 data-nosnippet>74</a>/// depend on the harmonic's rounding budget.
+<a href=#75 id=75 data-nosnippet>75</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>spherical_radial&lt;<span class="kw">const </span>N: usize&gt;(
+<a href=#76 id=76 data-nosnippet>76</a>    l: i32,
+<a href=#77 id=77 data-nosnippet>77</a>    k: Jet&lt;N&gt;,
+<a href=#78 id=78 data-nosnippet>78</a>    r: [Jet&lt;N&gt;; <span class="number">3</span>],
+<a href=#79 id=79 data-nosnippet>79</a>    eta: Complex,
+<a href=#80 id=80 data-nosnippet>80</a>) -&gt; Jet&lt;N&gt; {
+<a href=#81 id=81 data-nosnippet>81</a>    <span class="kw">let </span>radius = r.into_iter().map(|r| r * r).sum::&lt;Jet&lt;N&gt;&gt;().sqrt();
+<a href=#82 id=82 data-nosnippet>82</a>    kambe_jet(<span class="number">2 </span>* l, k * radius, eta, RealKambe::Plain, <span class="kw-2">&amp;</span>Jet::default())
+<a href=#83 id=83 data-nosnippet>83</a>}
+<a href=#84 id=84 data-nosnippet>84</a>
+<a href=#85 id=85 data-nosnippet>85</a><span class="doccomment">/// A spherical real-space term from its already evaluated radial integral.
+<a href=#86 id=86 data-nosnippet>86</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>spherical_from_radial&lt;<span class="kw">const </span>N: usize&gt;(
+<a href=#87 id=87 data-nosnippet>87</a>    l: i32,
+<a href=#88 id=88 data-nosnippet>88</a>    m: i32,
+<a href=#89 id=89 data-nosnippet>89</a>    k: Jet&lt;N&gt;,
+<a href=#90 id=90 data-nosnippet>90</a>    r: [Jet&lt;N&gt;; <span class="number">3</span>],
+<a href=#91 id=91 data-nosnippet>91</a>    radial: Jet&lt;N&gt;,
+<a href=#92 id=92 data-nosnippet>92</a>) -&gt; Jet&lt;N&gt; {
+<a href=#93 id=93 data-nosnippet>93</a>    <span class="kw">let </span>harmonic = solid_jet(l, m, r) * harmonic_normalization(l, m);
+<a href=#94 id=94 data-nosnippet>94</a>    <span class="kw">let </span>factor = -Complex::i() * (<span class="number">2.0 </span>/ PI).sqrt() * k.powi(l) * harmonic;
+<a href=#95 id=95 data-nosnippet>95</a>    factor * radial
+<a href=#96 id=96 data-nosnippet>96</a>}
+<a href=#97 id=97 data-nosnippet>97</a>
+<a href=#98 id=98 data-nosnippet>98</a><span class="doccomment">/// `I_n` and, for jets, `I_(n+2)` at `z` in [`RealKambe::SmallSplit`], storing their
+<a href=#99 id=99 data-nosnippet>99</a>/// bounds in the term with the factor `factor` in `bound`.
+<a href=#100 id=100 data-nosnippet>100</a>///
+<a href=#101 id=101 data-nosnippet>101</a>/// Kept out of line, like [`Shells::add_compensated`], so the term loop at the other
+<a href=#102 id=102 data-nosnippet>102</a>/// splits stays small. Calibrated: inlined, it slows 3D jets at the automatic split by
+<a href=#103 id=103 data-nosnippet>103</a>/// 1% to 2.7%.
+<a href=#104 id=104 data-nosnippet>104</a>///
+<a href=#105 id=105 data-nosnippet>105</a>/// [`Shells::add_compensated`]: super::shells::Shells::add_compensated
+<a href=#106 id=106 data-nosnippet>106</a></span><span class="attr">#[inline(never)]
+<a href=#107 id=107 data-nosnippet>107</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>small_split_kambe&lt;<span class="kw">const </span>N: usize&gt;(
+<a href=#108 id=108 data-nosnippet>108</a>    n: i32,
+<a href=#109 id=109 data-nosnippet>109</a>    z: <span class="kw-2">&amp;</span>Jet&lt;N&gt;,
+<a href=#110 id=110 data-nosnippet>110</a>    kambe: <span class="kw-2">&amp;</span>SmallSplitKambe,
+<a href=#111 id=111 data-nosnippet>111</a>    largest: <span class="kw-2">&amp;</span>Rounding&lt;N&gt;,
+<a href=#112 id=112 data-nosnippet>112</a>    bound: <span class="kw-2">&amp;mut </span>Rounding&lt;N&gt;,
+<a href=#113 id=113 data-nosnippet>113</a>    factor: <span class="kw-2">&amp;</span>Jet&lt;N&gt;,
+<a href=#114 id=114 data-nosnippet>114</a>) -&gt; (Complex, <span class="prelude-ty">Option</span>&lt;Complex&gt;) {
+<a href=#115 id=115 data-nosnippet>115</a>    <span class="kw">let </span>floor = kambe_floor(largest, factor);
+<a href=#116 id=116 data-nosnippet>116</a>    <span class="kw">let </span>(value, value_bound, next) = <span class="kw">if </span>N == <span class="number">0 </span>{
+<a href=#117 id=117 data-nosnippet>117</a>        <span class="kw">let </span>[(value, value_bound)] = kambe.get([n], z.value, floor);
+<a href=#118 id=118 data-nosnippet>118</a>        (value, value_bound, <span class="prelude-val">None</span>)
+<a href=#119 id=119 data-nosnippet>119</a>    } <span class="kw">else </span>{
+<a href=#120 id=120 data-nosnippet>120</a>        <span class="kw">let </span>[(value, value_bound), next] = kambe.get([n, n + <span class="number">2</span>], z.value, floor);
+<a href=#121 id=121 data-nosnippet>121</a>        (value, value_bound, <span class="prelude-val">Some</span>(next))
+<a href=#122 id=122 data-nosnippet>122</a>    };
+<a href=#123 id=123 data-nosnippet>123</a>    <span class="kw">let </span>(next_bound, modulus) = (next.map_or(<span class="number">0.0</span>, |(<span class="kw">_</span>, bound)| bound), z.value.l1_norm());
+<a href=#124 id=124 data-nosnippet>124</a>    <span class="kw-2">*</span>bound = Rounding {
+<a href=#125 id=125 data-nosnippet>125</a>        value: value_bound,
+<a href=#126 id=126 data-nosnippet>126</a>        derivative: z.derivative.map(|d| next_bound * modulus * d.l1_norm()),
+<a href=#127 id=127 data-nosnippet>127</a>    }
+<a href=#128 id=128 data-nosnippet>128</a>    .times(factor);
+<a href=#129 id=129 data-nosnippet>129</a>    (value, next.map(|(next, <span class="kw">_</span>)| next))
+<a href=#130 id=130 data-nosnippet>130</a>}
+<a href=#131 id=131 data-nosnippet>131</a>
+<a href=#132 id=132 data-nosnippet>132</a><span class="doccomment">/// The error, in units of epsilon, up to which [`SmallSplitKambe::get`] keeps the closed
+<a href=#133 id=133 data-nosnippet>133</a>/// forms of the Kambe integral of a real-space term with the factor `factor`: what leaves
+<a href=#134 id=134 data-nosnippet>134</a>/// less in each component of the term than the rounding `largest` of the largest term so
+<a href=#135 id=135 data-nosnippet>135</a>/// far, carried by the value of the factor or, where that vanishes (off-axis orders on a
+<a href=#136 id=136 data-nosnippet>136</a>/// 1D spherical axis, odd `l + m` in a 2D plane), by its derivatives.
+<a href=#137 id=137 data-nosnippet>137</a></span><span class="kw">fn </span>kambe_floor&lt;<span class="kw">const </span>N: usize&gt;(largest: <span class="kw-2">&amp;</span>Rounding&lt;N&gt;, factor: <span class="kw-2">&amp;</span>Jet&lt;N&gt;) -&gt; f64 {
+<a href=#138 id=138 data-nosnippet>138</a>    <span class="kw">let </span>scale = factor.value.l1_norm();
+<a href=#139 id=139 data-nosnippet>139</a>    <span class="kw">if </span>scale &gt; <span class="number">0.0 </span>{
+<a href=#140 id=140 data-nosnippet>140</a>        <span class="kw">return </span>largest.value / scale;
+<a href=#141 id=141 data-nosnippet>141</a>    }
+<a href=#142 id=142 data-nosnippet>142</a>    largest
+<a href=#143 id=143 data-nosnippet>143</a>        .derivative
+<a href=#144 id=144 data-nosnippet>144</a>        .iter()
+<a href=#145 id=145 data-nosnippet>145</a>        .zip(<span class="kw-2">&amp;</span>factor.derivative)
+<a href=#146 id=146 data-nosnippet>146</a>        .filter(|<span class="kw-2">&amp;</span>(<span class="kw">_</span>, <span class="kw-2">&amp;</span>d)| <span class="macro">d !</span>= Complex::default())
+<a href=#147 id=147 data-nosnippet>147</a>        .map(|(largest, d)| largest / d.l1_norm())
+<a href=#148 id=148 data-nosnippet>148</a>        .fold(f64::INFINITY, f64::min)
+<a href=#149 id=149 data-nosnippet>149</a>}
+<a href=#150 id=150 data-nosnippet>150</a>
+<a href=#151 id=151 data-nosnippet>151</a><span class="doccomment">/// One real-space summand at the displacement `r = -shift - R`.
+<a href=#152 id=152 data-nosnippet>152</a>///
+<a href=#153 id=153 data-nosnippet>153</a>/// # Formula
+<a href=#154 id=154 data-nosnippet>154</a>///
+<a href=#155 id=155 data-nosnippet>155</a>/// Spherical: `-i sqrt(2 / pi) k^l |r|^l Y_lm(r / |r|) I_(2l)(k |r|, eta)`, where
+<a href=#156 id=156 data-nosnippet>156</a>/// `|r|^l Y_lm` is `harmonic_normalization(l, m)` times the solid harmonic. Cylindrical:
+<a href=#157 id=157 data-nosnippet>157</a>/// `-2 i / pi (-1)^m (k (x ± i y))^|m| I_(2|m| - 1)(k |r|, eta)`, with the sign `(-1)^m`
+<a href=#158 id=158 data-nosnippet>158</a>/// and `x - i y` for negative `m` only.
+<a href=#159 id=159 data-nosnippet>159</a>///
+<a href=#160 id=160 data-nosnippet>160</a>/// [`RealKambe::SmallSplit`] stores first-order bounds on the absolute rounding errors
+<a href=#161 id=161 data-nosnippet>161</a>/// that its Kambe integral leaves in its value and derivatives (see [`kambe_jet`]).
+<a href=#162 id=162 data-nosnippet>162</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>real_term&lt;<span class="kw">const </span>N: usize&gt;(
+<a href=#163 id=163 data-nosnippet>163</a>    wave: Family,
+<a href=#164 id=164 data-nosnippet>164</a>    k: Jet&lt;N&gt;,
+<a href=#165 id=165 data-nosnippet>165</a>    r: [Jet&lt;N&gt;; <span class="number">3</span>],
+<a href=#166 id=166 data-nosnippet>166</a>    eta: Complex,
+<a href=#167 id=167 data-nosnippet>167</a>    mode: RealKambe&lt;<span class="lifetime">'_</span>, N&gt;,
+<a href=#168 id=168 data-nosnippet>168</a>) -&gt; Jet&lt;N&gt; {
+<a href=#169 id=169 data-nosnippet>169</a>    <span class="kw">let </span>radius = r.into_iter().map(|r| r * r).sum::&lt;Jet&lt;N&gt;&gt;().sqrt();
+<a href=#170 id=170 data-nosnippet>170</a>    <span class="kw">let </span>(factor, order) = <span class="kw">match </span>wave {
+<a href=#171 id=171 data-nosnippet>171</a>        Family::Spherical { l, m } =&gt; {
+<a href=#172 id=172 data-nosnippet>172</a>            <span class="kw">let </span>harmonic = solid_jet(l, m, r) * harmonic_normalization(l, m);
+<a href=#173 id=173 data-nosnippet>173</a>            (
+<a href=#174 id=174 data-nosnippet>174</a>                -Complex::i() * (<span class="number">2.0 </span>/ PI).sqrt() * k.powi(l) * harmonic,
+<a href=#175 id=175 data-nosnippet>175</a>                <span class="number">2 </span>* l,
+<a href=#176 id=176 data-nosnippet>176</a>            )
+<a href=#177 id=177 data-nosnippet>177</a>        }
+<a href=#178 id=178 data-nosnippet>178</a>        Family::Cylindrical { m } =&gt; {
+<a href=#179 id=179 data-nosnippet>179</a>            <span class="kw">let </span>(xy, sign) = (azimuthal(r[<span class="number">0</span>], r[<span class="number">1</span>], m), negative_order_sign(m));
+<a href=#180 id=180 data-nosnippet>180</a>            (
+<a href=#181 id=181 data-nosnippet>181</a>                -<span class="number">2.0 </span>* Complex::i() / PI * sign * (k * xy).powi(m.abs()),
+<a href=#182 id=182 data-nosnippet>182</a>                <span class="number">2 </span>* m.abs() - <span class="number">1</span>,
+<a href=#183 id=183 data-nosnippet>183</a>            )
+<a href=#184 id=184 data-nosnippet>184</a>        }
+<a href=#185 id=185 data-nosnippet>185</a>    };
+<a href=#186 id=186 data-nosnippet>186</a>    factor * kambe_jet(order, k * radius, eta, mode, <span class="kw-2">&amp;</span>factor)
+<a href=#187 id=187 data-nosnippet>187</a>}
 </code></pre></div></section></main></body></html>
