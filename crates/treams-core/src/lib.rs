@@ -187,7 +187,7 @@
 //!
 //! ## Lints
 //!
-//! The workspace turns on clippy's `all`, `pedantic` and `nursery` groups, requires
+//! The workspace keeps clippy's default lints, adds `pedantic` and `nursery`, requires
 //! docs on every public item, and the checks treat every warning as an error.
 //! `clippy::indexing_slicing` stays on, so new code indexes through iterators or checked
 //! access. A numerical module that validates its indices on entry opts out once, with

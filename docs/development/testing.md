@@ -191,9 +191,10 @@ examples alone or in the full suite. Never load a profile in a test module.
 | `thorough` | 300 | `HYPOTHESIS_PROFILE=thorough` or `--hypothesis-profile=thorough` |
 
 No profile has a deadline, because debug-build timings vary. On CI, Hypothesis
-also derandomizes every profile and runs without its example database. An
-explicit `@settings(max_examples=...)` bounds an expensive property under every
-profile.
+also derandomizes every profile and runs without its example database. Every
+health check stays enabled locally and on CI, including the check for slow
+input generation. An explicit `@settings(max_examples=...)` bounds an expensive
+property under every profile.
 
 ### Parallel runs
 

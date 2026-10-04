@@ -110,7 +110,6 @@ docs = [
 
 [tool.maturin]
 manifest-path = "crates/treams-py/Cargo.toml"
-features = [ "extension-module" ]
 locked = true
 python-source = "python"
 module-name = "treams_rs._native"

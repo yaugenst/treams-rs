@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Preserve Clippy's default correctness errors and enable every Hypothesis
+  health check on CI. Let Maturin configure Python extension linking and build
+  source-distribution verification wheels through uv's default sdist rebuild.
+
 ## 0.1.1 (2026-10-04)
 
 - Faster CPU sphere-cluster solves for multiple illuminations by sharing pair

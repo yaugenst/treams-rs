@@ -294,19 +294,12 @@ jobs:
 
       - name: Build and verify source distribution
         run: |
-          uv build --sdist --out-dir dist/sdist --clear
-          # The sdist omits rust-toolchain.toml, so this builds with the
-          # toolchain installed above, as a downstream source build would. The
-          # wheel targets the interpreter of the smoke environment below.
-          uv build \
-            --python 3.12 \
-            --wheel \
-            dist/sdist/treams_rs-*.tar.gz \
-            --out-dir dist/sdist-wheel \
-            --clear
+          # uv builds the wheel from the sdist, which omits rust-toolchain.toml
+          # and uses the toolchain installed above, as a downstream build would.
+          uv build --python 3.12 --out-dir dist/sdist --clear
           uv run --script scripts/check_source_distribution.py \
             --sdist dist/sdist/treams_rs-*.tar.gz \
-            --wheel dist/sdist-wheel/treams_rs-*.whl
+            --wheel dist/sdist/treams_rs-*.whl
 
           uv venv .sdist-smoke --python 3.12
           uv pip install \
@@ -317,7 +310,7 @@ jobs:
             --python .sdist-smoke/bin/python \
             --no-cache \
             --no-index \
-            --find-links dist/sdist-wheel \
+            --find-links dist/sdist \
             treams-rs
           .sdist-smoke/bin/python scripts/smoke_wheel_install.py base
 
