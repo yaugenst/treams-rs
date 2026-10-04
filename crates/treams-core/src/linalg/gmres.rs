@@ -494,7 +494,7 @@ mod tests {
                 apply(input)
             })
             .unwrap();
-            for (column, right) in rhs.chunks_exact(3).enumerate() {
+            for (column, right) in rhs.as_chunks::<3>().0.iter().enumerate() {
                 let (independent, report) = gmres(right, options, apply).unwrap();
                 assert_eq!(&answer[column * 3..][..3], independent.as_slice());
                 assert_eq!(reports[column].iterations, report.iterations);
