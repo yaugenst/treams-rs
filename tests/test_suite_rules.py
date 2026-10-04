@@ -36,6 +36,7 @@ def test_hypothesis_profile_is_owned_by_conftest(pytestconfig):
     )
     assert settings.get_current_profile_name() == expected
     assert settings.default.deadline is None
+    assert settings.default.suppress_health_check == ()
 
 
 # Storage order and stride signs of the layouts that read contiguous storage

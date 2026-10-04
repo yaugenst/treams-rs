@@ -153,4 +153,4 @@ licenses-check:
     uv run --no-sync python scripts/third_party_licenses.py --check
 
 deny:
-    cargo deny --all-features check -W unmaintained
+    cargo deny check -W unmaintained

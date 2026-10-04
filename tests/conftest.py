@@ -34,10 +34,18 @@ if TYPE_CHECKING:
 
 # Every profile derives from the settings active at import: Hypothesis's own "ci"
 # profile (derandomized, no example database) when it detects CI, otherwise its
-# stock default. Debug-build timings vary too much for a per-example deadline.
+# stock default. Keep every health check enabled, including CI's normally
+# suppressed slow-generation check. Debug-build timings vary too much for a
+# per-example deadline.
 # Hosted CI selects "ci", which replaces Hypothesis's profile of that name and
 # keeps the stock budget of 100 examples.
-settings.register_profile("dev", max_examples=30, deadline=None, print_blob=True)
+settings.register_profile(
+    "dev",
+    max_examples=30,
+    deadline=None,
+    print_blob=True,
+    suppress_health_check=(),
+)
 settings.register_profile("ci", settings.get_profile("dev"), max_examples=100)
 settings.register_profile("thorough", settings.get_profile("dev"), max_examples=300)
 # `--hypothesis-profile=<name>` on the command line takes precedence.
