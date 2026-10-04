@@ -50,6 +50,10 @@ Python library:
 - **faer.** treams-rs passes faer an explicit `Par` from the budget for every
   product, LU factorization and solve, `Par::Seq` for eigen- and singular-value
   decompositions, and never reads `faer::get_global_parallelism`.
+  Products use at most one worker per 65,536 multiply-add terms (`M N K`),
+  reusing faer's existing complex128 cutoff as the minimum work per worker.
+  This prevents small products from scheduling the entire pool; LU retains
+  its own size-based worker cap.
 - **threadpoolctl.** The extension exports the C symbol `treams_rs_num_threads`,
   by which a controller that `treams_rs.parallel` registers finds the module.
 
@@ -126,13 +130,15 @@ The following changes address the audit's findings:
 
 ### Further work
 
-The timings and estimates below belong to that earlier audit. These follow-up
-investigations are outside the 0.1.0 release scope.
+The timings and estimates below belong to that earlier audit. The subsequent
+[CPU work](../performance/cpu-speedups.md) adds the product worker cap above and
+reuses translation, field and Ewald work. It does not replace the broader
+cross-platform scheduling investigations below.
 
 | Item | Evidence | Estimate |
 |---|---|---|
 | Parallel singular-value decompositions from n ≈ 384 whose splits do not follow the budget, for example a fixed worker count by size. | At n = 768, 403 ms on four workers against 693 ms on one; the bits changed with the worker count. | 2–3 d |
-| A cost model for parallel cutoffs: items times cost per item instead of fixed element counts. One-thread helpers now execute serially on the calling thread. | The audit found 32 regions without a size cutoff; a two-point field call cost 24–75 µs against 9 µs for one point. | 3–4 d |
+| Extend work-based worker limits beyond dense products; one-thread helpers execute serially on the calling thread. | The earlier audit found 32 regions without a size cutoff; a two-point field call cost 24–75 µs against 9 µs for one point. | 3–4 d |
 | Calibrate the LU worker cap on more machines, at both ends. | Pools of four or fewer use every worker from 64 rows; larger pools keep 768 rows serial. Tuned on one Ryzen 9950X. | 1–2 d + machines |
 | Ufunc parallel path without the collect-then-store copy, and parallel strided inputs. | Peak RSS 153 MiB at one thread against 306 MiB at four. | 1.5–2 d |
 | Parallel cluster assembly and pullbacks in `basis`, and the EBCM forward. | The assembly behind `Cluster.solve` did not scale from one to four threads. | 1.5–2.5 d |

@@ -2,8 +2,8 @@
 //!
 //! Cylindrical and spherical Bessel functions of every kind ([`bessel`]), regular and
 //! singular radial jets ([`spherical_radial`], [`cylindrical_radial`]), and their
-//! broadcasting residual. Away from the small-argument power series they call the AMOS
-//! library (the `complex_bessel` crate), as scipy does.
+//! broadcasting residual. They use AMOS (the `complex_bessel` crate), small-argument
+//! power series, and a qualified positive-real outgoing Hankel recurrence.
 //!
 //! Upstream: `treams.special.jv`, `yv`, `hankel1`, `hankel2`, `spherical_jn` and
 //! `spherical_yn` (scipy's functions), and `jv_d`, `yv_d`, `hankel1_d`, `hankel2_d`,
@@ -435,13 +435,13 @@ pub fn spherical_radial(l: u32, z: Complex, radial: Radial) -> Result<RadialJet>
     ))
 }
 
-/// [`spherical_radial`] jets of every degree `0..=order` at one argument. Away from the
-/// regular power series, adjacent degrees share their AMOS evaluations: regular jets
-/// reuse single J evaluations and equal [`spherical_radial`] bit for bit, and singular
-/// jets come from one Hankel sequence instead of `order + 1` two-term sequences. Against
-/// 30-digit values at `|Im z| <= 5` the long sequence stays within 2e-13 relative up to
-/// order 80 (two-term sequences: 8e-14); below `Im z = 0` it loses up to a digit to
-/// them, still within 1e-13 of each jet's size up to order 40.
+/// [`spherical_radial`] jets of every degree `0..=order` at one argument. Regular jets
+/// share power-series terms or single AMOS J evaluations. Singular jets share one
+/// [`spherical_hankels`] sequence, using its positive-real recurrence where qualified
+/// and AMOS elsewhere. Against 30-digit values at `|Im z| <= 5`, the AMOS sequence
+/// stays within 2e-13 relative up to order 80 (two-term sequences: 8e-14); below
+/// `Im z = 0` it loses up to a digit to two-term sequences, still within 1e-13 of each
+/// jet's size up to order 40.
 pub(crate) fn spherical_radial_sequence(
     order: u32,
     z: Complex,
@@ -479,10 +479,33 @@ pub(crate) fn spherical_radial_sequence(
 }
 
 /// Spherical Hankel functions `h_p(z)` of the first kind for `p = first..=last` at a
-/// nonzero argument, from one AMOS sequence.
+/// nonzero argument. Real positive arguments use the elementary outgoing seed and
+/// upward recurrence (DLMF 10.49.6, 10.51.1). Unlike regular J, H contains the dominant
+/// irregular solution, so this direction is stable below the turning point too.
+/// The bounded domain keeps every intermediate finite and agrees with AMOS to the
+/// existing 1e-13 sequence tolerance; other arguments retain one AMOS sequence.
 pub(crate) fn spherical_hankels(first: u32, last: u32, z: Complex) -> Result<Vec<Complex>> {
     let count = usize::try_from(last.saturating_sub(first) + 1)
         .map_err(|_| Error::InvalidInput("invalid radial order".into()))?;
+    if first <= last && last <= 64 && z.im == 0.0 && (0.5..=1e4).contains(&z.re) {
+        let inverse = z.re.recip();
+        let (sin, cos) = z.re.sin_cos();
+        // h_-1 = exp(ix)/x and h_0 = -i exp(ix)/x.
+        let mut previous = Complex::new(cos * inverse, sin * inverse);
+        let mut current = Complex::new(sin * inverse, -cos * inverse);
+        let mut values = Vec::with_capacity(count);
+        for degree in 0..=last {
+            if degree >= first {
+                values.push(current);
+            }
+            if degree < last {
+                let next = (f64::from(2 * degree + 1) * inverse) * current - previous;
+                previous = current;
+                current = next;
+            }
+        }
+        return Ok(values);
+    }
     let prefactor = spherical_prefactor(z);
     Ok(sequence(Bessel::H1, f64::from(first) + 0.5, z, count)?
         .into_iter()
@@ -572,13 +595,13 @@ mod tests {
     use proptest::{prelude::*, test_runner::TestCaseError};
 
     use super::{
-        Bessel, Radial, SERIES_RADIUS, bessel, cylindrical_radial, spherical_radial,
-        spherical_radial_sequence,
+        Bessel, Radial, SERIES_RADIUS, bessel, cylindrical_radial, spherical_hankels,
+        spherical_radial, spherical_radial_sequence,
     };
     use crate::{
         Complex, Error,
         numerics::ratio,
-        test_support::{ALGEBRA_CASES, log_polar, prop_assert_close, radial},
+        test_support::{ALGEBRA_CASES, log_polar, prop_assert_close, radial, table},
     };
 
     proptest! {
@@ -644,6 +667,62 @@ mod tests {
             }
         }
         Ok(())
+    }
+
+    #[test]
+    fn real_hankel_sequences_match_amos_at_domain_edges_and_turning_points() {
+        for x in [
+            0.5_f64.next_down(),
+            0.5,
+            0.5_f64.next_up(),
+            1.0,
+            3.0,
+            7.4,
+            16.0,
+            31.5,
+            59.6,
+            64.0,
+            128.0,
+            1e3,
+            1e4,
+            1e4_f64.next_up(),
+        ] {
+            for last in [0, 3, 16, 64, 65] {
+                for first in [0, last / 2, last] {
+                    let z = Complex::new(x, 0.0);
+                    let values = spherical_hankels(first, last, z).unwrap();
+                    assert_eq!(values.len(), (last - first + 1) as usize);
+                    for (degree, actual) in (first..=last).zip(values) {
+                        let expected = bessel(f64::from(degree), z, Bessel::H1, true, 0).unwrap();
+                        assert!(
+                            (actual - expected).norm() <= 1e-13 * expected.norm(),
+                            "h_{degree}({x}): {actual} != {expected}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn real_hankel_sequences_match_high_precision() {
+        // Test values directly so degree 64 exercises the recurrence (a degree-64
+        // jet needs an order-65 fallback).
+        let cases = table::<String, f64>(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/references/spherical_hankel.txt"
+        )));
+        assert_eq!(cases.len(), 6);
+        for (key, value) in cases {
+            let degree = key[0].parse().unwrap();
+            let x = key[1].parse().unwrap();
+            let actual = spherical_hankels(degree, degree, Complex::new(x, 0.0)).unwrap()[0];
+            let expected = Complex::new(value[0], value[1]);
+            assert!(
+                (actual - expected).norm() <= 1e-13 * expected.norm(),
+                "h_{degree}({x}): {actual} != {expected}"
+            );
+        }
     }
 
     /// The cylindrical jet is a power series below `|z| = SERIES_RADIUS` (0.5) and a

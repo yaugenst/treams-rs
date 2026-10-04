@@ -1,0 +1,10 @@
+# Outgoing spherical Hankel h_l(x) at positive real arguments: `l x: re im`.
+# Generated with mpmath 1.3.0 at 90 digits: sqrt(pi / (2*x)) * hankel1(l + 1/2, x).
+# Arguments are the exact binary64 inputs; rows cover the real recurrence boundaries
+# and turning points. DLMF 10.49.6's finite polynomial agrees to 1e-70 relative.
+0 0.5: 0.958851077208406 -1.7551651237807455
+64 0.5: 2.5483125167501188e-129 -6.084160335031653e126
+64 64.0: 0.0155020910315421 -0.03381448314558654
+57 56.7: 0.015696862228771383 -0.04002131894037167
+0 10000.0: -3.056143888882521e-5 9.521553682590148e-5
+64 10000.0: -4.9565626159680466e-5 8.685307541984628e-5

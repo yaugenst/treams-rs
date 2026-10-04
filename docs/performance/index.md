@@ -4,6 +4,11 @@ description: Measured speed and memory against treams 0.4.5, with methods and ca
 
 # Performance
 
+The [CPU speedup measurements](cpu-speedups.md) compare the optimizations after
+0.1.0 with that release on user workflows, including complete gradients. The
+older comparisons with upstream treams below retain their original results
+and source revisions; they have not all been rerun on the updated implementation.
+
 In the recorded Linux broad grid of 527 cases, treams-rs is faster than treams
 0.4.5 in every case, with a median speedup of 5.12× and a median of 0.66 times
 the peak memory.

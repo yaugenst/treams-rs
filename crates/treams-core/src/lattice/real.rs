@@ -69,6 +69,32 @@ fn kambe_jet<const N: usize>(
     z.chain(value, derivative)
 }
 
+/// The radial integral shared by all spherical orders of one degree at a point.
+/// Used only above the small-split cancellation regime, where the integral does not
+/// depend on the harmonic's rounding budget.
+pub(super) fn spherical_radial<const N: usize>(
+    l: i32,
+    k: Jet<N>,
+    r: [Jet<N>; 3],
+    eta: Complex,
+) -> Jet<N> {
+    let radius = r.into_iter().map(|r| r * r).sum::<Jet<N>>().sqrt();
+    kambe_jet(2 * l, k * radius, eta, RealKambe::Plain, &Jet::default())
+}
+
+/// A spherical real-space term from its already evaluated radial integral.
+pub(super) fn spherical_from_radial<const N: usize>(
+    l: i32,
+    m: i32,
+    k: Jet<N>,
+    r: [Jet<N>; 3],
+    radial: Jet<N>,
+) -> Jet<N> {
+    let harmonic = solid_jet(l, m, r) * harmonic_normalization(l, m);
+    let factor = -Complex::i() * (2.0 / PI).sqrt() * k.powi(l) * harmonic;
+    factor * radial
+}
+
 /// `I_n` and, for jets, `I_(n+2)` at `z` in [`RealKambe::SmallSplit`], storing their
 /// bounds in the term with the factor `factor` in `bound`.
 ///

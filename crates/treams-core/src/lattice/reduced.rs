@@ -468,4 +468,31 @@ impl<const N: usize> Reduced<N> {
             },
         )
     }
+
+    /// On-plane half-integer orders shared by the spherical harmonics of one
+    /// degree. Their scalar gamma limits do not depend on the harmonic or on the
+    /// order in which they are requested. The largest requested order is 3/2, the
+    /// derivative of F_(1/2). The plane has t = dt = 0, so only v varies.
+    pub(super) fn get_plane_cached(
+        &self,
+        twice_n: i32,
+        cached: &mut Vec<Option<Complex>>,
+    ) -> Jet<N> {
+        debug_assert!(self.t.is_zero() && twice_n % 2 != 0 && twice_n <= 1);
+        let mut gamma = |twice_n| {
+            let index = usize::try_from((3 - twice_n) / 2).unwrap_or_default();
+            if cached.len() <= index {
+                cached.resize(index + 1, None);
+            }
+            *cached[index].get_or_insert_with(|| gamma_limit(twice_n, self.v.value, self.turns()))
+        };
+        if N == 0 {
+            return Jet::constant(gamma(twice_n));
+        }
+        let dz = gamma(twice_n + 2);
+        Jet {
+            value: gamma(twice_n),
+            derivative: self.v.derivative.map(|d| dz * d),
+        }
+    }
 }

@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use faer::{Accum, MatMut, Par, linalg::matmul::matmul};
+use faer::{Accum, MatMut, MatRef, Par, linalg::matmul::matmul};
 use nalgebra::DMatrix;
 use rayon::prelude::*;
 
@@ -12,7 +12,7 @@ use crate::{
     Complex, Error, Result,
     cluster::SphereClusterGradient,
     coeffs::{Matrix2, MieResidual, mie, to_mode_order},
-    linalg::{Convergence, GmresOptions, gmres, view},
+    linalg::{Convergence, GmresOptions, gmres_batch, view},
     numerics::{finite, parallel::try_fold_ordered},
     special::Radial,
     sw::{self, TranslationPlan},
@@ -90,25 +90,30 @@ impl IterativeSphereCluster {
     }
 
     /// `T input`, or `Tᴴ input` if `adjoint`, from the 2 x 2 Mie block of each degree
-    /// and order.
+    /// and order, for one or more column-major vectors.
     ///
     /// [`sphere`](crate::tmatrix::sphere) places the same blocks in a dense T-matrix
     /// for [`sphere_cluster`](super::sphere_cluster); this applies them in place.
     fn local(&self, input: &[Complex], adjoint: bool) -> Vec<Complex> {
-        let mut output = vec![Complex::default(); self.dimension];
+        let mut output = vec![Complex::default(); input.len()];
         let modes = self.modes_per_particle();
-        for (particle, degrees) in self.degrees.iter().enumerate() {
-            for (block, &degree) in self.mode_degrees.iter().enumerate() {
-                let matrix = to_mode_order(degrees[degree].value());
-                let offset = particle * modes + block * 2;
-                for i in 0..2 {
-                    for j in 0..2 {
-                        let t = if adjoint {
-                            matrix[(j, i)].conj()
-                        } else {
-                            matrix[(i, j)]
-                        };
-                        output[offset + i] += t * input[offset + j];
+        for (output, input) in output
+            .chunks_exact_mut(self.dimension)
+            .zip(input.chunks_exact(self.dimension))
+        {
+            for (particle, degrees) in self.degrees.iter().enumerate() {
+                for (block, &degree) in self.mode_degrees.iter().enumerate() {
+                    let matrix = to_mode_order(degrees[degree].value());
+                    let offset = particle * modes + block * 2;
+                    for i in 0..2 {
+                        for j in 0..2 {
+                            let t = if adjoint {
+                                matrix[(j, i)].conj()
+                            } else {
+                                matrix[(i, j)]
+                            };
+                            output[offset + i] += t * input[offset + j];
+                        }
                     }
                 }
             }
@@ -126,6 +131,7 @@ impl IterativeSphereCluster {
     fn coupling(&self, input: &[Complex], columns: usize, adjoint: bool) -> Result<Vec<Complex>> {
         let modes = self.modes_per_particle();
         let particles = self.positions.len();
+        let input = MatRef::from_column_major_slice(input, self.dimension, columns);
         let rows: Vec<Vec<Complex>> = crate::threads::install(|| {
             (0..particles)
                 .into_par_iter()
@@ -137,15 +143,14 @@ impl IterativeSphereCluster {
                         let displacement = std::array::from_fn(|axis| {
                             self.positions[to][axis] - self.positions[from][axis]
                         });
-                        let block = self.plan.evaluate(
+                        self.plan.apply(
                             Complex::new(self.k0, 0.0),
                             displacement,
                             Radial::Singular,
+                            input.subrows(j * modes, modes),
+                            MatMut::from_column_major_slice_mut(&mut output, modes, columns),
+                            adjoint,
                         )?;
-                        for (column, output) in output.chunks_exact_mut(modes).enumerate() {
-                            let source = &input[column * self.dimension + j * modes..][..modes];
-                            apply_block(&block, source, output, adjoint);
-                        }
                     }
                     Ok(output)
                 })
@@ -162,17 +167,17 @@ impl IterativeSphereCluster {
 
     /// `(I - T C) input`, or `(I - T C)ᴴ input = (I - Cᴴ Tᴴ) input` if `adjoint`: the
     /// operator that GMRES inverts.
-    fn apply(&self, input: &[Complex], adjoint: bool) -> Result<Vec<Complex>> {
+    fn apply(&self, input: &[Complex], columns: usize, adjoint: bool) -> Result<Vec<Complex>> {
         let product = if adjoint {
-            self.coupling(&self.local(input, true), 1, true)?
+            self.coupling(&self.local(input, true), columns, true)?
         } else {
-            self.local(&self.coupling(input, 1, false)?, false)
+            self.local(&self.coupling(input, columns, false)?, false)
         };
         Ok(input.iter().zip(product).map(|(x, y)| x - y).collect())
     }
 
     /// Solve `(I - T C) X = rhs`, or `(I - T C)ᴴ X = rhs` if `adjoint`, one column of
-    /// `rhs` at a time.
+    /// `rhs` independently, sharing pair translations across bounded column batches.
     fn solve_rhs(
         &self,
         rhs: &DMatrix<Complex>,
@@ -181,12 +186,20 @@ impl IterativeSphereCluster {
     ) -> Result<IterativeSolution> {
         let mut value = DMatrix::zeros(self.dimension, rhs.ncols());
         let mut convergence = Vec::with_capacity(rhs.ncols());
-        // Columns are sequential so the Krylov memory budget is independent of P;
-        // the expensive particle-pair applications themselves use Rayon.
-        for (column, right) in rhs.column_iter().enumerate() {
-            let (answer, report) = gmres(right.as_slice(), options, |x| self.apply(x, adjoint))?;
-            value.column_mut(column).copy_from_slice(&answer);
-            convergence.push(report);
+        // Retain at most eight independent Krylov bases regardless of the number of
+        // illuminations. Each costly pair translation serves all active columns.
+        const BATCH_COLUMNS: usize = 8;
+        for (input, output) in rhs.as_slice().chunks(self.dimension * BATCH_COLUMNS).zip(
+            value
+                .as_mut_slice()
+                .chunks_mut(self.dimension * BATCH_COLUMNS),
+        ) {
+            let columns = input.len() / self.dimension;
+            let (answer, reports) = gmres_batch(input, columns, options, |x, columns| {
+                self.apply(x, columns, adjoint)
+            })?;
+            output.copy_from_slice(&answer);
+            convergence.extend(reports);
         }
         Ok(IterativeSolution { value, convergence })
     }
@@ -207,10 +220,11 @@ impl IterativeSphereCluster {
                 "incident coefficients must be finite, with one row per local multipole and at least one column".into(),
             ));
         }
-        let mut rhs = DMatrix::zeros(self.dimension, incident.ncols());
-        for (mut output, input) in rhs.column_iter_mut().zip(incident.column_iter()) {
-            output.copy_from_slice(&self.local(input.as_slice(), false));
-        }
+        let rhs = DMatrix::from_vec(
+            self.dimension,
+            incident.ncols(),
+            self.local(incident.as_slice(), false),
+        );
         self.solve_rhs(&rhs, options, false)
     }
 
@@ -295,10 +309,11 @@ impl IterativeResidual {
         for (response, scattered) in response.iter_mut().zip(scattered) {
             *response += scattered;
         }
-        let mut incident = DMatrix::zeros(operator.dimension, columns);
-        for (mut output, input) in incident.column_iter_mut().zip(adjoint.value.column_iter()) {
-            output.copy_from_slice(&operator.local(input.as_slice(), true));
-        }
+        let incident = DMatrix::from_vec(
+            operator.dimension,
+            columns,
+            operator.local(adjoint.value.as_slice(), true),
+        );
         let (positions, k0) = operator.pair_gradients(&incident, value)?;
         let mut cluster = SphereClusterGradient {
             k0,
@@ -416,25 +431,6 @@ impl IterativeSphereCluster {
             }
         }
         Ok(())
-    }
-}
-
-/// Add one `modes x modes` column-major translation block, or its conjugate
-/// transpose, applied to `input` into `output`.
-fn apply_block(block: &[Complex], input: &[Complex], output: &mut [Complex], adjoint: bool) {
-    let modes = output.len();
-    if adjoint {
-        for (output, column) in output.iter_mut().zip(block.chunks_exact(modes)) {
-            for (entry, x) in column.iter().zip(input) {
-                *output += entry.conj() * x;
-            }
-        }
-    } else {
-        for (column, x) in block.chunks_exact(modes).zip(input) {
-            for (output, entry) in output.iter_mut().zip(column) {
-                *output += entry * x;
-            }
-        }
     }
 }
 
@@ -691,6 +687,114 @@ mod tests {
         Ok(())
     }
 
+    /// Near-touching dielectric spheres require several restart cycles. Eleven
+    /// columns exercise a full batch and its tail, with zero and widely differing
+    /// amplitudes in both the forward and adjoint systems.
+    #[test]
+    fn restarted_batches_match_dense_for_strongly_coupled_spheres() -> Result<(), TestCaseError> {
+        let cluster = Cluster {
+            lmax: 3,
+            radii: vec![0.63, 0.60, 0.59],
+            epsilon: vec![
+                Complex::new(5.0, 0.0),
+                Complex::new(6.0, 0.05),
+                Complex::new(4.0, 0.02),
+            ],
+            positions: vec![[0.0; 3], [1.3, 0.0, 0.0], [0.65, 1.15, 0.1]],
+        };
+        let k0 = 1.4;
+        let options = GmresOptions {
+            restart: 3,
+            max_iterations: 300,
+            ..options()
+        };
+        let operator = Arc::new(cluster.operator(k0));
+        let scales = [1e-8, 0.0, 1.0, 1e8, 0.1, 7.0, 0.0, 1e-4, 1e4, 0.0, 2.0];
+        let mut incident = patterned(operator.dimension(), scales.len(), 0.4);
+        let mut g = patterned(operator.dimension(), scales.len(), 1.1);
+        for (column, scale) in scales.into_iter().enumerate() {
+            incident.column_mut(column).scale_mut(scale);
+            // Reciprocal amplitudes keep each nonzero loss contribution comparable.
+            let cotangent_scale = if [4, 9].contains(&column) {
+                0.0
+            } else if scale == 0.0 {
+                0.01
+            } else {
+                0.01 / scale
+            };
+            g.column_mut(column).scale_mut(cotangent_scale);
+        }
+        let record = operator.record(incident.clone(), options).unwrap();
+        let result = record.solution();
+        let dense = crate::cluster::sphere_cluster(
+            cluster.lmax,
+            k0,
+            &cluster.radii,
+            &cluster.epsilon,
+            &cluster.positions,
+        )
+        .unwrap();
+        let expected = dense.value() * &incident;
+        for (column, report) in result.convergence.iter().enumerate() {
+            let actual = result.value.column(column);
+            let expected = expected.column(column);
+            prop_assert_close!(
+                actual.as_slice(),
+                expected.as_slice(),
+                2e-10 * expected.norm() + f64::MIN_POSITIVE,
+                "forward column {}",
+                column
+            );
+            prop_assert!(report.residual_norm <= options.rtol * report.rhs_norm);
+            if scales[column] == 0.0 {
+                prop_assert_eq!(report.iterations, 0);
+                prop_assert!(actual.iter().all(|&z| z == Complex::default()));
+            } else {
+                prop_assert!(report.iterations > options.restart);
+            }
+        }
+        let loss = re_dot(&g, &result.value);
+        let grad = record.pullback(&g).unwrap();
+        let expected_incident = dense.value().adjoint() * &g;
+        for (column, report) in grad.convergence.iter().enumerate() {
+            let actual = grad.incident.column(column);
+            let expected = expected_incident.column(column);
+            prop_assert_close!(
+                actual.as_slice(),
+                expected.as_slice(),
+                3e-10 * g.column(column).norm() + f64::MIN_POSITIVE,
+                "adjoint column {}",
+                column
+            );
+            prop_assert!(report.residual_norm <= options.rtol * report.rhs_norm);
+            if [4, 9].contains(&column) {
+                prop_assert_eq!(report.iterations, 0);
+                prop_assert!(actual.iter().all(|&z| z == Complex::default()));
+            } else {
+                prop_assert!(report.iterations > options.restart);
+            }
+        }
+        let dense_grad = dense.pullback(&(&g * incident.adjoint())).unwrap();
+        let cluster_grad = &grad.cluster;
+        prop_assert_close!(&cluster_grad.radii, &dense_grad.radii, 3e-10);
+        prop_assert_close!(&cluster_grad.epsilon, &dense_grad.epsilon, 3e-10);
+        prop_assert_close!(&cluster_grad.positions, &dense_grad.positions, 3e-10);
+        prop_assert_close!(cluster_grad.k0, dense_grad.k0, 3e-10);
+        prop_assert_close!(loss, re_dot(&grad.incident, &incident), 3e-10);
+        for axis in 0..3 {
+            let total: f64 = cluster_grad.positions.iter().map(|p| p[axis]).sum();
+            prop_assert_close!(total, 0.0, 1e-12, "axis {}", axis);
+        }
+        let scale_gradient = dot(&cluster.radii, &cluster_grad.radii)
+            + dot(
+                cluster.positions.iter().flatten(),
+                cluster_grad.positions.iter().flatten(),
+            )
+            - k0 * cluster_grad.k0;
+        prop_assert_close!(scale_gradient, 0.0, 3e-10);
+        Ok(())
+    }
+
     #[test]
     fn domain_errors_are_explicit() {
         let eps = [Complex::new(2.0, 0.0)];
@@ -737,21 +841,23 @@ mod tests {
         let epsilon = vec![Complex::new(2.25, 0.01); positions.len()];
         let cluster =
             Arc::new(IterativeSphereCluster::new(1, 1.0, &radii, &epsilon, &positions).unwrap());
-        let incident = patterned(cluster.dimension(), 1, 0.4);
-        let g = patterned(cluster.dimension(), 1, 1.1);
-        assert_same_bits_on_pools(|| {
-            let residual = cluster.record(incident.clone(), options()).unwrap();
-            let solution = residual.solution().value.clone();
-            let gradient = residual.pullback(&g).unwrap();
-            let cluster = &gradient.cluster;
-            bits(&[
-                &solution,
-                &cluster.k0,
-                &cluster.radii,
-                &cluster.epsilon,
-                &cluster.positions,
-                &gradient.incident,
-            ])
-        });
+        for columns in [1, 9] {
+            let incident = patterned(cluster.dimension(), columns, 0.4);
+            let g = patterned(cluster.dimension(), columns, 1.1);
+            assert_same_bits_on_pools(|| {
+                let residual = cluster.record(incident.clone(), options()).unwrap();
+                let solution = residual.solution().value.clone();
+                let gradient = residual.pullback(&g).unwrap();
+                let cluster = &gradient.cluster;
+                bits(&[
+                    &solution,
+                    &cluster.k0,
+                    &cluster.radii,
+                    &cluster.epsilon,
+                    &cluster.positions,
+                    &gradient.incident,
+                ])
+            });
+        }
     }
 }

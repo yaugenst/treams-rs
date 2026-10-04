@@ -22,7 +22,10 @@ use crate::{
         self, Jet, finite,
         parallel::{try_fill_chunks, try_fold_ordered, try_map},
     },
-    special::{Radial, SERIES_RADIUS, Solid, bessel, helicity_sign, polarized_wave, solid},
+    special::{
+        Radial, SERIES_RADIUS, Solid, SolidTable, bessel, helicity_sign, polarized_wave, solid,
+        spherical_hankels,
+    },
     sw::Mode,
 };
 
@@ -146,7 +149,10 @@ fn scaled_radial(l: u32, k: Complex, r: f64, radial: Radial) -> Result<Complex> 
         }
         let mut coefficient = k.powu(l) / denominator;
         let mut sum = Complex::default();
-        for q in 0..32 {
+        // At |x| < 1/2, term q+1 is at most 1/[8(q+1)(2q+3)]
+        // times term q. The tail after these 12 terms is below 4e-33
+        // of the leading term even for l=0, well below f64 rounding.
+        for q in 0..12 {
             sum += coefficient * x.powu(2 * q);
             coefficient /= -2.0 * f64::from(q + 1) * f64::from(2 * l + 2 * q + 3);
         }
@@ -362,6 +368,12 @@ pub(crate) struct WaveSet {
     /// Scaled radial functions cached per position and wavenumber: the largest
     /// spherical degree plus three, or zero for cylinders.
     radial_table_len: usize,
+    /// Dense harmonic recurrences per (position, wavenumber). Sparse mode sets and
+    /// interleaved centres use single harmonics instead of repeatedly filling tables.
+    harmonic_tables: Vec<Option<SolidTable>>,
+    /// Degree ranges whose outgoing radial values share one Hankel sequence, selected
+    /// independently of mode order so column permutations retain the same values.
+    radial_ranges: Vec<Option<(u32, u32)>>,
 }
 
 /// Work shared by the waves of one sample point: scaled radial functions per
@@ -372,6 +384,10 @@ pub(crate) struct WaveSet {
 /// ([`VALUES`], [`SPATIAL_AND_K`] or [`WITH_AXIAL`]).
 pub(crate) struct SampleCache<const N: usize> {
     radials: Vec<Option<Complex>>,
+    /// Only the current centre for each wavenumber, bounding table storage by lmax
+    /// rather than the number of centres. Each entry packs the value and gradient,
+    /// followed by the row-major Hessian only above `VALUES`.
+    harmonics: [Option<(usize, Vec<Complex>)>; 2],
     spherical: Option<(PartsKey, [VectorWave; 2])>,
     cylindrical: Option<(ComponentsKey, [[Jet<N>; 3]; 2])>,
 }
@@ -419,6 +435,49 @@ impl WaveSet {
         radial: Radial,
     ) -> Result<Self> {
         validate_wavenumbers(ks, helicity, false)?;
+        let (harmonic_tables, radial_ranges) = match &basis {
+            MultipoleBasis::Spherical(basis) => {
+                let mut labels = vec![Vec::new(); 2 * basis.positions.len()];
+                let mut runs = vec![0; basis.positions.len()];
+                let mut previous = None;
+                for &(pidx, mode) in &basis.modes {
+                    if previous != Some(pidx) {
+                        runs[pidx] += 1;
+                        previous = Some(pidx);
+                    }
+                    let wavenumber = if ks[0] == ks[1] {
+                        0
+                    } else {
+                        usize::from(mode.pol)
+                    };
+                    labels[2 * pidx + wavenumber].push((mode.l, mode.m));
+                }
+                labels
+                    .into_iter()
+                    .enumerate()
+                    .map(|(key, mut labels)| {
+                        labels.sort_unstable();
+                        labels.dedup();
+                        let order = labels.last().map_or(0, |&(l, _)| l);
+                        // A scalar harmonic repeats l recurrence steps. Fill the
+                        // complete table only when those steps exceed twice its
+                        // size, so sparse custom bases retain their scalar cost.
+                        let work: i32 = labels.iter().map(|&(l, _)| l).sum();
+                        let dense = work >= 2 * (order + 1).pow(2);
+                        let first = labels.first().map_or(0, |&(l, _)| l);
+                        // Every degree needs its next radial value too. Gaps of at
+                        // most two therefore leave no unused entries in a sequence.
+                        let radial_sequence = !labels.is_empty()
+                            && labels.windows(2).all(|pair| pair[1].0 <= pair[0].0 + 2);
+                        (
+                            (runs[key / 2] == 1 && dense).then(|| SolidTable::new(order)),
+                            radial_sequence.then_some((first.unsigned_abs(), order.unsigned_abs())),
+                        )
+                    })
+                    .unzip()
+            }
+            MultipoleBasis::Cylindrical(_) => (Vec::new(), Vec::new()),
+        };
         let (normalizations, radial_table_len) = match &basis {
             MultipoleBasis::Spherical(b) => (
                 b.modes
@@ -440,12 +499,15 @@ impl WaveSet {
             radial,
             normalizations,
             radial_table_len,
+            harmonic_tables,
+            radial_ranges,
         })
     }
 
     pub(crate) fn cache<const N: usize>(&self) -> SampleCache<N> {
         SampleCache {
             radials: vec![None; 2 * self.basis.positions().len() * self.radial_table_len],
+            harmonics: [None, None],
             spherical: None,
             cylindrical: None,
         }
@@ -532,7 +594,28 @@ impl WaveSet {
         }
         let (k, position, scale) = spherical_arguments(k, position, self.radial);
         let r2 = position.iter().map(|v| v * v).sum::<f64>();
-        let table = (2 * pidx + wavenumber) * self.radial_table_len;
+        let key = 2 * pidx + wavenumber;
+        let table = key * self.radial_table_len;
+        if self.radial == Radial::Singular
+            && let Some((first, last)) = self.radial_ranges[key]
+            && cache.radials[table + first as usize].is_none()
+        {
+            let radius = r2.sqrt();
+            let argument = k * radius;
+            // Outside the sequence domain, the scalar path below retains its
+            // existing checks for non-finite arguments and underflowed kr.
+            if finite(argument) && argument.norm_sqr() != 0.0 {
+                let last = last + if N > VALUES { 2 } else { 1 };
+                for (degree, value) in (first..=last).zip(spherical_hankels(first, last, argument)?)
+                {
+                    if !finite(value) {
+                        return Err(Error::SpecialFunction("non-finite Bessel result".into()));
+                    }
+                    cache.radials[table + degree as usize] =
+                        Some(value / radius.powf(f64::from(degree)));
+                }
+            }
+        }
         let mut radial = |order: u32| -> Result<Complex> {
             let entry = &mut cache.radials[table + order as usize];
             if let Some(value) = *entry {
@@ -552,7 +635,42 @@ impl WaveSet {
                 Complex::default()
             },
         ];
-        let solid = if N > VALUES {
+        let solid = if let Some(table) = &self.harmonic_tables[key] {
+            let stride = if N > VALUES { 13 } else { 4 };
+            let slot = &mut cache.harmonics[wavenumber];
+            if slot.as_ref().is_some_and(|&(cached, _)| cached != pidx) {
+                *slot = None;
+            }
+            let (_, entries) = slot.get_or_insert_with(|| {
+                let mut entries = vec![Complex::default(); stride * table.len()];
+                let mut emit = |index, _, solid: Solid| {
+                    let start = stride * index;
+                    entries[start] = solid.value;
+                    entries[start + 1..start + 4].copy_from_slice(&solid.gradient);
+                    if N > VALUES {
+                        entries[start + 4..start + 13]
+                            .copy_from_slice(solid.hessian.as_flattened());
+                    }
+                };
+                if N > VALUES {
+                    table.visit_solid::<true>(position, &mut emit);
+                } else {
+                    table.visit_solid::<false>(position, &mut emit);
+                }
+                (pidx, entries)
+            });
+            let start =
+                stride * usize::try_from(mode.l * mode.l + mode.l + mode.m).unwrap_or_default();
+            Solid {
+                value: entries[start],
+                gradient: from_fn(|axis| entries[start + 1 + axis]),
+                hessian: if N > VALUES {
+                    from_fn(|i| from_fn(|j| entries[start + 4 + 3 * i + j]))
+                } else {
+                    [[Complex::default(); 3]; 3]
+                },
+            }
+        } else if N > VALUES {
             solid::<true>(mode.l, mode.m, position)
         } else {
             solid::<false>(mode.l, mode.m, position)
@@ -891,6 +1009,168 @@ mod tests {
             radial in radial(),
         ) {
             check_forward_wave(Mode { l, m, pol }, position, helicity, radial)?;
+        }
+    }
+
+    /// The shortened regular origin series agrees with independent AMOS values
+    /// through high degree, for real, lossy and amplifying complex arguments.
+    #[test]
+    fn regular_origin_series_matches_bessel_values() {
+        for l in 0..=64 {
+            for k in [
+                Complex::new(1.2, 0.0),
+                Complex::new(1.1, 0.3),
+                Complex::new(0.8, -0.5),
+            ] {
+                for radius in [0.01_f64, 0.2, 0.38] {
+                    let actual = super::scaled_radial(l, k, radius, Radial::Regular).unwrap();
+                    let argument = k * radius;
+                    let expected = (super::PI / (2.0 * argument)).sqrt()
+                        * complex_bessel::besselj(f64::from(l) + 0.5, argument).unwrap()
+                        / radius.powf(f64::from(l));
+                    assert!(
+                        (actual - expected).norm() <= 1e-13 * expected.norm(),
+                        "l={l}, k={k}, r={radius}, actual={actual}, expected={expected}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// Radial batching follows the needed degree intervals `[l, l+1]`, independently
+    /// of harmonic density. It includes single modes and excludes gaps with unused
+    /// radial orders; reversing modes leaves the selected range unchanged.
+    #[test]
+    fn radial_sequences_include_only_contiguous_needed_degrees() {
+        for (degrees, range) in [
+            (vec![1], Some((1, 1))),
+            (vec![2], Some((2, 2))),
+            (vec![1, 3], Some((1, 3))),
+            (vec![1, 4], None),
+            (vec![3, 128], None),
+        ] {
+            let mut basis = crate::sw::Basis {
+                modes: degrees
+                    .into_iter()
+                    .map(|l| (0, Mode { l, m: 0, pol: 1 }))
+                    .collect(),
+                positions: vec![[0.0; 3], [1.0, 0.0, 0.0]],
+            };
+            for _ in 0..2 {
+                let waves = super::WaveSet::new(
+                    basis.clone().into(),
+                    [Complex::new(1.0, 0.0); 2],
+                    true,
+                    Radial::Singular,
+                )
+                .unwrap();
+                assert_eq!(waves.radial_ranges, vec![range, None, None, None]);
+                assert!(waves.harmonic_tables.iter().all(Option::is_none));
+                basis.modes.reverse();
+            }
+        }
+    }
+
+    /// A high-degree centre does not make a nearby low-degree centre evaluate
+    /// unused Hankel orders that overflow, in either values or analytic gradients.
+    #[test]
+    fn outgoing_sequences_stop_at_each_centres_degree() {
+        let mut basis = spherical_basis(3, [0.0; 3]);
+        basis.positions.push([1.0, 0.0, 0.0]);
+        basis.modes.extend(
+            crate::sw::modes(8)
+                .unwrap()
+                .into_iter()
+                .map(|mode| (1, mode)),
+        );
+        let waves = super::WaveSet::new(
+            basis.clone().into(),
+            [Complex::new(1.0, 0.0); 2],
+            true,
+            Radial::Singular,
+        )
+        .unwrap();
+        let point = [1e-40, 0.0, 0.0];
+        let mut values = waves.cache::<{ super::VALUES }>();
+        let mut derivatives = waves.cache::<{ super::SPATIAL_AND_K }>();
+        for i in 0..basis.modes.len() {
+            let (value, _) = waves.wave(i, point, &mut values).unwrap();
+            let (wave, _) = waves.wave(i, point, &mut derivatives).unwrap();
+            assert!(value.value.into_iter().all(crate::numerics::finite));
+            assert!(
+                wave.position
+                    .into_iter()
+                    .flatten()
+                    .all(crate::numerics::finite)
+            );
+            assert!(wave.k.into_iter().all(crate::numerics::finite));
+        }
+    }
+
+    /// Dense, reordered and sparse harmonic tables retain the scalar waves and
+    /// their analytic point and wavenumber derivatives, including regular origins,
+    /// polar axes and changes of length unit. Both equal and chiral wavenumbers
+    /// exercise the table's complete cache key. Scalar radials isolate the harmonic
+    /// recurrence here; `field_evaluation_contract` covers the full dispatched path.
+    #[test]
+    fn spherical_harmonic_tables_match_individual_waves() {
+        for radial in [Radial::Regular, Radial::Singular] {
+            for chirality in [0.0, 0.2] {
+                for exponent in [-100, 0, 100] {
+                    let unit = 10_f64.powi(exponent);
+                    let ks = [Complex::new(1.2, 0.1), Complex::new(1.2 + chirality, 0.1)]
+                        .map(|k| k / unit);
+                    let mut basis = spherical_basis(8, [0.0; 3]);
+                    basis.positions.push([0.2 * unit, -0.1 * unit, 0.0]);
+                    let modes = basis.modes.clone();
+                    basis
+                        .modes
+                        .extend(modes.into_iter().map(|(_, mode)| (1, mode)));
+                    basis.modes.reverse();
+                    for ordering in 0..3 {
+                        let mut basis = basis.clone();
+                        if ordering == 1 {
+                            basis.modes.retain(|&(_, mode)| mode.l == 8 && mode.m == 3);
+                        } else if ordering == 2 {
+                            basis.modes.sort_unstable_by_key(|&(pidx, mode)| {
+                                (mode.l, mode.m, mode.pol, pidx)
+                            });
+                        }
+                        let mut waves =
+                            super::WaveSet::new(basis.clone().into(), ks, true, radial).unwrap();
+                        waves.radial_ranges.fill(None);
+                        assert_eq!(
+                            waves.harmonic_tables.iter().any(Option::is_some),
+                            ordering == 0
+                        );
+                        for point in [[0.0; 3], [0.0, 0.0, 0.7], [0.3, -0.8, 1.1]] {
+                            if radial == Radial::Singular && point.iter().all(|&v| v == 0.0) {
+                                continue;
+                            }
+                            let point = point.map(|x| x * unit);
+                            let mut cache = waves.cache::<{ super::SPATIAL_AND_K }>();
+                            let mut value_cache = waves.cache::<{ super::VALUES }>();
+                            for (i, &(pidx, mode)) in basis.modes.iter().enumerate() {
+                                let offset = from_fn(|a| point[a] - basis.positions[pidx][a]);
+                                let expected = spherical_wave(
+                                    mode,
+                                    ks[usize::from(mode.pol)],
+                                    offset,
+                                    true,
+                                    radial,
+                                )
+                                .unwrap();
+                                let (actual, _) = waves.wave(i, point, &mut cache).unwrap();
+                                let (value, _) = waves.wave(i, point, &mut value_cache).unwrap();
+                                assert_eq!(actual.value, expected.value);
+                                assert_eq!(value.value, expected.value);
+                                assert_eq!(actual.position, expected.position);
+                                assert_eq!(actual.k, expected.k);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 

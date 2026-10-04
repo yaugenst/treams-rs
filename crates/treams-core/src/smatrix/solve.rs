@@ -34,6 +34,8 @@ fn internal_operator(lower: MatRef<'_, Complex>, upper: MatRef<'_, Complex>) -> 
 /// pivoted LU and its singular-system behavior.
 #[derive(Debug)]
 enum InternalFactor {
+    /// Apply the two reflections already saved by the caller, without forming `L U`.
+    Reflections,
     /// The operator itself, for Krylov adjoint solves with a dense LU fallback.
     Krylov(DMatrix<Complex>),
     /// The pivoted LU factorization of the operator.
@@ -70,11 +72,70 @@ fn is_contraction(operator: &DMatrix<Complex>) -> bool {
     rows.iter().all(|&sum| sum < 1.0)
 }
 
+/// Positive row sums of `(|re A| + |im A|) weights`, rounded upward.
+fn absolute_row_sums(matrix: MatRef<'_, Complex>, weights: &[f64]) -> Vec<f64> {
+    let accumulate = |sum: &mut f64, z: Complex, weight: f64| {
+        // Exact zeros need no rounding. Preserving them also avoids multiplying
+        // artificial subnormals throughout sparse reflection blocks stored densely.
+        if z != Complex::default() && weight != 0.0 {
+            let term = ((z.re.abs() + z.im.abs()).next_up() * weight).next_up();
+            *sum = (*sum + term).next_up();
+        }
+    };
+    let mut sums = vec![0.0_f64; matrix.nrows()];
+    if matrix.col_stride() == 1 {
+        for (row, sum) in matrix.row_iter().zip(&mut sums) {
+            for (&z, &weight) in row.iter().zip(weights) {
+                accumulate(sum, z, weight);
+            }
+        }
+    } else {
+        for (column, &weight) in matrix.col_iter().zip(weights) {
+            for (&z, sum) in column.iter().zip(&mut sums) {
+                accumulate(sum, z, weight);
+            }
+        }
+    }
+    sums
+}
+
+/// Certify `||L U||_inf < 1` using `|L| |U| 1`, in quadratic work.
+///
+/// The entrywise absolute-value bound ignores cancellations, so failure says
+/// nothing about invertibility. Such systems retain the dense-product test below.
+fn reflections_contract(lower: MatRef<'_, Complex>, upper: MatRef<'_, Complex>) -> bool {
+    let upper_rows = absolute_row_sums(upper, &vec![1.0; upper.ncols()]);
+    absolute_row_sums(lower, &upper_rows)
+        .iter()
+        .all(|&sum| sum < 1.0)
+}
+
+/// Apply `I - L U`, or its adjoint, using only thin products.
+fn reflection_action(
+    lower: MatRef<'_, Complex>,
+    upper: MatRef<'_, Complex>,
+    x: MatRef<'_, Complex>,
+    adjoint: bool,
+) -> DMatrix<Complex> {
+    let mut result = if adjoint {
+        let inner = product_views(lower.adjoint(), x);
+        product_views(upper.adjoint(), view(&inner))
+    } else {
+        let inner = product_views(upper, x);
+        product_views(lower, view(&inner))
+    };
+    for j in 0..result.ncols() {
+        for i in 0..result.nrows() {
+            result[(i, j)] = x[(i, j)] - result[(i, j)];
+        }
+    }
+    result
+}
+
 /// The unrestarted Krylov solve of the operator, or of its adjoint, for a thin batch.
 fn internal_iteration(
-    operator: &DMatrix<Complex>,
     rhs: &DMatrix<Complex>,
-    adjoint: bool,
+    apply: impl Fn(MatRef<'_, Complex>) -> DMatrix<Complex>,
 ) -> Result<DMatrix<Complex>> {
     // One Krylov iteration applies the operator to the entire thin batch.
     // Its total residual is bounded by the smallest nonzero column's tolerance,
@@ -98,11 +159,7 @@ fn internal_iteration(
     };
     let (answer, _) = gmres(rhs.as_slice(), options, |x| {
         let x_view = MatRef::from_column_major_slice(x, rhs.nrows(), rhs.ncols());
-        let result = if adjoint {
-            product_views(view(operator).adjoint(), x_view)
-        } else {
-            product_views(view(operator), x_view)
-        };
+        let result = apply(x_view);
         Ok(Vec::from(result.data))
     })?;
     Ok(DMatrix::from_vec(rhs.nrows(), rhs.ncols(), answer))
@@ -151,11 +208,22 @@ impl InternalSolve {
         if rhs.iter().any(|&z| !finite(z)) {
             return Err(Error::Singular);
         }
+        let thin = rhs.nrows() >= min_rows && rhs.ncols() <= ITERATIVE_MAX_COLUMNS;
+        let factored = thin && reflections_contract(lower, upper);
+        if factored
+            && let Ok(value) =
+                internal_iteration(&rhs, |x| reflection_action(lower, upper, x, false))
+        {
+            return Ok(Self {
+                value,
+                factor: InternalFactor::Reflections,
+            });
+        }
         let operator = internal_operator(lower, upper);
-        if rhs.nrows() >= min_rows
-            && rhs.ncols() <= ITERATIVE_MAX_COLUMNS
+        if thin
+            && !factored
             && is_contraction(&operator)
-            && let Ok(value) = internal_iteration(&operator, &rhs, false)
+            && let Ok(value) = internal_iteration(&rhs, |x| product_views(view(&operator), x))
         {
             return Ok(Self {
                 value,
@@ -179,11 +247,30 @@ impl InternalSolve {
     }
 
     /// Solve the adjoint system for `rhs`, consuming the forward solve.
-    pub(super) fn solve_adjoint(self, mut rhs: DMatrix<Complex>) -> Result<AdjointSolve> {
+    /// `lower` and `upper` must be the reflection pair used by that forward solve.
+    pub(super) fn solve_adjoint(
+        self,
+        lower: MatRef<'_, Complex>,
+        upper: MatRef<'_, Complex>,
+        mut rhs: DMatrix<Complex>,
+    ) -> Result<AdjointSolve> {
         let lu = match self.factor {
             InternalFactor::Lu(lu) => lu,
+            InternalFactor::Reflections => {
+                if let Ok(adjoint) =
+                    internal_iteration(&rhs, |x| reflection_action(lower, upper, x, true))
+                {
+                    return Ok(AdjointSolve {
+                        adjoint,
+                        value: self.value,
+                    });
+                }
+                Lu::new(internal_operator(lower, upper))?
+            }
             InternalFactor::Krylov(operator) => {
-                if let Ok(adjoint) = internal_iteration(&operator, &rhs, true) {
+                if let Ok(adjoint) =
+                    internal_iteration(&rhs, |x| product_views(view(&operator).adjoint(), x))
+                {
                     return Ok(AdjointSolve {
                         adjoint,
                         value: self.value,
@@ -242,11 +329,22 @@ mod tests {
         let operator = internal_operator(view(&lower), view(&upper));
         let dense = linalg::solve_owned(operator.clone(), rhs.clone()).unwrap();
         prop_assert!(is_contraction(&operator));
-        let value = internal_iteration(&operator, &rhs, false).unwrap();
-        let adjoint = internal_iteration(&operator, &g, true).unwrap();
+        let value = internal_iteration(&rhs, |x| product_views(view(&operator), x)).unwrap();
+        let adjoint =
+            internal_iteration(&g, |x| product_views(view(&operator).adjoint(), x)).unwrap();
         prop_assert_close!(&value, dense.value(), 2e-14 * dense.value().norm());
         let dense_adjoint = dense.adjoint_rhs(g.clone()).unwrap();
         prop_assert_close!(&adjoint, &dense_adjoint, 2e-14 * g.norm());
+        let factored = internal_iteration(&rhs, |x| {
+            reflection_action(view(&lower), view(&upper), x, false)
+        })
+        .unwrap();
+        let factored_adjoint = internal_iteration(&g, |x| {
+            reflection_action(view(&lower), view(&upper), x, true)
+        })
+        .unwrap();
+        prop_assert_close!(&factored, &value, 2e-14 * value.norm());
+        prop_assert_close!(&factored_adjoint, &adjoint, 2e-14 * g.norm());
         prop_assert_close!(
             pairing(&g, &value),
             pairing(&adjoint, &rhs),
@@ -274,11 +372,61 @@ mod tests {
             let weak = DMatrix::identity(n, n) * Complex::new(0.1, 0.03);
             let rhs = patterned(n, 2, 0.4);
             let solve = InternalSolve::new(view(&weak), view(&weak), rhs.clone()).unwrap();
-            prop_assert_eq!(matches!(solve.factor, InternalFactor::Krylov(_)), iterates);
+            prop_assert_eq!(
+                matches!(solve.factor, InternalFactor::Reflections),
+                iterates
+            );
             prop_assert_close!(&solve.value * coefficient, &rhs, 2e-13 * rhs.norm());
-            let gradient = solve.solve_adjoint(rhs.clone()).unwrap().adjoint;
+            let gradient = solve
+                .solve_adjoint(view(&weak), view(&weak), rhs.clone())
+                .unwrap()
+                .adjoint;
             prop_assert_close!(gradient * coefficient.conj(), &rhs, 2e-13 * rhs.norm());
         }
+        Ok(())
+    }
+
+    #[test]
+    fn cancellation_contractions_keep_the_dense_product_path() -> Result<(), TestCaseError> {
+        let n = 24;
+        let lower = DMatrix::from_fn(n, n, |_, j| {
+            Complex::new(if j % 2 == 0 { 0.1 } else { -0.1 }, 0.0)
+        });
+        let upper = DMatrix::from_element(n, n, Complex::new(0.1, 0.0));
+        let rhs = patterned(n, 2, 0.4);
+        prop_assert!(!reflections_contract(view(&lower), view(&upper)));
+        let operator = internal_operator(view(&lower), view(&upper));
+        prop_assert!(is_contraction(&operator));
+        let solve =
+            InternalSolve::with_threshold(view(&lower), view(&upper), rhs.clone(), n).unwrap();
+        prop_assert!(matches!(solve.factor, InternalFactor::Krylov(_)));
+        prop_assert_close!(&operator * &solve.value, &rhs, 2e-13 * rhs.norm());
+        let adjoint = solve
+            .solve_adjoint(view(&lower), view(&upper), rhs.clone())
+            .unwrap()
+            .adjoint;
+        prop_assert_close!(operator.adjoint() * adjoint, &rhs, 2e-13 * rhs.norm());
+        Ok(())
+    }
+
+    #[test]
+    fn reflection_certificate_handles_layouts_and_rejects_unit_gain() -> Result<(), TestCaseError> {
+        let n = 12;
+        let lower = patterned(n, n, 0.4) * Complex::new(0.02, 0.0);
+        let upper = patterned(n, n, 0.9) * Complex::new(0.02, 0.0);
+        let lower_rows = lower.transpose();
+        let upper_rows = upper.transpose();
+        for lower in [view(&lower), view(&lower_rows).transpose()] {
+            for upper in [view(&upper), view(&upper_rows).transpose()] {
+                prop_assert!(reflections_contract(lower, upper));
+                prop_assert!(is_contraction(&internal_operator(lower, upper)));
+            }
+        }
+        let identity = DMatrix::identity(n, n);
+        prop_assert!(!reflections_contract(view(&identity), view(&identity)));
+        // Reject overflow and NaN rather than certifying from an underestimated sum.
+        let huge = &identity * Complex::new(f64::MAX, 0.0);
+        prop_assert!(!reflections_contract(view(&huge), view(&huge)));
         Ok(())
     }
 
@@ -297,15 +445,18 @@ mod tests {
         let weak = &identity * Complex::new(0.1, 0.03);
         let rhs = patterned(n, 2, 0.4);
         let iterative = solve(&weak, &weak, rhs.clone(), min_rows).unwrap();
-        prop_assert!(matches!(iterative.factor, InternalFactor::Krylov(_)));
+        prop_assert!(matches!(iterative.factor, InternalFactor::Reflections));
         let coefficient = Complex::new(1.0, 0.0) - Complex::new(0.1, 0.03).powi(2);
         prop_assert_close!(&iterative.value * coefficient, &rhs, 2e-13 * rhs.norm());
-        let gradient = iterative.solve_adjoint(rhs.clone()).unwrap().adjoint;
+        let gradient = iterative
+            .solve_adjoint(view(&weak), view(&weak), rhs.clone())
+            .unwrap()
+            .adjoint;
         prop_assert_close!(gradient * coefficient.conj(), &rhs, 2e-13 * rhs.norm());
 
         // The threshold is inclusive, and wide batches or short systems use LU.
         let at = solve(&weak, &weak, rhs.clone(), n).unwrap();
-        prop_assert!(matches!(at.factor, InternalFactor::Krylov(_)));
+        prop_assert!(matches!(at.factor, InternalFactor::Reflections));
         let below = solve(&weak, &weak, rhs.clone(), n + 1).unwrap();
         prop_assert!(matches!(below.factor, InternalFactor::Lu(_)));
         prop_assert_close!(&below.value, &at.value, 2e-13 * rhs.norm());
@@ -327,10 +478,13 @@ mod tests {
         prop_assert_close!(&operator * &dense.value, &rhs, 2e-13 * rhs.norm());
         let eigenvector = DMatrix::from_element(n, 2, Complex::new(1.0, 0.0));
         let easy_forward = solve(&cyclic, &identity, eigenvector, min_rows).unwrap();
-        prop_assert!(matches!(easy_forward.factor, InternalFactor::Krylov(_)));
+        prop_assert!(matches!(easy_forward.factor, InternalFactor::Reflections));
         // A forward eigenvector can converge immediately while an unrelated
         // adjoint RHS needs the direct fallback. Certify that path separately.
-        let reverse = easy_forward.solve_adjoint(rhs.clone()).unwrap().adjoint;
+        let reverse = easy_forward
+            .solve_adjoint(view(&cyclic), view(&identity), rhs.clone())
+            .unwrap()
+            .adjoint;
         prop_assert_close!(operator.adjoint() * reverse, &rhs, 2e-13 * rhs.norm());
 
         // Singular systems stay errors, including consistent and zero right-hand sides.

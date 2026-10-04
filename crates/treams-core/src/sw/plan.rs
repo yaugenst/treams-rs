@@ -7,6 +7,8 @@
 
 use std::collections::{HashMap, HashSet};
 
+use faer::{MatMut, MatRef};
+
 use super::{
     CartesianTranslation, Mode,
     cartesian::{combine, harmonic},
@@ -15,9 +17,9 @@ use super::{
 use crate::{
     Complex, Error, Result,
     basis::ModeLabel,
-    numerics::parallel::try_fold_ordered,
+    numerics::{finite, parallel::try_fold_ordered},
     special::{
-        Radial, RadialJet, SolidTable, Wigner3jRow, direction, spherical_radial,
+        Radial, RadialJet, SolidTable, Wigner3jRow, direction, spherical_hankels, spherical_radial,
         spherical_radial_sequence, tangent,
     },
 };
@@ -189,10 +191,24 @@ impl TranslationPlan {
             }
             return Ok(table);
         };
-        let radials = self.radials(k * r, radial)?;
-        self.solids.visit::<false>(unit, |index, p, value, _| {
-            table[index] = radials[degree(p)].value * value;
-        });
+        if radial == Radial::Singular {
+            // Values need neither the extra radial degree nor the first and
+            // second derivatives retained by the pullback's table.
+            let lmax =
+                u32::try_from(self.lmax).map_err(|_| Error::InvalidInput("invalid lmax".into()))?;
+            let radials = spherical_hankels(0, lmax, k * r)?;
+            if radials.iter().any(|&value| !finite(value)) {
+                return Err(Error::SpecialFunction("radial function overflow".into()));
+            }
+            self.solids.visit::<false>(unit, |index, p, value, _| {
+                table[index] = radials[degree(p)] * value;
+            });
+        } else {
+            let radials = self.radials(k * r, radial)?;
+            self.solids.visit::<false>(unit, |index, p, value, _| {
+                table[index] = radials[degree(p)].value * value;
+            });
+        }
         Ok(table)
     }
 
@@ -234,6 +250,68 @@ impl TranslationPlan {
         Ok(self.evaluate_table(&self.values(k, position, radial)?))
     }
 
+    /// Add the translation applied to `input` to `output`, sharing each coefficient
+    /// across the input columns without storing a dense block. With `adjoint`, apply
+    /// its conjugate transpose instead. The row counts follow the plan's source and
+    /// destination modes, exchanged for the adjoint.
+    pub(crate) fn apply(
+        &self,
+        k: Complex,
+        position: [f64; 3],
+        radial: Radial,
+        input: MatRef<'_, Complex>,
+        mut output: MatMut<'_, Complex>,
+        adjoint: bool,
+    ) -> Result<()> {
+        let table = self.values(k, position, radial)?;
+        let (destinations, sources) = if adjoint {
+            (input.nrows(), output.nrows())
+        } else {
+            (output.nrows(), input.nrows())
+        };
+        for source in 0..sources {
+            let starts = &self.starts[source * destinations..][..=destinations];
+            for (destination, range) in starts.windows(2).enumerate() {
+                let terms = &self.terms[range[0]..range[1]];
+                if terms.is_empty() {
+                    continue;
+                }
+                let value: Complex = terms
+                    .iter()
+                    .map(|term| term.weight * table[term.index])
+                    .sum();
+                let (to, from, value) = if adjoint {
+                    (source, destination, value.conj())
+                } else {
+                    (destination, source, value)
+                };
+                for column in 0..input.ncols() {
+                    output[(to, column)] += value * input[(from, column)];
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Cache-sharing groups in harmonic order. Whole degrees retain the most reuse;
+    /// when a block has more workers than degrees, consecutive orders expose enough
+    /// independent work to use that budget. Grouping changes no harmonic's arithmetic.
+    fn harmonic_groups(&self, workers: usize) -> Vec<(i32, std::ops::RangeInclusive<i32>)> {
+        let size = if workers > degree(self.lmax + 1) {
+            self.solids.len().div_ceil(workers)
+        } else {
+            self.solids.len()
+        };
+        let last = i32::try_from(size - 1).unwrap_or_default();
+        (0..=self.lmax)
+            .flat_map(|l| {
+                (-l..=l)
+                    .step_by(size)
+                    .map(move |first| (l, first..=(first + last).min(l)))
+            })
+            .collect()
+    }
+
     /// The block of lattice-summed couplings at the displacement `position`
     /// (destination minus source). The lattice sums take `source - destination`.
     pub(crate) fn evaluate_periodic(
@@ -242,29 +320,36 @@ impl TranslationPlan {
         position: [f64; 3],
         lattice: &crate::lattice::BlochLattice,
         eta: Complex,
+        workers: usize,
     ) -> Result<Vec<Complex>> {
-        let modes: Vec<_> = harmonics(self.lmax).collect();
-        let table = crate::threads::install(|| {
-            modes
-                .par_iter()
-                .map(|&(l, m)| {
-                    Ok(crate::lattice::sum(
-                        crate::lattice::Family::Spherical { l, m },
+        let degrees = crate::threads::install(|| {
+            self.harmonic_groups(workers)
+                .into_par_iter()
+                .map(|(l, orders)| {
+                    crate::lattice::spherical_degree(
+                        l,
+                        orders,
                         k,
                         lattice,
                         position.map(|x| -x),
                         eta,
-                    )? / crate::special::harmonic_normalization(l, m))
+                    )
                 })
                 .collect::<Result<Vec<_>>>()
         })?;
+        let table: Vec<_> = degrees
+            .into_iter()
+            .flatten()
+            .zip(harmonics(self.lmax))
+            .map(|(value, (l, m))| value / crate::special::harmonic_normalization(l, m))
+            .collect();
         Ok(self.evaluate_table(&table))
     }
 
     /// The lattice-sum gradients of the block cotangents of both polarizations.
     ///
-    /// The harmonics run in chunks fixed by their count, and their gradients, collected
-    /// in harmonic order, add in that order, so the thread count does not change them.
+    /// Cache-sharing groups adapt to the worker budget, but their gradients are
+    /// collected and added in harmonic order, so the thread count does not change them.
     pub(crate) fn pullback_periodic(
         &self,
         ks: [Complex; 2],
@@ -272,44 +357,62 @@ impl TranslationPlan {
         lattice: &crate::lattice::BlochLattice,
         eta: Complex,
         cotangent: &[Vec<Complex>; 2],
+        workers: usize,
     ) -> Result<[crate::lattice::SumGradient; 2]> {
-        let modes: Vec<_> = harmonics(self.lmax).collect();
         let [first, second] = cotangent.each_ref().map(|cotangent| {
-            let mut table = vec![Complex::default(); modes.len()];
+            let mut table = vec![Complex::default(); self.solids.len()];
             self.pullback_table(cotangent, &mut table);
             table
         });
         let g: Vec<_> = first.into_iter().zip(second).map(<[_; 2]>::from).collect();
+        let groups = self
+            .harmonic_groups(workers)
+            .into_iter()
+            .map(|(l, orders)| {
+                let (first, last) = (*orders.start(), *orders.end());
+                let start = degree(l * l + l + first);
+                (l, first, &g[start..degree(l * l + l + last + 1)])
+            })
+            .collect();
         let gradients = try_fold_ordered(
-            modes.into_iter().zip(g).collect(),
+            groups,
             true,
             Vec::new,
-            |mut gradients, _, ((l, m), g): ((i32, i32), [Complex; 2])| {
-                let mut result = [crate::lattice::SumGradient::default(); 2];
-                let mut shared = None;
+            |mut gradients, _, (l, first, g): (i32, i32, &[[Complex; 2]])| {
+                let mut result = vec![[crate::lattice::SumGradient::default(); 2]; g.len()];
                 for pol in 0..2 {
-                    if g[pol] == Complex::default() {
+                    if pol == 1 && ks[0] == ks[1] {
                         continue;
                     }
-                    let d = if let Some(d) = shared {
-                        d
-                    } else {
-                        let d = crate::lattice::derivatives(
-                            crate::lattice::Family::Spherical { l, m },
-                            ks[pol],
-                            lattice,
-                            position.map(|r| -r),
-                            eta,
-                        )?;
-                        if ks[0] == ks[1] {
-                            shared = Some(d);
+                    let orders: Vec<_> = (first..)
+                        .zip(g)
+                        .filter_map(|(m, g)| {
+                            (g[pol] != Complex::default()
+                                || (ks[0] == ks[1] && g[1] != Complex::default()))
+                            .then_some(m)
+                        })
+                        .collect();
+                    let derivatives = crate::lattice::spherical_degree_derivatives(
+                        l,
+                        &orders,
+                        ks[pol],
+                        lattice,
+                        position.map(|r| -r),
+                        eta,
+                    )?;
+                    for (m, d) in orders.into_iter().zip(derivatives) {
+                        let index = degree(m - first);
+                        let normalization = crate::special::harmonic_normalization(l, m);
+                        for target in pol..if ks[0] == ks[1] { 2 } else { pol + 1 } {
+                            if g[index][target] == Complex::default() {
+                                continue;
+                            }
+                            result[index][target] = d.pullback(g[index][target] / normalization);
+                            result[index][target].shift = result[index][target].shift.map(|g| -g);
                         }
-                        d
-                    };
-                    result[pol] = d.pullback(g[pol] / crate::special::harmonic_normalization(l, m));
-                    result[pol].shift = result[pol].shift.map(|g| -g);
+                    }
                 }
-                gradients.push(result);
+                gradients.extend(result);
                 Ok(gradients)
             },
             |mut gradients, partial| {
@@ -365,12 +468,10 @@ mod tests {
     use super::TranslationPlan;
     use crate::{
         Complex,
+        linalg::{view, view_mut},
         special::Radial,
         sw::{self, Mode},
-        test_support::{
-            DEFAULT_CASES, assert_same_bits_on_pools, bits, patterned, prop_assert_close, radial,
-            spherical_basis, table,
-        },
+        test_support::{DEFAULT_CASES, bits, patterned, prop_assert_close, radial, table},
     };
 
     /// Displacements on both polar half-axes and in general directions.
@@ -472,6 +573,38 @@ mod tests {
         fn check(&self, d: [f64; 3], angle: f64, seed: f64) -> Result<(), TestCaseError> {
             let (k, n) = (self.k, self.modes.len());
             let block = self.evaluate(d);
+            // Direct actions preserve the dense block's accumulation order for
+            // each output, across both polarizations and several incident columns.
+            let input = patterned(n, 3, seed + 0.2);
+            for adjoint in [false, true] {
+                let mut actual = patterned(n, 3, seed + 0.7);
+                let mut expected = actual.clone();
+                for column in 0..input.ncols() {
+                    for source in 0..n {
+                        for destination in 0..n {
+                            let coefficient = block[source * n + destination];
+                            if adjoint {
+                                expected[(source, column)] +=
+                                    coefficient.conj() * input[(destination, column)];
+                            } else {
+                                expected[(destination, column)] +=
+                                    coefficient * input[(source, column)];
+                            }
+                        }
+                    }
+                }
+                self.plan
+                    .apply(
+                        k,
+                        d,
+                        self.radial,
+                        view(&input),
+                        view_mut(&mut actual),
+                        adjoint,
+                    )
+                    .unwrap();
+                prop_assert_eq!(actual, expected);
+            }
             let inverted = self.evaluate(d.map(|x| -x));
             let (sin, cos) = angle.sin_cos();
             let rotated = self.evaluate([d[0] * cos - d[1] * sin, d[0] * sin + d[1] * cos, d[2]]);
@@ -617,6 +750,32 @@ mod tests {
         }
     }
 
+    /// Value-only translations remain finite when unused second radial derivatives
+    /// overflow; compare to the independently assembled value-only polar entries.
+    #[test]
+    fn singular_values_do_not_evaluate_unused_radial_derivatives() {
+        let case = Case::new(1, true, Radial::Singular, Complex::from(1.0));
+        let r = 1e-64;
+        let block = case.evaluate([0.0, 0.0, r]);
+        assert!(block.iter().all(|&value| crate::numerics::finite(value)));
+        let scale = block.iter().map(|value| value.norm()).fold(0.0, f64::max);
+        for &from in &case.modes {
+            for &to in &case.modes {
+                let polar = sw::PolarTranslation::new(to, from, true, Radial::Singular).unwrap();
+                let expected = polar
+                    .value([Complex::from(r), Complex::default(), Complex::default()])
+                    .unwrap();
+                let value = case.entry(&block, to, from);
+                assert!((value - expected).norm() < 1e-13 * scale);
+            }
+        }
+        assert!(
+            case.plan
+                .evaluate(case.k, [0.0, 0.0, 1e-120], Radial::Singular)
+                .is_err()
+        );
+    }
+
     #[test]
     fn harmonics_match_lean_model() {
         // `just formal` keeps this file equal to `Treams.Harmonics.table`.
@@ -643,38 +802,61 @@ mod tests {
         }
     }
 
-    /// The lattice-sum gradients of the harmonics add in harmonic order: with more
-    /// harmonics (81 up to degree 8) than chunks, the pullback of a lattice expansion,
-    /// which runs [`TranslationPlan::pullback_periodic`], repeats bit for bit on every
-    /// pool size.
+    /// A singleton splits its harmonic groups on large pools; several centres expose
+    /// independent blocks instead. Both forward and gradient keep identical bits.
     #[test]
     fn periodic_pullback_does_not_depend_on_the_thread_count() {
-        let destination = spherical_basis(4, [0.0; 3]);
-        let source = spherical_basis(4, [0.2, -0.1, 0.3]);
-        let lattice =
-            crate::lattice::BlochLattice::new(&[vec![1.0, 0.0], vec![0.0, 1.0]], &[0.3, 0.1])
-                .unwrap();
-        let ks = [Complex::new(1.1, 0.01); 2];
-        let g = patterned(destination.modes.len(), source.modes.len(), 0.6);
-        assert_same_bits_on_pools(|| {
-            let (_, residual) = sw::lattice_expansion(
-                destination.clone(),
-                source.clone(),
-                ks,
-                true,
-                lattice.clone(),
-                Complex::default(),
-            )
-            .unwrap();
-            let g = residual.pullback(&g).unwrap();
-            let expansion = &g.expansion;
-            bits(&[
-                &expansion.destination,
-                &expansion.source,
-                &expansion.ks,
-                &g.kpar,
-                &g.vectors,
-            ])
-        });
+        for centres in [1, 3] {
+            let basis = |offset| {
+                let positions: Vec<_> = (0..centres)
+                    .map(|i| [0.2 * f64::from(i) + offset, -0.1 * f64::from(i), 0.0])
+                    .collect();
+                sw::Basis {
+                    modes: (0..positions.len())
+                        .flat_map(|i| sw::modes(4).unwrap().into_iter().map(move |mode| (i, mode)))
+                        .collect(),
+                    positions,
+                }
+            };
+            let (destination, source) = (basis(0.0), basis(0.13));
+            let lattice =
+                crate::lattice::BlochLattice::new(&[vec![1.0, 0.0], vec![0.0, 1.0]], &[0.3, 0.1])
+                    .unwrap();
+            let ks = [Complex::new(1.1, 0.01), Complex::new(1.3, 0.02)];
+            let g = patterned(destination.modes.len(), source.modes.len(), 0.6);
+            let mut reference = None;
+            for workers in [1, 2, 4, 16, 32] {
+                let pool = rayon::ThreadPoolBuilder::new()
+                    .num_threads(workers)
+                    .build()
+                    .unwrap();
+                let actual = pool.install(|| {
+                    let (value, residual) = sw::lattice_expansion(
+                        destination.clone(),
+                        source.clone(),
+                        ks,
+                        true,
+                        lattice.clone(),
+                        Complex::default(),
+                    )
+                    .unwrap();
+                    let g = residual.pullback(&g).unwrap();
+                    let expansion = &g.expansion;
+                    bits(&[
+                        &value,
+                        &expansion.destination,
+                        &expansion.source,
+                        &expansion.ks,
+                        &g.kpar,
+                        &g.vectors,
+                    ])
+                });
+                if let Some(reference) = &reference {
+                    assert_eq!(&actual, reference, "{centres} centres, {workers} threads");
+                } else {
+                    reference = Some(actual);
+                }
+            }
+        }
     }
 }

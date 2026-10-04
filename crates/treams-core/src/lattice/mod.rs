@@ -260,7 +260,7 @@ pub(crate) use shells::SHELL_TOLERANCE;
 
 use accuracy::below_automatic;
 use direct::direct_shell;
-use ewald::ewald;
+use ewald::{SphericalCache, ewald};
 use inputs::{Evaluation, Inputs, unpack};
 use shells::{NOT_CONVERGED, is_shell_limit};
 
@@ -429,6 +429,20 @@ fn evaluate<const N: usize>(
     eta: Complex,
     evaluation: Evaluation,
 ) -> Result<Jet<N>> {
+    evaluate_shared(wave, k, lattice, r, eta, evaluation, None)
+}
+
+/// Evaluates spherical orders sharing one degree's real-space samples. Other callers
+/// pass no cache and retain the ordinary scalar path.
+fn evaluate_shared<const N: usize>(
+    wave: Family,
+    k: Complex,
+    lattice: &BlochLattice,
+    r: [f64; 3],
+    eta: Complex,
+    evaluation: Evaluation,
+    shared: Option<&SphericalCache<N>>,
+) -> Result<Jet<N>> {
     wave.validate(lattice.dim)?;
     if let Evaluation::Part(SumPart::Direct(shell)) = evaluation
         && !(0..=i64::from(i32::MAX)).contains(&shell)
@@ -466,7 +480,77 @@ fn evaluate<const N: usize>(
         return direct_shell(wave, lattice, &inputs, shell);
     }
     let eta = resolve_split(k, lattice, eta);
-    ewald(wave, lattice, inputs, eta, evaluation).map_err(|error| larger_split(error, eta))
+    ewald(wave, lattice, inputs, eta, evaluation, shared).map_err(|error| larger_split(error, eta))
+}
+
+/// Consecutive orders of one spherical degree, sharing their
+/// real-space radial integrals while retaining each harmonic's convergence policy.
+pub(crate) fn spherical_degree(
+    l: i32,
+    orders: std::ops::RangeInclusive<i32>,
+    k: Complex,
+    lattice: &BlochLattice,
+    shift: [f64; 3],
+    eta: Complex,
+) -> Result<Vec<Complex>> {
+    let shared = SphericalCache::default();
+    orders
+        .map(|m| {
+            Ok(evaluate_shared::<0>(
+                Family::Spherical { l, m },
+                k,
+                lattice,
+                shift,
+                eta,
+                Evaluation::Part(SumPart::Full),
+                Some(&shared),
+            )?
+            .value)
+        })
+        .collect()
+}
+
+/// Derivatives of the requested orders of one spherical degree. The jet cache shares
+/// the radial derivatives as well as the values, with no change to any order's shell
+/// stopping rule or rounding checks.
+pub(crate) fn spherical_degree_derivatives(
+    l: i32,
+    orders: &[i32],
+    k: Complex,
+    lattice: &BlochLattice,
+    shift: [f64; 3],
+    eta: Complex,
+) -> Result<Vec<Derivatives>> {
+    fn degree<const N: usize>(
+        l: i32,
+        orders: &[i32],
+        k: Complex,
+        lattice: &BlochLattice,
+        shift: [f64; 3],
+        eta: Complex,
+    ) -> Result<Vec<Derivatives>> {
+        let shared = SphericalCache::default();
+        orders
+            .iter()
+            .map(|&m| {
+                evaluate_shared::<N>(
+                    Family::Spherical { l, m },
+                    k,
+                    lattice,
+                    shift,
+                    eta,
+                    Evaluation::Part(SumPart::Full),
+                    Some(&shared),
+                )
+                .map(|value| unpack(value, lattice.dim))
+            })
+            .collect()
+    }
+    match lattice.dim {
+        1 => degree::<6>(l, orders, k, lattice, shift, eta),
+        2 => degree::<10>(l, orders, k, lattice, shift, eta),
+        _ => degree::<16>(l, orders, k, lattice, shift, eta),
+    }
 }
 
 /// `error`, advising a larger split where a sum at a split `eta` below every automatic
@@ -529,6 +613,108 @@ impl Derivatives {
             vectors: self
                 .vectors
                 .map(|row| row.map(|x| (cotangent.conj() * x).re)),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Sharing real-space samples must preserve the independently converged scalar
+    //! sum and every jet component, including the special split and spectral paths.
+
+    use super::{
+        BlochLattice, Derivatives, Family, derivatives, spherical_degree,
+        spherical_degree_derivatives, sum,
+    };
+    use crate::Complex;
+
+    fn components(derivatives: &Derivatives) -> Vec<Complex> {
+        [derivatives.value, derivatives.k, derivatives.eta]
+            .into_iter()
+            .chain(derivatives.shift)
+            .chain(derivatives.kpar)
+            .chain(derivatives.vectors.into_iter().flatten())
+            .collect()
+    }
+
+    #[test]
+    fn shared_spherical_orders_match_scalar_sums_and_derivatives() {
+        for dim in 1..=3 {
+            let vectors: Vec<Vec<f64>> = (0..dim)
+                .map(|i| (0..dim).map(|j| if i == j { 2.0 } else { 0.2 }).collect())
+                .collect();
+            let lattice = BlochLattice::new(&vectors, &vec![0.13; dim]).unwrap();
+            let k = Complex::new(1.2, 0.08);
+            let l = if dim == 2 { 5 } else { 2 };
+            for shift in [[0.0; 3], [0.2, -0.1, 0.0], [0.3, -0.2, 0.4]] {
+                for eta in [
+                    Complex::default(),
+                    Complex::new(0.7, -0.03),
+                    // The 3D real part crosses the cached-prefix boundary.
+                    Complex::new(0.4, 0.0),
+                    Complex::new(0.25, 0.0),
+                ] {
+                    let shared = spherical_degree(l, -l..=l, k, &lattice, shift, eta);
+                    let scalar = (-l..=l)
+                        .map(|m| sum(Family::Spherical { l, m }, k, &lattice, shift, eta))
+                        .collect::<crate::Result<Vec<_>>>();
+                    assert_eq!(
+                        shared.map_err(|error| error.to_string()),
+                        scalar.map_err(|error| error.to_string()),
+                        "dim={dim}, shift={shift:?}, eta={eta}"
+                    );
+                    // Sparse orders are the pullback's ordinary path when some
+                    // harmonic cotangents vanish.
+                    let orders = [-l, 0, l];
+                    let shared = spherical_degree_derivatives(l, &orders, k, &lattice, shift, eta);
+                    let scalar = orders
+                        .into_iter()
+                        .map(|m| derivatives(Family::Spherical { l, m }, k, &lattice, shift, eta))
+                        .collect::<crate::Result<Vec<_>>>();
+                    assert_eq!(
+                        shared
+                            .map(|values| values.iter().map(components).collect::<Vec<_>>())
+                            .map_err(|error| error.to_string()),
+                        scalar
+                            .map(|values| values.iter().map(components).collect::<Vec<_>>())
+                            .map_err(|error| error.to_string()),
+                        "dim={dim}, shift={shift:?}, eta={eta}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn shared_spherical_orders_keep_outgoing_branches_and_reject_gain() {
+        let lattice = BlochLattice::new(&[vec![2.0, 0.2], vec![0.2, 2.0]], &[0.13, -0.08]).unwrap();
+        let shift = [0.3, -0.2, 0.0];
+        let l = 4;
+        for k in [Complex::new(1.2, 0.0), Complex::new(1.2, -0.08)] {
+            for eta in [Complex::default(), Complex::new(-0.7, 0.03)] {
+                // Real k takes the outgoing branch cut. Re(k eta) < 0 takes the
+                // principal sheet; gain inputs fail before either cache is used.
+                let shared = spherical_degree(l, -l..=l, k, &lattice, shift, eta);
+                let scalar = (-l..=l)
+                    .map(|m| sum(Family::Spherical { l, m }, k, &lattice, shift, eta))
+                    .collect::<crate::Result<Vec<_>>>();
+                assert_eq!(
+                    shared.map_err(|error| error.to_string()),
+                    scalar.map_err(|error| error.to_string())
+                );
+                let orders = [-l, 0, l];
+                let shared = spherical_degree_derivatives(l, &orders, k, &lattice, shift, eta);
+                let scalar = orders
+                    .into_iter()
+                    .map(|m| derivatives(Family::Spherical { l, m }, k, &lattice, shift, eta))
+                    .collect::<crate::Result<Vec<_>>>();
+                let derivative_result = |result: crate::Result<Vec<Derivatives>>| {
+                    result
+                        .map(|values| values.iter().map(components).collect::<Vec<_>>())
+                        .map_err(|error| error.to_string())
+                };
+                assert_eq!(derivative_result(shared), derivative_result(scalar));
+            }
         }
     }
 }

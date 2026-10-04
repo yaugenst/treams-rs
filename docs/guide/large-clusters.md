@@ -10,13 +10,16 @@ For a few incident waves, two solvers compute only the responses you need:
 | Solver | Stores | Best for |
 | --- | --- | --- |
 | `Cluster.factor()`, `diff.sphere_cluster_factor` | the dense coupling matrix and its LU factorization | many incident waves on one geometry, while the dense matrix fits in memory |
-| `iterative.SphereCluster` | one 2×2 Mie block per sphere and degree | many spheres, when memory matters more than the time per incident wave |
+| `iterative.SphereCluster` | one 2×2 Mie block per sphere and degree, plus bounded Krylov vectors | many spheres and a few incident waves, especially when scattering is weak or dense matrices exceed memory |
 
 For 512 spheres with `lmax=1` and one incident wave, the dense solve for that
 wave takes 0.38 s against 0.94 s for the full T-matrix. The matrix-free
 gradient peaks at 46 MiB of memory, the gradient through the full T-matrix at
 1,368 MiB. See [Large problems](../performance/large-problems.md) for the
-measurements.
+historical measurements. The [CPU speedup measurements](../performance/cpu-speedups.md)
+compare the updated solver with 0.1.0: batching several incident waves shares
+translation work, while each wave keeps its own convergence check. Dense LU
+can still win for strongly coupled clusters and repeated solves on one geometry.
 
 ## Matrix-free sphere clusters
 
@@ -149,9 +152,14 @@ resonances, tighten `rtol` and compare with a dense solve on a smaller cluster.
 ## Memory and time
 
 For N spheres, M modes per sphere, P incident columns and restart R, the
-storage for the Krylov vectors and the solution grows as `O(N M (R + P) + R²)`. Each thread holds
-one `M × M` pair block. The angular part of the translations is computed once
-per `lmax` and shared by every pair, so it does not grow with N.
+storage for the Krylov vectors and the solution grows as
+`O(N M (B R + P) + B R²)`, where `B = min(P, 8)`. Up to eight columns share
+each pair translation while retaining independent Krylov spaces, restart
+decisions and residual checks. Larger inputs use successive batches.
+The forward operator applies translations directly to these columns, without
+storing dense pair blocks; the physical pullback still uses a temporary
+`M × M` pair cotangent per active worker. The angular translation plan is
+computed once per `lmax` and shared by every pair, so it does not grow with N.
 
 The solver recomputes the pair translations in every iteration and keeps no
 Krylov vectors for the adjoint solve. It trades time for memory: a reused dense

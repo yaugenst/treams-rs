@@ -214,8 +214,8 @@ pub(crate) fn dense<R: Send>(threads: usize, op: impl FnOnce(faer::Par) -> R + S
 }
 
 /// Faer multiplies complex128 matrices sequentially below this M·N·K
-/// (`PAR_THRESHOLD_MNK` times the scalar size); keep those products inline
-/// rather than handing them to the pool.
+/// (`PAR_THRESHOLD_MNK` times the scalar size). Require at least this much
+/// work per worker as well, so small matrices do not occupy the whole pool.
 const SEQUENTIAL_PRODUCT: usize = 4096 * 16;
 
 /// Run an `m × k` by `k × n` faer product with the treams-rs budget.
@@ -234,7 +234,7 @@ pub(crate) fn product<R: Send>(
     let threads = if work < SEQUENTIAL_PRODUCT || m == 1 || n == 1 {
         1
     } else {
-        current_num_threads()
+        current_num_threads().min(work / SEQUENTIAL_PRODUCT)
     };
     dense(threads, op)
 }
@@ -526,6 +526,53 @@ mod tests {
             assert!(parse("RAYON_NUM_THREADS", invalid).is_err(), "{invalid}");
         }
         assert!(parse("OMP_NUM_THREADS", "x,4").is_err());
+    }
+
+    #[test]
+    #[allow(clippy::cast_precision_loss)] // Matrix indices are below 512.
+    fn matrix_products_keep_their_bits_when_worker_counts_are_capped() {
+        use crate::{Complex, linalg};
+        use nalgebra::DMatrix;
+
+        let shapes = [
+            (32, 64, 32),
+            (64, 64, 64),
+            (128, 128, 128),
+            (128, 4, 256),
+            (4, 128, 512),
+            (128, 1, 512),
+            (1, 128, 512),
+        ];
+        let matrices = shapes.map(|(m, n, k)| {
+            let left = DMatrix::from_fn(m, k, |i, j| {
+                Complex::new(((i + 3 * j) as f64).sin(), ((2 * i + j) as f64).cos())
+            });
+            let right = DMatrix::from_fn(k, n, |i, j| {
+                Complex::new(((5 * i + j) as f64).cos(), ((i + 2 * j) as f64).sin())
+            });
+            (left, right)
+        });
+        let mut reference = None;
+        // Local pools leave the process-wide override to its existing test.
+        for threads in [1, 4, 16, 32] {
+            let pool = ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .start_handler(|_| crate::fpenv::keep_subnormals_on_worker())
+                .build()
+                .unwrap();
+            let bits = pool.install(|| {
+                matrices
+                    .iter()
+                    .flat_map(|(left, right)| {
+                        linalg::product(left, right)
+                            .iter()
+                            .map(|value| (value.re.to_bits(), value.im.to_bits()))
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>()
+            });
+            assert_eq!(&bits, reference.get_or_insert_with(|| bits.clone()));
+        }
     }
 
     // Restores the process-wide override even if an assertion fails.

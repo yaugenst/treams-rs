@@ -83,6 +83,54 @@
       "path": "benchmarks/results/linux-qualification-report-20260920.tar.gz.part-01",
       "original_sha256": "f5cf5ff6b84ab252e39ad2b52a92a3c2295a1b20300cff6f096e21c949797266",
       "sanitized_sha256": "87d4e8f22ee81aa5d98bd4fd9863d4c91abf884a9e94c728af67d13fa62ce331"
+    },
+    {
+      "path": "benchmarks/results/cpu-speedups-20261004.tar.gz",
+      "original_archive": "benchmarks/results/local/cpu-speedups-20261004/publication-original.tar.gz",
+      "original_sha256": "4ff469dcc464b797909b504e0cce9491494b7ffb17b17d8586f3db98843d3867",
+      "sanitized_sha256": "6d011aaf16dd3f0f952a5b742afb077d405835dc7046e68a14ec307c2896417a",
+      "operation": "Publish compact selected pre-scheduling CPU evidence; original distribution revision above does not apply to this new archive.",
+      "source_base_commit": "8bbcb87aaeaccd9293fc8c09eecb8727c37c4970",
+      "source_patch_sha256": "72039ec484ab21902cc034cb12835841eed69360e9de60f385075d1d432f0950",
+      "measurements_rerun": false,
+      "verification": {
+        "json_non_string_primitives_checked": 9934,
+        "payload_files": 36,
+        "archive_members": 38,
+        "all_other_strings_unchanged": true,
+        "as_run_fingerprints_preserved": true,
+        "archive_members_read_back_byte_identical": true,
+        "neutral_archive_metadata": true,
+        "removed": [
+          "Incidental repository absolute path",
+          "Private benchmark host label"
+        ],
+        "reconstructed_source_files_matching_as_run_hashes": 28
+      }
+    },
+    {
+      "path": "benchmarks/results/cpu-scheduling-20261004.tar.gz",
+      "original_archive": "benchmarks/results/local/cpu-scheduling-20261004/publication-original.tar.gz",
+      "original_sha256": "2234039455fc9137fa793f7d508b3cf17b9f7804b1dcfd92436048f363362795",
+      "sanitized_sha256": "0706aa44bc30ba60211e885895b79c1684e8fc18730d4ae1659ee39d79071e58",
+      "operation": "Publish final CPU scheduling evidence and all intermediate results; original distribution revision above does not apply to this new archive.",
+      "source_base_commit": "8bbcb87aaeaccd9293fc8c09eecb8727c37c4970",
+      "reconstructed_source_patch_sha256": "2a9f94e885a2e7720dd1e76066126fefc38b470197200a629bdd066538698bbd",
+      "source_snapshot_provenance": "Selected source reconstructed from immediately subsequent large-budget-cap source snapshot by reverting its temporary <=4-worker exception; the rejected exception had changed only threads.rs. Other native sources were unchanged between those builds. Later comment edits in smatrix/solve.rs and special/bessel.rs are outside these as-run hashes.",
+      "measurements_rerun": false,
+      "verification": {
+        "json_non_string_primitives_checked": 2171,
+        "payload_files": 48,
+        "archive_members": 50,
+        "all_other_strings_unchanged": true,
+        "as_run_fingerprints_preserved": true,
+        "archive_members_read_back_byte_identical": true,
+        "neutral_archive_metadata": true,
+        "removed": [
+          "Incidental repository absolute path",
+          "Private benchmark host label"
+        ]
+      }
     }
   ],
   "history_mapping": "benchmarks/history-provenance.json"

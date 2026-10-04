@@ -62,6 +62,39 @@ uv run --no-sync python scripts/run_benchmark_suite.py --phase extra \
 `--phase all`, the default, also runs the broad phase derived from
 `complete-qualification.json`.
 
+## Comparing CPU changes
+
+The [October CPU report](../docs/performance/cpu-speedups.md) records the
+post-0.1.0 workload comparisons, qualification limits and archived raw evidence.
+
+`scripts/compare_builds.py` compares two separately built package trees, each
+containing `treams_rs/`, in alternating processes, with only one worker alive at
+a time so idle BLAS pools cannot compete. Its CPU cases include complete
+matrix-free cluster solves and physical pullbacks, spherical field maps and
+their pullbacks, periodic-array assembly through outgoing S-matrices, and internal
+illumination between slabs. `--list` prints the case names. The 32-particle cluster
+uses larger, higher-contrast spheres; the other cluster cases use weak scatterers.
+
+```sh
+uv run --no-sync python scripts/compare_builds.py \
+  --baseline /path/to/built-baseline --candidate python \
+  --match '^(iterative-|mie-nearfield|prepared-dipole|periodic-array|slab-internal)' \
+  --threads 4 --rounds 7 --samples 3 --min-sample 0.06 --memory \
+  --output benchmarks/results/local/cpu-comparison.json
+```
+
+Build both native extensions in release mode with the same flags and keep the
+machine otherwise idle; pin the driver to the same CPU set when available.
+The JSON records binary, Python and harness hashes, CPU affinity, paired timing
+rounds, output agreement, and optional isolated-process peak RSS and call growth.
+For native changes, `--baseline-ref` is insufficient: it intentionally reuses the
+candidate native library and rejects differing native sources. Cluster setup is
+timed except for incident-field construction; field and internal-slab cases time
+evaluation of prepared inputs. The dipole-cluster map excludes the preceding
+scattering solve and its derivative. Gradient cases include their forward
+calculation. Every timing sample reaches the requested minimum duration; Linux
+memory workers use their own address-space peak, excluding the driver's peak.
+
 ## papers/
 
 Published-application reproductions: the author data and their provenance, the

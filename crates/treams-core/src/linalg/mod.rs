@@ -19,7 +19,7 @@
 mod gmres;
 
 pub use gmres::{Convergence, GmresOptions};
-pub(crate) use gmres::{gmres, norm};
+pub(crate) use gmres::{gmres, gmres_batch, norm};
 
 use faer::{
     Accum, Conj, Mat, MatMut, MatRef, Spec,

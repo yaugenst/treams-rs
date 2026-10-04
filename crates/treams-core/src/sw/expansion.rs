@@ -247,6 +247,19 @@ fn expansion_block(
 /// of the parallel assembly (16 MiB, twice that for two wavenumbers).
 const BATCH: usize = 1 << 20;
 
+/// Blocks fitting the scratch-entry budget, or one block if it alone exceeds it.
+fn batch_count(blocks: &[Block], budget: usize) -> usize {
+    let mut size = 0;
+    blocks
+        .iter()
+        .take_while(|block| {
+            size += block.len();
+            size <= budget
+        })
+        .count()
+        .max(1)
+}
+
 /// Evaluate the blocks in parallel, in batches of at most `batch` entries or of one
 /// larger block, and scatter them in order. `evaluate` returns `None` for a
 /// vanishing block.
@@ -261,15 +274,7 @@ fn assemble(
     let mut value = numerics::zeros(destination.modes.len(), source.modes.len())?;
     let mut rest = blocks;
     while !rest.is_empty() {
-        let mut size = 0;
-        let count = rest
-            .iter()
-            .take_while(|block| {
-                size += block.len();
-                size <= batch
-            })
-            .count()
-            .max(1);
+        let count = batch_count(rest, batch);
         let (current, next) = rest.split_at(count);
         rest = next;
         let values = crate::threads::install(|| {
@@ -318,6 +323,7 @@ pub fn lattice_expansion(
 ) -> Result<(DMatrix<Complex>, LatticeExpansionResidual)> {
     validate_expansion(&destination, &source, ks, helicity)?;
     let blocks = blocks(&destination, &source, helicity, false)?;
+    let workers = crate::threads::current_num_threads().div_ceil(blocks.len().max(1));
     let value = assemble(
         &destination,
         &source,
@@ -325,7 +331,7 @@ pub fn lattice_expansion(
         &blocks,
         BATCH,
         |plan, k, displacement| {
-            plan.evaluate_periodic(k, displacement, &lattice, eta)
+            plan.evaluate_periodic(k, displacement, &lattice, eta, workers)
                 .map(Some)
         },
     )?;
@@ -345,8 +351,8 @@ pub fn lattice_expansion(
 /// What [`lattice_expansion`] saves for its pullback: the bases, the wavenumbers, the
 /// lattice, the split and the blocks, whose angular plans every position pair shares.
 ///
-/// The pullback runs the blocks in order and adds the lattice-sum gradients of each
-/// block's harmonics in harmonic order, so the thread count does not change it.
+/// The pullback evaluates bounded batches of blocks in parallel and adds their
+/// gradients in block and harmonic order, so the thread count does not change it.
 #[derive(Debug)]
 pub struct LatticeExpansionResidual {
     destination: Basis,
@@ -377,21 +383,35 @@ impl LatticeExpansionResidual {
             self.source.positions.len(),
             self.lattice.dimension(),
         );
-        for block in self.blocks {
-            let g = [0, 1].map(|pol| block.gather(cotangent, Some(pol)));
-            let gradients = block.plan.pullback_periodic(
-                self.ks,
-                block.displacement,
-                &self.lattice,
-                self.eta,
-                &g,
-            )?;
-            for (pol, gradient) in gradients.into_iter().enumerate() {
-                result.add_lattice(&gradient);
-                result.expansion.ks[pol] += gradient.k;
-                for (axis, value) in gradient.shift.into_iter().enumerate() {
-                    result.expansion.destination[block.destination][axis] += value;
-                    result.expansion.source[block.source][axis] -= value;
+        let mut rest = self.blocks.as_slice();
+        while !rest.is_empty() {
+            let (current, next) = rest.split_at(batch_count(rest, BATCH));
+            rest = next;
+            let workers = crate::threads::current_num_threads().div_ceil(current.len());
+            let gradients = crate::threads::install(|| {
+                current
+                    .par_iter()
+                    .map(|block| {
+                        let g = [0, 1].map(|pol| block.gather(cotangent, Some(pol)));
+                        block.plan.pullback_periodic(
+                            self.ks,
+                            block.displacement,
+                            &self.lattice,
+                            self.eta,
+                            &g,
+                            workers,
+                        )
+                    })
+                    .collect::<Result<Vec<_>>>()
+            })?;
+            for (block, gradients) in current.iter().zip(gradients) {
+                for (pol, gradient) in gradients.into_iter().enumerate() {
+                    result.add_lattice(&gradient);
+                    result.expansion.ks[pol] += gradient.k;
+                    for (axis, value) in gradient.shift.into_iter().enumerate() {
+                        result.expansion.destination[block.destination][axis] += value;
+                        result.expansion.source[block.source][axis] -= value;
+                    }
                 }
             }
         }

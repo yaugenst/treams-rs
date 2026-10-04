@@ -43,7 +43,7 @@ Before the first release, check these settings:
 ## Prepare a version
 
 1. Set the version in `Cargo.toml`, then run `cargo check --workspace` to
-   update `Cargo.lock`. Both already name `0.1.0` for the first release.
+   update `Cargo.lock`.
 2. Finish the release entry in `CHANGELOG.md`, set its date, and add an empty
    `Unreleased` section. Set the matching `version` and `date-released` in
    `CITATION.cff`.
