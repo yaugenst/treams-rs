@@ -18,6 +18,8 @@
   use the documented recomputation path. Advect and HIPS Autograd reuse
   the original context. Require Advect 0.3.1 or later for residual-aware
   JVPs, and JAX 0.10 or later for batched reverse transforms.
+- Add field-map sensitivity and cluster-gradient examples, plus a reproducible
+  forward/reverse timing comparison that checks equal derivative results.
 - Preserve Clippy's default correctness errors and enable every Hypothesis
   health check on CI. Let Maturin configure Python extension linking and build
   source-distribution verification wheels through uv's default sdist rebuild.

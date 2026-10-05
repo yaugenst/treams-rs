@@ -131,6 +131,42 @@
           "Private benchmark host label"
         ]
       }
+    },
+    {
+      "path": "benchmarks/forward-autodiff-simplification-20261005.json",
+      "original_archive": "benchmarks/results/local/simplification-publication-original.json",
+      "original_sha256": "9e53f1bfe5ee4af31f2d1a9d5ec019ee2bc2213e9fb9eecc0c9e91d6ea98d09a",
+      "sanitized_sha256": "5a316d985388840d4bfca3566daf21013f97e1e06eaca305c666eeb4fc42adf3",
+      "operation": "Publish three existing forward-autodiff simplification reports and their diagnostic driver. Original distribution revision above does not apply to this new artifact.",
+      "measurements_rerun": false,
+      "verification": {
+        "json_non_string_primitives_checked": 1306,
+        "reports": 3,
+        "all_other_report_fields_unchanged": true,
+        "as_run_fingerprints_preserved": true,
+        "failure_flags_preserved": true,
+        "removed": [
+          "Private benchmark host label",
+          "Incidental repository absolute path in archived diagnostic source"
+        ]
+      }
+    },
+    {
+      "path": "benchmarks/forward-autodiff-regression-20261004.json",
+      "original_archive": "benchmarks/results/local/forward-autodiff-regression-20261004-publication-original.json",
+      "original_sha256": "9b0da30232583012c5c13181656b421ecdf8e6378eacdc08379fd6e27b313ff5",
+      "sanitized_sha256": "59eb326df18e4d03fec388c9f82381e49d3d88dfe5f76e727cd949c6a10366c8",
+      "operation": "Remove private host labels from new forward-autodiff regression evidence; original distribution revision above does not apply to this new artifact.",
+      "measurements_rerun": false,
+      "verification": {
+        "json_non_string_primitives_checked": 883,
+        "all_other_fields_unchanged": true,
+        "as_run_fingerprints_preserved": true,
+        "failure_flags_preserved": true,
+        "removed": [
+          "Private benchmark host label"
+        ]
+      }
     }
   ],
   "history_mapping": "benchmarks/history-provenance.json"
