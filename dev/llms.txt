@@ -130,6 +130,13 @@ Use `--format json` or `--format markdown` to list all documented functions and 
 - [Benchmarks](development/benchmarks.md): Run the benchmarks on an idle host, compare two builds and record new measurements next to the archived evidence.
 - [Releasing](development/releasing.md): Prepare a version, test its distributions, publish through TestPyPI and PyPI, and deploy versioned documentation.
 
+## How it was built
+
+- [How treams-rs was built](history/index.md): How AI coding agents wrote treams-rs in 16 working days.
+- [Messages](history/messages.md): The messages typed to the agents that built treams-rs, in order, with how long the agents worked before replying.
+- [Conversations](history/conversations.md): The published conversations with the agents that built treams-rs: messages, replies and the work in between.
+- [About the records](history/about.md): What the records of the treams-rs work contain, what they leave out and how the figures were counted.
+
 ## Changelog
 
 - [Changelog](changelog.md): Changes to treams-rs, including every renamed public name.

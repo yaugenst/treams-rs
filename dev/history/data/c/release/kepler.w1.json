@@ -1,0 +1,14 @@
+{"lines":[
+[0,"ran","cat AGENTS.md && git diff --stat f9b43088a34912002041901f4c606d2fcca5e051..86c4b2d498c3319ab466654b…"],
+[0,"left","Left out: 1 command that read the agent's own settings."],
+[9,"ran","git diff f9b43088a34912002041901f4c606d2fcca5e051..86c4b2d498c3319ab466654b901cee0e8ee16f73 -- READ…"],
+[24,"ran","git diff f9b43088a34912002041901f4c606d2fcca5e051..86c4b2d498c3319ab466654b901cee0e8ee16f73 -- docs…"],
+[24,"ran","rg -n 'arithmatex|mathjax|\\\\\\\\\\(|\\\\\\\\\\[|\\$\\$|\\$[^$`]+\\$' docs mkdocs.yml && sed -n '1,165p' README.…"],
+[32,"ran","sed -n '1,190p' README.md; sed -n '1,170p' docs/getting-started/install.md; cat python/AGENTS.md; s…"],
+[49,"ran","git diff f9b43088a34912002041901f4c606d2fcca5e051..86c4b2d498c3319ab466654b901cee0e8ee16f73 -- pyth…"],
+[49,"ran","rg -n '0\\.4\\.[57]|treams[<=>]|mathjax|arithmatex' pyproject.toml uv.lock docs README.md python/trea…"],
+[68,"ran","rg -n '^ def (circular_dichroism|transfer_matrix|rotate|translate|permute|double|block|tr|cd|illumi…"],
+[68,"ran","sed -n '1,170p' docs/validation/published-applications.md; sed -n '1,190p' docs/development/releasi…"],
+[80,"ran","rg -n -F -e '$$' -e '\\(' -e '\\[' docs --glob '*.md'; rg -n 'hooks|mermaid' mkdocs.yml; rg --files s…"],
+[80,"ran","rg -n '^class |^ def ' python/treams_rs/_framework_waves.py python/treams_rs/_framework_smatrix.py …"]
+]}

@@ -1,0 +1,8 @@
+{"lines":[
+[0,"ran","cat crates/AGENTS.md && cat docs/development/architecture.md && rg --files crates/treams-core/src/s…"],
+[6,"ran","sed -n '1,220p' crates/treams-core/src/lib.rs && for f in crates/treams-core/src/{sw,cw,pw}/*.rs; d…"],
+[17,"ran","sed -n '1,105p' crates/treams-core/src/sw/mod.rs; sed -n '1,110p' crates/treams-core/src/cw/mod.rs;…"],
+[52,"changed","crates/treams-core/src/pw/README.md, crates/treams-core/src/cw/README.md, crates/treams-core/src/sw…"],
+[61,"ran","wc -w crates/treams-core/src/sw/README.md crates/treams-core/src/cw/README.md crates/treams-core/sr…"],
+[69,"sent","1 message to Ohm"]
+]}

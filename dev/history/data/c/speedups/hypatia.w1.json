@@ -1,0 +1,15 @@
+{"lines":[
+[0,"ran","pwd && git status --short && sed -n '1,220p' AGENTS.md && sed -n '1,220p' benchmarks/README.md"],
+[15,"ran","sed -n '1,220p' CONTRIBUTING.md && sed -n '1,260p' docs/development/architecture.md && sed -n '1,22…"],
+[15,"ran","git diff --stat && git diff -- CHANGELOG.md README.md docs/guide/large-clusters.md docs/guide/threa…"],
+[15,"left","Left out: 1 command that read the agent's own settings."],
+[21,"ran","git diff --stat && git diff -- CHANGELOG.md README.md docs/guide/large-clusters.md docs/guide/threa…"],
+[32,"ran","git diff -- scripts/compare_builds.py tests/scripts/test_compare_builds.py tests/tmatrix/test_itera…"],
+[44,"ran","sed -n '1,200p' docs/development/releasing.md && sed -n '830,1020p' scripts/compare_builds.py && se…"],
+[58,"ran","tar -tzf benchmarks/results/cpu-speedups-20261004.tar.gz && tar -xOzf benchmarks/results/cpu-speedu…"],
+[91,"ran","rg -n '0\\.1\\.0|after 0\\.1\\.0|release qualification|batch|Krylov' README.md CHANGELOG.md CITATION.cf…"],
+[122,"ran","git diff -- crates/treams-core/src/smatrix/solve.rs crates/treams-core/src/linalg/gmres.rs | sed -n…"],
+[0,"ran","git status --short && git rev-parse HEAD && git diff --stat 8bbcb87aaeaccd9293fc8c09eecb8727c37c497…"],
+[22,"ran","git diff 8bbcb87aaeaccd9293fc8c09eecb8727c37c4970..aba7b877fcb5aea8439e77ace8f92e5b250f2bae -- crat…"],
+[32,"ran","tar -xOzf benchmarks/results/cpu-scheduling-20261004.tar.gz benchmarks/results/cpu-scheduling-20261…"]
+]}

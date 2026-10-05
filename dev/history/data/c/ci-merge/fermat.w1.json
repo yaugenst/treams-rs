@@ -1,0 +1,16 @@
+{"lines":[
+[0,"left","Left out: 2 commands that read the agent's own notes."],
+[19,"ran","cat AGENTS.md python/AGENTS.md; git diff --stat 5947c78e5b88a364952fb554548e53b40321abe9..9ebfdea81…"],
+[20,"ran","gh pr view 2 --repo yaugenst/treams-rs --json title,body,comments,reviews,files,statusCheckRollup,h…"],
+[38,"left","Left out: 1 command that read the agent's own settings."],
+[38,"ran","git diff 5947c78e5b88a364952fb554548e53b40321abe9..9ebfdea81ee77711c476c790ed28229610f933df -- test…"],
+[38,"ran","gh pr view 2 --repo yaugenst/treams-rs --json body --jq .body; rg -n 'tmp_path|chdir|setenv|environ…"],
+[52,"ran","sed -n '220,450p' .github/workflows/native-wheels.yml; sed -n '1,150p' tests/conftest.py; cat tests…"],
+[52,"ran","git diff 5947c78e5b88a364952fb554548e53b40321abe9..9ebfdea81ee77711c476c790ed28229610f933df -- test…"],
+[75,"ran","nl -ba .github/workflows/ci.yml | sed -n '1,145p'; rg -n 'native-wheels|assemble|needs:' .github/wo…"],
+[90,"ran","gh run view 37149880578 --repo yaugenst/treams-rs --job 111285977937 --log | sed -n '1,180p'"],
+[112,"ran","gh run view 37149880578 --repo yaugenst/treams-rs --job 111285977937 --log | rg 'setup-python|Pytho…"],
+[150,"ran","for d in / /home [a private folder] [a private folder] treams-ci-speed .github .github/workflows te…"],
+[151,"ran","sed -n '1,150p' scripts/smoke_wheel_install.py; rg -n 'pythonLocation|Python_ROOT|GITHUB_PATH|setup…"],
+[0,"ran","git diff 9ebfdea81ee77711c476c790ed28229610f933df..6cb8973 -- .github/workflows/ci.yml .github/work…"]
+]}

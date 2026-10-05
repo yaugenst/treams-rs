@@ -55,6 +55,8 @@
     
       <link rel="stylesheet" href="../../stylesheets/extra.css">
     
+      <link rel="stylesheet" href="../../history/history.css">
+    
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -3517,6 +3519,170 @@
   
   
   
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../history/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How it was built
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_12" id="__nav_12_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    How it was built
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../history/messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../history/conversations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conversations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../history/about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About the records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../changelog/" class="md-nav__link">
         
@@ -3753,15 +3919,15 @@ mode:</p>
 <td>Fails at opt-level 1 when either pointer operand is removed</td>
 </tr>
 <tr>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/tests/bindings/test_float_environment.py"><code>test_float_environment.py</code></a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/tests/bindings/test_float_environment.py"><code>test_float_environment.py</code></a></td>
 <td>Every binding body is one guard call; the first native call on a flushing thread keeps subnormals; forked children keep a working pool</td>
 </tr>
 <tr>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/scripts/float_environment.py"><code>float_environment.py</code></a>, run by the test above and by <code>just check-wheel</code></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/scripts/float_environment.py"><code>float_environment.py</code></a>, run by the test above and by <code>just check-wheel</code></td>
 <td>Every scalar binding, every ufunc loop, records with their pullbacks, solves and a slab give the same bits on a flushing thread as on an IEEE thread</td>
 </tr>
 <tr>
-<td><code>test_callbacks_keep_subnormals_and_restore_the_xla_mode</code> in <a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/tests/autodiff/test_jax.py"><code>test_jax.py</code></a></td>
+<td><code>test_callbacks_keep_subnormals_and_restore_the_xla_mode</code> in <a href="https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/tests/autodiff/test_jax.py"><code>test_jax.py</code></a></td>
 <td>Native calls inside JAX callbacks keep subnormals and leave XLA's mode as they found it</td>
 </tr>
 </tbody>
@@ -3900,6 +4066,8 @@ T-matrices, fields, EBCM, cylinders, illuminations and channels are not compared
     
     
       <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../history/history.js"></script>
       
     
   </body>

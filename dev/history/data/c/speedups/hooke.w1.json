@@ -1,0 +1,11 @@
+{"lines":[
+[0,"ran","git diff -- crates/treams-core/src/linalg/gmres.rs crates/treams-core/src/cluster/iterative.rs"],
+[10,"ran","sed -n '1,260p' crates/treams-core/src/cluster/iterative.rs"],
+[10,"ran","sed -n '1,110p' crates/treams-core/src/linalg/gmres.rs && sed -n '1,180p' crates/treams-core/src/cl…"],
+[10,"ran","cat crates/AGENTS.md && rg -n 'gmres_batch|fn solve_rhs|rhs.ncols|dimension ==|positions.is_empty|d…"],
+[16,"ran","rg -n 'fn validate_spheres|pub fn modes|fn modes' crates/treams-core/src/cluster* crates/treams-cor…"],
+[23,"ran","sed -n '98,148p' crates/treams-core/src/cluster/spheres.rs && sed -n '108,142p' crates/treams-core/…"],
+[0,"ran","cat benchmarks/results/local/cpu-speedups-20261004/stage4-direct-action.patch"],
+[5,"ran","sed -n '1,260p' crates/treams-core/src/sw/plan.rs && sed -n '450,545p' crates/treams-core/src/sw/pl…"],
+[42,"sent","1 message to Boole"]
+]}

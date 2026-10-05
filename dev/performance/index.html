@@ -55,6 +55,8 @@
     
       <link rel="stylesheet" href="../stylesheets/extra.css">
     
+      <link rel="stylesheet" href="../history/history.css">
+    
     <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -3415,6 +3417,170 @@
   
   
   
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../history/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How it was built
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_12" id="__nav_12_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    How it was built
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../history/messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../history/conversations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conversations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../history/about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About the records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../changelog/" class="md-nav__link">
         
@@ -3672,12 +3838,12 @@ process. Medians are unweighted over distinct cases.</p>
 </tbody>
 </table>
 <p>The Linux rows come from the
-<a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/benchmarks/linux-core-performance.json">Linux core performance record</a>,
-summarized in <a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/benchmarks/linux-core-qualification.md">Linux core validation</a>.
+<a href="https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/benchmarks/linux-core-performance.json">Linux core performance record</a>,
+summarized in <a href="https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/benchmarks/linux-core-qualification.md">Linux core validation</a>.
 That record also lists 33 edge cases (median 1.77×): mostly internal
 illuminations at the matrix sizes and column counts where the solve switches
 method, plus scalar <code>tl_vcw_r</code> calls; three of them are slower than treams.
-The macOS row comes from the <a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/benchmarks/mac-qualification.json">macOS dispatch record</a>.</p>
+The macOS row comes from the <a href="https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/benchmarks/mac-qualification.json">macOS dispatch record</a>.</p>
 <p>The cases that use more memory keep data for computing gradients later. This
 is called a recorded call; its pullback turns the gradient of a result into
 gradients of the inputs. treams computes only the forward result.</p>
@@ -3692,7 +3858,7 @@ save time and memory (<a href="large-problems/">large problems</a>):</p>
   within 47.9 MiB.</li>
 </ul>
 <h3 id="selected-operations-from-the-reference-grid">Selected operations from the reference grid<a class="headerlink" href="#selected-operations-from-the-reference-grid" title="Permanent link">&para;</a></h3>
-<p>The <a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/benchmarks/complete-qualification.json">reference grid</a> has 527
+<p>The <a href="https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/benchmarks/complete-qualification.json">reference grid</a> has 527
 cases on Linux. Its smallest speedup is 1.02×, and its largest RSS ratio among
 the cases that check memory is 0.912.</p>
 <table>
@@ -3779,7 +3945,7 @@ factor, so both packages compute the same quantity
   computes gradients). In the Linux broad grid, with one and eight incident
   columns, it runs 1.51× and 1.47× faster than treams but peaks at 1.44 times
   its memory; that run lists both as cases that use more memory. The
-  <a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/benchmarks/complete-qualification.json">reference replay grid</a>
+  <a href="https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/benchmarks/complete-qualification.json">reference replay grid</a>
   exempts the same two cases from the memory check. There they run 1.40× and
   1.28× faster at 1.56 and 1.75 times the memory, and the same calls without
   recording run 1.83× and 1.71× faster at 0.91 times the memory. They still
@@ -3817,7 +3983,7 @@ to CPUs 8–11 of a Ryzen 9 9950X.</p>
   more cases on an Apple M3 and a Ryzen 9 9950X, with every outcome.</li>
 <li><a href="evidence/">Evidence</a>: the provenance table and archived measurements of
   individual kernels.</li>
-<li><a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/benchmarks/README.md">Benchmark files</a>: the layout of <code>benchmarks/</code>.</li>
+<li><a href="https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/benchmarks/README.md">Benchmark files</a>: the layout of <code>benchmarks/</code>.</li>
 </ul>
 
 
@@ -3950,6 +4116,8 @@ to CPUs 8–11 of a Ryzen 9 9950X.</p>
     
     
       <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../history/history.js"></script>
       
     
   </body>

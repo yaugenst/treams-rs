@@ -1,0 +1,5 @@
+{"id":"release/feynman","helpers":[{"id":"release/wegener","nick":"Wegener","task":"formal diagram","parent":"release/feynman","depth":2,"model":"gpt-6-astra","effort":"ultra","from":1964413,"minutes":1}],"groups":[],"items":[
+{"t":"note","at":1964392,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1964399,"to":1964684,"commands":12,"files":3,"notes":0,"helpers":1,"groups":0,"searches":0,"helper_ids":["release/wegener"],"group_ix":[],"lines":[[1,0,18]]},
+{"t":"relay","at":1964701,"how":"report","from":null,"html":"<p>Added concise Mermaid diagrams to:</p>\n<ul>\n<li><code>crates/treams-py/README.md</code>: recording and gradient flow.</li>\n<li><code>crates/treams-py/src/ufunc/README.md</code>: scalar and NumPy execution routes.</li>\n<li><code>formal/README.md</code>: Lean reference outputs and Rust comparison tests.</li>\n<li><code>scripts/README.md</code>: measurement, audit and plotting flow.</li>\n</ul>\n<p>Checked relationships against implementation; <code>git diff --check</code> passes. Incoming Autograd wording preserved. Rendering remains with root. No commits, pushes or Actions.</p>"}
+]}

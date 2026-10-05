@@ -1,0 +1,16 @@
+{"lines":[
+[0,"left","Left out: 1 command that read the agent's own settings."],
+[9,"ran","on [computer name]: cat AGENTS.md"],
+[16,"ran","on [computer name]: cat docs/development.md"],
+[22,"left","Left out: 2 commands whose search terms named private details."],
+[30,"ran","on [computer name]: sed -n '350,720p' crates/treams-core/src/tmatrix.rs"],
+[57,"ran","on [computer name]: sed -n '140,300p' crates/treams-py/src/tmatrix.rs"],
+[93,"sent","1 message to Pauli"],
+[99,"ran","on [computer name]: sed -n '1,180p' tests/test_benchmark_metadata.py"],
+[108,"ran","on [computer name]: sed -n '60,95p' pyproject.toml"],
+[129,"ran","on [computer name]: sed -n '795,825p' scripts/benchmark_cluster.py"],
+[183,"ran","on [computer name]: python3 - <<'PY'"],
+[189,"sent","1 message to Plato"],
+[221,"ran","on [computer name]: cargo test --locked -p treams-core local_block_adjoint_matches_dense"],
+[315,"sent","1 message to Einstein"]
+]}

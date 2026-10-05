@@ -1,0 +1,5 @@
+{"id":"port/heisenberg","helpers":[],"groups":[],"items":[
+{"t":"note","at":158726,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":158732,"to":158868,"commands":6,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,6]]},
+{"t":"relay","at":158888,"how":"report","from":null,"html":"<p>Linux cleanup freed <strong>18.02 GiB</strong> of allocated storage.</p>\n<p>Removed debug/WASM builds, generated rustdoc, CUDA scratch build directories and obsolete preview atlases. Verified source, all 5,568 existing evidence files, native release, GPU examples and baseline binary unchanged.</p>\n<p>Evidence: <code>benchmarks/results/corrected/linux/cleanup.json</code>. No benchmarks, builds or tests started; no source or Git changes.</p>"}
+]}

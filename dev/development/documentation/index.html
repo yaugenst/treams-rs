@@ -55,6 +55,8 @@
     
       <link rel="stylesheet" href="../../stylesheets/extra.css">
     
+      <link rel="stylesheet" href="../../history/history.css">
+    
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -3539,6 +3541,170 @@
   
   
   
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../history/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How it was built
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_12" id="__nav_12_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    How it was built
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../history/messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../history/conversations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conversations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../history/about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About the records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../changelog/" class="md-nav__link">
         
@@ -3734,7 +3900,7 @@
 <h1 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h1>
 <p>The site is built with <a href="https://www.mkdocs.org/">MkDocs</a> and the Material
 theme from the Markdown files under <code>docs/</code>. The <code>nav</code> of
-<a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/mkdocs.yml"><code>mkdocs.yml</code></a> is the one list of pages: it sets their order
+<a href="https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/mkdocs.yml"><code>mkdocs.yml</code></a> is the one list of pages: it sets their order
 on the site and in <code>llms.txt</code>.</p>
 <h2 id="build-and-preview">Build and preview<a class="headerlink" href="#build-and-preview" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>just<span class="w"> </span>docs-serve<span class="w">   </span><span class="c1"># preview with live reload at http://127.0.0.1:8000</span>
@@ -3820,7 +3986,7 @@ claimed result, and run <code>uv run --no-sync pytest tests/api/test_docs.py</co
 changing one.</p>
 <h2 id="generated-content">Generated content<a class="headerlink" href="#generated-content" title="Permanent link">&para;</a></h2>
 <p><code>just docs</code> writes three kinds of files from
-<a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/scripts/generate_docs.py"><code>scripts/generate_docs.py</code></a>:</p>
+<a href="https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/scripts/generate_docs.py"><code>scripts/generate_docs.py</code></a>:</p>
 <ul>
 <li><strong>The Python API reference</strong> under <code>docs/reference/python/</code>: one page per
   public module and a page of returned native types, rendered from
@@ -3840,6 +4006,9 @@ as mkdocstrings. One source then serves the site, <code>llms.txt</code> and
 <code>python -m treams_rs --format markdown</code>. The catalog reads the installed
 package, so it includes native ufuncs, whose signatures exist only at run time,
 and the adapter modules without their optional frameworks installed.</p>
+<p><code>docs/history/</code> is written by a private history build from the archived
+conversation records. Do not edit it by hand; it has a typos exclusion for its
+data and keeps every file under the 1,000 KB limit.</p>
 <h2 id="examples-gallery">Examples gallery<a class="headerlink" href="#examples-gallery" title="Permanent link">&para;</a></h2>
 <p>The gallery in <code>docs/examples/</code> repeats the examples of the treams
 documentation and adds two gradient examples. An example <code>&lt;name&gt;</code> has these
@@ -3870,7 +4039,7 @@ files:</p>
 </tr>
 </tbody>
 </table>
-<p><a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/tests/api/test_examples.py"><code>tests/api/test_examples.py</code></a> runs every
+<p><a href="https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/tests/api/test_examples.py"><code>tests/api/test_examples.py</code></a> runs every
 script and compares the numbers it prints with <code>output/&lt;name&gt;.txt</code> to a
 relative tolerance of 1e-6. With treams installed, it also runs each treams
 script and compares the variables that its <code>ORACLE</code> entry names, to a relative
@@ -3893,7 +4062,7 @@ a treams tab without a treams script or the other way round. Run
 <code>just docs-examples</code> again whenever a script changes what it prints, and
 review the change in <code>output/</code>.</p>
 <h2 id="publishing">Publishing<a class="headerlink" href="#publishing" title="Permanent link">&para;</a></h2>
-<p>The reusable <a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/.github/workflows/docs.yml">Docs workflow</a> builds the site
+<p>The reusable <a href="https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/.github/workflows/docs.yml">Docs workflow</a> builds the site
 and rustdoc for pull requests. Main publishes <code>dev</code>; a release publishes its
 version and updates <code>latest</code>. Mike keeps every version in <code>gh-pages</code>, and
 the workflow deploys the complete tree through GitHub Pages artifacts.
@@ -4030,6 +4199,8 @@ to released documentation.</p>
     
     
       <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../history/history.js"></script>
       
     
   </body>

@@ -1,0 +1,10 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g 'AGENTS.md' -g 'REVIEW.md' -g 'CONTRIBUTING.md' -g '*releas*' -g '*test*' -g '…"],
+[16,"ran","cat AGENTS.md CONTRIBUTING.md; git diff 5947c78e5b88a364952fb554548e53b40321abe9..9ebfdea81ee77711c…"],
+[17,"ran","gh pr view 2 --repo yaugenst/treams-rs --json title,body,baseRefOid,headRefOid,comments,reviews,fil…"],
+[29,"ran","git diff 5947c78e5b88a364952fb554548e53b40321abe9..HEAD -- .pre-commit-config.yaml justfile pyproje…"],
+[29,"ran","nl -ba .github/workflows/native-wheels.yml; nl -ba .github/workflows/release-candidate.yml; nl -ba …"],
+[38,"ran","sed -n '1,280p' .github/workflows/native-wheels.yml; sed -n '1,180p' .github/workflows/release-cand…"],
+[66,"left","Left out: 1 command that read the agent's own settings."],
+[66,"ran","git show 5947c78e5b88a364952fb554548e53b40321abe9:.github/workflows/ci.yml | sed -n '25,125p'; nl -…"]
+]}

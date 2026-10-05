@@ -55,6 +55,8 @@
     
       <link rel="stylesheet" href="../../stylesheets/extra.css">
     
+      <link rel="stylesheet" href="../../history/history.css">
+    
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -3517,6 +3519,170 @@
   
   
   
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../history/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How it was built
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_12" id="__nav_12_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    How it was built
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../history/messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../history/conversations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conversations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../history/about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About the records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../changelog/" class="md-nav__link">
         
@@ -3864,7 +4030,7 @@ complete workflows through the public API.</p>
   objects compose records; adapter modules supply only their framework bridge.
   Keep native derivative formulas in Rust, not in a dispatcher or adapter.</li>
 <li><strong>Recorded evidence.</strong> Numerical measurements stay unchanged. Privacy-only
-  transformations follow <a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/benchmarks/README.md#privacy-and-provenance">the evidence policy</a>.</li>
+  transformations follow <a href="https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/benchmarks/README.md#privacy-and-provenance">the evidence policy</a>.</li>
 <li><strong>Renames.</strong> Every public rename gets a bullet under "Unreleased" in
   <code>CHANGELOG.md</code>. A public name that differs from its treams counterpart also
   gets an entry in <code>python/treams_rs/_upstream.py</code>, which feeds the
@@ -3873,7 +4039,7 @@ complete workflows through the public API.</p>
 </ul>
 <h2 id="adding-a-binding">Adding a binding<a class="headerlink" href="#adding-a-binding" title="Permanent link">&para;</a></h2>
 <p>The crate docs of <code>treams-py</code>, in
-<a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>, hold the
+<a href="https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>, hold the
 checklist under "Adding a binding". Start with the core function and its tests.
 Add the binding, context and <code>pullback</code> to the file for that core module.
 Then add the export, stub, Python caller and a <code>CASES</code> entry in
@@ -3914,7 +4080,7 @@ the bindings, Python and treams. The crate docs state the rules for each
 layer: "Names" in the
 <a href="../../rust/treams_core/#names"><code>treams-core</code> docs</a>
 and "Naming rules" in
-<a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>. The rules
+<a href="https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>. The rules
 that cross layers:</p>
 <ul>
 <li><strong>Residuals and contexts.</strong> The Rust function <code>X</code> returns <code>XResidual</code>, and its
@@ -4064,6 +4230,8 @@ that cross layers:</p>
     
     
       <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../history/history.js"></script>
       
     
   </body>

@@ -1,0 +1,8 @@
+{"id":"release/poincare","helpers":[],"groups":[],"items":[
+{"t":"note","at":1964882,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1964888,"to":1965362,"commands":27,"files":1,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,28]]},
+{"t":"relay","at":1965383,"how":"report","from":null,"html":"<p>Optimized <code>_dispatch.py</code> with two small changes: reuse the plain-type tuple and iterate the pending list directly.</p>\n<ul>\n<li><strong>238 tests passed</strong>; Ruff, formatting and diff checks passed.</li>\n<li>All eight measured calls improved; outputs remained identical.</li>\n<li>Automatic dispatch still adds <strong>0.3–2.7 µs</strong> without frameworks loaded, or <strong>2.0–9.7 µs</strong> with all four loaded. Several small-call timing gates remain exceeded.</li>\n</ul>\n<p>Measurements and provenance. No Git changes or Actions runs.</p>"},
+{"t":"note","at":1965653,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1965661,"to":1965757,"commands":5,"files":1,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,28,35]]},
+{"t":"relay","at":1965780,"how":"report","from":null,"html":"<p>Added the public note to performance evidence, covering measured overhead, failed timing checks, scope, protocol and source identities.</p>\n<p>Historical results remain unchanged. Diff check passed; rendered documentation validation remains with the parent. No commits or pushes.</p>"}
+]}

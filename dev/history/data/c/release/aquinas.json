@@ -1,0 +1,5 @@
+{"id":"release/aquinas","helpers":[],"groups":[],"items":[
+{"t":"note","at":1949202,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1949208,"to":1949512,"commands":11,"files":4,"notes":2,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,18]]},
+{"t":"relay","at":1949520,"how":"report","from":null,"html":"<p>Updated lattice properties in <code>checks.rs</code>, <code>mod.rs</code>, plus explanatory comments in <code>strategies.rs</code> and <code>tables.rs</code>.</p>\n<ul>\n<li>Unsupported draws explicitly assert <code>InvalidInput</code> for Ewald values and derivatives; generators, regression seeds, reference values, and tolerances are preserved.</li>\n<li>Supported real/near-real derivative checks now run with probes inside the domain; spherical negative-real rejection is also exercised.</li>\n<li><code>rustfmt</code> and <code>git diff --check</code> pass. Native tests remain for the parent’s coordinated lattice run. No commits.</li>\n</ul>"}
+]}

@@ -1,0 +1,10 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g 'AGENTS.md' -g 'REVIEW.md' -g 'justfile' -g '*ci*' -g '.github/workflows/*' ."],
+[16,"ran","cat AGENTS.md && git diff --stat 5947c78e5b88a364952fb554548e53b40321abe9..9ebfdea81ee77711c476c790…"],
+[16,"left","Left out: 2 commands that read the agent's own settings."],
+[28,"ran","cat .github/workflows/native-wheels.yml && cat .github/workflows/ci.yml"],
+[28,"ran","rg --files --hidden -g 'REVIEW.md' -g 'AGENTS.md' -g '!*\\.git*' treams-ci-speed [a private folder] …"],
+[28,"ran","cat justfile && cat docs/development/testing.md && cat CONTRIBUTING.md"],
+[37,"ran","nl -ba .github/workflows/ci.yml | sed -n '1,260p'; nl -ba .github/workflows/ci.yml | sed -n '410,59…"],
+[49,"ran","sed -n '1,100p' scripts/wheel_build_paths.py; sed -n '1,90p' scripts/smoke_wheel_install.py; cat cr…"]
+]}

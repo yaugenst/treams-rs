@@ -1,0 +1,5 @@
+{"id":"speedups/newton","helpers":[],"groups":[],"items":[
+{"t":"note","at":2005090,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":2005094,"to":2005152,"commands":8,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,8]]},
+{"t":"relay","at":2005176,"how":"report","from":null,"html":"<p>No correctness issues found in stage6.</p>\n<ul>\n<li>Sorted degree gaps ≤2 exactly cover the forward-required radial orders without adding unused orders.</li>\n<li>Derivatives remain covered, and ranges stay isolated per centre and wavenumber.</li>\n<li>Selection preserves mode-permutation behavior.</li>\n<li>Regular waves, singular origins, invalid arguments and high-order AMOS fallback retain existing handling.</li>\n</ul>\n<p>Reviewed the isolated patch and surrounding implementation; no builds or tests run.</p>"}
+]}

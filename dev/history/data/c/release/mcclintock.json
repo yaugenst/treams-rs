@@ -1,0 +1,5 @@
+{"id":"release/mcclintock","helpers":[],"groups":[],"items":[
+{"t":"note","at":1956900,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1956906,"to":1957536,"commands":18,"files":8,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,27]]},
+{"t":"relay","at":1957541,"how":"report","from":null,"html":"<p>Committed <code>afac2f96</code>; working tree clean.</p>\n<ul>\n<li>Reviewed all eight performance/validation pages; simplified jargon and repetitive explanations.</li>\n<li>Preserved every number, table, link, code example and historical evidence boundary.</li>\n<li>Focused Markdown hygiene and preservation checks pass.</li>\n<li>No builds or numerical tests rerun; final rendering remains with root.</li>\n<li>Not pushed; no PR changes.</li>\n</ul>"}
+]}

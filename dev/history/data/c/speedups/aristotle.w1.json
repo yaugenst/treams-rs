@@ -1,0 +1,8 @@
+{"lines":[
+[0,"ran","rg -n \"precondition|IterativeSphereCluster|apply_adjoint|gmres|batch\" crates/treams-core/src/cluste…"],
+[8,"ran","sed -n '1,248p' crates/treams-core/src/cluster/iterative.rs && sed -n '280,405p' crates/treams-core…"],
+[8,"ran","sed -n '1,190p' crates/treams-core/src/linalg/gmres.rs && sed -n '670,800p' crates/treams-core/src/…"],
+[32,"ran","rg -n \"pub struct Lu|pub fn lu|impl.*Lu|solve_adjoint|adjoint.*solve|singular|struct Lu\" crates/tre…"],
+[38,"ran","sed -n '270,373p' crates/treams-core/src/linalg/mod.rs; nl -ba crates/treams-core/src/cluster/itera…"],
+[56,"sent","1 message to Banach"]
+]}

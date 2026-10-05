@@ -136,4 +136,8 @@ np.testing.assert_allclose(cross_sections.extinction, 0.6258290233441384, rtol=1
 
     Setup and checks for contributors
 
+- [**How it was built**](history/index.md)
+
+    The AI agents that wrote treams-rs, and the messages that directed them
+
 </div>
