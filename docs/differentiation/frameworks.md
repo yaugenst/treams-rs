@@ -7,7 +7,8 @@ description: Differentiate the ordinary API with Advect, JAX, PyTorch or HIPS Au
 Use `import treams_rs as tr` with Advect, JAX, PyTorch or
 [HIPS Autograd](https://github.com/HIPS/autograd). Framework arrays and traced
 values select their adapter automatically, so an objective written with the
-ordinary API differentiates within the [limits](#limits) below. Rust supplies
+ordinary API supports first-order forward and reverse differentiation within
+the [limits](#limits) below. Rust supplies
 analytic derivatives at native boundaries through the records of
 [Differentiation](index.md);
 shared array operations stay in the selected framework. The adapters add no
@@ -27,12 +28,17 @@ def scattering(radius):
 
 value, gradient = advect.value_and_grad(scattering)(advect.numpy.asarray(0.2))
 assert gradient > 0
+value, tangent = advect.jvp(scattering)(
+    advect.numpy.asarray(0.2), tangents=advect.numpy.asarray(1.0)
+)
+assert tangent > 0
 ```
 
 The same objective in JAX:
 
 ```python exec jax
 import jax
+import jax.numpy as jnp
 import treams_rs as tr
 
 
@@ -44,6 +50,10 @@ def scattering(radius):
 
 value, gradient = jax.jit(jax.value_and_grad(scattering))(0.2)
 assert gradient > 0
+radius = jnp.asarray(0.2)
+value, tangent = jax.jvp(scattering, (radius,), (jnp.ones_like(radius),))
+derivative = jax.jacfwd(scattering)(radius)
+assert tangent > 0 and derivative > 0
 ```
 
 And in PyTorch:
@@ -52,18 +62,24 @@ And in PyTorch:
 import torch
 import treams_rs as tr
 
-radius = torch.tensor(0.2, requires_grad=True)
-sphere = tr.sphere_tmatrix(k0=1.3, lmax=2, radius=radius, material=3)
-incident = tr.plane_wave([0, 0, 1], "positive_helicity", k0=1.3)
-scattering = sphere.cross_sections(incident).scattering
-scattering.backward()
+
+def scattering(radius):
+    sphere = tr.sphere_tmatrix(k0=1.3, lmax=2, radius=radius, material=3)
+    incident = tr.plane_wave([0, 0, 1], "positive_helicity", k0=1.3)
+    return sphere.cross_sections(incident).scattering
+
+
+radius = torch.tensor(0.2, dtype=torch.float64, requires_grad=True)
+scattering(radius).backward()
 assert radius.grad > 0
+value, tangent = torch.func.jvp(scattering, (radius,), (torch.ones_like(radius),))
+assert tangent > 0
 ```
 
 And in HIPS Autograd:
 
 ```python exec autograd
-from autograd import value_and_grad
+from autograd import make_jvp, value_and_grad
 import treams_rs as tr
 
 
@@ -75,7 +91,14 @@ def scattering(radius):
 
 value, gradient = value_and_grad(scattering)(0.2)
 assert gradient > 0
+value, tangent = make_jvp(scattering)(0.2)(1.0)
+assert tangent > 0
 ```
+
+The JVP in each example uses a unit radius perturbation. For an array-valued
+function, it returns the sensitivity of every output to that input direction.
+JVPs are often useful for field maps, frequency sensitivity and correlated
+geometry perturbations; they do not construct a full Jacobian.
 
 ## Frameworks compared
 
@@ -83,9 +106,10 @@ assert gradient > 0
 |---|---|---|---|---|
 | Import | `import treams_rs as tr` | `import treams_rs as tr` | `import treams_rs as tr` | `import treams_rs as tr` |
 | Extra | `treams-rs[advect]` | `treams-rs[jax]` | `treams-rs[torch]` | `treams-rs[autograd]` |
-| Context lifetime | One use: each reverse pass consumes the context of its forward | Recorded again for every reverse pass | Kept for the first backward, recorded again for each further backward | Kept for the first reverse pass, recorded again for each further pass |
+| Reverse context lifetime | Owned by the Advect tape | Built-ins keep numerical state or inputs; unannotated custom records repeat the forward | Kept through the first backward, recorded again for later backwards | Reused for repeated VJPs |
+| Native work per direct JVP | One forward; its context computes the tangent | One record for built-ins; unannotated custom records repeat it for the tangent | The forward context computes the tangent | The forward context computes the tangent |
 | Dtypes | float32/64 and complex64/128 inputs; double-precision outputs | float32/64 and complex64/128 inputs; single-precision outputs by default, double with `jax_enable_x64` | float32/64 and complex64/128 inputs; double-precision outputs | float64 and complex128; Python numbers work as constants |
-| Transforms | `grad`, `value_and_grad` | `grad`, `value_and_grad`, `vjp`, `jit`, `checkpoint`, sequential `vmap` | `backward`, `torch.autograd.grad`, repeated backward with `retain_graph=True` | `grad`, `value_and_grad`, `make_vjp` |
+| Transforms | `grad`, `value_and_grad`, `jvp` | `grad`, `value_and_grad`, `vjp`, `jvp`, `jacfwd`, `jacrev`, `linearize`, `jit`, `checkpoint`, sequential `vmap` | `backward`, `torch.autograd.grad`, repeated backward with `retain_graph=True`, `torch.func.jvp`, `torch.autograd.forward_ad` | `grad`, `value_and_grad`, `make_vjp`, `make_jvp` |
 | Devices | CPU | CPU; GPU arrays and a GPU default backend raise `ValueError` | CPU; CUDA and MPS tensors raise `ValueError` | CPU |
 | Higher order | No | No | No | No |
 
@@ -93,10 +117,11 @@ Native calculations use double precision. Gradients retain their input dtype;
 no adapter changes a framework's global precision settings. For JAX, enable
 `jax_enable_x64` when the objective needs double-precision arrays and gradients.
 
-Unsupported transforms raise: `jvp`, nested `grad`, `stage` and `checkpoint` in
-Advect, `jvp` in JAX and `create_graph=True` in PyTorch. `torch.func` and
-`torch.compile` are not supported. HIPS Autograd supports first-order reverse
-mode only; nested gradients and forward-mode transforms are unsupported.
+Higher derivatives are unsupported, including nested gradients and differentiating
+a JVP or VJP. Advect also rejects `stage` and `checkpoint`; PyTorch rejects
+`create_graph=True`. The supported PyTorch functional transform is
+`torch.func.jvp`; other `torch.func` transforms and `torch.compile` are outside
+the supported contract.
 [How long a context lives](../design/adapters.md#how-long-a-context-lives) gives
 the reasons for these context lifetimes.
 
@@ -264,9 +289,9 @@ calls. NumPy factors can reuse them when geometry and materials stay fixed.
 
 ## Advect
 
-Pass arrays to Advect transforms, scalars included:
-`advect.grad(f)(advect.numpy.asarray(0.2))`. Each reverse pass consumes its
-contexts, so call the transformed function again for every gradient. Besides
+The adapter requires Advect 0.3.1 or later. Pass arrays to Advect transforms, scalars included:
+`advect.grad(f)(advect.numpy.asarray(0.2))`. The Advect tape owns the native
+contexts and reuses them across tangent directions. Besides
 the physics objects, `treams_rs.advect` offers an array function for every
 `diff` record except the reusable factors; [custom records](custom-records.md)
 maps them.
@@ -287,10 +312,16 @@ def size(radius):
 gradient = advect.grad(size)(anp.asarray(0.3))
 ```
 
+`advect.jvp(size)(radius, tangents=direction)` computes a first-order tangent.
+Advect passes the forward invocation's saved context to its JVP callback, so
+each direction reuses its numerical factors and a direct JVP needs one native forward.
+
 ## JAX
 
-JAX works with its default single-precision arrays. Enable `jax_enable_x64`
-when you need double-precision outputs and gradients, as below. On a machine
+JAX 0.10 and 0.11 work with their default single-precision arrays. Enable
+`jax_enable_x64` globally, as below, when you need double-precision outputs and
+gradients. A scoped `with jax.enable_x64(True)` can lose its setting on JAX's
+callback worker threads. On a machine
 whose default JAX backend is a GPU, set `JAX_PLATFORMS=cpu` before importing JAX. Native calls
 run in `jax.pure_callback` on the CPU; `vmap` calls them once per batch element.
 
@@ -311,11 +342,22 @@ def size(radius):
 value, gradient = jax.value_and_grad(size)(0.3)
 ```
 
-JAX keeps only the inputs of a native call. Each reverse pass records the
-forward again and consumes the new context at once. Repeated `jax.vjp` calls
-and `jax.checkpoint` work, and nothing outside JAX holds a context; the price
-is one extra native forward per reverse pass. `tr.wrap` makes any `diff` record
-a JAX function; see [custom records](custom-records.md).
+JAX keeps computed numerical state, such as matrix factors, for repeated
+`jax.vjp` and `jax.linearize` calls. Functions whose derivatives need only the
+inputs retain those inputs instead. Both paths reconstruct the derivative
+context without evaluating the values again. `jax.jacfwd` evaluates tangent
+seeds sequentially; for input-only contexts it can omit value evaluation entirely.
+JAX owns the arrays; there is no global native-context registry.
+`jax.checkpoint` may recompute the record according to its rematerialization policy.
+
+Other records, including unannotated custom records, retain the inputs and
+reconstruct a native record for every derivative application, including a direct
+JVP. Built-in records supply their value and saved data with one native forward.
+Saving and restoring this data adds memory and copying costs; the timing
+comparison includes those costs as well as the numerical work.
+These first-order
+transforms compose with `jit`, `checkpoint` and sequential `vmap`. `tr.wrap`
+makes another record a JAX function; see [custom records](custom-records.md).
 
 ## PyTorch
 
@@ -329,14 +371,31 @@ matrix.abs().square().sum().backward()
 gradient = radius.grad
 ```
 
-The first backward consumes the context of the forward, so the pullback of
-`tr.solve` reuses the LU factors of its forward. A second backward with
+The first backward uses the context of the forward, so the pullback of
+`tr.solve` reuses its LU factors. A later backward with
 `retain_graph=True` records the forward again from snapshots of the inputs. The
 snapshots add their memory to that of the context and are freed with PyTorch's
 saved tensors. An in-place change of an input tensor raises at the next
 backward, as for any PyTorch operation. Noncontiguous and conjugated CPU views
 work, and outputs own their memory. `tr.wrap` makes any `diff` record a PyTorch
 function; see [custom records](custom-records.md).
+
+Forward mode uses `torch.func.jvp` or the dual-tensor API. Both use the native
+context saved by the forward call for its tangent. A subsequent backward
+through the returned primal reuses that context too; the first backward then
+releases it. For example:
+
+```python exec torch
+import torch
+from treams_rs import torch as tr
+
+operator = torch.tensor([[2.0, 0.2], [0.1, 1.5]], dtype=torch.float64)
+rhs = torch.ones((2, 1), dtype=torch.float64)
+with torch.autograd.forward_ad.dual_level():
+    dual_rhs = torch.autograd.forward_ad.make_dual(rhs, torch.ones_like(rhs))
+    value, tangent = torch.autograd.forward_ad.unpack_dual(tr.solve(operator, dual_rhs))
+    torch.testing.assert_close(tangent, value)
+```
 
 ## HIPS Autograd
 
@@ -362,15 +421,21 @@ assert anp.all(anp.isfinite(gradient))
 ```
 
 The adapter uses Autograd primitives and the shared native pullback contract.
-It keeps a native context for the first reverse pass and records again for a
-repeated VJP. Like JAX, HIPS Autograd uses the unconjugated complex pairing;
+It keeps and reuses the invocation's native context for repeated VJPs.
+Like JAX, HIPS Autograd uses the unconjugated complex pairing;
 the adapter converts cotangents and gradients at the native boundary. Its
 `tr.autograd.wrap(record)` also accepts custom records without example inputs.
 
+`autograd.make_jvp(function)(inputs)(direction)` returns the value and its
+tangent. The adapter uses the context of that forward evaluation, so one
+native record supplies both. Input directions use ordinary real or complex
+increments, without the conjugations needed for reverse cotangents.
+
 ## Limits
 
-- Gradients are first order and reverse mode, on the CPU. Forward mode, higher
-  derivatives, `torch.func` and `torch.compile` are unsupported. Under `jax.jit`,
+- Derivatives are first order, in forward and reverse mode, on the CPU. Higher
+  derivatives, `torch.compile` and `torch.func` transforms other than `jvp` are
+  unsupported. Under `jax.jit`,
   return arrays rather than physics objects. The
   [comparison above](#frameworks-compared) lists supported transforms and dtypes.
 - Cylindrical physics objects keep their basis axial wavenumbers fixed;
@@ -401,27 +466,6 @@ the adapter converts cotangents and gradients at the native boundary. Its
 Cutoffs, discrete labels and topology stay fixed. Eigenvalue crossings,
 diffraction thresholds and the polarization axis have no smooth derivative;
 see [points without a gradient](index.md#points-without-a-gradient).
-
-## Known framework issues
-
-**Advect 0.2.0: Python floats promoted to complex.** If the input of an Advect
-transform is a Python float, an expression such as
-`advect.numpy.abs(epsilon + 0.1j)` makes
-the reverse pass raise `RuntimeError: Transpose rule for 'array.absolute'
-failed`. An array input works. Advect 0.3.0, now selected in `uv.lock`, returns
-the correct gradient for both inputs. Use an array when supporting Advect 0.2.0:
-
-```python exec
-import advect
-import advect.numpy as anp
-
-
-def loss(epsilon):
-    return anp.abs(epsilon + 0.1j) ** 2
-
-
-assert advect.grad(loss)(anp.asarray(3.0)) == 6.0
-```
 
 References: [JAX external callbacks](https://docs.jax.dev/en/latest/external-callbacks.html)
 and [PyTorch custom autograd functions](https://docs.pytorch.org/docs/stable/notes/extending.html).

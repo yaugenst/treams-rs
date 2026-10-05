@@ -83,12 +83,14 @@ Construct changing geometry/materials inside the objective and keep traced
 values as framework arrays (``advect.numpy``); convert to float/NumPy only after
 differentiation. Rust computes analytic gradients with respect to continuous
 geometry, material and frequency; mode cutoffs, integer labels and topology stay
-fixed. Advect, JAX, PyTorch and HIPS Autograd support CPU, first-order reverse
-mode with their documented dtype and transform limits. Plain Python and NumPy
+fixed. Advect, JAX, PyTorch and HIPS Autograd support CPU, first-order forward
+and reverse mode with their documented dtype and transform limits. Higher
+derivatives are unsupported. Plain Python and NumPy
 inputs retain NumPy behavior, without loading optional frameworks. Explicit
 ``advect``, ``jax``, ``torch`` and ``autograd`` namespaces remain available for
 framework-specific record helpers. ``diff`` returns each value with a context
-whose ``pullback`` gives the input gradients.
+whose ``pullback`` gives input gradients and whose ``pushforward`` maps input
+tangents to output tangents. Both actions can reuse the same context.
 
 Offline help: ``python -m treams_rs`` shows this quickstart;
 ``python -m treams_rs sphere_tmatrix`` or ``python -m treams_rs advect`` shows

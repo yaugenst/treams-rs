@@ -112,7 +112,7 @@ For a new function `X` that computes a value:
    holds what the gradient needs. When the pullback reads the value, it
    returns only `XResidual` with a `value()` accessor, as `coeffs::mie` does
    (see 'Names' in the crate docs). Its pullback,
-   `XResidual::pullback(self, cotangent)`, turns the cotangent (the gradient of
+   `XResidual::pullback(&self, cotangent)`, turns the cotangent (the gradient of
    a real loss with respect to the value) into the input gradients `XGradient`
    ([glossary](../reference/glossary.md#records-and-gradients)). Test the
    implementation in the module's inline `tests` module and the physics in

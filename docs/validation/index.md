@@ -7,7 +7,7 @@ description: Numerical checks, physical identities and proofs, with links to the
 Rust tests are the main numerical check and run without Python. They use
 proptest to sample bounded physical domains and check algebraic and adjoint
 identities. Hypothesis tests exercise the installed Python package: array shapes
-and memory layouts, input validation, derivative contexts that can be used once,
+and memory layouts, input validation, reusable derivative contexts,
 and complete user workflows.
 
 ## Kinds of evidence
@@ -23,7 +23,7 @@ and complete user workflows.
   and primitive-basis independence of Ewald sums, and matrix residual equations.
 - **Differentiation**: arbitrary cotangents (gradients with respect to an output)
   and parameter directions, complex real-pairing adjoint identities, directional
-  finite-difference convergence and one-use derivative contexts. Symmetries give
+  finite-difference convergence and reusable derivative contexts. Symmetries give
   exact identities of complete pullbacks without finite differences: Euler scaling of
   lengths against wavenumbers, and similarity or unitary orbits of spectra.
   Framework adapters reproduce the native pullback exactly

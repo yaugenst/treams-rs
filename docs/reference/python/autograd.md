@@ -9,10 +9,9 @@ description: 'HIPS Autograd adapter: physics objects and native records on the C
 
 HIPS Autograd adapter: physics objects and native records on the CPU.
 
-First-order reverse differentiation supports float64 and complex128 inputs
-and outputs. The first reverse pass consumes the Rust context saved by the
-forward; repeated calls to a pullback rerun the forward from input snapshots.
-Forward mode and higher derivatives are not available.
+First-order forward and reverse differentiation support float64 and complex128
+inputs and outputs. Derivative products reuse the Rust context saved by the
+forward invocation. Higher derivatives are not available.
 
 Differentiate a scattering cross section:
 
@@ -2268,7 +2267,7 @@ Multipole coefficients of shape (modes,) or (modes, illuminations).
 wrap(record: Record) -> Callable[..., Any]
 ```
 
-Turn a record into an Autograd function with a first-order gradient.
+Turn a record into an Autograd function with first-order derivatives.
 
 For example, ``wrap(diff.solve)`` differentiates a linear solve. A record
 returns ``(value, context)`` or ``(value, pullback)``; the value is an array,
@@ -2276,6 +2275,10 @@ scalar or nonempty flat tuple of them. The pullback returns one gradient
 per dynamic input in argument order. Bind static labels and options with
 a closure or ``functools.partial``.
 
+Forward mode additionally requires a context with ``pushforward`` accepting
+one tangent per dynamic input and returning one tangent per output.
+
 Inputs must have dtype float64 or complex128. Outputs are NumPy arrays,
-or a flat tuple of arrays. Repeated pullbacks recompute the record, which
-must therefore be deterministic. Use ``autograd.numpy`` around this call.
+or a flat tuple of arrays. Repeated derivative products reuse the record's
+context; its derivative methods must be reusable. Use ``autograd.numpy``
+around this call.

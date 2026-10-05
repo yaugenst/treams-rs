@@ -280,8 +280,8 @@ def test_page_descriptions_are_short():
 # The definition of records and gradients, quoted verbatim wherever the
 # vocabulary is defined, so that no restatement drifts from it.
 RECORD_DEFINITION = (
-    "A record is a function that returns a value and a context. The context"
-    " stores what is needed to compute gradients later and can be used once:"
+    "A record is a function that returns a value and a reusable context. The context"
+    " stores what is needed to compute derivatives later:"
     " `context.pullback(g)` takes the gradient `g` of a real-valued loss with"
     " respect to the value and returns the gradients with respect to the"
     " inputs, one for each differentiable input, in the order of the"
@@ -289,7 +289,7 @@ RECORD_DEFINITION = (
 )
 RUST_DEFINITION = (
     "In the Rust core, a function returns `(value, XResidual)`, and"
-    " `XResidual::pullback(self, cotangent)` returns the input gradients as"
+    " `XResidual::pullback(&self, cotangent)` returns the input gradients as"
     " `XGradient`."
 )
 

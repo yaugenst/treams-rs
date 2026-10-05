@@ -12,16 +12,16 @@ error messages.
 
 ## Records and gradients
 
-A record is a function that returns a value and a context. The context stores what is needed to compute gradients later and can be used once: `context.pullback(g)` takes the gradient `g` of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.
+A record is a function that returns a value and a reusable context. The context stores what is needed to compute derivatives later: `context.pullback(g)` takes the gradient `g` of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.
 
 In the Rust core, a function returns `(value, XResidual)`, and
-`XResidual::pullback(self, cotangent)` returns the input gradients as
+`XResidual::pullback(&self, cotangent)` returns the input gradients as
 `XGradient`.
 
 | Term | Meaning |
 | --- | --- |
 | record | a function that returns a value and a context: `diff.mie(...)`, `InteractionFactor.record(...)` |
-| context | the one-use object a record returns; `context.pullback(g)` computes the input gradients |
+| context | the reusable object a record returns; its pullback and pushforward share saved derivative data |
 | residual | the Rust form of a context: the data a forward function keeps for its gradient |
 | pullback | the map from the gradient with respect to the output to the gradients with respect to the inputs |
 | cotangent | the gradient of a real-valued loss with respect to one value, the `g` of a pullback |

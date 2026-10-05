@@ -57,19 +57,22 @@ Use `--format json` or `--format markdown` to list all documented functions and 
 - [Array of spheres from cylindrical waves](docs/examples/cylindrical_array.md): Transmission and reflection of a square array of chiral spheres on a slab, built from chains of spheres in cylindrical waves.
 - [Sphere radius optimization](docs/examples/sphere_radius_optimization.md): Five gradient-ascent steps on the radius of a lossless dielectric sphere maximize its scattering efficiency.
 - [Array transmission gradient](docs/examples/array_transmission_gradient.md): jax.grad of the transmission of a sphere array on a slab with respect to the sphere radius and slab thickness, next to central differences.
+- [Changes across a field map](docs/examples/forward_field_sensitivity.md): How every scattered electric-field value above three spheres changes when their common radius or the illumination wavelength changes.
+- [Cluster scattering gradient](docs/examples/reverse_cluster_gradient.md): How changing eight sphere radii and their positions affects one scattering cross section, with a gradient from JAX.
 
 ## Differentiation
 
-- [Differentiation](docs/differentiation/index.md): How a record returns a value and a context, and how context.pullback returns the input gradients in argument order.
+- [Differentiation](docs/differentiation/index.md): First-order forward and reverse differentiation with analytic Rust pushforwards and pullbacks.
 - [Framework adapters](docs/differentiation/frameworks.md): Differentiate the ordinary API with Advect, JAX, PyTorch or HIPS Autograd, with their transforms, dtypes and limits.
-- [Custom records](docs/differentiation/custom-records.md): Wrap a diff record for JAX, PyTorch or HIPS Autograd, and find the record and physics object for each family.
-- [Gradient checks](docs/differentiation/gradient-checks.md): Check the pullback of a record or the gradient of a scalar objective against finite differences with treams_rs.testing.
+- [Choosing a differentiation mode](docs/differentiation/choosing-a-mode.md): Choose forward mode for a field map or reverse mode for one objective, and compare their times for the same derivatives.
+- [Custom records](docs/differentiation/custom-records.md): Wrap records with analytic pushforwards and pullbacks for JAX, PyTorch or HIPS Autograd.
+- [Gradient checks](docs/differentiation/gradient-checks.md): Check analytic JVPs, VJPs and objective gradients with finite differences and the adjoint identity.
 
 ## Design
 
 - [Design](docs/design/index.md): The layers of treams-rs, their responsibilities and their treams counterparts.
 - [Python API design](docs/design/python-api.md): Physics objects, names and metadata in the Python API.
-- [Analytic pullbacks](docs/design/pullbacks.md): Analytic first derivatives, one-use gradient contexts and the complex-gradient convention.
+- [Analytic pushforwards and pullbacks](docs/design/pullbacks.md): Analytic first-order pushforwards and pullbacks, shared residuals and the complex-gradient convention.
 - [Framework adapters](docs/design/adapters.md): Lazy input dispatch, shared physics classes, native calls and gradients in Advect, JAX, PyTorch and HIPS Autograd.
 - [Floating-point environment](docs/design/floating-point.md): How native calculations preserve subnormal numbers when callers flush them to zero.
 - [Numerical choices](docs/design/numerics.md): Numerical choices of the Rust core - equilibrated LU, LU worker counts, Wigner 3j, Ewald sums, branches, EBCM and parallel thresholds.
@@ -108,11 +111,11 @@ Use `--format json` or `--format markdown` to list all documented functions and 
 - [`treams_rs.operators`](docs/reference/python/operators.md): Basis and field operators, as functions and as operator objects.
 - [`treams_rs.iterative`](docs/reference/python/iterative.md): Matrix-free scattering by finite clusters of homogeneous spheres in vacuum.
 - [`treams_rs.parallel`](docs/reference/python/parallel.md): CPU threads of the native numerical work.
-- [`treams_rs.diff`](docs/reference/python/diff.md): Records: functions that return a value and a context for its gradients.
-- [`treams_rs.testing`](docs/reference/python/testing.md): Finite-difference checks of first-order gradients and pullbacks.
-- [`treams_rs.advect`](docs/reference/python/advect.md): Advect adapter: physics objects and records differentiated by Advect, on the CPU and in first-order reverse mode only.
-- [`treams_rs.jax`](docs/reference/python/jax.md): JAX adapter: physics objects and records as JAX operations on the CPU, in first-order reverse mode only, with jit and sequential vmap.
-- [`treams_rs.torch`](docs/reference/python/torch.md): PyTorch adapter: physics objects and records as autograd operations on the CPU, in first-order reverse mode only.
+- [`treams_rs.diff`](docs/reference/python/diff.md): Records: values with analytic first-order pushforward and pullback contexts.
+- [`treams_rs.testing`](docs/reference/python/testing.md): Finite-difference checks of first-order gradients, pullbacks and pushforwards.
+- [`treams_rs.advect`](docs/reference/python/advect.md): Advect adapter: physics objects and records differentiated by Advect, on the CPU and in first-order forward and reverse mode.
+- [`treams_rs.jax`](docs/reference/python/jax.md): JAX adapter: physics objects and records on the CPU with first-order forward and reverse mode, jit and sequential vmap.
+- [`treams_rs.torch`](docs/reference/python/torch.md): PyTorch adapter: physics objects and records as autograd operations on the CPU, in first-order forward and reverse mode.
 - [`treams_rs.autograd`](docs/reference/python/autograd.md): HIPS Autograd adapter: physics objects and native records on the CPU.
 - [Returned types](docs/reference/python/native-types.md): Objects that public records and solvers return: native contexts and factors, and Python helper objects.
 - [Rust crate](docs/reference/rust.md): The rustdoc of treams-core, the internal Rust crate that holds the numerical code.
