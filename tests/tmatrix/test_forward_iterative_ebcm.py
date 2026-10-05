@@ -113,6 +113,30 @@ def test_iterative_pushforward_matches_dense_with_certified_solves(columns, vect
     )
 
 
+@pytest.mark.parametrize("rtol", [2e-12, 0.0])
+def test_iterative_small_derivatives_ignore_primal_absolute_tolerance(rtol):
+    operator = SphereCluster(
+        1, 1.4, [0.6, 0.59], [5 + 0.02j, 6 + 0.05j], [[0, 0, 0], [1.25, 0.1, 0]]
+    )
+    incident = np.ones(12, dtype=complex)
+    _, context = operator.record(incident, rtol=rtol, atol=1e-5, restart=1)
+    directions = (0.07, np.full(2, 0.01), np.full(2, 0.03j), np.zeros((2, 3)), incident)
+    tangent = context.pushforward(*directions)
+    gradient = context.pullback(incident)
+    scale = 1e-9
+    small_tangent = context.pushforward(*(scale * value for value in directions))
+    small_gradient = context.pullback(scale * incident)
+    assert_allclose(
+        small_tangent.coefficients / scale, tangent.coefficients, rtol=2e-10, atol=1e-13
+    )
+    for small, expected in zip(small_gradient[:-1], gradient[:-1], strict=True):
+        assert_allclose(small / scale, expected, rtol=2e-10, atol=1e-13)
+    derivative_rtol = rtol or 1e-10
+    for report in (*small_tangent.convergence, *small_gradient[-1]):
+        assert report.residual_norm <= derivative_rtol * report.rhs_norm
+        assert report.iterations > 1
+
+
 @pytest.mark.interface
 def test_iterative_rejects_bad_directions_and_context_remains_usable():
     operator = SphereCluster(

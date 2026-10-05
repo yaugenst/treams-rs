@@ -123,6 +123,7 @@ __all__ = [
     "cylindrical_translation",
     "ebcm_qmat",
     "eig",
+    "eigvals",
     "expansion",
     "factor_interaction",
     "factor_interaction_blocks",
@@ -932,7 +933,9 @@ def svdvals(operator: ArrayLike) -> tuple[NDArray[np.float64], _native.SvdvalsCo
 
     The pullback uses the thin singular vectors. Repeated positive values need
     equal cotangents. A zero singular value needs a zero cotangent: single
-    values there have no gradient.
+    values there have no gradient. Pushforwards require distinct positive values.
+    Values below ``64 * eps * largest_value`` count as numerically zero; the
+    pullback applies the same relative tolerance to their cotangents.
 
     Returns:
         float64 array (min(rows, columns),).
@@ -981,6 +984,8 @@ def eig(
     The largest component of each vector is real and positive. Single modes
     at repeated eigenvalues have no gradient; equal value cotangents with zero
     vector cotangents still give the gradient of their spectral sums.
+    A pushforward also needs a unique largest component in every eigenvector
+    to fix its phase. Use :func:`eigvals` when only eigenvalues are needed.
 
     Returns:
         (values, vectors): complex128 arrays (n,) and (n, n); column i of
@@ -997,6 +1002,31 @@ def eig(
         np.ascontiguousarray(operator, dtype=np.complex128)
     )
     return (values, vectors), context
+
+
+@_native_state(_native.EigvalsContext, lambda inputs: (inputs[0].shape[0],))
+def eigvals(
+    operator: ArrayLike,
+) -> tuple[NDArray[np.complex128], _native.EigvalsContext]:
+    """Eigenvalues of a complex matrix, without an eigenvector phase constraint.
+
+    Pushforwards require eigenvalues with distinct real parts, so the returned
+    order stays fixed under small perturbations. At ties, including repeated
+    eigenvalues, pullbacks support equal loss weights, such as the trace.
+    A tie in real parts is an ordering limitation even for distinct complex
+    eigenvalues; follow individual modes explicitly to cross it.
+
+    Returns:
+        complex128 array (n,), sorted by real part, then imaginary part.
+        Follow individual modes explicitly when this ordering changes.
+
+    Dynamic inputs:
+        operator: square matrix, shape (n, n).
+
+    Static configuration:
+        none.
+    """
+    return _native.eigvals(np.ascontiguousarray(operator, dtype=np.complex128))
 
 
 @_native_record(

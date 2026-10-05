@@ -478,6 +478,7 @@ CASES = {
     ),
     "solve": case(_native.solve, _square(4, 1), complex_normal(_rng(), (4, 2))),
     "eig": case(_native.eig, _square(4, 3) + np.diag([0, 1, 2, 3])),
+    "eigvals": case(_native.eigvals, _square(4, 3) + np.diag([0, 1, 2, 3])),
     "svdvals": case(_native.svdvals, _square(4, 5)),
     "InteractionFactor.record": case(
         lambda local, coupling, incident: _native.InteractionFactor(

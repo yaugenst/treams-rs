@@ -49,6 +49,25 @@ proptest! {
     }
 }
 
+/// Eigenvalues are smooth at a tied eigenvector phase pivot, although the
+/// phase-fixed eigenvectors are not. Their trace and adjoint stay well-defined.
+#[test]
+fn eigenvalue_derivatives_ignore_eigenvector_phase_ties() {
+    let matrix = DMatrix::from_row_slice(2, 2, &[2.0, 1.0, 1.0, 2.0]).map(Complex::from);
+    let direction = DMatrix::from_row_slice(2, 2, &[0.2, 0.3, -0.1, 0.5]).map(Complex::from);
+    let residual = linalg::eigvals(&matrix).unwrap();
+    let tangent = residual.pushforward_values(&direction).unwrap();
+    assert!(residual.pushforward(&direction).is_err());
+    for (&value, &change) in residual.values().iter().zip(&tangent) {
+        let expected = if value.re < 2.0 { 0.25 } else { 0.45 };
+        assert!((change - Complex::from(expected)).norm() < 1e-14);
+    }
+    assert!((tangent.iter().sum::<Complex>() - direction.trace()).norm() < 1e-14);
+    let weights = [Complex::new(0.2, 0.1), Complex::new(-0.3, 0.2)];
+    let gradient = residual.pullback(&weights, DMatrix::zeros(2, 2)).unwrap();
+    assert!((re_dot(&gradient, &direction) - re_dot(weights, tangent)).abs() < 1e-14);
+}
+
 /// The tangent satisfies the differentiated equation `A dX + dA X = dB`, agrees
 /// with a central difference, and transposes to the recorded adjoint.
 fn check_linear_solve_pushforward(
