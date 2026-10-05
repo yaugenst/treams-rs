@@ -3,7 +3,7 @@
 //! waves and their expansions into multipole bases (`treams_core::pw`).
 use nalgebra::DMatrix;
 use numpy::{
-    IntoPyArray, PyReadonlyArray1, PyReadonlyArray2,
+    IntoPyArray, PyArray1, PyReadonlyArray1, PyReadonlyArray2,
     ndarray::{Array2, Ix2, IxDyn},
 };
 use pyo3::{exceptions::PyValueError, prelude::*};
@@ -11,10 +11,11 @@ use treams_core::{Complex, fpenv::ieee};
 
 use crate::{
     args::{make_basis, make_cyl_basis},
-    context::{context, detached, error},
+    context::{context, detached, error, restore_state, state_array},
     convert::{
-        C1, C2, CDyn, Cotangent, LentMatrix, R2, finite_cotangent, layout_error, merged_cotangent,
-        owned_matrix, rows, rows_array,
+        C1, C2, CDyn, Cotangent, LentMatrix, R2, RealTangent, Tangent, finite_cotangent,
+        layout_error, matrix_cotangent, merged_cotangent, owned_matrix, rows, rows_array,
+        rows_from_dyn, vector_tangent,
     },
     fields::operator_array,
 };
@@ -32,15 +33,59 @@ pub(crate) fn plane_polarization(
 context!(PlaneExpansionContext(treams_core::pw::ExpansionResidual));
 #[pymethods]
 impl PlaneExpansionContext {
+    #[staticmethod]
+    #[pyo3(signature = (multipoles, positions, modes, cylindrical=false))]
+    fn _state_spec(
+        multipoles: usize,
+        positions: usize,
+        modes: usize,
+        cylindrical: bool,
+    ) -> PyResult<usize> {
+        ieee(|| {
+            treams_core::pw::ExpansionResidual::state_size(
+                multipoles,
+                positions,
+                modes,
+                cylindrical,
+            )
+            .map_err(error)
+        })
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| state_array(py, &self.residual))
+    }
+
+    #[staticmethod]
+    fn _from_state(state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| Ok(Self::new(restore_state(&state)?)))
+    }
+
+    fn pushforward<'py>(
+        &self,
+        py: Python<'py>,
+        positions: RealTangent<'py>,
+        vectors: Tangent<'py>,
+    ) -> PyResult<C2<'py>> {
+        ieee(|| {
+            let positions = rows_from_dyn(&positions, "position tangent")?;
+            let vectors = rows_from_dyn(&vectors, "wavevector tangent")?;
+            let residual = &self.residual;
+            owned_matrix(
+                py,
+                detached(py, move || residual.pushforward(&positions, &vectors))?,
+            )
+        })
+    }
+
     fn pullback<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         cotangent: Cotangent<'py>,
     ) -> PyResult<(R2<'py>, C2<'py>)> {
         ieee(|| {
-            let (residual, g) = self
-                .residual
-                .take_with_matrix(&cotangent, treams_core::pw::ExpansionResidual::shape)?;
+            let residual = &self.residual;
+            let g = matrix_cotangent(&cotangent, residual.shape())?;
             let gradient = detached(py, move || residual.pullback(&g))?;
             Ok((
                 rows_array(py, gradient.positions)?,
@@ -109,15 +154,56 @@ context!(PlaneFieldContext(
 ));
 #[pymethods]
 impl PlaneFieldContext {
+    #[staticmethod]
+    fn _state_spec(points: usize, modes: usize, weighted: bool) -> PyResult<usize> {
+        ieee(|| treams_core::pw::FieldResidual::state_size(points, modes, weighted).map_err(error))
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| state_array(py, &self.residual))
+    }
+
+    #[staticmethod]
+    fn _from_state(state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| {
+            let residual: treams_core::pw::FieldResidual = restore_state(&state)?;
+            let (rows, columns) = residual.shape();
+            let shape = if residual.coefficient_count() == 0 {
+                vec![rows / 3, 3, columns]
+            } else {
+                vec![rows / 3, 3]
+            };
+            Ok(Self::new(residual, shape))
+        })
+    }
+
+    fn pushforward<'py>(
+        &self,
+        py: Python<'py>,
+        coefficients: Tangent<'py>,
+        points: RealTangent<'py>,
+        vectors: Tangent<'py>,
+    ) -> PyResult<CDyn<'py>> {
+        ieee(|| {
+            let coefficients = vector_tangent(&coefficients, self.residual.coefficient_count())?;
+            let points = rows_from_dyn(&points, "point tangent")?;
+            let vectors = rows_from_dyn(&vectors, "wavevector tangent")?;
+            let residual = &self.residual;
+            let value = detached(py, move || {
+                residual.pushforward(&coefficients, &points, &vectors)
+            })?;
+            field_array(py, value, &self.shape)
+        })
+    }
+
     fn pullback<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         cotangent: Cotangent<'py>,
     ) -> PyResult<(C1<'py>, R2<'py>, C2<'py>)> {
         ieee(|| {
-            let (residual, g) = self.residual.take_if(|residual| {
-                merged_cotangent::<IxDyn>(&cotangent, &self.shape, residual.shape())
-            })?;
+            let residual = &self.residual;
+            let g = merged_cotangent::<IxDyn>(&cotangent, &self.shape, residual.shape())?;
             let result = detached(py, move || residual.pullback(&g))?;
             Ok((
                 result.coefficients.into_pyarray(py),
@@ -158,31 +244,69 @@ pub(crate) fn plane_field<'py>(
                 fixed_vectors,
             )
         })?;
-        // Transfer Rust storage directly; expose (samples, Cartesian, modes) by strides.
-        let output = if shape.len() == 2 {
-            Array2::from_shape_vec((shape[0], 3), Vec::from(value.data))
-                .map_err(layout_error)?
-                .into_dyn()
-        } else {
-            operator_array(value)?.into_dyn()
-        }
-        .into_pyarray(py);
+        let output = field_array(py, value, &shape)?;
         Ok((output, PlaneFieldContext::new(residual, shape)))
     })
+}
+
+/// Transfer a field or field tangent with its recorded public layout.
+fn field_array<'py>(
+    py: Python<'py>,
+    value: DMatrix<Complex>,
+    shape: &[usize],
+) -> PyResult<CDyn<'py>> {
+    let output = if shape.len() == 2 {
+        Array2::from_shape_vec((shape[0], 3), Vec::from(value.data))
+            .map_err(layout_error)?
+            .into_dyn()
+    } else {
+        operator_array(value)?.into_dyn()
+    };
+    Ok(output.into_pyarray(py))
 }
 
 context!(PlanePhasesContext(treams_core::pw::PhasesResidual));
 #[pymethods]
 impl PlanePhasesContext {
+    #[staticmethod]
+    fn _state_spec(points: usize, modes: usize) -> PyResult<usize> {
+        ieee(|| treams_core::pw::PhasesResidual::state_size(points, modes).map_err(error))
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| state_array(py, &self.residual))
+    }
+
+    #[staticmethod]
+    fn _from_state(state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| Ok(Self::new(restore_state(&state)?)))
+    }
+
+    fn pushforward<'py>(
+        &self,
+        py: Python<'py>,
+        points: RealTangent<'py>,
+        vectors: Tangent<'py>,
+    ) -> PyResult<C2<'py>> {
+        ieee(|| {
+            let points = rows_from_dyn(&points, "point tangent")?;
+            let vectors = rows_from_dyn(&vectors, "wavevector tangent")?;
+            let residual = &self.residual;
+            owned_matrix(
+                py,
+                detached(py, move || residual.pushforward(&points, &vectors))?,
+            )
+        })
+    }
+
     fn pullback<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         cotangent: Cotangent<'py>,
     ) -> PyResult<(R2<'py>, C2<'py>)> {
         ieee(|| {
-            let (residual, g) = self.residual.take_if(|residual| {
-                finite_cotangent::<_, Ix2>(&cotangent, &<[usize; 2]>::from(residual.shape()))
-            })?;
+            let residual = &self.residual;
+            let g = finite_cotangent::<_, Ix2>(&cotangent, &<[usize; 2]>::from(residual.shape()))?;
             // A contiguous cotangent stays borrowed while the read-only Python borrow
             // is alive.
             let lent = LentMatrix::new(g);
@@ -217,11 +341,32 @@ context!(PlanePermutationContext(
 
 #[pymethods]
 impl PlanePermutationContext {
-    fn pullback<'py>(&mut self, py: Python<'py>, cotangent: Cotangent<'py>) -> PyResult<C2<'py>> {
+    #[staticmethod]
+    fn _state_spec(modes: usize) -> PyResult<usize> {
+        ieee(|| treams_core::pw::PermutationResidual::state_size(modes).map_err(error))
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| state_array(py, &self.residual))
+    }
+
+    #[staticmethod]
+    fn _from_state(state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| Ok(Self::new(restore_state(&state)?)))
+    }
+
+    fn pushforward<'py>(&self, py: Python<'py>, vectors: Tangent<'py>) -> PyResult<C2<'py>> {
         ieee(|| {
-            let (residual, g) = self
-                .residual
-                .take_with_matrix(&cotangent, treams_core::pw::PermutationResidual::shape)?;
+            let vectors = rows_from_dyn(&vectors, "wavevector tangent")?;
+            let residual = &self.residual;
+            owned_matrix(py, detached(py, move || residual.pushforward(&vectors))?)
+        })
+    }
+
+    fn pullback<'py>(&self, py: Python<'py>, cotangent: Cotangent<'py>) -> PyResult<C2<'py>> {
+        ieee(|| {
+            let residual = &self.residual;
+            let g = matrix_cotangent(&cotangent, residual.shape())?;
             rows_array(py, detached(py, move || residual.pullback(&g))?)
         })
     }

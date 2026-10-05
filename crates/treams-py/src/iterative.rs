@@ -2,19 +2,23 @@
 //! solved with GMRES (`treams_core::cluster::IterativeSphereCluster`).
 use std::sync::Arc;
 
-use numpy::{IntoPyArray, PyReadonlyArray1, PyReadonlyArray2};
-use pyo3::prelude::*;
+use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1, PyReadonlyArray2, ndarray::Ix2};
+use pyo3::{exceptions::PyValueError, prelude::*};
 use treams_core::{
     Complex,
     cluster::{self as core_cluster, IterativeResidual},
     fpenv::ieee,
     linalg::{Convergence, GmresOptions},
+    saved::SavedState,
 };
 
 use crate::{
     args::spheres,
-    context::{context, detached},
-    convert::{C1, C2, Cotangent, R1, R2, from_array, matrix, owned_matrix, rows_array},
+    context::{context, detached, error, state_array},
+    convert::{
+        C1, C2, Cotangent, R1, R2, RealTangent, Tangent, finite_tangent, from_array, matrix,
+        matrix_cotangent, matrix_tangent, owned_matrix, rows_array, vector_tangent,
+    },
 };
 
 /// GMRES convergence of each illumination as `(iterations, residual_norm, rhs_norm)`.
@@ -111,7 +115,7 @@ impl IterativeSphereCluster {
         ieee(|| {
             let incident = from_array(incident, "incident")?;
             let options = gmres(rtol, atol, restart, max_iterations);
-            let residual = detached(py, || self.operator.clone().record(incident, options))?;
+            let residual = detached(py, || self.operator.record(incident, options))?;
             let convergence = convergence_tuples(&residual.solution().convergence);
             // A C-ordered copy: the residual keeps the solution for the pullback.
             Ok((
@@ -131,17 +135,66 @@ context!(
 
 #[pymethods]
 impl IterativeContext {
+    #[staticmethod]
+    fn _state_spec(lmax: u32, particles: usize, columns: usize) -> PyResult<usize> {
+        ieee(|| IterativeResidual::state_size(lmax, particles, columns).map_err(error))
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| state_array(py, &self.residual))
+    }
+
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| {
+            let bytes = state.as_slice()?;
+            detached(py, || IterativeResidual::from_state(bytes)).map(Self::new)
+        })
+    }
+
+    /// Directional derivative in `(k0, radii, epsilon, positions, incident)` order,
+    /// followed by the independent convergence certificate of each tangent solve.
+    fn pushforward<'py>(
+        &self,
+        py: Python<'py>,
+        k0: f64,
+        radii: RealTangent<'_>,
+        epsilon: Tangent<'_>,
+        positions: RealTangent<'_>,
+        incident: Tangent<'_>,
+    ) -> PyResult<(C2<'py>, ConvergenceTuples)> {
+        ieee(|| {
+            let residual = &self.residual;
+            if !k0.is_finite() {
+                return Err(PyValueError::new_err("k0 tangent must be finite"));
+            }
+            let radii = vector_tangent(&radii, residual.particles())?;
+            let epsilon = vector_tangent(&epsilon, residual.particles())?;
+            let positions = finite_tangent::<_, Ix2>(&positions, &[residual.particles(), 3])?
+                .outer_iter()
+                .map(|row| [row[0], row[1], row[2]])
+                .collect::<Vec<_>>();
+            let incident = matrix_tangent(&incident, residual.shape())?;
+            let solution = detached(py, || {
+                residual.pushforward(k0, &radii, &epsilon, &positions, &incident)
+            })?;
+            Ok((
+                owned_matrix(py, solution.value)?,
+                convergence_tuples(&solution.convergence),
+            ))
+        })
+    }
+
     /// Cotangents of `(k0, radii, epsilon, positions, incident)`, in the forward
     /// argument order, then the convergence of each adjoint solve.
     fn pullback<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         cotangent: Cotangent<'_>,
     ) -> PyResult<(f64, R1<'py>, C1<'py>, R2<'py>, C2<'py>, ConvergenceTuples)> {
         ieee(|| {
-            let (residual, g) = self
-                .residual
-                .take_with_matrix(&cotangent, IterativeResidual::shape)?;
+            let residual = &self.residual;
+            let g = matrix_cotangent(&cotangent, residual.shape())?;
             let result = detached(py, || residual.pullback(&g))?;
             Ok((
                 result.cluster.k0,

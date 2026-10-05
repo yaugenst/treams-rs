@@ -11,7 +11,7 @@ from treams_rs import advect as ad
 from treams_rs import diff, special
 from treams_rs.testing import check_pullback
 
-from _support import assert_one_use_context, complex_normal, selecting
+from _support import assert_reusable_context, complex_normal, selecting
 
 PAIRS = [
     ("car2cyl", "cyl2car"),
@@ -170,7 +170,7 @@ def test_coordinate_and_vector_pullbacks_broadcast_ownership_and_advect(name):
     context = diff.coordinates(points, kind=name)[1]
     points_saved = points.copy()
     points[:] = 0
-    assert_one_use_context(
+    assert_reusable_context(
         context, np.asfortranarray(point_g), expected, rtol=1e-13, atol=1e-13
     )
     points[:] = points_saved
@@ -205,7 +205,7 @@ def test_coordinate_and_vector_pullbacks_broadcast_ownership_and_advect(name):
     context = diff.vector_coordinates(vectors, points, kind=name)[1]
     vectors[:] = 0
     points[:] = 0
-    assert_one_use_context(
+    assert_reusable_context(
         context, np.asfortranarray(g), gradient, rtol=1e-13, atol=1e-13
     )
 

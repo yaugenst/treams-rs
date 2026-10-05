@@ -10,7 +10,7 @@ use numpy::{
     Element, IntoPyArray, PyArray1, PyArray2, PyArrayDyn, PyArrayMethods, PyReadonlyArray2,
     PyReadonlyArrayDyn,
     ndarray::{
-        Array2, ArrayView, ArrayView2, Dimension, Ix1, Ix2, Order, ShapeBuilder, ShapeError,
+        Array2, ArrayView, ArrayView2, Dimension, Ix0, Ix1, Ix2, Order, ShapeBuilder, ShapeError,
     },
 };
 use pyo3::{exceptions::PyValueError, intern, prelude::*};
@@ -105,6 +105,80 @@ impl<'py> FromPyObject<'_, 'py> for RealCotangent<'py> {
         };
         Ok(Self(array.try_into_readonly()?))
     }
+}
+
+/// A complex input direction, with the same array conversion as a cotangent.
+pub(crate) type Tangent<'py> = Cotangent<'py>;
+
+/// A real input direction. Unlike a real cotangent, an imaginary component
+/// cannot be projected away: it would move a real input outside its domain.
+#[derive(Debug)]
+pub(crate) struct RealTangent<'py>(PyReadonlyArrayDyn<'py, f64>);
+
+impl<'py> Deref for RealTangent<'py> {
+    type Target = PyReadonlyArrayDyn<'py, f64>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'py> FromPyObject<'_, 'py> for RealTangent<'py> {
+    type Error = PyErr;
+
+    fn extract(value: Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
+        if let Ok(array) = value.cast::<PyArrayDyn<f64>>() {
+            return Ok(Self(array.to_owned().try_into_readonly()?));
+        }
+        let direction = Cotangent::extract(value)?;
+        if direction.as_array().iter().any(|z| z.im != 0.0) {
+            return Err(PyValueError::new_err(
+                "tangent of a real input must be real",
+            ));
+        }
+        let py = value.py();
+        let real = direction
+            .getattr(intern!(py, "real"))?
+            .cast_into::<PyArrayDyn<f64>>()?;
+        Ok(Self(real.try_into_readonly()?))
+    }
+}
+
+/// View of a finite input direction of exactly the recorded input shape.
+pub(crate) fn finite_tangent<'a, T: Finite, D: Dimension>(
+    tangent: &'a PyReadonlyArrayDyn<'_, T>,
+    expected: &[usize],
+) -> PyResult<ArrayView<'a, T, D>> {
+    let view = tangent.as_array();
+    if view.shape() != expected || !all_finite(&view) {
+        return Err(PyValueError::new_err(format!(
+            "tangent must be finite with shape {expected:?}"
+        )));
+    }
+    view.into_dimensionality()
+        .map_err(|_| PyValueError::new_err(format!("tangent must have shape {expected:?}")))
+}
+
+/// A finite vector direction, allowing the scalar form of a length-one input.
+pub(crate) fn vector_tangent<T: Finite>(
+    tangent: &PyReadonlyArrayDyn<'_, T>,
+    length: usize,
+) -> PyResult<Vec<T>> {
+    if length == 1 && tangent.as_array().ndim() == 0 {
+        return Ok(vec![finite_tangent::<_, Ix0>(tangent, &[])?[()]]);
+    }
+    Ok(finite_tangent::<_, Ix1>(tangent, &[length])?.to_vec())
+}
+
+/// A finite matrix input direction as a column-major copy.
+pub(crate) fn matrix_tangent(
+    tangent: &Tangent<'_>,
+    shape: (usize, usize),
+) -> PyResult<DMatrix<Complex>> {
+    Ok(matrix_from_view(finite_tangent(
+        tangent,
+        &[shape.0, shape.1],
+    )?))
 }
 
 /// Real and complex scalars, which a finiteness check reads.
@@ -218,6 +292,17 @@ pub(crate) fn from_array(
     } else {
         Err(PyValueError::new_err(format!("{name} must be finite")))
     }
+}
+
+/// A dynamic-rank array as fixed-width rows, preserving its logical element order.
+pub(crate) fn rows_from_dyn<T: Element + Copy, const K: usize>(
+    a: &PyReadonlyArrayDyn<'_, T>,
+    name: &str,
+) -> PyResult<Vec<[T; K]>> {
+    rows(
+        a.as_array().into_dimensionality().map_err(layout_error)?,
+        name,
+    )
 }
 
 /// Rows of the `(N, K)` argument `name`, in any layout; another width raises an error

@@ -4,23 +4,24 @@
 
 use crate::{
     args::{make_basis, make_cyl_basis},
-    context::{context, cotangent_error, detached, radial},
+    context::{context, cotangent_error, detached, error, radial},
     convert::{
-        C1, C2, C3, Cotangent, R1, R2, all_finite, cotangent_view, layout_error, merged_cotangent,
-        rows, rows_array,
+        C1, C2, C3, Cotangent, R1, R2, RealTangent, Tangent, all_finite, cotangent_view,
+        finite_tangent, layout_error, merged_cotangent, rows, rows_array, vector_tangent,
     },
 };
 use nalgebra::DMatrix;
 use numpy::{
-    IntoPyArray, PyReadonlyArray1, PyReadonlyArray2,
+    IntoPyArray, PyArray1, PyReadonlyArray1, PyReadonlyArray2,
     ndarray::{Array3, Ix2, Ix3},
 };
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyValueError, prelude::*};
 use treams_core::{
     Complex,
     basis::MultipoleBasis,
     fields::{self, FieldResidual},
     fpenv::ieee,
+    saved::SavedState,
 };
 
 /// A column-major `(3 N, modes)` operator, whose rows run over (sample, Cartesian
@@ -34,28 +35,138 @@ pub(crate) fn operator_array(value: DMatrix<Complex>) -> PyResult<Array3<Complex
 
 context!(FieldContext(FieldResidual));
 
-impl FieldContext {
-    fn take(&mut self, cotangent: &Cotangent<'_>) -> PyResult<(FieldResidual, Vec<[Complex; 3]>)> {
-        self.residual.take_if(|residual| {
-            let expected: [usize; 2] = residual.shape().into();
-            let g = rows(cotangent_view::<_, Ix2>(cotangent, &expected)?, "cotangent")?;
-            if all_finite(g.as_flattened()) {
-                Ok(g)
-            } else {
-                Err(cotangent_error(&expected))
-            }
+/// Owned and validated geometry directions, ready for work without the GIL.
+struct GeometryTangent {
+    points: Vec<[f64; 3]>,
+    positions: Vec<[f64; 3]>,
+    ks: [Complex; 2],
+}
+
+impl GeometryTangent {
+    fn new(
+        points: &RealTangent<'_>,
+        positions: &RealTangent<'_>,
+        ks: &Tangent<'_>,
+        samples: usize,
+        centres: usize,
+    ) -> PyResult<Self> {
+        Ok(Self {
+            points: rows(
+                finite_tangent::<_, Ix2>(points, &[samples, 3])?,
+                "points tangent",
+            )?,
+            positions: rows(
+                finite_tangent::<_, Ix2>(positions, &[centres, 3])?,
+                "positions tangent",
+            )?,
+            ks: vector_tangent(ks, 2)?
+                .try_into()
+                .map_err(|_| PyValueError::new_err("wavenumber tangent must have shape (2,)"))?,
         })
+    }
+}
+
+impl FieldContext {
+    fn cotangent(
+        &self,
+        cotangent: &Cotangent<'_>,
+    ) -> PyResult<(&FieldResidual, Vec<[Complex; 3]>)> {
+        let residual = &self.residual;
+        let expected: [usize; 2] = residual.shape().into();
+        let g = rows(cotangent_view::<_, Ix2>(cotangent, &expected)?, "cotangent")?;
+        if all_finite(g.as_flattened()) {
+            Ok((residual, g))
+        } else {
+            Err(cotangent_error(&expected))
+        }
+    }
+
+    fn push<'py>(
+        &self,
+        py: Python<'py>,
+        coefficients: &Tangent<'py>,
+        points: &RealTangent<'py>,
+        positions: &RealTangent<'py>,
+        ks: &Tangent<'py>,
+        kz: Option<&RealTangent<'py>>,
+    ) -> PyResult<C2<'py>> {
+        let residual = &self.residual;
+        let (modes, centres) = residual.input_sizes();
+        let coefficients = vector_tangent(coefficients, modes)?;
+        let tangent = GeometryTangent::new(points, positions, ks, residual.shape().0, centres)?;
+        let kz = kz.map(|kz| vector_tangent(kz, modes)).transpose()?;
+        let value = detached(py, move || match kz {
+            Some(kz) => residual.pushforward_axial(
+                &coefficients,
+                &tangent.points,
+                &tangent.positions,
+                tangent.ks,
+                &kz,
+            ),
+            None => residual.pushforward(
+                &coefficients,
+                &tangent.points,
+                &tangent.positions,
+                tangent.ks,
+            ),
+        })?;
+        rows_array(py, value)
     }
 }
 #[pymethods]
 impl FieldContext {
+    #[staticmethod]
+    fn _state_spec(
+        modes: usize,
+        positions: usize,
+        points: usize,
+        cylindrical: bool,
+    ) -> PyResult<usize> {
+        ieee(|| FieldResidual::state_size(modes, positions, points, cylindrical).map_err(error))
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| Ok(detached(py, || self.residual.save_state())?.into_pyarray(py)))
+    }
+
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| {
+            let bytes = state.as_slice()?;
+            detached(py, || FieldResidual::from_state(bytes)).map(Self::new)
+        })
+    }
+
+    fn pushforward<'py>(
+        &self,
+        py: Python<'py>,
+        coefficients: Tangent<'py>,
+        points: RealTangent<'py>,
+        positions: RealTangent<'py>,
+        ks: Tangent<'py>,
+    ) -> PyResult<C2<'py>> {
+        ieee(|| self.push(py, &coefficients, &points, &positions, &ks, None))
+    }
+
+    fn pushforward_axial<'py>(
+        &self,
+        py: Python<'py>,
+        coefficients: Tangent<'py>,
+        points: RealTangent<'py>,
+        positions: RealTangent<'py>,
+        ks: Tangent<'py>,
+        kz: RealTangent<'py>,
+    ) -> PyResult<C2<'py>> {
+        ieee(|| self.push(py, &coefficients, &points, &positions, &ks, Some(&kz)))
+    }
+
     fn pullback<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         cotangent: Cotangent<'py>,
     ) -> PyResult<(C1<'py>, R2<'py>, R2<'py>, C1<'py>)> {
         ieee(|| {
-            let (residual, g) = self.take(&cotangent)?;
+            let (residual, g) = self.cotangent(&cotangent)?;
             let result = detached(py, move || residual.pullback(&g))?;
             Ok((
                 result.coefficients.into_pyarray(py),
@@ -66,12 +177,12 @@ impl FieldContext {
         })
     }
     fn pullback_axial<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         cotangent: Cotangent<'py>,
     ) -> PyResult<(C1<'py>, R2<'py>, R2<'py>, C1<'py>, R1<'py>)> {
         ieee(|| {
-            let (residual, g) = self.take(&cotangent)?;
+            let (residual, g) = self.cotangent(&cotangent)?;
             let (result, kz) = detached(py, move || residual.pullback_axial(&g))?;
             Ok((
                 result.coefficients.into_pyarray(py),
@@ -154,26 +265,99 @@ fn evaluate<'py>(
 
 context!(FieldOperatorContext(fields::OperatorResidual));
 impl FieldOperatorContext {
-    fn take(
-        &mut self,
+    fn cotangent(
+        &self,
         cotangent: &Cotangent<'_>,
-    ) -> PyResult<(fields::OperatorResidual, DMatrix<Complex>)> {
-        self.residual.take_if(|residual| {
-            // The native rows run over (sample, Cartesian component).
-            let (rows, modes) = residual.shape();
-            merged_cotangent::<Ix3>(cotangent, &[rows / 3, 3, modes], (rows, modes))
-        })
+    ) -> PyResult<(&fields::OperatorResidual, DMatrix<Complex>)> {
+        let residual = &self.residual;
+        // The native rows run over (sample, Cartesian component).
+        let (rows, modes) = residual.shape();
+        let g = merged_cotangent::<Ix3>(cotangent, &[rows / 3, 3, modes], (rows, modes))?;
+        Ok((residual, g))
+    }
+
+    fn push<'py>(
+        &self,
+        py: Python<'py>,
+        points: &RealTangent<'py>,
+        positions: &RealTangent<'py>,
+        ks: &Tangent<'py>,
+        kz: Option<&RealTangent<'py>>,
+    ) -> PyResult<C3<'py>> {
+        let residual = &self.residual;
+        let (components, modes) = residual.shape();
+        let tangent = GeometryTangent::new(
+            points,
+            positions,
+            ks,
+            components / 3,
+            residual.position_count(),
+        )?;
+        let kz = kz.map(|kz| vector_tangent(kz, modes)).transpose()?;
+        let value = detached(py, move || match kz {
+            Some(kz) => {
+                residual.pushforward_axial(&tangent.points, &tangent.positions, tangent.ks, &kz)
+            }
+            None => residual.pushforward(&tangent.points, &tangent.positions, tangent.ks),
+        })?;
+        Ok(operator_array(value)?.into_pyarray(py))
     }
 }
 #[pymethods]
 impl FieldOperatorContext {
+    #[staticmethod]
+    fn _state_spec(
+        modes: usize,
+        positions: usize,
+        points: usize,
+        cylindrical: bool,
+    ) -> PyResult<usize> {
+        ieee(|| {
+            fields::OperatorResidual::state_size(modes, positions, points, cylindrical)
+                .map_err(error)
+        })
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| Ok(detached(py, || self.residual.save_state())?.into_pyarray(py)))
+    }
+
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| {
+            let bytes = state.as_slice()?;
+            detached(py, || fields::OperatorResidual::from_state(bytes)).map(Self::new)
+        })
+    }
+
+    fn pushforward<'py>(
+        &self,
+        py: Python<'py>,
+        points: RealTangent<'py>,
+        positions: RealTangent<'py>,
+        ks: Tangent<'py>,
+    ) -> PyResult<C3<'py>> {
+        ieee(|| self.push(py, &points, &positions, &ks, None))
+    }
+
+    fn pushforward_axial<'py>(
+        &self,
+        py: Python<'py>,
+        points: RealTangent<'py>,
+        positions: RealTangent<'py>,
+        ks: Tangent<'py>,
+        kz: RealTangent<'py>,
+    ) -> PyResult<C3<'py>> {
+        ieee(|| self.push(py, &points, &positions, &ks, Some(&kz)))
+    }
+
     fn pullback<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         cotangent: Cotangent<'py>,
     ) -> PyResult<(R2<'py>, R2<'py>, C1<'py>)> {
         ieee(|| {
-            let (residual, g) = self.take(&cotangent)?;
+            let (residual, g) = self.cotangent(&cotangent)?;
             let result = detached(py, move || residual.pullback(&g))?;
             Ok((
                 rows_array(py, result.points)?,
@@ -183,12 +367,12 @@ impl FieldOperatorContext {
         })
     }
     fn pullback_axial<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         cotangent: Cotangent<'py>,
     ) -> PyResult<(R2<'py>, R2<'py>, C1<'py>, R1<'py>)> {
         ieee(|| {
-            let (residual, g) = self.take(&cotangent)?;
+            let (residual, g) = self.cotangent(&cotangent)?;
             let (result, kz) = detached(py, move || residual.pullback_axial(&g))?;
             Ok((
                 rows_array(py, result.points)?,

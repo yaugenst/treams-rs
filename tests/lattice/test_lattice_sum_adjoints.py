@@ -11,7 +11,7 @@ from treams_rs import advect as ad
 from treams_rs import diff, lattice
 from treams_rs.testing import check_pullback
 
-from _support import assert_one_use_context, degree_order, selecting
+from _support import assert_reusable_context, degree_order, selecting
 
 pytestmark = pytest.mark.gradients
 
@@ -57,7 +57,7 @@ def test_broadcast_geometry_pullbacks_and_owned_inputs(spherical, dim, part, k0)
     # The context owns its inputs: after they are overwritten it pulls back
     # what a fresh record of the original values, checked below, does. The
     # extra (1, 4) probe has the right size and would pass a size-only check.
-    assert_one_use_context(
+    assert_reusable_context(
         context,
         g,
         record(*original)[1].pullback(g),

@@ -7,6 +7,8 @@
   and reverse gradients; dense solves reuse their recorded factors.
   Spectral derivatives require differentiable, nondegenerate outputs.
   Higher derivatives remain unsupported.
+- Expose reusable native `pushforward` and `pullback` contexts in Python,
+  with owned inputs and array-based transport for saved numerical state.
 - Preserve Clippy's default correctness errors and enable every Hypothesis
   health check on CI. Let Maturin configure Python extension linking and build
   source-distribution verification wheels through uv's default sdist rebuild.

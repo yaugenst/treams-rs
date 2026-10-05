@@ -9,17 +9,16 @@
 //!
 //! # Glossary
 //!
-//! A record is a function that returns a value and a context. The context stores what is needed to compute gradients later and can be used once: `context.pullback(g)` takes the gradient `g` of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.
+//! A record is a function that returns a value and a reusable context. The context stores what is needed to compute derivatives later: `context.pullback(g)` takes the gradient `g` of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.
 //!
-//! In the Rust core, a function returns `(value, XResidual)`, and `XResidual::pullback(self, cotangent)` returns the input gradients as `XGradient`.
+//! In the Rust core, a function returns `(value, XResidual)`, and `XResidual::pullback(&self, cotangent)` returns the input gradients as `XGradient`.
 //!
 //! - *Core residual*: the `XResidual` that the core function `X` returns beside its
-//!   value. It holds what the pullback needs, and its `pullback` consumes it.
+//!   value. It holds what derivatives need; pushforwards and pullbacks borrow it.
 //! - *Binding context*: a Python class, `<DiffName>Context`, that owns one core
-//!   residual in a `context::OneUse`, plus the shapes or flags its pullback needs.
-//!   Its `pullback` checks the cotangent before it takes the residual, so a
-//!   rejected cotangent leaves the context usable. A second pullback raises
-//!   `ValueError` ("pullback residual has already been consumed").
+//!   residual, plus the shapes or flags its derivatives need. Derivative methods
+//!   validate tangents or cotangents and borrow the residual, allowing repeated
+//!   calls in either direction. Rejected inputs leave the context unchanged.
 //! - *Record*: a native function or method that returns `(value, context)`.
 //! - *Pullback*: `context.pullback(cotangent)`, which returns the gradients with
 //!   respect to the differentiable inputs.
@@ -59,7 +58,7 @@
 //! - **The stub and its tests.** `_native.pyi` declares every export with its
 //!   parameters. `tests/bindings/test_native_contexts.py` compares the stub with
 //!   the module and runs one `CASES` entry per context method: deterministic
-//!   records, one-use contexts that own their inputs, and every memory layout.
+//!   records, reusable contexts that own their inputs, and every memory layout.
 //!   `tests/bindings/test_ufunc_contract.py` requires the stub to declare exactly
 //!   the module, keeps the dtype rows and core signature of every ufunc in
 //!   `REGISTRY_ROWS`, and runs one case per ufunc. `scripts/float_environment.py`
@@ -237,13 +236,14 @@ mod _native {
     };
     #[pymodule_export]
     use super::integrals::{
-        IncgammaContext, IntkambeContext, incgamma_record, incgamma_record_scalar, intkambe_record,
-        intkambe_record_scalar,
+        IncgammaContext, IntkambeContext, incgamma_context, incgamma_record,
+        incgamma_record_scalar, intkambe_context, intkambe_record, intkambe_record_scalar,
     };
     #[pymodule_export]
     use super::special::{
-        AngularContext, BesselContext, WignerdContext, angular_record, angular_record_scalar,
-        bessel_record, bessel_record_scalar, wignerd_record, wignerd_record_scalar,
+        AngularContext, BesselContext, WignerdContext, angular_context, angular_record,
+        angular_record_scalar, bessel_context, bessel_record, bessel_record_scalar,
+        wignerd_context, wignerd_record, wignerd_record_scalar,
     };
 
     #[pymodule_export]
@@ -278,11 +278,12 @@ mod _native {
     use super::rotation::{RotationContext, cylindrical_rotation, rotation};
     #[pymodule_export]
     use super::translation::{
-        CylindricalTranslationContext, SphericalTranslationContext, cylindrical_translation_record,
-        spherical_translation_record,
+        CylindricalTranslationContext, SphericalTranslationContext,
+        cylindrical_translation_context, cylindrical_translation_record,
+        spherical_translation_context, spherical_translation_record,
     };
     #[pymodule_export]
-    use super::vectorwaves::{VectorWaveContext, vector_wave_record};
+    use super::vectorwaves::{VectorWaveContext, vector_wave_context, vector_wave_record};
 
     #[pymodule_export]
     use super::cluster::{

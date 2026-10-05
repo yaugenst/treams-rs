@@ -31,9 +31,10 @@ sequenceDiagram
 | Other `src/*.rs` files | Bind the matching physics or numerical module in the core. |
 
 A recorded calculation returns `(value, context)`. Calling
-`context.pullback(g)` once gives input gradients from the gradient `g` with
-respect to the value. The context owns its saved data and checks `g` before
-consuming it. Every native call preserves subnormal floating-point values;
+`context.pullback(g)` gives input gradients from the gradient `g` with respect
+to the value; `context.pushforward(*tangents)` maps input directions to output
+directions. Both methods reuse immutable saved data and validate their inputs
+before numerical work. Every native call preserves subnormal floating-point values;
 parallel work uses the core's thread pool.
 
 The bindings check the shapes and lengths they read; the core checks numerical

@@ -10,7 +10,7 @@ import treams_rs as tr
 from treams_rs import _native
 from treams_rs.iterative import SphereCluster
 
-from _support import assert_one_use_context, complex_normal
+from _support import assert_reusable_context, complex_normal
 
 
 @pytest.mark.gradients
@@ -86,7 +86,7 @@ def test_native_operator_owns_its_inputs():
     """Overwriting the construction arrays leaves a built operator unchanged.
 
     tests/bindings/test_native_contexts.py checks that the context of record is
-    one-use and owns its inputs.
+    reusable and owns its inputs.
     """
     radii = np.array([0.2, 0.25])
     epsilon = np.array([2.0, 2.8 + 0.02j])
@@ -138,7 +138,7 @@ def test_public_vector_batch_results_and_pullback_shape_contract() -> None:
     report = vector.convergence[0]
     assert report.iterations > 0
     assert report.residual_norm <= 1e-10 * report.rhs_norm
-    gradient = assert_one_use_context(
+    gradient = assert_reusable_context(
         context,
         2 * vector.coefficients,
         wrong_shape=np.ones((solver.dimension, 1), complex),

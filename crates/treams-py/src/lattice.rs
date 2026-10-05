@@ -4,19 +4,26 @@
 //! (`treams_core::lattice`, `treams_core::sw`, `treams_core::cw`).
 
 use numpy::{
-    IntoPyArray, PyArray2, PyReadonlyArray1, PyReadonlyArray2, PyReadonlyArray4,
-    ndarray::{Array2, Array4},
+    IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2, PyReadonlyArray4,
+    ndarray::{Array2, Array4, Ix1, Ix2, Ix4},
 };
 use pyo3::{exceptions::PyValueError, prelude::*};
 use std::borrow::Cow;
-use treams_core::{Complex, fpenv::ieee, lattice};
+use treams_core::{
+    Complex,
+    fpenv::ieee,
+    lattice,
+    saved::{Reader, SavedState, Writer},
+};
 
 use crate::{
     args::{make_basis, make_cyl_basis},
     broadcast::{BroadcastShapes, broadcast_context, check_broadcast, shaped},
-    context::{context, detached, error},
+    context::{context, detached, error, restore_state, state_array},
     convert::{
-        C1, C2, C4, CDyn, Cotangent, R1, R2, RDyn, layout_error, matrix, owned_matrix, rows_array,
+        C1, C2, C4, CDyn, Cotangent, R1, R2, RDyn, RealTangent, Tangent, finite_tangent,
+        layout_error, matrix, matrix_cotangent, owned_matrix, rows_array, rows_from_dyn,
+        vector_tangent,
     },
 };
 
@@ -26,6 +33,23 @@ enum Periodic {
     Cylindrical(treams_core::cw::LatticeExpansionResidual),
 }
 impl Periodic {
+    fn pushforward(
+        &self,
+        tangent: &PeriodicTangent,
+    ) -> treams_core::Result<nalgebra::DMatrix<Complex>> {
+        let PeriodicTangent {
+            destination,
+            source,
+            ks,
+            kpar,
+            vectors,
+        } = tangent;
+        match self {
+            Self::Spherical(r) => r.pushforward(destination, source, *ks, kpar, vectors),
+            Self::Cylindrical(r) => r.pushforward(destination, source, *ks, kpar, vectors),
+        }
+    }
+
     fn shape(&self) -> (usize, usize) {
         match self {
             Self::Spherical(r) => r.shape(),
@@ -33,7 +57,7 @@ impl Periodic {
         }
     }
     fn pullback(
-        self,
+        &self,
         g: &nalgebra::DMatrix<Complex>,
     ) -> treams_core::Result<treams_core::basis::LatticeExpansionGradient> {
         match self {
@@ -42,6 +66,75 @@ impl Periodic {
         }
     }
 }
+
+impl SavedState for Periodic {
+    fn save_state(&self) -> treams_core::Result<Vec<u8>> {
+        let (tag, state) = match self {
+            Self::Spherical(residual) => (0, residual.save_state()?),
+            Self::Cylindrical(residual) => (1, residual.save_state()?),
+        };
+        let mut writer = Writer::new(state.len().checked_add(1).ok_or_else(invalid_state)?);
+        writer.byte(tag);
+        writer.raw(&state);
+        Ok(writer.finish())
+    }
+
+    fn from_state(bytes: &[u8]) -> treams_core::Result<Self> {
+        let (tag, state) = bytes.split_first().ok_or_else(invalid_state)?;
+        match tag {
+            0 => Ok(Self::Spherical(
+                treams_core::sw::LatticeExpansionResidual::from_state(state)?,
+            )),
+            1 => Ok(Self::Cylindrical(
+                treams_core::cw::LatticeExpansionResidual::from_state(state)?,
+            )),
+            _ => Err(invalid_state()),
+        }
+    }
+}
+
+/// Converted periodic input directions. The core validates their dimensions and
+/// finiteness against the bases and lattice.
+struct PeriodicTangent {
+    destination: Vec<[f64; 3]>,
+    source: Vec<[f64; 3]>,
+    ks: [Complex; 2],
+    kpar: Vec<f64>,
+    vectors: nalgebra::DMatrix<f64>,
+}
+
+impl PeriodicTangent {
+    fn new(
+        destination: &RealTangent<'_>,
+        source: &RealTangent<'_>,
+        ks: &Tangent<'_>,
+        kpar: &RealTangent<'_>,
+        vectors: &RealTangent<'_>,
+    ) -> PyResult<Self> {
+        let destination = rows_from_dyn(destination, "destination tangent")?;
+        let source = rows_from_dyn(source, "source tangent")?;
+        let ks = vector_tangent(ks, 2)?;
+        let kpar = kpar
+            .as_array()
+            .into_dimensionality::<Ix1>()
+            .map_err(layout_error)?
+            .to_vec();
+        let vectors = vectors
+            .as_array()
+            .into_dimensionality::<Ix2>()
+            .map_err(layout_error)?;
+        let vectors =
+            nalgebra::DMatrix::from_fn(vectors.nrows(), vectors.ncols(), |i, j| vectors[(i, j)]);
+        Ok(Self {
+            destination,
+            source,
+            ks: [ks[0], ks[1]],
+            kpar,
+            vectors,
+        })
+    }
+}
+
 context!(LatticeExpansionContext(Periodic));
 type PeriodicGradients<'py> = (R2<'py>, R2<'py>, C1<'py>, R1<'py>, R2<'py>);
 fn periodic_gradient(
@@ -58,28 +151,117 @@ fn periodic_gradient(
 }
 #[pymethods]
 impl LatticeExpansionContext {
+    #[staticmethod]
+    fn _state_spec(
+        destination_count: usize,
+        source_count: usize,
+        destination_positions: usize,
+        source_positions: usize,
+        cylindrical: bool,
+    ) -> PyResult<usize> {
+        ieee(|| {
+            let size = if cylindrical {
+                treams_core::cw::LatticeExpansionResidual::state_size(
+                    destination_count,
+                    destination_positions,
+                    source_count,
+                    source_positions,
+                )
+            } else {
+                treams_core::sw::LatticeExpansionResidual::state_size(
+                    destination_count,
+                    destination_positions,
+                    source_count,
+                    source_positions,
+                )
+            }
+            .map_err(error)?;
+            size.checked_add(1).ok_or_else(|| error(invalid_state()))
+        })
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| state_array(py, &self.residual))
+    }
+
+    #[staticmethod]
+    fn _from_state(state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| Ok(Self::new(restore_state(&state)?)))
+    }
+
+    fn pushforward<'py>(
+        &self,
+        py: Python<'py>,
+        destination: RealTangent<'py>,
+        source: RealTangent<'py>,
+        ks: Tangent<'py>,
+        kpar: RealTangent<'py>,
+        vectors: RealTangent<'py>,
+    ) -> PyResult<C2<'py>> {
+        ieee(|| {
+            let tangent = PeriodicTangent::new(&destination, &source, &ks, &kpar, &vectors)?;
+            let residual = &self.residual;
+            let value = detached(py, || residual.pushforward(&tangent))?;
+            owned_matrix(py, value)
+        })
+    }
+
+    fn pushforward_axial<'py>(
+        &self,
+        py: Python<'py>,
+        destination: RealTangent<'py>,
+        source: RealTangent<'py>,
+        ks: Tangent<'py>,
+        kpar: RealTangent<'py>,
+        vectors: RealTangent<'py>,
+        axial: RealTangent<'py>,
+    ) -> PyResult<C2<'py>> {
+        ieee(|| {
+            let tangent = PeriodicTangent::new(&destination, &source, &ks, &kpar, &vectors)?;
+            let axial = axial
+                .as_array()
+                .into_dimensionality::<Ix1>()
+                .map_err(layout_error)?
+                .to_vec();
+            let Periodic::Cylindrical(residual) = &self.residual else {
+                return Err(PyValueError::new_err(
+                    "axial periodic derivatives require two cylindrical bases",
+                ));
+            };
+            let value = detached(py, || {
+                residual.pushforward_axial(
+                    &tangent.destination,
+                    &tangent.source,
+                    tangent.ks,
+                    &tangent.kpar,
+                    &tangent.vectors,
+                    &axial,
+                )
+            })?;
+            owned_matrix(py, value)
+        })
+    }
+
     fn pullback<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         cotangent: Cotangent<'py>,
     ) -> PyResult<PeriodicGradients<'py>> {
         ieee(|| {
-            let (residual, g) = self
-                .residual
-                .take_with_matrix(&cotangent, Periodic::shape)?;
+            let residual = &self.residual;
+            let g = matrix_cotangent(&cotangent, residual.shape())?;
             periodic_gradient(py, detached(py, move || residual.pullback(&g))?)
         })
     }
     /// Also return gradients of sorted distinct shared axial wavenumbers.
     fn pullback_axial<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         cotangent: Cotangent<'py>,
     ) -> PyResult<(R2<'py>, R2<'py>, C1<'py>, R1<'py>, R2<'py>, R1<'py>)> {
         ieee(|| {
-            let (residual, g) = self
-                .residual
-                .take_with_matrix(&cotangent, Periodic::shape)?;
+            let residual = &self.residual;
+            let g = matrix_cotangent(&cotangent, residual.shape())?;
             let Periodic::Cylindrical(residual) = residual else {
                 return Err(PyValueError::new_err(
                     "axial periodic derivatives require two cylindrical bases",
@@ -163,12 +345,49 @@ context!(LatticeExpansionFromTableContext(
 
 #[pymethods]
 impl LatticeExpansionFromTableContext {
-    fn pullback<'py>(&mut self, py: Python<'py>, cotangent: Cotangent<'py>) -> PyResult<C4<'py>> {
+    #[staticmethod]
+    fn _state_spec(
+        destination_count: usize,
+        source_count: usize,
+        destination_positions: usize,
+        source_positions: usize,
+    ) -> PyResult<usize> {
         ieee(|| {
-            let (residual, g) = self.residual.take_with_matrix(
-                &cotangent,
-                treams_core::sw::LatticeExpansionFromTableResidual::shape,
-            )?;
+            treams_core::sw::LatticeExpansionFromTableResidual::state_size(
+                destination_count,
+                destination_positions,
+                source_count,
+                source_positions,
+            )
+            .map_err(error)
+        })
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| state_array(py, &self.residual))
+    }
+
+    #[staticmethod]
+    fn _from_state(state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| Ok(Self::new(restore_state(&state)?)))
+    }
+
+    fn pushforward<'py>(&self, py: Python<'py>, tangent: Tangent<'py>) -> PyResult<C2<'py>> {
+        ieee(|| {
+            let residual = &self.residual;
+            let tangent = finite_tangent::<_, Ix4>(&tangent, &residual.table_shape())?
+                .iter()
+                .copied()
+                .collect::<Vec<_>>();
+            let value = detached(py, || residual.pushforward(&tangent))?;
+            owned_matrix(py, value)
+        })
+    }
+
+    fn pullback<'py>(&self, py: Python<'py>, cotangent: Cotangent<'py>) -> PyResult<C4<'py>> {
+        ieee(|| {
+            let residual = &self.residual;
+            let g = matrix_cotangent(&cotangent, residual.shape())?;
             let shape = residual.table_shape();
             let gradient = detached(py, move || residual.pullback(&g))?;
             Ok(Array4::from_shape_vec(shape, gradient)
@@ -236,8 +455,91 @@ broadcast_context!(LatticeSumContext(
 ));
 #[pymethods]
 impl LatticeSumContext {
+    #[staticmethod]
+    fn _state_spec(
+        shape: Vec<usize>,
+        argument_shapes: [Vec<usize>; 5],
+        dim: usize,
+        coordinates: usize,
+    ) -> PyResult<usize> {
+        ieee(|| {
+            let shapes = BroadcastShapes {
+                shape,
+                argument_shapes,
+            };
+            lattice_sum_state_size(&shapes, dim, coordinates).map_err(error)
+        })
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| state_array(py, self))
+    }
+
+    #[staticmethod]
+    fn _from_state(state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| restore_state(&state))
+    }
+
+    fn pushforward<'py>(
+        &self,
+        py: Python<'py>,
+        k: Tangent<'py>,
+        kpar: RealTangent<'py>,
+        a: RealTangent<'py>,
+        r: RealTangent<'py>,
+        eta: Tangent<'py>,
+    ) -> PyResult<CDyn<'py>> {
+        ieee(|| {
+            use crate::broadcast::tangent;
+            let BroadcastShapes {
+                shape,
+                argument_shapes: [sk, sq, sa, sr, se],
+            } = &self.shapes;
+            let k = tangent(&k, sk, shape)?;
+            let eta = tangent(&eta, se, shape)?;
+            let qshape = [shape.as_slice(), &[self.dim]].concat();
+            let ashape = [qshape.as_slice(), &[self.dim]].concat();
+            let rshape = [shape.as_slice(), &[self.coordinates]].concat();
+            let q = tangent(&kpar, sq, &qshape)?;
+            let a = tangent(&a, sa, &ashape)?;
+            let r = tangent(&r, sr, &rshape)?;
+            let tangents = (0..k.len())
+                .map(|i| lattice::SumTangent {
+                    k: k[i],
+                    eta: eta[i],
+                    shift: std::array::from_fn(|j| {
+                        if j < self.coordinates {
+                            r[i * self.coordinates + j]
+                        } else {
+                            0.0
+                        }
+                    }),
+                    kpar: std::array::from_fn(|j| {
+                        if j < self.dim {
+                            q[i * self.dim + j]
+                        } else {
+                            0.0
+                        }
+                    }),
+                    vectors: std::array::from_fn(|j| {
+                        std::array::from_fn(|h| {
+                            if j < self.dim && h < self.dim {
+                                a[(i * self.dim + j) * self.dim + h]
+                            } else {
+                                0.0
+                            }
+                        })
+                    }),
+                })
+                .collect::<Vec<_>>();
+            let residual = &self.residual;
+            let value = detached(py, move || residual.pushforward(&tangents))?;
+            shaped(py, value, shape)
+        })
+    }
+
     fn pullback<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         cotangent: Cotangent<'py>,
     ) -> PyResult<(CDyn<'py>, RDyn<'py>, RDyn<'py>, RDyn<'py>, CDyn<'py>)> {
@@ -248,7 +550,7 @@ impl LatticeSumContext {
                 argument_shapes: [sk, sq, sa, sr, se],
             } = &self.shapes;
             let g = crate::broadcast::cotangent(&cotangent, shape)?;
-            let residual = self.residual.take()?;
+            let residual = &self.residual;
             let values = detached(py, move || residual.pullback(&g))?;
             let mut qshape = shape.clone();
             qshape.push(self.dim);
@@ -293,6 +595,60 @@ impl LatticeSumContext {
                     .into_pyarray(py),
             ))
         })
+    }
+}
+
+fn invalid_state() -> treams_core::Error {
+    treams_core::Error::InvalidInput("invalid saved lattice context".into())
+}
+
+fn lattice_sum_state_size(
+    shapes: &BroadcastShapes<[Vec<usize>; 5]>,
+    dim: usize,
+    coordinates: usize,
+) -> treams_core::Result<usize> {
+    if !(1..=3).contains(&dim) || !(2..=3).contains(&coordinates) || dim > coordinates {
+        return Err(invalid_state());
+    }
+    let cores: [&[usize]; 5] = [&[], &[dim], &[dim, dim], &[coordinates], &[]];
+    for (argument, core) in shapes.argument_shapes.iter().zip(cores) {
+        check_broadcast(&[shapes.shape.as_slice(), core].concat(), &[argument])
+            .map_err(|_| invalid_state())?;
+    }
+    let count = shapes.shape.iter().try_fold(1_usize, |count, &dim| {
+        count.checked_mul(dim).ok_or_else(invalid_state)
+    })?;
+    let metadata = shapes.state_size()?;
+    lattice::SumResidual::state_size(count)?
+        .checked_add(metadata)
+        .and_then(|size| size.checked_add(16))
+        .ok_or_else(invalid_state)
+}
+
+impl SavedState for LatticeSumContext {
+    fn save_state(&self) -> treams_core::Result<Vec<u8>> {
+        let mut writer = Writer::new(lattice_sum_state_size(
+            &self.shapes,
+            self.dim,
+            self.coordinates,
+        )?);
+        writer.usize(self.dim);
+        writer.usize(self.coordinates);
+        self.shapes.write_state(&mut writer)?;
+        writer.raw(&self.residual.save_state()?);
+        Ok(writer.finish())
+    }
+
+    fn from_state(bytes: &[u8]) -> treams_core::Result<Self> {
+        let mut reader = Reader::new(bytes);
+        let dim = reader.usize()?;
+        let coordinates = reader.usize()?;
+        let shapes = BroadcastShapes::read_state(&mut reader)?;
+        if bytes.len() != lattice_sum_state_size(&shapes, dim, coordinates)? {
+            return Err(invalid_state());
+        }
+        let residual = lattice::SumResidual::from_state(reader.raw(reader.remaining_len())?)?;
+        Ok(Self::new(residual, shapes, dim, coordinates))
     }
 }
 /// Record lattice sums, their Ewald parts or direct shells: `lattice::sum_array`.

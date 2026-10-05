@@ -2,9 +2,9 @@
 
 The stub declares every native signature. Every context of the object bindings
 has a CASES entry and satisfies one contract: records are deterministic,
-pullbacks are one-use and a rejected cotangent keeps the residual, residuals own
-their inputs and share no memory with the returned values, and records and
-pullbacks read every NumPy memory layout.
+derivative contexts are reusable and rejected directions leave them unchanged,
+residuals own their inputs and share no memory with returned values, and records
+and pullbacks read every NumPy memory layout.
 """
 
 import ast
@@ -26,7 +26,7 @@ from treams_rs import _native
 from _support import (
     LAYOUTS,
     arrange,
-    assert_one_use_context,
+    assert_reusable_context,
     assert_tree_allclose,
     complex_normal,
 )
@@ -128,8 +128,8 @@ def test_stub_classes_declare_the_native_members(stub):
         assert runtime == [], stub.name
     else:
         _assert_same_parameters(_declared(constructor, bound=1), runtime, stub.name)
-    public = {name for name in vars(cls) if not name.startswith("_")}
-    assert set(members) == public, stub.name
+    exported = {name for name in vars(cls) if not name.startswith("__")}
+    assert set(members) == exported, stub.name
     for name, member in members.items():
         value = inspect.getattr_static(cls, name)
         decorators = _decorators(member)
@@ -145,7 +145,7 @@ def test_stub_classes_declare_the_native_members(stub):
         )
 
 
-# One-use contexts ------------------------------------------------------------------
+# Reusable contexts -----------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -556,18 +556,17 @@ class _Method:
         self.pullback = getattr(context, case.method)
 
 
-def _assert_one_use(context, cotangents, expected):
-    """The shared one-use contract, plus cotangents with an extra leading axis."""
+def _assert_reusable(context, cotangents, expected):
+    """The shared reuse contract, plus cotangents with an extra leading axis."""
     if all(np.ndim(c) == 0 for c in cotangents):  # Python scalar cotangents
         with pytest.raises(ValueError, match="finite"):
             context.pullback(*(np.nan for _ in cotangents))
         assert_tree_allclose(context.pullback(*cotangents), expected, rtol=0, atol=0)
-        with pytest.raises(ValueError, match="consumed"):
-            context.pullback(*cotangents)
+        assert_tree_allclose(context.pullback(*cotangents), expected, rtol=0, atol=0)
         return
     single = len(cotangents) == 1
     extra_axis = tuple(np.asarray(c)[None] for c in cotangents)
-    assert_one_use_context(
+    assert_reusable_context(
         context,
         cotangents[0] if single else cotangents,
         expected,
@@ -579,7 +578,7 @@ def _assert_one_use(context, cotangents, expected):
 
 @pytest.mark.gradients
 @pytest.mark.parametrize("name", CASES)
-def test_context_is_deterministic_one_use_and_owns_its_inputs(name):
+def test_context_is_deterministic_reusable_and_owns_its_inputs(name):
     """Rejected cotangents keep the residual; overwriting the recorded inputs
     or the returned values does not change the pullback."""
     case = CASES[name]()
@@ -588,13 +587,29 @@ def test_context_is_deterministic_one_use_and_owns_its_inputs(name):
     assert_tree_allclose(values, twin_values, rtol=0, atol=0)
     cotangents = _cotangents(values)
     expected = _Method(twin, case).pullback(*cotangents)
+    pushforward_name = case.method.replace("pullback", "pushforward")
+    twin_pushforward = getattr(twin, pushforward_name)
+    directions = expected if isinstance(expected, tuple) else (expected,)
+    # Iterative pullbacks append convergence certificates after their gradients.
+    directions = directions[: len(inspect.signature(twin_pushforward).parameters)]
+    expected_tangent = twin_pushforward(*directions)
+    expected_plain = (
+        twin.pullback(*cotangents) if case.method == "pullback_axial" else None
+    )
     outputs = [v for v in values if isinstance(v, np.ndarray) and v.dtype.kind in "fc"]
     for a in (*case.arrays, *outputs):
         a[...] = np.nan
-    _assert_one_use(_Method(context, case), cotangents, expected)
-    if case.method == "pullback_axial":  # the plain pullback shares the residual
-        with pytest.raises(ValueError, match="consumed"):
-            context.pullback(*cotangents)
+    _assert_reusable(_Method(context, case), cotangents, expected)
+    pushforward = getattr(context, pushforward_name)
+    assert_tree_allclose(pushforward(*directions), expected_tangent, rtol=0, atol=0)
+    assert_tree_allclose(
+        _Method(context, case).pullback(*cotangents), expected, rtol=0, atol=0
+    )
+    assert_tree_allclose(pushforward(*directions), expected_tangent, rtol=0, atol=0)
+    if expected_plain is not None:  # axial and ordinary methods share the residual
+        assert_tree_allclose(
+            context.pullback(*cotangents), expected_plain, rtol=0, atol=0
+        )
 
 
 @pytest.mark.gradients
@@ -642,7 +657,7 @@ def test_context_takes_real_arrays_and_nested_lists(name):
 
 
 #: Contexts of the broadcast special-function, coordinate and wave bindings;
-#: their test modules check the same contract with assert_one_use_context.
+#: their test modules check the same contract with assert_reusable_context.
 BROADCAST_CONTEXTS = {
     "AngularContext",
     "BesselContext",

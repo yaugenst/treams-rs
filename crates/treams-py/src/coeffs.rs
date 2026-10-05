@@ -1,7 +1,7 @@
 //! `mie` and `mie_cyl` with their contexts: Mie coefficients of layered spheres and
 //! cylinders (`treams_core::coeffs`).
 use num_complex::Complex64;
-use numpy::{IntoPyArray, PyReadonlyArray1};
+use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1, ndarray::Ix0};
 use pyo3::prelude::*;
 use treams_core::{
     Complex,
@@ -10,23 +10,57 @@ use treams_core::{
 };
 
 use crate::{
-    args::materials,
-    context::{context, detached},
-    convert::{C1, C2, Cotangent, R1, matrix2_array, matrix2_cotangent},
+    args::{layer_tangents, materials},
+    context::{context, detached, error, restore_state, state_array},
+    convert::{
+        C1, C2, Cotangent, R1, RealTangent, Tangent, finite_tangent, matrix2_array,
+        matrix2_cotangent,
+    },
 };
 
 context!(MieContext(MieResidual));
 
 #[pymethods]
 impl MieContext {
+    #[staticmethod]
+    fn _state_spec(boundaries: usize) -> PyResult<usize> {
+        ieee(|| MieResidual::state_size(boundaries).map_err(error))
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| state_array(py, &self.residual))
+    }
+
+    #[staticmethod]
+    fn _from_state(state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| restore_state(&state).map(Self::new))
+    }
+
+    fn pushforward<'py>(
+        &self,
+        py: Python<'py>,
+        sizes: RealTangent<'py>,
+        epsilon: Tangent<'py>,
+        mu: Tangent<'py>,
+        kappa: Tangent<'py>,
+    ) -> PyResult<C2<'py>> {
+        ieee(|| {
+            let residual = &self.residual;
+            let (sizes, materials) =
+                layer_tangents(residual.boundaries(), &sizes, &epsilon, &mu, &kappa)?;
+            let tangent = detached(py, move || residual.pushforward(&sizes, &materials))?;
+            Ok(matrix2_array(py, &tangent))
+        })
+    }
+
     fn pullback<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         cotangent: Cotangent<'py>,
     ) -> PyResult<(R1<'py>, C1<'py>, C1<'py>, C1<'py>)> {
         ieee(|| {
             let g = matrix2_cotangent(&cotangent)?;
-            let residual = self.residual.take()?;
+            let residual = &self.residual;
             let result = detached(py, move || residual.pullback(&g))?;
             Ok((
                 result.sizes.into_pyarray(py),
@@ -63,14 +97,49 @@ pub(crate) fn mie<'py>(
 context!(MieCylContext(MieCylResidual));
 #[pymethods]
 impl MieCylContext {
+    #[staticmethod]
+    fn _state_spec(boundaries: usize) -> PyResult<usize> {
+        ieee(|| MieCylResidual::state_size(boundaries).map_err(error))
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| state_array(py, &self.residual))
+    }
+
+    #[staticmethod]
+    fn _from_state(state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| restore_state(&state).map(Self::new))
+    }
+
+    fn pushforward<'py>(
+        &self,
+        py: Python<'py>,
+        kz: RealTangent<'py>,
+        k0: RealTangent<'py>,
+        radii: RealTangent<'py>,
+        epsilon: Tangent<'py>,
+        mu: Tangent<'py>,
+        kappa: Tangent<'py>,
+    ) -> PyResult<C2<'py>> {
+        ieee(|| {
+            let residual = &self.residual;
+            let kz = finite_tangent::<_, Ix0>(&kz, &[])?[()];
+            let k0 = finite_tangent::<_, Ix0>(&k0, &[])?[()];
+            let (radii, materials) =
+                layer_tangents(residual.boundaries(), &radii, &epsilon, &mu, &kappa)?;
+            let tangent = detached(py, move || residual.pushforward(kz, k0, &radii, &materials))?;
+            Ok(matrix2_array(py, &tangent))
+        })
+    }
+
     fn pullback<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         cotangent: Cotangent<'py>,
     ) -> PyResult<(f64, f64, R1<'py>, C1<'py>, C1<'py>, C1<'py>)> {
         ieee(|| {
             let g = matrix2_cotangent(&cotangent)?;
-            let residual = self.residual.take()?;
+            let residual = &self.residual;
             let result = detached(py, move || residual.pullback(&g))?;
             Ok((
                 result.kz,

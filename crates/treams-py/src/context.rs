@@ -1,18 +1,16 @@
-//! What every context shares: the `context!` macro, the one-use residual, the
+//! What every context shares: the `context!` macro, saved-state conversion, the
 //! cotangent error, core errors as `ValueError` or `MemoryError`, the radial flag and
 //! GIL release.
-use nalgebra::DMatrix;
-use num_complex::Complex64;
+use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::{
     exceptions::{PyMemoryError, PyValueError},
     marker::Ungil,
     prelude::*,
 };
+use treams_core::saved::SavedState;
 use treams_core::{Error, special::Radial};
 
-use crate::convert::{Cotangent, matrix_cotangent};
-
-/// Define a `#[pyclass]` pullback context that owns a one-use residual and
+/// Define a `#[pyclass]` derivative context that owns a reusable residual and
 /// extra fields; `new` takes the residual and then the fields in order.
 ///
 /// `#[pymodule]` sets the module only of classes defined inside it, so each
@@ -24,56 +22,29 @@ macro_rules! context {
         #[pyclass(module = "treams_rs._native")]
         #[derive(Debug)]
         pub(crate) struct $name {
-            residual: $crate::context::OneUse<$residual>,
+            residual: $residual,
             $($(#[$meta])* $field: $type,)*
         }
         impl $name {
             const fn new(residual: $residual $(, $field: $type)*) -> Self {
-                Self { residual: $crate::context::OneUse::new(residual) $(, $field)* }
+                Self { residual $(, $field)* }
             }
         }
     };
 }
 pub(crate) use context;
 
-/// A residual that one pullback consumes.
-///
-/// A pullback checks its cotangent before it takes the residual, so a rejected
-/// cotangent leaves the residual for a corrected retry.
-#[derive(Debug)]
-pub(crate) struct OneUse<R>(Option<R>);
+/// Export numeric state for a framework callback; `NumPy` owns the copied bytes.
+pub(crate) fn state_array<'py, R: SavedState + Sync>(
+    py: Python<'py>,
+    residual: &R,
+) -> PyResult<Bound<'py, PyArray1<u8>>> {
+    Ok(detached(py, || residual.save_state())?.into_pyarray(py))
+}
 
-impl<R> OneUse<R> {
-    pub(crate) const fn new(residual: R) -> Self {
-        Self(Some(residual))
-    }
-
-    /// The residual, unless a pullback has consumed it.
-    pub(crate) fn peek(&self) -> PyResult<&R> {
-        self.0.as_ref().ok_or_else(consumed)
-    }
-
-    /// Consume the residual.
-    pub(crate) fn take(&mut self) -> PyResult<R> {
-        self.0.take().ok_or_else(consumed)
-    }
-
-    /// Consume the residual once `check` accepts the cotangent for it, and return
-    /// both; when `check` fails, the residual stays for a corrected retry.
-    pub(crate) fn take_if<T>(&mut self, check: impl FnOnce(&R) -> PyResult<T>) -> PyResult<(R, T)> {
-        let cotangent = check(self.peek()?)?;
-        Ok((self.take()?, cotangent))
-    }
-
-    /// Consume the residual with a finite matrix cotangent of the residual's
-    /// output `shape`, copied into column-major storage.
-    pub(crate) fn take_with_matrix(
-        &mut self,
-        cotangent: &Cotangent<'_>,
-        shape: impl FnOnce(&R) -> (usize, usize),
-    ) -> PyResult<(R, DMatrix<Complex64>)> {
-        self.take_if(|residual| matrix_cotangent(cotangent, shape(residual)))
-    }
+/// Restore a private state buffer, checking its layout at the native boundary.
+pub(crate) fn restore_state<R: SavedState>(state: &PyReadonlyArray1<'_, u8>) -> PyResult<R> {
+    R::from_state(state.as_slice()?).map_err(error)
 }
 
 /// The error of a cotangent that is not finite or not of the `expected` shape,
@@ -91,11 +62,6 @@ pub(crate) fn cotangent_error(expected: &[usize]) -> PyErr {
         ),
     };
     PyValueError::new_err(format!("cotangent must be finite with shape {shape}"))
-}
-
-/// The error of a pullback whose one-use residual is already consumed.
-fn consumed() -> PyErr {
-    PyValueError::new_err("pullback residual has already been consumed")
 }
 
 /// Raise a core error with its message: `OutOfMemory` as `MemoryError`, every other
