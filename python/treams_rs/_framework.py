@@ -8,6 +8,7 @@ _framework_smatrix.
 from __future__ import annotations
 
 import importlib
+from functools import partial
 from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
@@ -15,16 +16,15 @@ if TYPE_CHECKING:
 
     from numpy.typing import ArrayLike
 
-    from ._records import Array, Record
+    from ._records import Record
 
 import numpy as np
 
-from . import diff
+from . import _native, diff
 from ._bases import CylindricalBasis, PlaneWavePorts, SphericalBasis
 from ._framework_backend import (
     Backend,
     Basis,
-    Recorded,
     as_material,
     material_defaults,
 )
@@ -32,6 +32,7 @@ from ._framework_smatrix import SMatrix
 from ._framework_tmatrix import TMatrix
 from ._framework_waves import PlaneWave, PortSet, Wave
 from ._polarization import PARITY_CHANGE, resolve_poltype
+from ._saved import native_state
 from ._validation import check_kind
 
 __all__ = ["Constructors", "Operations"]
@@ -47,11 +48,7 @@ def _shape(value: Any) -> tuple[int, ...]:
 
 def _sphere_record(lmax: int) -> Record:
     """Record of a multilayer sphere T-matrix in (k0, radii, epsilon, mu, kappa)."""
-
-    def record(k: Array, r: Array, e: Array, m: Array, c: Array) -> Recorded:
-        return diff.sphere(lmax, float(k), r, e, m, c)
-
-    return record
+    return partial(diff.sphere, lmax)
 
 
 def _adapter_instance(module: str, name: str) -> Any:
@@ -302,6 +299,10 @@ class Constructors(_BoundToBackend):
             values = (k, r, e, m, c)
         else:
 
+            @native_state(
+                _native.CylinderContext,
+                lambda inputs: (inputs[0].shape[0], mmax, inputs[2].shape[0]),
+            )
             def record(kz: Any, k: Any, r: Any, e: Any, m: Any, c: Any) -> Any:
                 return diff.cylinder(kz, mmax, float(k), r, e, m, c)
 
@@ -427,13 +428,8 @@ class Constructors(_BoundToBackend):
         ports = PortSet.from_basis(basis, b)
         group, pol = ports.groups, ports.pols
 
-        def record(ks: Any, zs: Any, q: Any, d: Any) -> Any:
-            return diff.layer_stack(
-                ks, zs, q, d, alignment=basis.alignment, fixed_q=True
-            )
-
         compact = b.apply(
-            record,
+            partial(diff.layer_stack, alignment=basis.alignment, fixed_q=True),
             (ports.transverse_wavevectors.shape[0], 2, 2, 2, 2),
             b.stack([b.plane_ks(m, k0) for m in media]),
             b.stack([b.impedance(m) for m in media]),
@@ -524,15 +520,14 @@ class Operations(_BoundToBackend):
     ) -> Any:
         """Broadcast Bessel values, differentiable in z; the order stays fixed."""
 
-        def record(value: Array) -> tuple[Any, Any]:
-            return diff.bessel(
+        return self.backend.operation(
+            partial(
+                diff.bessel,
                 order,
-                value,
                 function=function,
                 spherical=spherical,
                 derivative=derivative,
-            )
-
-        return self.backend.operation(
-            record, z, shape=np.broadcast_shapes(_shape(z), np.shape(order))
+            ),
+            z,
+            shape=np.broadcast_shapes(_shape(z), np.shape(order)),
         )

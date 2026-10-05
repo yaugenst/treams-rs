@@ -4,6 +4,8 @@ The engines compose the same native pullbacks. Advect, a hard test dependency,
 is checked against central finite differences once per scenario; JAX, PyTorch
 and Autograd must then reproduce Advect's values and gradients to rounding,
 and physical invariants are checked through each engine's own derivatives.
+Forward-mode products run through the same workflows and through complex field
+arrays with simultaneous geometry, material and incidence perturbations.
 """
 
 import contextlib
@@ -26,7 +28,8 @@ from treams_rs import diff
 # Constructors and Operations list the shared framework functions that the
 # pickling tests cover.
 from treams_rs._framework import Constructors, Operations
-from treams_rs.testing import check_gradient
+from treams_rs._records import DerivativeContext
+from treams_rs.testing import check_gradient, check_pushforward
 
 from _support import jax_x64
 
@@ -73,6 +76,27 @@ class Engine:
             functools.partial(function, self.tr)
         )(x)
         return np.asarray(value), np.asarray(gradient)
+
+    def jvp(self, function, x, direction):
+        """Value and forward product of ``function(tr, x)`` for one input array."""
+        x, direction = np.asarray(x), np.asarray(direction)
+        objective = functools.partial(function, self.tr)
+        if self.name == "torch":
+            value, tangent = self.framework.func.jvp(
+                objective,
+                (self.framework.tensor(x),),
+                (self.framework.tensor(direction),),
+            )
+        elif self.name == "jax":
+            jax = self.framework
+            value, tangent = jax.jit(
+                lambda primal, seed: jax.jvp(objective, (primal,), (seed,))
+            )(x, direction)
+        elif self.name == "autograd":
+            value, tangent = self.framework.make_jvp(objective)(x)(direction)
+        else:
+            value, tangent = self.framework.jvp(objective)(x, tangents=direction)
+        return self.numpy(value), self.numpy(tangent)
 
     @staticmethod
     def numpy(value):
@@ -502,6 +526,198 @@ def test_workflow_value_and_gradient(engine, name):
     actual = engine.value_and_grad(function, x0)
     assert_allclose(actual[0], value, rtol=1e-12)
     assert_allclose(actual[1], gradient, rtol=1e-12, atol=1e-15 * max(1, abs(gradient)))
+
+
+@pytest.mark.workflows
+@pytest.mark.parametrize("name", SCENARIOS)
+def test_workflow_forward_product_matches_checked_gradient(engine, name):
+    function, x0, _, _ = SCENARIOS[name]
+    value, gradient = _advect_reference(name)
+    direction = np.asarray(-0.37)
+    actual, tangent = engine.jvp(function, np.asarray(x0), direction)
+    assert_allclose(actual, value, rtol=1e-12)
+    assert_allclose(
+        tangent, gradient * direction, rtol=2e-12, atol=1e-15 * max(1, abs(gradient))
+    )
+
+
+@pytest.mark.parametrize("operation", ["interaction", "illuminate"])
+def test_real_expert_inputs_forward_products_match_linearized_solve(engine, operation):
+    values = np.array(
+        [[[0.2, 0.1], [0.05, 0.3]], [[0.0, 0.2], [-0.1, 0.0]], [[0.3, 0.7], [0.2, 0.1]]]
+    )
+    directions = np.arange(1, values.size + 1).reshape(values.shape) * 0.01
+
+    def function(tr, parameters):
+        local, coupling, incident = parameters[0], parameters[1], parameters[2]
+        if operation == "interaction":
+            return tr.interaction(local, coupling)
+        return tr.illuminate(local, coupling, incident)
+
+    local, coupling, incident = values
+    dlocal, dcoupling, dincident = directions
+    operator = np.eye(2) - local @ coupling
+    doperator = -dlocal @ coupling - local @ dcoupling
+    rhs = local if operation == "interaction" else local @ incident
+    drhs = (
+        dlocal if operation == "interaction" else dlocal @ incident + local @ dincident
+    )
+    expected = np.linalg.solve(operator, rhs)
+    expected_tangent = np.linalg.solve(operator, drhs - doperator @ expected)
+    value, tangent = engine.jvp(function, values, directions)
+    assert_allclose(value, expected, atol=1e-14)
+    assert_allclose(tangent, expected_tangent, atol=1e-14)
+
+
+@pytest.mark.parametrize("fixed_q", [False, True])
+@pytest.mark.parametrize("scalar_thickness", [False, True], ids=["vector", "scalar"])
+def test_layer_stack_forward_products_preserve_thickness_shape(
+    engine, fixed_q, scalar_thickness
+):
+    ks = np.array([[1.2, 1.2], [1.8 + 0.08j, 1.92 + 0.08j], [1.2, 1.2]])
+    zs = np.array([1.0, 0.65 + 0.02j, 1.0])
+    q = np.array([[0.1, 0.05], [-0.2, 0.1]])
+    thickness = np.asarray(0.3 if scalar_thickness else [0.3])
+    direction = np.asarray(-0.17 if scalar_thickness else [-0.17])
+    record = functools.partial(diff.layer_stack, fixed_q=fixed_q)
+    if engine.name == "jax":
+        operation = engine.tr.wrap(record, ks, zs, q, thickness)
+    elif engine.name == "advect":
+        operation = functools.partial(engine.tr.layer_stack, fixed_q=fixed_q)
+    else:
+        operation = engine.tr.wrap(record)
+
+    def function(tr, parameter):
+        return operation(ks, zs, q, parameter)
+
+    expected, context = record(ks, zs, q, np.atleast_1d(thickness))
+    expected_tangent = context.pushforward(
+        np.zeros_like(ks),
+        np.zeros_like(zs),
+        np.zeros_like(q),
+        np.atleast_1d(direction),
+    )
+    value, tangent = engine.jvp(function, thickness, direction)
+    assert value.shape == tangent.shape == (2, 2, 2, 2, 2)
+    assert_allclose(value, expected, rtol=1e-13, atol=1e-14)
+    assert_allclose(tangent, expected_tangent, rtol=1e-13, atol=1e-14)
+    step = 1e-5
+    positive = record(ks, zs, q, thickness + step * direction)[0]
+    negative = record(ks, zs, q, thickness - step * direction)[0]
+    assert_allclose(tangent, (positive - negative) / (2 * step), rtol=2e-8, atol=2e-11)
+
+    weight = (
+        np.linspace(-0.4, 0.7, value.size) + 1j * np.linspace(0.3, -0.2, value.size)
+    ).reshape(value.shape)
+    projection_weight = weight.conj()
+    if engine.name == "torch":
+        projection_weight = engine.framework.tensor(projection_weight.copy())
+
+    def projection(tr, parameter):
+        return real(function(tr, parameter) * projection_weight).sum()
+
+    _, gradient = engine.value_and_grad(projection, thickness)
+    assert gradient.shape == thickness.shape
+    assert_allclose(
+        np.vdot(weight, tangent).real,
+        np.vdot(gradient, direction).real,
+        rtol=2e-12,
+        atol=1e-14,
+    )
+
+
+def mixed_field(tr, x, *, family):
+    """A complete field array under simultaneous continuous perturbations."""
+    k0, radius = x[0], x[1]
+    material = tr.Material(x[2] + 1j * x[3])
+    if family == "slab":
+        slab = tr.slab(
+            basis=core.PlaneWavePorts.default([[0.1, 0.05]]),
+            k0=k0,
+            thickness=radius,
+            material=tr.Material(x[2] + 1j * x[3], 1.0, x[4]),
+        )
+        return slab.scatter(negative=[1.0, 0.2j]).positive.efield(
+            [[0.2, 0.4, x[5] + 1.5], [0.3, -0.2, x[5] + 1.7]]
+        )
+    if family == "cylinder":
+        particle = tr.cylinder_tmatrix(
+            k0=k0, kz=0.0, mmax=1, radius=radius, material=material
+        )
+        direction = [1.0, x[4], 0.0]
+    else:
+        particle = tr.sphere_tmatrix(k0=k0, lmax=1, radius=radius, material=material)
+        direction = [x[4], 0.2, 1.0]
+        if family == "cluster":
+            other = tr.sphere_tmatrix(k0=k0, lmax=2, radius=0.15, material=2.0)
+            particle = tr.Cluster(
+                [particle, other], positions=[[0, 0, 0], [0.2, 0.1, x[5]]]
+            ).solve()
+    incident = tr.plane_wave(direction, "positive_helicity", k0=k0)
+    return particle.scatter(incident).efield([[2.0, 0.4, 2.5], [1.8, -0.2, 2.7]])
+
+
+MIXED_FIELDS = {
+    family: functools.partial(mixed_field, family=family)
+    for family in ("sphere", "cylinder", "cluster", "slab")
+}
+MIXED_INPUT = np.array([1.2, 0.2, 3.0, 0.1, 0.3, 1.0])
+MIXED_DIRECTION = np.array([0.2, 0.04, -0.3, 0.05, -0.1, 0.15])
+FIELD_WEIGHT = np.array([[0.3 + 0.2j, -0.1j, 0.4], [0.2j, -0.3, 0.1 - 0.2j]])
+
+
+@functools.cache
+def _field_forward_reference(family):
+    """Check the complete tangent against NumPy differences and its adjoint."""
+    function = MIXED_FIELDS[family]
+    engine = Engine("advect")
+
+    def record(x):
+        def pullback(weight):
+            def projection(tr, y):
+                return real(function(tr, y) * weight.conj()).sum()
+
+            return engine.value_and_grad(projection, x)[1]
+
+        return function(core, x), DerivativeContext(
+            pullback, lambda direction: engine.jvp(function, x, direction)[1]
+        )
+
+    check_pushforward(
+        record,
+        MIXED_INPUT,
+        directions=(MIXED_DIRECTION,),
+        cotangents=FIELD_WEIGHT,
+        step=1e-5,
+        rtol=2e-5,
+        atol=1e-10,
+    )
+    return engine.jvp(function, MIXED_INPUT, MIXED_DIRECTION)
+
+
+@pytest.mark.workflows
+@pytest.mark.parametrize("family", MIXED_FIELDS)
+def test_complex_field_forward_products_with_mixed_directions(engine, family):
+    function = MIXED_FIELDS[family]
+    expected, expected_tangent = _field_forward_reference(family)
+    actual, tangent = engine.jvp(function, MIXED_INPUT, MIXED_DIRECTION)
+    assert actual.shape == tangent.shape == (2, 3)
+    assert_allclose(actual, expected, rtol=1e-12, atol=1e-14)
+    assert_allclose(tangent, expected_tangent, rtol=2e-12, atol=1e-14)
+    weight = FIELD_WEIGHT.conj()
+    if engine.name == "torch":
+        weight = engine.framework.tensor(weight.copy())
+
+    def projection(tr, x):
+        return real(function(tr, x) * weight).sum()
+
+    _, gradient = engine.value_and_grad(projection, MIXED_INPUT)
+    assert_allclose(
+        np.vdot(FIELD_WEIGHT, tangent).real,
+        np.vdot(gradient, MIXED_DIRECTION).real,
+        rtol=2e-12,
+        atol=1e-14,
+    )
 
 
 @pytest.mark.workflows

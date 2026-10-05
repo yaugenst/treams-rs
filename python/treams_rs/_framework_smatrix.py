@@ -2,18 +2,67 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 
-from . import diff
+from . import _native, diff
 from ._bases import ALIGNMENT_AXIS
 from ._framework_backend import Backend, Material, Recorded, with_zero_metadata
 from ._framework_waves import HasPorts, PlaneWave, PortSet, PortWave, Wave
 from ._promotion import promote
+from ._records import DerivativeContext
 from ._results import BandModes, PowerBalance, ScatteredPorts
+from ._saved import ArraySpec, SavedRecord, native_state
 
 __all__ = ["SMatrix", "stack"]
+
+
+@dataclass(frozen=True)
+class _IncidentSelection:
+    """The fixed matching of an incident wave to diffraction ports."""
+
+    selection: Any
+    metadata: tuple[Any, ...]
+
+    def pullback(self, gradient: Any) -> tuple[Any, ...]:
+        """Map port gradients to incident coefficients; metadata gradients are zero."""
+        return (
+            self.selection.T @ gradient,
+            *(np.zeros_like(value) for value in self.metadata),
+        )
+
+    def pushforward(self, tangent: Any, *metadata: Any) -> Any:
+        """Select incident tangents at ports; metadata does not affect the selection."""
+        return self.selection @ tangent
+
+
+def _power_context(context: Any, *_primals: Any) -> DerivativeContext:
+    def pullback(gradient: Any) -> Any:
+        return context.pullback(np.asarray(gradient, dtype=np.complex128))
+
+    return DerivativeContext(pullback, context.pushforward, native_context=context)
+
+
+def _cascade_context(
+    context: Any, _lower: Any, _higher: Any, *metadata: Any
+) -> DerivativeContext:
+    return with_zero_metadata(context, *metadata)
+
+
+def _bands_context(
+    context: Any, _array: Any, _period: Any, outer: Any
+) -> DerivativeContext:
+    def pullback(gradient: Any) -> Any:
+        return context.pullback(gradient[0], gradient[1:])
+
+    def pushforward(*tangents: Any) -> Any:
+        return np.vstack(context.pushforward(*tangents))
+
+    return with_zero_metadata(
+        DerivativeContext(pullback, pushforward, native_context=context), outer
+    )
 
 
 class SMatrix(HasPorts):
@@ -151,13 +200,28 @@ class SMatrix(HasPorts):
                     "incident plane wave must match one represented diffraction port"
                 )
             selection = (close & unique).astype(np.complex128)
-
-            return selection @ c, with_zero_metadata(
-                lambda g: (selection.T @ g,), vectors, ports, left, right
+            return selection @ c, _IncidentSelection(
+                selection, (vectors, ports, left, right)
             )
 
-        return b.apply(
+        def restore(
+            state: tuple[Any, ...], _coefficients: Any, *metadata: Any
+        ) -> _IncidentSelection:
+            return _IncidentSelection(state[0], metadata)
+
+        prepared = SavedRecord(
             record,
+            lambda inputs: (
+                ArraySpec(
+                    (len(self.ports.modes), inputs[0].shape[0]),
+                    np.dtype(np.complex128),
+                ),
+            ),
+            lambda context: (context.selection,),
+            restore,
+        )
+        return b.apply(
+            prepared,
             (len(self.ports.modes),),
             coefficients,
             transverse,
@@ -211,6 +275,15 @@ class SMatrix(HasPorts):
         b = self._backend
         incoming = self._incident(incident, side).reshape(len(self.ports.modes), -1)
 
+        @native_state(
+            _native.SMatrixTrContext,
+            lambda inputs: (
+                inputs[0].shape[-1],
+                inputs[1].shape[1],
+                inputs[4].shape[0],
+            ),
+            map_context=_power_context,
+        )
         def record(a: Any, i: Any, ks: Any, zs: Any, q: Any) -> Any:
             value, context = diff.smatrix_tr(
                 a,
@@ -224,11 +297,7 @@ class SMatrix(HasPorts):
                 modetype=direction,
                 fixed_q=self.ports.fixed_q,
             )
-
-            def pullback(g: Any) -> Any:
-                return context.pullback(np.asarray(g, dtype=np.complex128))
-
-            return value, pullback
+            return value, _power_context(context)
 
         power = b.apply(
             record,
@@ -256,6 +325,11 @@ class SMatrix(HasPorts):
             upper._backend, "stacked systems require one framework namespace"
         )
 
+        @native_state(
+            _native.SMatrixAddContext,
+            lambda inputs: (inputs[0].shape[-1],),
+            map_context=_cascade_context,
+        )
         def record(
             lower: Any,
             higher: Any,
@@ -275,8 +349,10 @@ class SMatrix(HasPorts):
                     "stacked systems require matching wavevectors, k0 and adjacent medium"
                 )
             value, context = diff.smatrix_add(lower, higher)
-            return value, with_zero_metadata(
-                context.pullback,
+            return value, _cascade_context(
+                context,
+                lower,
+                higher,
                 first_q,
                 second_q,
                 first_k,
@@ -313,14 +389,16 @@ class SMatrix(HasPorts):
         b = self._backend
         n = 2 * len(self.ports.modes)
 
+        @native_state(
+            _native.BandsContext,
+            lambda inputs: (inputs[0].shape[-1],),
+            map_context=_bands_context,
+        )
         def record(a: Any, p: Any, outer: Any) -> Recorded:
             if not np.array_equal(outer[0], outer[1]):
                 raise ValueError("bands require equal outer media")
             (values, vectors), context = diff.bands(a, float(p))
-
-            return np.vstack((values, vectors)), with_zero_metadata(
-                lambda g: context.pullback(g[0], g[1:]), outer
-            )
+            return np.vstack((values, vectors)), _bands_context(context, a, p, outer)
 
         packed = b.apply(
             record,

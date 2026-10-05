@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, cast, overload, override
 import numpy as np
 
 from . import _native
+from ._saved import ArraySpec, SavedRecord
 
 if TYPE_CHECKING:
     from types import EllipsisType
@@ -535,18 +536,36 @@ def framework_cell(
     if cell and a.ndim == 2 and a.shape[0] > dim:
         # Row selection follows Lattice, including row-permuted cells. Its
         # topology is fixed on the valid sublattice; only its entries vary.
+        # Raw square cells use the default ambient axes xy or xyz.
+        columns = tuple("xyz".index(axis) for axis in alignment)
+
+        @dataclass(frozen=True)
+        class SublatticeContext:
+            rows: NDArray[np.intp]
+            shape: tuple[int, ...]
+
+            def pullback(self, gradient: Any) -> tuple[Any]:
+                result = np.zeros(self.shape)
+                result[np.ix_(self.rows, columns)] = gradient
+                return (result,)
+
+            def pushforward(self, tangent: Any) -> Any:
+                return tangent[np.ix_(self.rows, columns)]
+
         def sublattice(array: Any) -> Any:
             lattice = Lattice(array)
             value = np.atleast_2d(lattice._sublattice(alignment))
-            columns = [lattice.alignment.index(axis) for axis in alignment]
             rows = np.flatnonzero(np.any(array[:, columns] != 0, axis=1))
+            return value, SublatticeContext(rows, array.shape)
 
-            def pullback(gradient: Any) -> tuple[Any]:
-                result = np.zeros_like(array)
-                result[np.ix_(rows, columns)] = gradient
-                return (result,)
+        def restore(state: tuple[Any, ...], array: Any) -> SublatticeContext:
+            return SublatticeContext(state[0], array.shape)
 
-            return value, pullback
-
-        a = backend.apply(sublattice, (dim, dim), a, real=True)
+        record = SavedRecord(
+            sublattice,
+            lambda _inputs: (ArraySpec((dim,), np.dtype(np.intp)),),
+            lambda context: (context.rows,),
+            restore,
+        )
+        a = backend.apply(record, (dim, dim), a, real=True)
     return a, kpar.reshape(1) if kpar.ndim == 0 else kpar

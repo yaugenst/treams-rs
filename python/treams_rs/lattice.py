@@ -112,6 +112,7 @@ Example::
 
 from __future__ import annotations
 
+from functools import partial as _partial
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -993,26 +994,15 @@ def _framework_sum(
         eta.shape,
     )
 
-    def record(
-        k: ArrayLike,
-        kpar: ArrayLike,
-        a: ArrayLike,
-        r: ArrayLike,
-        eta: ArrayLike,
-    ) -> tuple[NDArray[np.complex128], _native.LatticeSumContext]:
-        return diff.lattice_sum(
-            dim,
-            degree,
-            order,
-            k,
-            kpar,
-            a,
-            r,
-            eta,
-            spherical=spherical,
-            part=part,
-            shell=shell,
-        )
+    record = _partial(
+        diff.lattice_sum,
+        dim,
+        degree,
+        order,
+        spherical=spherical,
+        part=part,
+        shell=shell,
+    )
 
     return backend.apply(record, shape, k, kpar, a, r, eta)
 

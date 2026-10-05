@@ -1,7 +1,7 @@
 """Advect adapter: physics objects and records differentiated by Advect, on the
-CPU and in first-order reverse mode only. Each gradient pass uses the data
-stored by its forward pass once, so call the transformed objective again for
-every optimization step. Inputs may be float64, complex128, float32 or
+CPU and in first-order forward and reverse mode. Derivative directions reuse
+the data stored by their forward invocation; a new optimization step records
+the new inputs. Inputs may be float64, complex128, float32 or
 complex64; the Rust code computes in double precision, outputs are float64 or
 complex128, and each gradient has the dtype of its input.
 
@@ -22,10 +22,12 @@ The Rust core computes each gradient analytically with a pullback: a map from
 the gradient with respect to an output to the gradients with respect to the
 inputs. ``treams_rs.diff`` defines records, contexts and pullbacks.
 
-Install ``treams-rs[advect]``. Forward mode, higher derivatives, staging and
+Install ``treams-rs[advect]``. Higher derivatives, staging and
 checkpointing are not available. Mode cutoffs, integer labels and topology are
 static. Pass inputs as arrays (scalars as ``np.asarray(x)``) and keep traced
 values inside Advect: converting them to float or NumPy loses derivatives.
+Advect 0.3.1 or later reuses the native context from the forward invocation,
+including its factorizations, for every direction on a linear map.
 Plain Python and NumPy inputs retain NumPy behavior; constant physics objects
 are promoted when combined with Advect values. Use this explicit namespace
 when constants alone should produce Advect objects, or for its record helpers.
@@ -55,7 +57,12 @@ from ._framework_tmatrix import Cluster, PeriodicResponse, TMatrix, solve_period
 from ._framework_waves import PlaneWave, PortWave, Wave
 from ._lattice import Lattice
 from ._polarization import resolve_poltype
-from ._records import apply_pullback, run_record
+from ._records import (
+    DerivativeContext,
+    apply_pullback,
+    apply_pushforward,
+    record_outputs,
+)
 from ._results import BandModes, CrossSections, PowerBalance, ScatteredPorts
 
 if TYPE_CHECKING:
@@ -64,22 +71,23 @@ if TYPE_CHECKING:
     from numpy.typing import ArrayLike, NDArray
 
     from ._modes import Modes
-    from ._records import Pullback, Record
+    from ._records import Array, Record
 
 
 type _Values = tuple[ArrayLike, ...]
-type _Forward = Callable[[_Values], tuple[NDArray[np.complex128], Pullback]]
+type _Residual = list[tuple[tuple[Array, ...], Any]]
 
 
-# The Advect primitive behind _operation: one native forward, and its pullback
-# kept as Advect's residual for the transpose.
-@ad.primitive(static_argnames=("forward",), residual=True)
+# One native forward, with both derivative directions borrowing its context
+# from the Advect tape's invocation-owned residual.
+@ad.primitive(static_argnames=("record", "real"), residual=True)
 def _execute(
-    values: _Values, *, forward: _Forward
+    values: _Values, *, record: Record, real: bool
 ) -> ad.PrimitiveResult[NDArray[np.complex128]]:
-    value, pullback = forward(values)
+    outputs, context, multiple = record_outputs(record, values)
+    value = np.asarray(outputs if multiple else outputs[0], dtype=np.complex128)
     # Clearing the holder drops the native context even when a failed trace is kept.
-    return ad.PrimitiveResult(value, [pullback], release=list.clear)
+    return ad.PrimitiveResult(value, [(outputs, context)], release=list.clear)
 
 
 @_execute.def_transpose
@@ -87,23 +95,46 @@ def _transpose(
     cotangent: ArrayLike,
     primals: _Values,
     _output: ArrayLike,
-    residual: list[Pullback],
+    residual: _Residual,
     *,
-    forward: _Forward,
+    record: Record,
+    real: bool,
 ) -> _Values:
     # Advect and the native core both use dL = Re(vdot(gradient, dx)), so
     # cotangents stay unconjugated. reshape=True accepts native gradients that
     # store a scalar parameter as shape (1,), such as the layer_stack thickness.
+    context = residual[0][1]
     return apply_pullback(
-        residual[0],
+        context if callable(context) else context.pullback,
         (
-            np.ascontiguousarray(cotangent, dtype=np.complex128).reshape(
-                np.shape(cotangent)
-            ),
+            np.ascontiguousarray(
+                np.real(cotangent) if real else cotangent,
+                dtype=np.float64 if real else np.complex128,
+            ).reshape(np.shape(cotangent)),
         ),
         tuple(np.asarray(primal) for primal in primals),
         conjugate=False,
         reshape=True,
+    )
+
+
+@_execute.def_jvp
+def _jvp(
+    _output: ArrayLike,
+    primals: _Values,
+    tangents: tuple[ArrayLike | None, ...],
+    *,
+    residual: _Residual,
+    record: Record,
+    real: bool,
+) -> NDArray[np.complex128]:
+    outputs, context = residual[0]
+    output_tangents = apply_pushforward(
+        context, tangents, tuple(np.asarray(primal) for primal in primals), outputs
+    )
+    value = output_tangents[0] if len(outputs) == 1 else output_tangents
+    return np.asarray(np.real(value) if real else value, dtype=np.complex128).reshape(
+        np.shape(_output)
     )
 
 
@@ -121,20 +152,9 @@ def _operation(
     Backend.apply checks it for the physical objects.
     """
 
-    def forward(primals: _Values) -> tuple[NDArray[np.complex128], Pullback]:
-        outputs, pullback, multiple = run_record(record, primals)
-        output = np.asarray(outputs if multiple else outputs[0], dtype=np.complex128)
-        if not real:
-            return output, pullback
-
-        def real_pullback(g: NDArray[np.complex128]) -> Any:
-            return pullback(g.real)
-
-        return output, real_pullback
-
     # Normalize containers before the primitive flattens its dynamic leaves.
     result = _execute(
-        tuple(ad.numpy.asarray(value) for value in values), forward=forward
+        tuple(ad.numpy.asarray(value) for value in values), record=record, real=real
     )
     return ad.numpy.real(result) if real else result
 
@@ -159,7 +179,13 @@ def _with_static(
             gradients = context.pullback(g)
             return tuple(gradients[i] for i in dynamic)
 
-        return output, pullback
+        def pushforward(*tangents: Any) -> Any:
+            directions = [np.zeros_like(value) for value in arguments]
+            for i, tangent in zip(dynamic, tangents, strict=True):
+                directions[i] = tangent
+            return context.pushforward(*directions)
+
+        return output, DerivativeContext(pullback, pushforward)
 
     return _operation(dynamic_record, *(values[i] for i in dynamic))
 
@@ -288,7 +314,10 @@ def particle_cluster(
             local, positions, ks = context.pullback(g)
             return (positions, ks, *local)
 
-        return value, pullback
+        def pushforward(dpositions: Any, dks: Any, *dlocal: Any) -> Any:
+            return context.pushforward(dlocal, dpositions, dks)
+
+        return value, DerivativeContext(pullback, pushforward)
 
     return _operation(record, positions, ks, *local)
 
@@ -303,8 +332,15 @@ def eig(operator: ArrayLike) -> tuple[NDArray[np.complex128], NDArray[np.complex
 
     def record(matrix: Any) -> Recorded:
         (eigenvalues, eigenvectors), context = diff.eig(matrix)
-        return np.vstack((eigenvalues, eigenvectors)), lambda g: context.pullback(
-            g[0], g[1:]
+
+        def pullback(g: Any) -> Any:
+            return context.pullback(g[0], g[1:])
+
+        def pushforward(dm: Any) -> Any:
+            return np.vstack(context.pushforward(dm))
+
+        return np.vstack((eigenvalues, eigenvectors)), DerivativeContext(
+            pullback, pushforward
         )
 
     packed = _operation(record, operator)
@@ -335,8 +371,15 @@ def bands(
 
     def record(matrices: Any, p: Any) -> Recorded:
         (wavenumbers, vectors), context = diff.bands(matrices, float(np.asarray(p)))
-        return np.vstack((wavenumbers, vectors)), lambda g: context.pullback(
-            g[0], g[1:]
+
+        def pullback(g: Any) -> Any:
+            return context.pullback(g[0], g[1:])
+
+        def pushforward(dm: Any, dp: Any) -> Any:
+            return np.vstack(context.pushforward(dm, dp))
+
+        return np.vstack((wavenumbers, vectors)), DerivativeContext(
+            pullback, pushforward
         )
 
     packed = _operation(record, smats, period)
@@ -573,7 +616,11 @@ def tmatrix_metric(
             metric=metric,
             kind=kind,
         )
-        return value, lambda g: context.pullback(float(g))
+
+        def pullback(g: Any) -> Any:
+            return context.pullback(float(g))
+
+        return value, DerivativeContext(pullback, context.pushforward)
 
     return _operation(record, operator, ks, real=True)
 
@@ -640,7 +687,11 @@ def _field_record(
             poltype=poltype,
             singular=singular,
         )
-        return value, context.pullback_axial if axial else context.pullback
+        return value, (
+            DerivativeContext(context.pullback_axial, context.pushforward_axial)
+            if axial
+            else context
+        )
 
     return record
 
@@ -865,20 +916,24 @@ def _group_axial(
     )
 
 
-def _axial_pullback(context: Any, order: NDArray[np.intp] | None) -> Pullback:
-    """Pullback of an expansion context, with axial gradients in input order.
+def _axial_context(context: Any, order: NDArray[np.intp] | None) -> Any:
+    """Derivatives of an expansion context, with axial groups in input order.
 
     ``order`` maps the native axial gradients (sorted groups) to the order of
     the ``kzs`` input; None means no axial input.
     """
     if order is None:
-        return context.pullback
+        return context
 
     def pullback(g: NDArray[np.complex128]) -> _Values:
         *gradients, axial = context.pullback_axial(g)
         return (*gradients, axial[order])
 
-    return pullback
+    def pushforward(*tangents: Any) -> Any:
+        *directions, axial = tangents
+        return context.pushforward_axial(*directions, axial[np.argsort(order)])
+
+    return DerivativeContext(pullback, pushforward)
 
 
 def expansion(
@@ -913,7 +968,7 @@ def expansion(
             poltype=poltype,
             singular=singular,
         )
-        return value, _axial_pullback(context, order)
+        return value, _axial_context(context, order)
 
     return _operation(
         record, destination_positions, source_positions, ks, *_optional(kzs)
@@ -982,7 +1037,7 @@ def lattice_expansion(
             poltype=poltype,
             eta=eta,
         )
-        return value, _axial_pullback(context, order)
+        return value, _axial_context(context, order)
 
     return _operation(
         record,
@@ -1013,17 +1068,22 @@ def plane_field(
 
     fixed_vectors removes the wavevectors from the differentiable inputs.
     """
-    record = partial(
-        diff.plane_field,
-        polarizations=polarizations,
-        poltype=resolve_poltype(poltype),
-        fixed_vectors=fixed_vectors,
-    )
-    static = {
-        i
-        for i, is_static in ((0, coefficients is None), (2, fixed_vectors))
-        if is_static
-    }
+    operator = coefficients is None
+
+    def record(amplitudes: Any, points: Any, vectors: Any) -> Recorded:
+        return diff.plane_field(
+            None if operator else amplitudes,
+            points,
+            vectors,
+            polarizations=polarizations,
+            poltype=resolve_poltype(poltype),
+            fixed_vectors=fixed_vectors,
+        )
+
+    # The native operator record has an empty amplitude input and tangent.
+    if operator:
+        coefficients = np.empty(0, dtype=np.complex128)
+    static = {i for i, is_static in ((0, operator), (2, fixed_vectors)) if is_static}
     return _with_static(record, (coefficients, points, vectors), static=static)
 
 
@@ -1081,7 +1141,12 @@ def cylindrical_channels(
             go, gk, gq, ga = context.pullback(g)
             return go, gk, gq[:, 1], np.asarray(ga)
 
-        return value, pullback
+        def pushforward(do: Any, dk: Any, dq: Any, da: Any) -> Any:
+            return context.pushforward(
+                do, dk, np.column_stack((np.zeros_like(dq), dq)), da
+            )
+
+        return value, DerivativeContext(pullback, pushforward)
 
     return _operation(record, positions, ks, kx, period)
 

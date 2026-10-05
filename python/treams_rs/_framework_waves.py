@@ -16,17 +16,31 @@ if TYPE_CHECKING:
 
 import numpy as np
 
-from . import diff
+from . import _native, diff
 from ._bases import ALIGNMENT_AXIS, CylindricalBasis, PlaneWavePorts, SphericalBasis
 from ._framework_backend import Backend, Basis, Material, as_material, port_modes
+from ._records import DerivativeContext
+from ._saved import native_state
 from ._validation import check_kind, one_of
 
 __all__ = ["HasPorts", "PlaneWave", "PortSet", "PortWave", "Wave"]
 
 
-def _select_gradient(context: Any, index: int) -> Callable[[Any], Any]:
-    """Pullback of ``context`` that keeps only the gradient of argument ``index``."""
-    return lambda g: context.pullback(g)[index]
+def _select_input(context: Any, index: int, *primals: Any) -> DerivativeContext:
+    """Differentiate one input while the other native inputs remain constant."""
+
+    def pullback(g: Any) -> Any:
+        return context.pullback(g)[index]
+
+    def pushforward(tangent: Any) -> Any:
+        return context.pushforward(
+            *(
+                tangent if i == index else np.zeros_like(value)
+                for i, value in enumerate(primals)
+            )
+        )
+
+    return DerivativeContext(pullback, pushforward, native_context=context)
 
 
 def _direction_is_dynamic(value: Any) -> bool:
@@ -37,7 +51,10 @@ def _direction_is_dynamic(value: Any) -> bool:
         return any(_direction_is_dynamic(item) for item in value)
     torch = sys.modules.get("torch")
     if torch is not None and isinstance(value, torch.Tensor):
-        return value.requires_grad
+        return (
+            value.requires_grad
+            or torch.autograd.forward_ad.unpack_dual(value).tangent is not None
+        )
     jax = sys.modules.get("jax")
     if jax is not None:
         if isinstance(value, jax.core.Tracer):
@@ -188,6 +205,15 @@ class Wave(_Fields):
 
         if self.coefficients.ndim == 2:
 
+            @native_state(
+                _native.FieldOperatorContext,
+                lambda inputs: (
+                    len(basis),
+                    inputs[1].shape[0],
+                    inputs[0].shape[0],
+                    isinstance(basis, CylindricalBasis),
+                ),
+            )
             def record_operator(p: Any, o: Any, ks: Any) -> Any:
                 return diff.field_operator(
                     p,
@@ -208,6 +234,15 @@ class Wave(_Fields):
                 (*shape, self.coefficients.shape[1])
             )
 
+        @native_state(
+            _native.FieldContext,
+            lambda inputs: (
+                len(basis),
+                inputs[2].shape[0],
+                inputs[1].shape[0],
+                isinstance(basis, CylindricalBasis),
+            ),
+        )
         def record(c: Any, p: Any, o: Any, ks: Any) -> Any:
             return diff.field(
                 c,
@@ -392,19 +427,12 @@ class PlaneWave(_Fields):
         self.coefficients = backend.array(pol, complex_=True)
         if self.coefficients.shape == (3,):
             helicity = polarization == "helicity"
-
-            def record(vectors: Any) -> Any:
-                value, context = diff.plane_field(
-                    None,
-                    np.zeros((1, 3)),
-                    vectors,
-                    [1, 0] if helicity else [0, 1],
-                    poltype=polarization,
-                    fixed_vectors=self._fixed_direction,
-                )
-                return value, _select_gradient(context, 2)
-
-            projection = backend.apply(record, (1, 3, 2), self._vectors())[0]
+            projection = _plane_operator(
+                self,
+                self._vectors(),
+                [1, 0] if helicity else [0, 1],
+                lambda _: self._fixed_direction,
+            )
             self.coefficients = projection.T @ self.coefficients
             if not helicity:
                 self.coefficients = self.coefficients * backend.array([-1.0, 1.0])
@@ -455,29 +483,8 @@ class PlaneWave(_Fields):
                 check_axial(None, self.direction)
             else:
                 vectors = b.guard(check_axial, vectors, self.direction)
-        zero_basis = type(basis)(basis.modes, np.zeros_like(basis.positions))
-
-        def record_angular(vectors: Any) -> Any:
-            value, context = diff.plane_expansion(
-                zero_basis,
-                vectors,
-                [0, 1],
-                poltype=self.polarization,
-                fixed_vectors=self._fixed_direction,
-            )
-            return value, _select_gradient(context, 1)
-
-        angular = b.apply(record_angular, (len(basis), 2), vectors)
-        phases = b.apply(diff.plane_phases, (positions.shape[0], 2), positions, vectors)
-        operator = angular * phases[basis.pidx.copy()]
-        return Wave(
-            operator @ self.coefficients,
-            basis=basis,
-            k0=self.k0,
-            medium=self.medium,
-            backend=b,
-            positions=positions,
-            polarization=self.polarization,
+        return _plane_expansion(
+            self, basis, positions, vectors, [0, 1], lambda _: self._fixed_direction
         )
 
     def _vectors(self) -> Any:
@@ -663,35 +670,13 @@ class PortWave(HasPorts, _Fields):
             raise ValueError("plane illumination expands to regular multipoles")
         b = self._backend
         positions = b.positions(basis, positions)
-        vectors = self._vectors()
-        zero_basis = type(basis)(basis.modes, np.zeros_like(basis.positions))
-
-        def record(v: Any) -> Any:
-            value, context = diff.plane_expansion(
-                zero_basis,
-                v,
-                self.ports.pols,
-                poltype=self.polarization,
-                fixed_vectors=self._fixed_vectors(v),
-            )
-            return value, _select_gradient(context, 1)
-
-        angular = b.apply(record, (len(basis), len(self.ports.modes)), vectors)
-        phases = b.apply(
-            diff.plane_phases,
-            (positions.shape[0], len(self.ports.modes)),
+        return _plane_expansion(
+            self,
+            basis,
             positions,
-            vectors,
-        )
-        operator = angular * phases[basis.pidx.copy()]
-        return Wave(
-            operator @ self.coefficients,
-            basis=basis,
-            k0=self.k0,
-            medium=self.medium,
-            backend=b,
-            positions=positions,
-            polarization=self.polarization,
+            self._vectors(),
+            self.ports.pols,
+            self._fixed_vectors,
         )
 
     @override
@@ -758,22 +743,75 @@ class PortWave(HasPorts, _Fields):
         return wave
 
 
-def _plane_efield(
+def _plane_expansion(
     wave: PlaneWave | PortWave,
-    points: Any,
+    basis: Basis,
+    positions: Any,
+    vectors: Any,
+    pols: Sequence[int] | NDArray[np.int_],
+    fixed_vectors: Callable[[Any], bool],
+) -> Wave:
+    """Separate angular coefficients from position-dependent translation phases."""
+    b = wave._backend
+    zero_basis = type(basis)(basis.modes, np.zeros_like(basis.positions))
+
+    def map_context(context: Any, vectors: Any) -> DerivativeContext:
+        return _select_input(context, 1, zero_basis.positions, vectors)
+
+    @native_state(
+        _native.PlaneExpansionContext,
+        lambda inputs: (
+            len(basis),
+            len(zero_basis.positions),
+            inputs[0].shape[0],
+            isinstance(basis, CylindricalBasis),
+        ),
+        map_context=map_context,
+    )
+    def record(v: Any) -> Any:
+        value, context = diff.plane_expansion(
+            zero_basis,
+            v,
+            pols,
+            poltype=wave.polarization,
+            fixed_vectors=fixed_vectors(v),
+        )
+        return value, map_context(context, v)
+
+    angular = b.apply(record, (len(basis), len(pols)), vectors)
+    phases = b.apply(
+        diff.plane_phases, (positions.shape[0], len(pols)), positions, vectors
+    )
+    operator = angular * phases[basis.pidx.copy()]
+    return Wave(
+        operator @ wave.coefficients,
+        basis=basis,
+        k0=wave.k0,
+        medium=wave.medium,
+        backend=b,
+        positions=positions,
+        polarization=wave.polarization,
+    )
+
+
+def _plane_operator(
+    wave: PlaneWave | PortWave,
+    vectors: Any,
     pols: Sequence[int] | NDArray[np.int_],
     fixed_vectors: Callable[[Any], bool],
 ) -> Any:
-    """Electric field of plane-wave amplitudes, one native field per wavevector.
+    """Electric polarization vectors at the origin, with their native derivatives."""
 
-    ``fixed_vectors(vectors)`` decides inside the record whether the
-    wavevectors are constants of the native field.
-    """
-    b = wave._backend
-    points = b.array(points)
-    shape = tuple(points.shape)
-    vectors = wave._vectors()
+    def map_context(context: Any, vectors: Any) -> DerivativeContext:
+        return _select_input(
+            context, 2, np.empty(0, dtype=np.complex128), np.zeros((1, 3)), vectors
+        )
 
+    @native_state(
+        _native.PlaneFieldContext,
+        lambda inputs: (1, inputs[0].shape[0], False),
+        map_context=map_context,
+    )
     def record(v: Any) -> Any:
         value, context = diff.plane_field(
             None,
@@ -783,9 +821,23 @@ def _plane_efield(
             poltype=wave.polarization,
             fixed_vectors=fixed_vectors(v),
         )
-        return value, _select_gradient(context, 2)
+        return value, map_context(context, v)
 
-    electric = b.apply(record, (1, 3, len(pols)), vectors)[0]
+    return wave._backend.apply(record, (1, 3, len(pols)), vectors)[0]
+
+
+def _plane_efield(
+    wave: PlaneWave | PortWave,
+    points: Any,
+    pols: Sequence[int] | NDArray[np.int_],
+    fixed_vectors: Callable[[Any], bool],
+) -> Any:
+    """Electric field of plane-wave amplitudes, one native field per wavevector."""
+    b = wave._backend
+    points = b.array(points)
+    shape = tuple(points.shape)
+    vectors = wave._vectors()
+    electric = _plane_operator(wave, vectors, pols, fixed_vectors)
     phases = b.apply(
         diff.plane_phases,
         (int(np.prod(shape[:-1])), len(pols)),

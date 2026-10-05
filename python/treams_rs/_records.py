@@ -19,7 +19,9 @@ No framework is imported here.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass
+from math import prod
+from typing import TYPE_CHECKING, Any, Protocol
 
 import numpy as np
 
@@ -34,17 +36,45 @@ type Array = NDArray[np.float64 | np.complex128]
 type Record = Callable[..., tuple[Any, Any]]
 type Pullback = Callable[..., Any]
 
+_INEXACT_DTYPES = tuple(
+    map(np.dtype, ("float32", "float64", "complex64", "complex128"))
+)
+
+
+class ArrayMetadata(Protocol):
+    """Only the shape and dtype are needed to normalize an output tangent."""
+
+    @property
+    def shape(self) -> tuple[int, ...]: ...
+
+    @property
+    def dtype(self) -> np.dtype[Any]: ...
+
+
 __all__ = [
     "Array",
+    "DerivativeContext",
     "Pullback",
     "Record",
     "apply_pullback",
+    "apply_pushforward",
     "input_array",
     "native_array",
+    "record_outputs",
     "require_float64",
     "require_inexact",
+    "run_jvp",
     "run_record",
 ]
+
+
+@dataclass(frozen=True)
+class DerivativeContext:
+    """Keep both derivative directions when a Python record reshapes its inputs."""
+
+    pullback: Pullback
+    pushforward: Callable[..., Any]
+    native_context: Any = None
 
 
 def input_array(value: object) -> Array:
@@ -76,9 +106,7 @@ def require_float64(dtype: np.dtype[Any] | str) -> None:
 
 def require_inexact(dtype: np.dtype[Any] | str) -> None:
     """Validate supported real/complex precision before framework coercion."""
-    if dtype not in tuple(
-        map(np.dtype, ("float32", "float64", "complex64", "complex128"))
-    ):
+    if dtype not in _INEXACT_DTYPES:
         raise TypeError(
             "native adapters require float32, float64, complex64 or complex128 "
             f"parameters; received {dtype}. Cast the parameter explicitly before calling."
@@ -94,16 +122,10 @@ def native_array(value: object) -> Array:
     )
 
 
-def run_record(
+def record_outputs(
     record: Record, values: tuple[object, ...]
-) -> tuple[tuple[Array, ...], Pullback, bool]:
-    """Run ``record(*values)`` and normalize its outputs and pullback.
-
-    Returns the outputs as a nonempty tuple of float64/complex128 arrays, the
-    pullback (the context's ``pullback`` method, or the returned callable
-    itself) and whether the record returned a tuple, so that an adapter can
-    return a single output unwrapped. An empty output tuple raises ValueError.
-    """
+) -> tuple[tuple[Array, ...], Any, bool]:
+    """Run a record, retaining its context for either derivative direction."""
     output, context = record(*values)
     multiple = isinstance(output, tuple)
     arrays = tuple(
@@ -115,13 +137,96 @@ def run_record(
             "a native operation must return at least one array; "
             "received an empty output tuple"
         )
+    return arrays, context, multiple
+
+
+def run_record(
+    record: Record, values: tuple[object, ...]
+) -> tuple[tuple[Array, ...], Pullback, bool]:
+    """Run ``record(*values)`` and normalize its outputs and pullback.
+
+    Returns the outputs as a nonempty tuple of float64/complex128 arrays, the
+    pullback (the context's ``pullback`` method, or the returned callable
+    itself) and whether the record returned a tuple, so that an adapter can
+    return a single output unwrapped. An empty output tuple raises ValueError.
+    """
+    arrays, context, multiple = record_outputs(record, values)
     return arrays, context if callable(context) else context.pullback, multiple
+
+
+def run_jvp(
+    record: Record, primals: tuple[object, ...], tangents: tuple[object, ...]
+) -> tuple[tuple[Array, ...], tuple[Array, ...], bool]:
+    """Run a fresh native record and its analytic directional derivative.
+
+    Tangents have the shapes and real/complex domains of their inputs. Unlike
+    cotangents, they need no conjugation for any framework pairing convention.
+    A pullback-only custom record must supply ``pushforward`` to use forward AD.
+    """
+    values = tuple(native_array(value) for value in primals)
+    arrays, context, multiple = record_outputs(record, values)
+    return arrays, apply_pushforward(context, tangents, values, arrays), multiple
+
+
+def apply_pushforward(
+    context: Any,
+    tangents: tuple[object, ...],
+    primals: tuple[ArrayMetadata, ...],
+    outputs: tuple[ArrayMetadata, ...],
+) -> tuple[Array, ...]:
+    """Apply a saved context's pushforward; ``None`` denotes an inactive input."""
+    if len(tangents) != len(primals):
+        raise ValueError("pushforward requires one tangent per dynamic parameter")
+    directions = []
+    for index, (primal, tangent) in enumerate(zip(primals, tangents, strict=True)):
+        direction = (
+            np.zeros(primal.shape, dtype=primal.dtype)
+            if tangent is None
+            else native_array(tangent)
+        )
+        if direction.shape != primal.shape:
+            raise ValueError(
+                "pushforward tangent shape must match its dynamic parameter; "
+                f"parameter[{index}] expected shape {primal.shape}, "
+                f"received {direction.shape}"
+            )
+        if not np.iscomplexobj(primal) and np.iscomplexobj(direction):
+            raise TypeError("a real dynamic parameter requires a real tangent")
+        directions.append(
+            np.asarray(
+                direction,
+                dtype=np.complex128 if np.iscomplexobj(primal) else np.float64,
+            )
+        )
+    pushforward = getattr(context, "pushforward", None)
+    if pushforward is None:
+        raise NotImplementedError(
+            "forward-mode autodiff requires a record context with pushforward"
+        )
+    tangent_output = pushforward(*directions)
+    tangent_values = (
+        tangent_output if isinstance(tangent_output, tuple) else (tangent_output,)
+    )
+    if len(tangent_values) != len(outputs):
+        raise ValueError("pushforward must return one tangent per output")
+    result = []
+    for primal, tangent in zip(outputs, tangent_values, strict=True):
+        direction = np.asarray(tangent)
+        if direction.shape != primal.shape:
+            raise ValueError(
+                "pushforward output tangent shape must match its primal output; "
+                f"expected {primal.shape}, received {direction.shape}"
+            )
+        if not np.iscomplexobj(primal) and np.iscomplexobj(direction):
+            raise TypeError("a real output requires a real tangent")
+        result.append(np.asarray(direction, dtype=primal.dtype))
+    return tuple(result)
 
 
 def apply_pullback(
     pullback: Pullback,
     cotangents: tuple[Array, ...],
-    primals: tuple[Array, ...],
+    primals: tuple[ArrayMetadata, ...],
     *,
     conjugate: bool,
     reshape: bool = False,
@@ -156,7 +261,9 @@ def apply_pullback(
     for index, (value, primal) in enumerate(zip(values, primals, strict=True)):
         array = np.asarray(value)
         if array.shape != primal.shape:
-            if reshape and array.size == primal.size:
+            if (reshape and array.size == prod(primal.shape)) or (
+                primal.shape == () and array.shape == (1,)
+            ):
                 array = array.reshape(primal.shape)
             else:
                 raise ValueError(

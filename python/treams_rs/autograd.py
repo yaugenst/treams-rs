@@ -1,9 +1,8 @@
 """HIPS Autograd adapter: physics objects and native records on the CPU.
 
-First-order reverse differentiation supports float64 and complex128 inputs
-and outputs. The first reverse pass consumes the Rust context saved by the
-forward; repeated calls to a pullback rerun the forward from input snapshots.
-Forward mode and higher derivatives are not available.
+First-order forward and reverse differentiation support float64 and complex128
+inputs and outputs. Derivative products reuse the Rust context saved by the
+forward invocation. Higher derivatives are not available.
 
 Differentiate a scattering cross section::
 
@@ -30,7 +29,7 @@ from typing import TYPE_CHECKING, Any
 import autograd.numpy as anp
 import numpy as np
 from autograd.builtins import isinstance as _isinstance
-from autograd.extend import defvjp_argnums, primitive
+from autograd.extend import defjvp_argnums, defvjp_argnums, primitive
 from autograd.tracer import isbox
 
 from . import _framework, _framework_backend
@@ -40,13 +39,19 @@ from ._framework_smatrix import SMatrix, stack
 from ._framework_tmatrix import Cluster, PeriodicResponse, TMatrix, solve_periodic
 from ._framework_waves import PlaneWave, PortWave, Wave
 from ._lattice import Lattice
-from ._records import apply_pullback, input_array, require_float64, run_record
+from ._records import (
+    apply_pullback,
+    apply_pushforward,
+    input_array,
+    record_outputs,
+    require_float64,
+)
 from ._results import BandModes, CrossSections, PowerBalance, ScatteredPorts
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
-    from ._records import Array, Pullback, Record
+    from ._records import Array, Record
 
 _FIRST_ORDER = "treams-rs Autograd adapters support first-order gradients only"
 
@@ -55,14 +60,14 @@ _FIRST_ORDER = "treams-rs Autograd adapters support first-order gradients only"
 class _Invocation:
     record: Record
     primals: tuple[Array, ...] = ()
-    pullback: Pullback | None = None
+    context: Any = None
     multiple: bool = False
 
 
 @primitive
 def _execute(invocation: _Invocation, *values: Any) -> tuple[Array, ...]:
     invocation.primals = tuple(input_array(value).copy() for value in values)
-    outputs, invocation.pullback, invocation.multiple = run_record(
+    outputs, invocation.context, invocation.multiple = record_outputs(
         invocation.record, invocation.primals
     )
     return outputs
@@ -78,10 +83,8 @@ def _make_vjp(
     def backward(cotangents: Any) -> tuple[Array, ...]:
         if isbox(cotangents) or any(isbox(value) for value in cotangents):
             raise NotImplementedError(_FIRST_ORDER)
-        pullback = invocation.pullback
-        invocation.pullback = None
-        if pullback is None:
-            _, pullback, _ = run_record(invocation.record, invocation.primals)
+        context = invocation.context
+        pullback = context if callable(context) else context.pullback
         # Autograd uses bilinear complex cotangents; Rust uses Re(vdot(g, dx)).
         gradients = apply_pullback(
             pullback,
@@ -94,13 +97,36 @@ def _make_vjp(
     return backward
 
 
-# One pullback produces all input gradients, consuming the native context once.
+def _make_jvp(
+    argnums: Sequence[int],
+    tangents: Sequence[Any],
+    answer: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> tuple[Array, ...]:
+    if (
+        isbox(answer)
+        or any(isbox(value) for value in args[1:])
+        or any(isbox(value) for value in tangents)
+    ):
+        raise NotImplementedError(_FIRST_ORDER)
+    invocation: _Invocation = args[0]
+    directions: list[Any] = [None] * len(invocation.primals)
+    for index, tangent in zip(argnums, tangents, strict=True):
+        directions[index - 1] = tangent
+    return apply_pushforward(
+        invocation.context, tuple(directions), invocation.primals, answer
+    )
+
+
+# One pullback produces all input gradients from the invocation's saved context.
 # Register only this shared primitive: Autograd retains registrations globally.
 defvjp_argnums(_execute, _make_vjp)
+defjvp_argnums(_execute, _make_jvp)
 
 
 def wrap(record: Record) -> Callable[..., Any]:
-    """Turn a record into an Autograd function with a first-order gradient.
+    """Turn a record into an Autograd function with first-order derivatives.
 
     For example, ``wrap(diff.solve)`` differentiates a linear solve. A record
     returns ``(value, context)`` or ``(value, pullback)``; the value is an array,
@@ -108,9 +134,13 @@ def wrap(record: Record) -> Callable[..., Any]:
     per dynamic input in argument order. Bind static labels and options with
     a closure or ``functools.partial``.
 
+    Forward mode additionally requires a context with ``pushforward`` accepting
+    one tangent per dynamic input and returning one tangent per output.
+
     Inputs must have dtype float64 or complex128. Outputs are NumPy arrays,
-    or a flat tuple of arrays. Repeated pullbacks recompute the record, which
-    must therefore be deterministic. Use ``autograd.numpy`` around this call.
+    or a flat tuple of arrays. Repeated derivative products reuse the record's
+    context; its derivative methods must be reusable. Use ``autograd.numpy``
+    around this call.
     """
 
     def operation(*values: Any) -> Any:

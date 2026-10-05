@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.12, <3.16"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -9,34 +9,34 @@ resolution-markers = [
 
 [[package]]
 name = "advect"
-version = "0.3.0"
+version = "0.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "array-api-compat" },
     { name = "numpy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f8/d2/3875f44c320c29f1ffad611d55ef9e85f81d50085ffc297e8283f07364bd/advect-0.3.0.tar.gz", hash = "sha256:cfd6df295bf1bd6bc4cda47658d1888a071bd28e84d5fef8e1949e083decf93d", size = 499920, upload-time = "2026-09-30T10:03:44.443Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/09/e4/1ae55dd1d70419c7eac377a8787c6529ae16d9feda565d6b2d57be24bfec/advect-0.3.1.tar.gz", hash = "sha256:620f47e12413a038c28dbaf6b15fcba45535e1b636b5727e6fe5517e2d3645eb", size = 500710, upload-time = "2026-10-04T20:08:24.852Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/62/b6/8ff0af46eaf463afdb3ec34d2ae3b064916faf3cfe5afd8f74633c985530/advect-0.3.0-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:e6fac827e1b67f67aea2a36a5d4c17f75c18449e6b24528905c462e16a782e40", size = 1172885, upload-time = "2026-09-30T10:03:07.765Z" },
-    { url = "https://files.pythonhosted.org/packages/c5/aa/671bbdafc6250b2c4c46c63e6cd09bddcdff901799316240c3f459c69933/advect-0.3.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:b2e267df80a98d3b9500ed351a35f4dc7c45e714826dcf27732f6f865ecdc2ce", size = 1125422, upload-time = "2026-09-30T10:03:09.868Z" },
-    { url = "https://files.pythonhosted.org/packages/72/64/13dd1e69efb37c13d494fd5b10953e85a23e882381e9d4f36cb1424e4b47/advect-0.3.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:b93f97acc8d3c56ffc92535790cefee4e7dbe20449883be516c8f12a0a53a2c7", size = 1164198, upload-time = "2026-09-30T10:03:11.835Z" },
-    { url = "https://files.pythonhosted.org/packages/02/80/5e3175cb2211d131db8226981d74954c2a127839d914b2c10e3c5a22d29a/advect-0.3.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:cd46775ed9865361ed2cd72eaa3975dbad5d25641d3a5b25dc849e5293794c7b", size = 1195768, upload-time = "2026-09-30T10:03:13.78Z" },
-    { url = "https://files.pythonhosted.org/packages/84/3a/acbc6018ed3d3991b9cceecd65ac4492827842dec1d0b38eaa342926d677/advect-0.3.0-cp312-cp312-win_amd64.whl", hash = "sha256:41b5cf367e95c86d47cda628d505bd84e68a5d376f3f0182bccfa757edb0aa13", size = 1076181, upload-time = "2026-09-30T10:03:16.036Z" },
-    { url = "https://files.pythonhosted.org/packages/8a/63/9244b2291366b7402f82b95ad0a4f68a919387f71a7d592feb71cec7c67f/advect-0.3.0-cp313-cp313-macosx_10_12_x86_64.whl", hash = "sha256:64e42ff53cdd5affe563625030f51e50c05bb16a10025c2b2612f97550e42cbe", size = 1173046, upload-time = "2026-09-30T10:03:17.556Z" },
-    { url = "https://files.pythonhosted.org/packages/76/77/91784a7e96df95f20495e7eaccc3750cb3bfeb908ac25e7f352854948563/advect-0.3.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:b4706bf31d3cdd5aecc6f5fa9a7d2a299a9ccf4ac301cef161b7faf1102c6b17", size = 1125576, upload-time = "2026-09-30T10:03:19.351Z" },
-    { url = "https://files.pythonhosted.org/packages/3d/ee/e92b944425f3281c156ac9f26ca8cfb275883a3af15a96bebfdb75eb9f4f/advect-0.3.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:e3d913b30b901db8bde5fe9688cdafbd8f2f86641f7ca1483768da071cb0d279", size = 1164403, upload-time = "2026-09-30T10:03:21.182Z" },
-    { url = "https://files.pythonhosted.org/packages/b3/32/01fb9108f14fa51c678f40c63571418e3d00c9b4fd4da43fc6d1432d8295/advect-0.3.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:80dea274aca61ea34db3010484f7e921fb90d0de30b2b2c823f5451da8c9b0fe", size = 1195961, upload-time = "2026-09-30T10:03:23.023Z" },
-    { url = "https://files.pythonhosted.org/packages/be/56/1721b935a8590137d628d405334c860c00214e7fbdb0e99aa8682fe7e161/advect-0.3.0-cp313-cp313-win_amd64.whl", hash = "sha256:cd2deeed48b4cd1a8cfc098cfb877f158ff80257acbb6aa3b6902186d5ece7cc", size = 1076264, upload-time = "2026-09-30T10:03:24.578Z" },
-    { url = "https://files.pythonhosted.org/packages/8d/98/259eb1910c876860468e1040168d7a871f1cbe7dcb30f4db0c7684181bfb/advect-0.3.0-cp314-cp314-macosx_10_12_x86_64.whl", hash = "sha256:502c6d93e63d5167f2afd2af4af6de894687a570c83d0a8ba650b3d54ac2ec71", size = 1173411, upload-time = "2026-09-30T10:03:26.078Z" },
-    { url = "https://files.pythonhosted.org/packages/69/da/fa9f76d299319f40f212d957f8cdd95bb5ff3554536baddf4207b16934e9/advect-0.3.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:ad27af2b3c76fae49825b5ca5bacd70d64eb737447c1a748de378b10fce300cc", size = 1126256, upload-time = "2026-09-30T10:03:27.863Z" },
-    { url = "https://files.pythonhosted.org/packages/2d/3a/b84f072b048093ce3d7b9d0015907a0d878138d77eefdb13becabe14ce9f/advect-0.3.0-cp314-cp314-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:1f99927bd35f91e1d6f7a602c66c3010164dfb55000f25c2b47123a1a8f66d6c", size = 1164550, upload-time = "2026-09-30T10:03:29.718Z" },
-    { url = "https://files.pythonhosted.org/packages/24/4d/e8e7521b37b873aa2634f21326005d3e63d27f9cb7007fa78a785a620a6c/advect-0.3.0-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b69384109ca1d4bc78ecae7abd3e2b6b386384f89243f0b11ff51fc5ea5118db", size = 1196457, upload-time = "2026-09-30T10:03:31.367Z" },
-    { url = "https://files.pythonhosted.org/packages/ca/38/c8f02815677c3665aca4b1c2540a716675dd42a6c85d8ae32b5ae497e405/advect-0.3.0-cp314-cp314-win_amd64.whl", hash = "sha256:7cdc493512a8b493a54298457e8e1d6e21f75b8e96b2f692dc90dfd58730a257", size = 1076102, upload-time = "2026-09-30T10:03:33.677Z" },
-    { url = "https://files.pythonhosted.org/packages/0d/d2/679f17a4e7995c3d60308e02988745b5685128a4b149fea21255c3691694/advect-0.3.0-cp315-cp315-macosx_10_12_x86_64.whl", hash = "sha256:640f41d0729553b2570387b1c2274e8e23762c4c38b255297c6a55025df68645", size = 1173476, upload-time = "2026-09-30T10:03:35.596Z" },
-    { url = "https://files.pythonhosted.org/packages/ec/18/1a77d6514de59a4c709d04763d8416c061493d161ef0429d65a7c8e872d4/advect-0.3.0-cp315-cp315-macosx_11_0_arm64.whl", hash = "sha256:2048f10be253d23306446cd39f58a5771acb1bdccf46377b6fb67ad822665b10", size = 1126244, upload-time = "2026-09-30T10:03:37.293Z" },
-    { url = "https://files.pythonhosted.org/packages/aa/29/93b51de0d603d38aaba3cd931670eb5792051685e5e245c7edef4999387c/advect-0.3.0-cp315-cp315-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:4cd4238a37716538d35f20ddc64140f0833b2d02c97fe7443286b267a65610fe", size = 1164686, upload-time = "2026-09-30T10:03:39.419Z" },
-    { url = "https://files.pythonhosted.org/packages/ef/fe/c7ff3cfd41789f810e74d9d1f4bf8a1e488f774f6ff8936aef5bc2ce33f2/advect-0.3.0-cp315-cp315-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b5e5e69c9252961b6abe025dd65ed2a01db9c2d31a82b8599ea5570133c03457", size = 1196460, upload-time = "2026-09-30T10:03:41.148Z" },
-    { url = "https://files.pythonhosted.org/packages/17/7b/f68edc48d60287defc2f737b0041a6d937b863ed9f7e6d50c725451f8d10/advect-0.3.0-cp315-cp315-win_amd64.whl", hash = "sha256:c6565d22c39d8f61e8ecba7c98ed2d4daaf43ba96c2eaf27633309cc5a92f4aa", size = 1076157, upload-time = "2026-09-30T10:03:42.694Z" },
+    { url = "https://files.pythonhosted.org/packages/80/d0/d0a563b7bc35fdb33db7a50568cc104c8faa2011318b803d03940a8b83dd/advect-0.3.1-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:7d11086fef5b52f2f98134b75cda71c65d079b237a78b701f539f94c1cf80adc", size = 1173945, upload-time = "2026-10-04T20:07:48.039Z" },
+    { url = "https://files.pythonhosted.org/packages/13/39/67ae03ccb3e8105255350c702ecf72e479ac222eca85a67212009b3892e3/advect-0.3.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:855550d417592d99feabb1683d7d4a2a4a533a4b4ff57feba2bc863a9f401789", size = 1125778, upload-time = "2026-10-04T20:07:49.731Z" },
+    { url = "https://files.pythonhosted.org/packages/28/1e/d4658a176a37f702ec5ab9bf45b79299c587fafc0492933f7dcffe8be8dc/advect-0.3.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:55cdf407a862f99f68a414be777e0eedb4a3b28d72a46f1cc9ea31ad57074e26", size = 1165376, upload-time = "2026-10-04T20:07:51.517Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/ae/998daa2d62682a84ded91476e6aa1a6b3ce1819c2eef9f8fe863fab1bc5e/advect-0.3.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7720e3d149deff66cc0445417efe592ccf13b608bd45eb131e75c44fc15abde2", size = 1196549, upload-time = "2026-10-04T20:07:53.319Z" },
+    { url = "https://files.pythonhosted.org/packages/7d/e8/11e63e6570dba68d8bc1fddaa18ad3088a66261b48a54dab05f82b59fd43/advect-0.3.1-cp312-cp312-win_amd64.whl", hash = "sha256:85b6281b7233f5f3c61e25fe4288b96aa751639e08daa209d06676ee4d65e6a3", size = 1076945, upload-time = "2026-10-04T20:07:55.314Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/74/551e989059a3ea91a8a6228ffe89972500ec6f0e95ecb8fa3b91071a52e7/advect-0.3.1-cp313-cp313-macosx_10_12_x86_64.whl", hash = "sha256:92f68645b85975782faf2b18a4104e85f714b1e3e9d944cf830e348ff7df0608", size = 1174068, upload-time = "2026-10-04T20:07:57.09Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/86/cc240db8bc621b28a1325a0616bbed206b15cf315c7b75661c6f3330f714/advect-0.3.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:51fba640ae33e284eb79ef6dec060c6e8ed14d9090a527030397d26952a043ca", size = 1126156, upload-time = "2026-10-04T20:07:59.495Z" },
+    { url = "https://files.pythonhosted.org/packages/d5/4d/86b947bdeba9b4e7257a9ce7d217965cf1e68a862d925aecbb2cb4dc9695/advect-0.3.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:7361fc7582b8ae48688a92a058d5e5ea43a6527a8d70359df04bd4fa65ae91b6", size = 1165393, upload-time = "2026-10-04T20:08:01.266Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/82/afc9eaca37498a94b2e56eb504a0e0529a0a2ced99fe483240406309e8b2/advect-0.3.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d2ee6b0fe07444b589003338d87103ec0798304e21a229fd2e8e51331bce06e3", size = 1196831, upload-time = "2026-10-04T20:08:03.095Z" },
+    { url = "https://files.pythonhosted.org/packages/ba/5d/0d3e39d4c6e9c1a9130fc1a1b910f83ee21de0a26b2f81093a626a23b912/advect-0.3.1-cp313-cp313-win_amd64.whl", hash = "sha256:91c74567f118b5949dba4c2aa250cdd42f0912fadef22630aa809868042bf6fc", size = 1077140, upload-time = "2026-10-04T20:08:04.617Z" },
+    { url = "https://files.pythonhosted.org/packages/25/8b/7f8e55d3caa5712811f6d52f905e4ccbbfd9e653eab7bbdc66842ef13d48/advect-0.3.1-cp314-cp314-macosx_10_12_x86_64.whl", hash = "sha256:f207889f7a75d0a3e9670de8bd50629392e536c211500ba1c3afe1fd445704c2", size = 1174564, upload-time = "2026-10-04T20:08:06.283Z" },
+    { url = "https://files.pythonhosted.org/packages/cf/9e/d9c84546c9aced8ae187ef5bcc26465a3d9fca143f6be06dccbab7237186/advect-0.3.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:5f916991a3bba75488ca4c642feb3023c2c5e9e4d871a21f18db026a2a613957", size = 1126705, upload-time = "2026-10-04T20:08:08.121Z" },
+    { url = "https://files.pythonhosted.org/packages/07/94/95c2166a36f7c020cf8feff11731705278b8fc80192cd717b4e0098cf29b/advect-0.3.1-cp314-cp314-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:7ad2c9c31c24da8f2e170880041cc4572040bbf31f08bce424852b18a538f553", size = 1165630, upload-time = "2026-10-04T20:08:10.331Z" },
+    { url = "https://files.pythonhosted.org/packages/82/1d/d0fb47f7da69c977c08e1275264909e086060ca407355e1bb9d7c59eff4d/advect-0.3.1-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:9ce3f2b55b31e10cef180ef94f3e17999d3f36d83a8fa48071a1a2bcb7a63cb4", size = 1197246, upload-time = "2026-10-04T20:08:12.212Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/23/0edc1c151eeb5aa419f6631037bb12e082738e1e1a4d08d58e48c1b953bd/advect-0.3.1-cp314-cp314-win_amd64.whl", hash = "sha256:4d1396a5749803f88b2637bec4709c062311bf142c0029892ae633ea670af212", size = 1076912, upload-time = "2026-10-04T20:08:14.17Z" },
+    { url = "https://files.pythonhosted.org/packages/fa/3e/aaef6b9ec186ac63d691296ba8020e709dd67800664e4b980c4dc71dacd8/advect-0.3.1-cp315-cp315-macosx_10_12_x86_64.whl", hash = "sha256:55d0c91e3d46f3d1920c01e0b84fd8c068b9aaae2028a3ec2f603ea74cffc358", size = 1174561, upload-time = "2026-10-04T20:08:16.068Z" },
+    { url = "https://files.pythonhosted.org/packages/f2/4c/58581adbc51143b9bd2a5327770fe29fbb17928a6c41002b857ac4e5125f/advect-0.3.1-cp315-cp315-macosx_11_0_arm64.whl", hash = "sha256:50a00ef6dca0bee5ca2aa8af9cca6711ced74bc020c790d7c14fd63859cc4a29", size = 1126749, upload-time = "2026-10-04T20:08:17.901Z" },
+    { url = "https://files.pythonhosted.org/packages/bf/94/3864b72bf3d516ab8f3b7188eeadd4a0d4205b2d180fba7866001c731423/advect-0.3.1-cp315-cp315-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:2dbe70e2d606e68f3429c7f4eaedb1bc4e8c06946706f49b8cf0010b6577394c", size = 1165814, upload-time = "2026-10-04T20:08:19.594Z" },
+    { url = "https://files.pythonhosted.org/packages/e8/f2/566a1561920da9736d28174f289a4c4affe8cb9c5543d3e9014dc1a6395b/advect-0.3.1-cp315-cp315-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:10ef2a932b8fa1d1ffc75b5b05deb64ebe89824d4e772a0abf8f321a71bb3647", size = 1197147, upload-time = "2026-10-04T20:08:21.263Z" },
+    { url = "https://files.pythonhosted.org/packages/19/f6/c8a9a3c177db56f022bb47042b0812f37a45fb758c8491389f8d24cb705a/advect-0.3.1-cp315-cp315-win_amd64.whl", hash = "sha256:d45772c4bdc619bbfa630b79a2fd47defec5eae337f916d18f6d7c9f4c292531", size = 1076854, upload-time = "2026-10-04T20:08:23.233Z" },
 ]
 
 [[package]]
@@ -2133,10 +2133,10 @@ docs = [
 
 [package.metadata]
 requires-dist = [
-    { name = "advect", marker = "extra == 'advect'", specifier = ">=0.2.0,<0.4" },
+    { name = "advect", marker = "extra == 'advect'", specifier = ">=0.3.1,<0.4" },
     { name = "autograd", marker = "extra == 'autograd'", specifier = ">=1.8,<2" },
     { name = "h5py", marker = "extra == 'io'", specifier = ">=3.11,<4" },
-    { name = "jax", marker = "extra == 'jax'", specifier = ">=0.9,<0.12" },
+    { name = "jax", marker = "extra == 'jax'", specifier = ">=0.10,<0.12" },
     { name = "numpy", specifier = ">=2.1,<2.6" },
     { name = "torch", marker = "extra == 'torch'", specifier = ">=2.7,<3" },
 ]
@@ -2144,7 +2144,7 @@ provides-extras = ["advect", "autograd", "io", "jax", "torch"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "advect", specifier = ">=0.2.0,<0.4" },
+    { name = "advect", specifier = ">=0.3.1,<0.4" },
     { name = "h5py", marker = "python_full_version < '3.15'", specifier = ">=3.11,<4" },
     { name = "hypothesis", specifier = ">=6.168.3" },
     { name = "matplotlib", specifier = ">=3.9,<4" },

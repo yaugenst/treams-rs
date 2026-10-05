@@ -165,8 +165,15 @@ def test_undefined_normalizations_and_chirality_derivative():
     matrix = -0.1 * np.eye(6)
     value, context = tr.diff.tmatrix_metric(matrix, polarizations=basis.pol, kind="chi")
     assert value == 0
-    with pytest.raises(ValueError, match="zero contrast"):
-        context.pullback(1.0)
+    for _ in range(2):
+        with pytest.raises(ValueError, match="zero contrast"):
+            context.pullback(1.0)
+        with pytest.raises(ValueError, match="zero contrast"):
+            context.pushforward(np.ones_like(matrix), np.zeros(2))
+        assert_allclose(context.pushforward(np.zeros_like(matrix), np.zeros(2)), 0)
+        operator_gradient, ks_gradient = context.pullback(0.0)
+        assert_allclose(operator_gradient, 0)
+        assert_allclose(ks_gradient, 0)
     assert_allclose(
         advect.grad(
             lambda a: ad.tmatrix_metric(a, polarizations=basis.pol, kind="chi") ** 2

@@ -54,7 +54,7 @@ def test_pullback_arity_reports_both_counts(expected, extra):
 
 @given(shape=st.lists(st.integers(1, 3), max_size=3).map(tuple))
 def test_gradient_shape_reports_parameter_index_and_both_shapes(shape):
-    wrong_shape = (*shape, 1)
+    wrong_shape = (*shape, 2)
     primals = (np.asarray(1.0), np.ones(shape))
     with pytest.raises(ValueError) as error:
         apply_pullback(
@@ -65,6 +65,21 @@ def test_gradient_shape_reports_parameter_index_and_both_shapes(shape):
         )
     assert f"parameter[1] expected shape {shape}, received {wrong_shape}" in str(
         error.value
+    )
+
+
+@pytest.mark.parametrize("conjugate", [False, True])
+@pytest.mark.parametrize("dtype", [np.float32, np.complex64])
+def test_scalar_gradient_accepts_native_singleton_shape(conjugate, dtype):
+    primal = np.asarray(0.5, dtype=dtype)
+    (gradient,) = apply_pullback(
+        lambda: np.array([2.0 + 1.0j]), (), (primal,), conjugate=conjugate
+    )
+    assert gradient.shape == ()
+    assert gradient.dtype == primal.dtype
+    expected = 2.0 - 1.0j if conjugate else 2.0 + 1.0j
+    np.testing.assert_array_equal(
+        gradient, expected if np.iscomplexobj(primal) else expected.real
     )
 
 

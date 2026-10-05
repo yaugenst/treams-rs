@@ -1,8 +1,14 @@
-"""Records: functions that return a value and a context for its gradients.
+"""Records: values with analytic first-order pushforward and pullback contexts.
 
-A record is a function that returns a value and a context. The context stores what is needed to compute gradients later and can be used once: `context.pullback(g)` takes the gradient `g` of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.
+A record is a function that returns a value and a reusable context. The context stores what is needed to compute derivatives later: `context.pullback(g)` takes the gradient `g` of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.
 
-One record and its pullback::
+The same context provides ``pushforward(*input_tangents)``, the first-order
+Jacobian-vector product. Input tangents have their original input shapes and
+follow the dynamic-input order; the result has the output's shape and tuple
+structure. Both derivative directions can be called repeatedly on the same
+context. Higher derivatives are unsupported.
+
+One record used in both derivative directions::
 
     import numpy as np
     from treams_rs import diff
@@ -11,17 +17,23 @@ One record and its pullback::
     grad_operator, grad_rhs = context.pullback(np.ones((2, 1)))
     assert value.shape == grad_rhs.shape == (2, 1)
 
+    tangent = context.pushforward(np.zeros((2, 2)), np.ones((2, 1)))
+    np.testing.assert_allclose(tangent, 0.5)
+
 Terms:
 
 * record: a function of ``diff``, or a ``record`` method, that returns
   ``(value, context)``.
-* context: the object that stores what the gradients need. A second
-  ``pullback`` raises ValueError; call the record again for another gradient.
+* context: the object that stores what the derivatives need. Repeated
+  ``pushforward`` and ``pullback`` calls share its immutable residual.
 * residual: the Rust name of the data a context stores.
 * pullback: ``context.pullback(g)``, the map from the gradient with respect to
   the value to the gradients with respect to the inputs.
 * cotangent: the gradient ``g`` of the loss with respect to one value. It has
   the shape of that value and is complex for a complex value.
+* pushforward: ``context.pushforward(*tangents)``, the map from input
+  perturbations to the corresponding output perturbation. Real inputs require
+  real tangents; shape and finite-value errors leave the context available.
 * dynamic inputs: the inputs that get a gradient, in pullback order.
 * static configuration: labels, bases, cutoffs and options. They stay fixed
   and get no gradient. A record without gradients lists all its inputs here.
@@ -36,14 +48,19 @@ Two variants change that list:
   blocks returns a list with one gradient per block in place of the local
   matrix.
 
+``pushforward_axial`` appends an axial-wavenumber tangent to the ordinary input
+tangents. ``pushforward_blocks`` takes a sequence of block tangents in place of
+the dense local matrix tangent. Both return the ordinary output tangent.
+
 Objects record too: ``InteractionFactor.record(incident)`` (the factor that
 ``factor_interaction``, ``factor_interaction_blocks`` and
 ``sphere_cluster_factor`` return) and ``iterative.SphereCluster.record``.
 
-``advect.X``, ``jax.X`` and ``torch.X`` differentiate ``diff.X`` in their
-framework; ``jax`` and ``torch`` provide bessel, illuminate, interaction,
-solve and sphere. The physics objects (TMatrix, SMatrix, Wave, ...) call the
-records for their values and drop the contexts.
+``advect.X`` differentiates ``diff.X`` in Advect. JAX, PyTorch and HIPS Autograd
+provide bessel, illuminate, interaction, solve and sphere directly, and ``wrap``
+for other records. All four support first-order forward and reverse mode.
+NumPy physics objects (TMatrix, SMatrix, Wave, ...) call records for their values
+and drop the contexts; framework objects retain the derivative connection.
 
 Each ``advect`` function that differentiates a record (``advect.X`` for
 ``diff.X``) takes the inputs of that record, with the dynamic arrays
@@ -74,7 +91,7 @@ signatures are identical; these differ:
 from __future__ import annotations
 
 from math import prod
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
@@ -83,6 +100,9 @@ from ._bases import ALIGNMENT_AXIS, CylindricalBasis, SphericalBasis
 from ._lattice import periodic_geometry
 from ._modes import ebcm_modes
 from ._polarization import resolve_poltype
+from ._saved import native_record as _native_record
+from ._saved import native_state as _native_state
+from ._saved import primal_record as _primal_record
 from ._validation import MAX_DEGREE, MAX_LABEL, MAX_ORDER, one_of
 
 if TYPE_CHECKING:
@@ -147,6 +167,85 @@ __all__ = [
     "vector_wave",
     "wignerd",
 ]
+
+
+def _length(value: Any) -> int:
+    """Length after the record's scalar-to-vector promotion."""
+    return value.shape[0] if value.shape else 1
+
+
+def _source(arguments: dict[str, Any]) -> Any:
+    source = arguments["source"]
+    return arguments["destination"] if source is None else source
+
+
+def _basis_pair(arguments: dict[str, Any]) -> tuple[int, int, int, int]:
+    destination, source = arguments["destination"], _source(arguments)
+    return (
+        len(destination),
+        len(source),
+        destination.positions.shape[0],
+        source.positions.shape[0],
+    )
+
+
+def _field(arguments: dict[str, Any]) -> tuple[int, int, int, bool]:
+    basis = arguments["basis"]
+    return (
+        len(basis),
+        basis.positions.shape[0],
+        arguments["points"].shape[0],
+        isinstance(basis, CylindricalBasis),
+    )
+
+
+def _channels(arguments: dict[str, Any]) -> tuple[int, int, int]:
+    basis = arguments["basis"]
+    return len(basis), basis.positions.shape[0], arguments["q"].shape[0]
+
+
+def _expansion(arguments: dict[str, Any]) -> tuple[int, int, int, int, int]:
+    destination, source = arguments["destination"], arguments["source"]
+    family = (
+        1
+        if isinstance(destination, CylindricalBasis)
+        else 2
+        if isinstance(source, CylindricalBasis)
+        else 0
+    )
+    return (
+        len(destination),
+        destination.positions.shape[0],
+        len(source),
+        source.positions.shape[0],
+        family,
+    )
+
+
+def _vector_coordinates(values: dict[str, Any]) -> tuple[Any, ...]:
+    shapes = (np.shape(values["vectors"]), np.shape(values["points"]))
+    return np.broadcast_shapes(*shapes), shapes
+
+
+def _lattice_sum(values: dict[str, Any]) -> tuple[Any, ...]:
+    dim = values["dim"]
+    coordinates = 3 if values["spherical"] else 2
+    shapes = tuple(np.shape(values[name]) for name in ("k", "kpar", "a", "r", "eta"))
+    k, kpar, a, r, eta = shapes
+    if dim == 1:
+        if kpar[-1:] != (1,):
+            kpar += (1,)
+        if a[-2:] != (1, 1):
+            a += (1, 1)
+    shape = np.broadcast_shapes(
+        *(np.shape(values[name]) for name in ("degree", "order", "shell")),
+        k,
+        kpar[:-1],
+        a[:-2],
+        r[:-1],
+        eta,
+    )
+    return shape, shapes, dim, coordinates
 
 
 def _polarizations(values: ArrayLike) -> list[int]:
@@ -286,6 +385,7 @@ def _label_modes(
     return _mode_tuples(labels, shape), shape
 
 
+@_primal_record(lambda *args, **kwargs: _bessel_context(*args, **kwargs))
 def bessel(
     order: ArrayLike,
     z: ArrayLike,
@@ -331,6 +431,21 @@ def _bessel_inputs(
     return _pack(orders, shape), _pack(arguments, shape), shape, arguments.shape
 
 
+def _bessel_context(
+    order: ArrayLike,
+    z: ArrayLike,
+    *,
+    function: str,
+    spherical: bool,
+    derivative: bool,
+) -> _native.BesselContext:
+    orders, arguments, shape, argument_shape = _bessel_inputs(order, z)
+    return _native.bessel_context(
+        orders, arguments, function, spherical, int(derivative), shape, argument_shape
+    )
+
+
+@_native_record(_native.LatticeSumContext, _lattice_sum)
 def lattice_sum(
     dim: int,
     degree: ArrayLike,
@@ -444,6 +559,7 @@ def lattice_sum(
     )
 
 
+@_primal_record(lambda *args, **kwargs: _incgamma_context(*args, **kwargs))
 def incgamma(
     n: ArrayLike, z: ArrayLike
 ) -> tuple[NDArray[np.complex128], _native.IncgammaContext]:
@@ -464,6 +580,13 @@ def incgamma(
     return _native.incgamma_record(degrees, arguments, shape, argument_shape)
 
 
+def _incgamma_context(n: ArrayLike, z: ArrayLike) -> _native.IncgammaContext:
+    return _native.incgamma_context(*_bessel_inputs(n, z))
+
+
+@_primal_record(
+    lambda *args, **kwargs: _native.intkambe_context(*_intkambe_inputs(*args, **kwargs))
+)
 def intkambe(
     n: ArrayLike, z: ArrayLike, eta: ArrayLike
 ) -> tuple[NDArray[np.complex128], _native.IntkambeContext]:
@@ -490,6 +613,10 @@ def intkambe(
         if abs(n) > MAX_LABEL:
             raise _label_error("Kambe orders", MAX_LABEL)
         return _native.intkambe_record_scalar(n, z, eta)
+    return _native.intkambe_record(*_intkambe_inputs(n, z, eta))
+
+
+def _intkambe_inputs(n: ArrayLike, z: ArrayLike, eta: ArrayLike) -> tuple[Any, ...]:
     arguments = (
         np.asarray(z, dtype=np.complex128),
         np.asarray(eta, dtype=np.complex128),
@@ -497,7 +624,7 @@ def intkambe(
     orders, shape = _label_modes(
         (n,), MAX_LABEL, "Kambe orders", (arguments[0].shape, arguments[1].shape)
     )
-    return _native.intkambe_record(
+    return (
         np.array([order for (order,) in orders], dtype=np.int32),
         _pack(arguments[0], shape),
         _pack(arguments[1], shape),
@@ -506,6 +633,9 @@ def intkambe(
     )
 
 
+@_primal_record(
+    lambda *args, **kwargs: _native.angular_context(*_angular_inputs(*args, **kwargs))
+)
 def angular(
     degree: ArrayLike,
     order: ArrayLike,
@@ -540,11 +670,17 @@ def angular(
         and isinstance(z, (int, float, complex))
     ):
         return _native.angular_record_scalar(degree, order, z, function)
+    return _native.angular_record(*_angular_inputs(degree, order, z, function=function))
+
+
+def _angular_inputs(
+    degree: ArrayLike, order: ArrayLike, z: ArrayLike, *, function: str
+) -> tuple[Any, ...]:
     if isinstance(degree, (int, float)) and isinstance(order, (int, float)):
         # Rust broadcasts one-element labels; only z needs an array.
         labels = np.array((degree, order), dtype=np.float64)
         arguments = np.asarray(z, dtype=np.complex128)
-        return _native.angular_record(
+        return (
             labels[:1],
             labels[1:],
             arguments.ravel(),
@@ -556,7 +692,7 @@ def angular(
     orders = np.asarray(order, dtype=np.float64)
     arguments = np.asarray(z, dtype=np.complex128)
     shape = _shape(degrees.shape, orders.shape, arguments.shape)
-    return _native.angular_record(
+    return (
         _pack(degrees, shape),
         _pack(orders, shape),
         _pack(arguments, shape),
@@ -566,6 +702,9 @@ def angular(
     )
 
 
+@_primal_record(
+    lambda *args, **kwargs: _native.wignerd_context(*_wignerd_inputs(*args, **kwargs))
+)
 def wignerd(
     degree: ArrayLike,
     row: ArrayLike,
@@ -602,20 +741,32 @@ def wignerd(
         return _native.wignerd_record_scalar(
             (degree, row, column), (complex(phi), complex(theta), complex(psi))
         )
+    return _native.wignerd_record(
+        *_wignerd_inputs(degree, row, column, phi, theta, psi)
+    )
+
+
+def _wignerd_inputs(
+    degree: ArrayLike,
+    row: ArrayLike,
+    column: ArrayLike,
+    phi: ArrayLike,
+    theta: ArrayLike,
+    psi: ArrayLike,
+) -> tuple[Any, ...]:
     angles = tuple(np.asarray(v, dtype=np.complex128) for v in (phi, theta, psi))
     modes, shape = _label_modes(
         (degree, row, column), MAX_LABEL, "Wigner labels", [v.shape for v in angles]
     )
-    return _native.wignerd_record(
-        [(mode[0], mode[1], mode[2]) for mode in modes],
-        _pack(angles[0], shape),
-        _pack(angles[1], shape),
-        _pack(angles[2], shape),
+    return (
+        modes,
+        *_flat(angles, shape),
         shape,
         (angles[0].shape, angles[1].shape, angles[2].shape),
     )
 
 
+@_native_record(_native.ChiralityDensityContext, lambda a: (_length(a["ks"]),))
 def chirality_density(
     ks: ArrayLike, normal: ArrayLike, z: ArrayLike = (0.0, 0.0)
 ) -> tuple[NDArray[np.complex128], _native.ChiralityDensityContext]:
@@ -645,6 +796,7 @@ def chirality_density(
     )
 
 
+@_native_record(_native.OrientedChiralityContext, lambda a: (a["normal"].shape[0],))
 def oriented_chirality(
     transverse: ArrayLike,
     normal: ArrayLike,
@@ -678,6 +830,14 @@ def oriented_chirality(
     )
 
 
+@_native_record(
+    _native.EbcmQmatContext,
+    lambda a: (
+        a["radii"].shape[0],
+        len(ebcm_modes(a["destination"])),
+        len(ebcm_modes(_source(a))),
+    ),
+)
 def ebcm_qmat(
     radii: ArrayLike,
     slopes: ArrayLike,
@@ -729,6 +889,7 @@ def ebcm_qmat(
     )
 
 
+@_native_record(_native.TMatrixMetricContext, lambda a: (a["operator"].shape[0],))
 def tmatrix_metric(
     operator: ArrayLike,
     ks: ArrayLike = (1.0, 1.0),
@@ -765,6 +926,7 @@ def tmatrix_metric(
     )
 
 
+@_native_state(_native.SvdvalsContext, lambda inputs: inputs[0].shape)
 def svdvals(operator: ArrayLike) -> tuple[NDArray[np.float64], _native.SvdvalsContext]:
     """Singular values of a complex matrix, in descending order.
 
@@ -784,6 +946,9 @@ def svdvals(operator: ArrayLike) -> tuple[NDArray[np.float64], _native.SvdvalsCo
     return _native.svdvals(np.ascontiguousarray(operator, dtype=np.complex128))
 
 
+@_native_state(
+    _native.SolveContext, lambda inputs: (inputs[0].shape[0], inputs[1].shape[1])
+)
 def solve(
     operator: ArrayLike, rhs: ArrayLike
 ) -> tuple[NDArray[np.complex128], _native.SolveContext]:
@@ -807,6 +972,7 @@ def solve(
     )
 
 
+@_native_state(_native.EigContext, lambda inputs: (inputs[0].shape[0],))
 def eig(
     operator: ArrayLike,
 ) -> tuple[tuple[NDArray[np.complex128], NDArray[np.complex128]], _native.EigContext]:
@@ -833,6 +999,10 @@ def eig(
     return (values, vectors), context
 
 
+@_native_record(
+    _native.SMatrixFromArrayContext,
+    lambda a: (a["response"].shape[0], a["channels"].shape[3]),
+)
 def smatrix_from_array(
     response: ArrayLike, channels: ArrayLike
 ) -> tuple[NDArray[np.complex128], _native.SMatrixFromArrayContext]:
@@ -856,6 +1026,10 @@ def smatrix_from_array(
     )
 
 
+@_native_record(
+    _native.SMatrixTrContext,
+    lambda a: (a["matrices"].shape[2], a["incident"].shape[1], a["q"].shape[0]),
+)
 def smatrix_tr(
     matrices: ArrayLike,
     incident: ArrayLike,
@@ -913,6 +1087,9 @@ def smatrix_tr(
     )
 
 
+@_native_record(
+    _native.SMatrixIlluminateContext, lambda a: (a["lower"].shape[2], a["up"].shape[1])
+)
 def smatrix_illuminate(
     lower: ArrayLike, upper: ArrayLike, up: ArrayLike, down: ArrayLike
 ) -> tuple[NDArray[np.complex128], _native.SMatrixIlluminateContext]:
@@ -943,6 +1120,7 @@ def smatrix_illuminate(
     )
 
 
+@_native_record(_native.SMatrixPeriodicContext, lambda a: (a["smats"].shape[2],))
 def smatrix_periodic(
     smats: ArrayLike,
 ) -> tuple[NDArray[np.complex128], _native.SMatrixPeriodicContext]:
@@ -960,6 +1138,7 @@ def smatrix_periodic(
     return _native.smatrix_periodic(np.ascontiguousarray(smats, dtype=np.complex128))
 
 
+@_native_record(_native.BandsContext, lambda a: (a["smats"].shape[2],))
 def bands(
     smats: ArrayLike, period: float
 ) -> tuple[tuple[NDArray[np.complex128], NDArray[np.complex128]], _native.BandsContext]:
@@ -987,6 +1166,7 @@ def bands(
     return (wavenumbers, vectors), context
 
 
+@_native_record(_native.SphericalChannelsContext, _channels)
 def spherical_channels(
     basis: SphericalBasis,
     ks: ArrayLike,
@@ -1034,6 +1214,7 @@ def spherical_channels(
     )
 
 
+@_native_record(_native.SMatrixAddContext, lambda a: (a["lower"].shape[2],))
 def smatrix_add(
     lower: ArrayLike, upper: ArrayLike
 ) -> tuple[NDArray[np.complex128], _native.SMatrixAddContext]:
@@ -1055,6 +1236,7 @@ def smatrix_add(
     )
 
 
+@_native_record(_native.FresnelContext, lambda a: ())
 def fresnel(
     ks: ArrayLike, kzs: ArrayLike, zs: ArrayLike
 ) -> tuple[NDArray[np.complex128], _native.FresnelContext]:
@@ -1079,6 +1261,7 @@ def fresnel(
     )
 
 
+@_native_record(_native.PropagationMatrixContext, lambda a: (a["vectors"].shape[0],))
 def propagation_matrix(
     vectors: ArrayLike, distance: ArrayLike
 ) -> tuple[NDArray[np.complex128], _native.PropagationMatrixContext]:
@@ -1101,6 +1284,7 @@ def propagation_matrix(
     )
 
 
+@_native_record(_native.MieContext, lambda a: (_length(a["x"]),))
 def mie(
     degree: int,
     x: ArrayLike,
@@ -1133,6 +1317,7 @@ def mie(
     )
 
 
+@_native_record(_native.MieCylContext, lambda a: (_length(a["radii"]),))
 def mie_cyl(
     kz: float,
     order: int,
@@ -1170,6 +1355,7 @@ def mie_cyl(
     )
 
 
+@_native_record(_native.SphereContext, lambda a: (a["lmax"], _length(a["radii"])))
 def sphere(
     lmax: int,
     k0: float,
@@ -1203,6 +1389,9 @@ def sphere(
     )
 
 
+@_native_record(
+    _native.SphereClusterContext, lambda a: (a["lmax"], _length(a["radii"]))
+)
 def sphere_cluster(
     lmax: int,
     k0: float,
@@ -1234,6 +1423,13 @@ def sphere_cluster(
     )
 
 
+@_native_record(
+    _native.ParticleClusterContext,
+    lambda a: (
+        [len(basis) for basis in a["bases"]],
+        isinstance(a["bases"][0], CylindricalBasis),
+    ),
+)
 def particle_cluster(
     local: Sequence[ArrayLike],
     positions: ArrayLike,
@@ -1371,6 +1567,9 @@ def factor_interaction_blocks(
     )
 
 
+@_native_record(
+    _native.IlluminateContext, lambda a: ([a["local"].shape[0]], a["incident"].shape[1])
+)
 def illuminate(
     local: ArrayLike, coupling: ArrayLike, incident: ArrayLike
 ) -> tuple[NDArray[np.complex128], _native.IlluminateContext]:
@@ -1395,6 +1594,7 @@ def illuminate(
     )
 
 
+@_native_record(_native.InteractionContext, lambda a: (a["local"].shape[0],))
 def interaction(
     local: ArrayLike, coupling: ArrayLike
 ) -> tuple[NDArray[np.complex128], _native.InteractionContext]:
@@ -1416,6 +1616,7 @@ def interaction(
     )
 
 
+@_native_record(_native.ExpansionContext, _expansion)
 def expansion(
     destination: SphericalBasis | CylindricalBasis,
     source: SphericalBasis | CylindricalBasis,
@@ -1491,6 +1692,14 @@ def expansion(
     )
 
 
+@_native_record(
+    _native.RotationContext,
+    lambda a: (
+        list(a["destination"].modes),
+        list(_source(a).modes),
+        isinstance(a["destination"], CylindricalBasis),
+    ),
+)
 def rotation(
     angles: ArrayLike,
     destination: SphericalBasis | CylindricalBasis,
@@ -1532,6 +1741,7 @@ def rotation(
     raise ValueError("rotation bases must belong to the same wave family")
 
 
+@_native_record(_native.FieldOperatorContext, _field)
 def field_operator(
     points: ArrayLike,
     basis: SphericalBasis | CylindricalBasis,
@@ -1571,6 +1781,7 @@ def field_operator(
     return _native.field_operator(list(basis.modes), *args)
 
 
+@_native_record(_native.FieldContext, _field)
 def field(
     coefficients: ArrayLike,
     points: ArrayLike,
@@ -1616,6 +1827,10 @@ def field(
     return _native.field(list(basis.modes), *args)
 
 
+@_native_record(
+    _native.CylinderContext,
+    lambda a: (_length(a["kzs"]), a["mmax"], _length(a["radii"])),
+)
 def cylinder(
     kzs: ArrayLike,
     mmax: int,
@@ -1652,6 +1867,9 @@ def cylinder(
     )
 
 
+@_native_record(
+    _native.PlanePhasesContext, lambda a: (a["points"].shape[0], a["vectors"].shape[0])
+)
 def plane_phases(
     points: ArrayLike, vectors: ArrayLike
 ) -> tuple[NDArray[np.complex128], _native.PlanePhasesContext]:
@@ -1675,6 +1893,14 @@ def plane_phases(
     )
 
 
+@_native_record(
+    _native.PlaneFieldContext,
+    lambda a: (
+        a["points"].shape[0],
+        a["vectors"].shape[0],
+        a["coefficients"] is not None,
+    ),
+)
 def plane_field(
     coefficients: ArrayLike | None,
     points: ArrayLike,
@@ -1716,6 +1942,15 @@ def plane_field(
     )
 
 
+@_native_record(
+    _native.PlaneExpansionContext,
+    lambda a: (
+        len(a["destination"]),
+        a["destination"].positions.shape[0],
+        a["vectors"].shape[0],
+        isinstance(a["destination"], CylindricalBasis),
+    ),
+)
 def plane_expansion(
     destination: SphericalBasis | CylindricalBasis,
     vectors: ArrayLike,
@@ -1763,6 +1998,7 @@ def plane_expansion(
     )
 
 
+@_native_record(_native.CylindricalChannelsContext, _channels)
 def cylindrical_channels(
     basis: CylindricalBasis,
     ks: ArrayLike,
@@ -1807,6 +2043,7 @@ def cylindrical_channels(
     )
 
 
+@_native_record(_native.InterfaceCoefficientsContext, lambda a: ())
 def interface_coefficients(
     ks: ArrayLike,
     zs: ArrayLike,
@@ -1843,6 +2080,9 @@ def interface_coefficients(
     )
 
 
+@_native_record(
+    _native.LayerStackContext, lambda a: (a["ks"].shape[0], a["q"].shape[0])
+)
 def layer_stack(
     ks: ArrayLike,
     zs: ArrayLike,
@@ -1881,6 +2121,15 @@ def layer_stack(
     )
 
 
+@_native_record(
+    _native.PeriodicToCwContext,
+    lambda a: (
+        len(a["destination"]),
+        a["destination"].positions.shape[0],
+        len(a["source"]),
+        a["source"].positions.shape[0],
+    ),
+)
 def periodic_to_cw(
     destination: CylindricalBasis,
     source: SphericalBasis,
@@ -1922,6 +2171,7 @@ def periodic_to_cw(
     )
 
 
+@_native_record(_native.PlanePermutationContext, lambda a: (a["vectors"].shape[0],))
 def plane_permutation(
     vectors: ArrayLike,
     polarizations: ArrayLike,
@@ -1963,6 +2213,7 @@ def _real_points(points: ArrayLike) -> NDArray[np.float64]:
     return np.asarray(points, dtype=np.float64)
 
 
+@_native_record(_native.CoordinatesContext, lambda a: (np.shape(a["points"]),))
 def coordinates(
     points: ArrayLike, *, function: str | None = None, kind: str | None = None
 ) -> tuple[NDArray[np.float64], _native.CoordinatesContext]:
@@ -1985,6 +2236,7 @@ def coordinates(
     return _native.coordinates_record(_real_points(points), function)
 
 
+@_native_record(_native.VectorCoordinatesContext, _vector_coordinates)
 def vector_coordinates(
     vectors: ArrayLike,
     points: ArrayLike,
@@ -2028,6 +2280,11 @@ def vector_coordinates(
     )
 
 
+@_primal_record(
+    lambda *args, **kwargs: _native.vector_wave_context(
+        *_vector_wave_inputs(args, **kwargs)
+    )
+)
 def vector_wave(
     *arguments: ArrayLike,
     function: str,
@@ -2056,6 +2313,19 @@ def vector_wave(
         order: integer order m.
         pol: pol index 0 or 1 (default 0); ``polarization`` is an alias.
     """
+    return _native.vector_wave_record(
+        *_vector_wave_inputs(arguments, function, degree, order, pol, polarization)
+    )
+
+
+def _vector_wave_inputs(
+    arguments: Sequence[ArrayLike],
+    function: str,
+    degree: ArrayLike,
+    order: ArrayLike,
+    pol: ArrayLike | None,
+    polarization: ArrayLike | None,
+) -> tuple[Any, ...]:
     if polarization is not None:
         pol = one_of("pol", pol, "polarization", polarization, 0)
     labels = (degree, order, 0 if pol is None else pol)
@@ -2071,9 +2341,14 @@ def vector_wave(
         values = _flat(arrays, shape)
     # Three labels make each mode a (degree, order, polarization) triple.
     triples = cast("list[tuple[int, int, int]]", modes)
-    return _native.vector_wave_record(function, triples, values, shape, shapes)
+    return function, triples, values, shape, shapes
 
 
+@_primal_record(
+    lambda *args, **kwargs: _native.vector_wave_context(
+        *_vector_wave_inputs(args, "sph_harm", pol=None, polarization=None, **kwargs)
+    )
+)
 def sph_harm(
     theta: ArrayLike,
     phi: ArrayLike,
@@ -2097,6 +2372,11 @@ def sph_harm(
     return vector_wave(theta, phi, function="sph_harm", degree=degree, order=order)
 
 
+@_primal_record(
+    lambda *args, **kwargs: _native.spherical_translation_context(
+        *_spherical_translation_inputs(*args, **kwargs)
+    )
+)
 def spherical_translation(
     kr: ArrayLike,
     theta: ArrayLike,
@@ -2123,6 +2403,29 @@ def spherical_translation(
         poltype: "helicity" (default) or "parity".
         singular: singular instead of regular translation.
     """
+    return _native.spherical_translation_record(
+        *_spherical_translation_inputs(
+            kr,
+            theta,
+            phi,
+            destination=destination,
+            source=source,
+            poltype=poltype,
+            singular=singular,
+        )
+    )
+
+
+def _spherical_translation_inputs(
+    kr: ArrayLike,
+    theta: ArrayLike,
+    phi: ArrayLike,
+    *,
+    destination: Sequence[ArrayLike],
+    source: Sequence[ArrayLike],
+    poltype: str | None,
+    singular: bool,
+) -> tuple[Any, ...]:
     poltype = resolve_poltype(poltype)
     if len(destination) != 3 or len(source) != 3:
         raise ValueError("each mode requires degree, order and polarization")
@@ -2130,7 +2433,7 @@ def spherical_translation(
     rows, shape = _label_modes(
         (*destination, *source), MAX_DEGREE, "mode labels", [v.shape for v in arguments]
     )
-    return _native.spherical_translation_record(
+    return (
         [((r[0], r[1], r[2]), (r[3], r[4], r[5])) for r in rows],
         (
             _pack(arguments[0], shape),
@@ -2144,6 +2447,11 @@ def spherical_translation(
     )
 
 
+@_primal_record(
+    lambda *args, **kwargs: _native.cylindrical_translation_context(
+        *_cylindrical_translation_inputs(*args, **kwargs)
+    )
+)
 def cylindrical_translation(
     krr: ArrayLike,
     phi: ArrayLike,
@@ -2171,11 +2479,27 @@ def cylindrical_translation(
         order: source order minus destination order.
         singular: singular instead of regular translation.
     """
+    return _native.cylindrical_translation_record(
+        *_cylindrical_translation_inputs(
+            krr, phi, z, kz, order=order, singular=singular
+        )
+    )
+
+
+def _cylindrical_translation_inputs(
+    krr: ArrayLike,
+    phi: ArrayLike,
+    z: ArrayLike,
+    kz: ArrayLike,
+    *,
+    order: ArrayLike,
+    singular: bool,
+) -> tuple[Any, ...]:
     arguments = tuple(np.asarray(v, dtype=np.complex128) for v in (krr, phi, z, kz))
     orders, shape = _label_modes(
         (order,), MAX_ORDER, "order differences", [v.shape for v in arguments]
     )
-    return _native.cylindrical_translation_record(
+    return (
         [value for (value,) in orders],
         (
             _pack(arguments[0], shape),
@@ -2194,6 +2518,10 @@ def cylindrical_translation(
     )
 
 
+@_native_record(
+    _native.LatticeExpansionContext,
+    lambda a: (*_basis_pair(a), isinstance(a["source"], CylindricalBasis)),
+)
 def lattice_expansion(
     destination: SphericalBasis | CylindricalBasis,
     source: SphericalBasis | CylindricalBasis,
@@ -2266,6 +2594,7 @@ def lattice_expansion(
     raise ValueError("periodic expansion requires matching wave families")
 
 
+@_native_record(_native.LatticeExpansionFromTableContext, _basis_pair)
 def lattice_expansion_from_table(
     values: ArrayLike,
     destination: SphericalBasis,

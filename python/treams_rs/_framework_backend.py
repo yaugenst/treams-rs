@@ -19,10 +19,12 @@ if TYPE_CHECKING:
 
 import numpy as np
 
-from . import _material, diff
+from . import _material, _native, diff
 from ._bases import CylindricalBasis, PlaneWavePorts, SphericalBasis
 from ._material import Material, as_material
 from ._polarization import pol_partners
+from ._records import DerivativeContext
+from ._saved import SavedRecord, native_state, preserve_state
 
 __all__ = [
     "Backend",
@@ -52,11 +54,19 @@ def material_defaults(epsilon: Any, mu: Any, kappa: Any) -> tuple[Any, Any]:
     )
 
 
-def with_zero_metadata(
-    pullback: Callable[[Any], Sequence[Any]], *metadata: Any
-) -> Callable[[Any], tuple[Any, ...]]:
-    """``pullback`` followed by zero gradients for the metadata a record compares."""
-    return lambda g: (*pullback(g), *(np.zeros_like(value) for value in metadata))
+def with_zero_metadata(context: Any, *metadata: Any) -> DerivativeContext:
+    """Exclude comparison-only metadata from both derivative directions."""
+
+    def pullback(g: Any) -> tuple[Any, ...]:
+        return (*context.pullback(g), *(np.zeros_like(value) for value in metadata))
+
+    def pushforward(*tangents: Any) -> Any:
+        return context.pushforward(*tangents[: len(tangents) - len(metadata)])
+
+    native = (
+        context.native_context if isinstance(context, DerivativeContext) else context
+    )
+    return DerivativeContext(pullback, pushforward, native)
 
 
 def port_modes(
@@ -248,6 +258,24 @@ class Backend:
     ) -> Any:
         """``diff.expansion`` from ``source`` to ``destination`` at moving positions."""
 
+        family = (
+            0
+            if isinstance(source, SphericalBasis)
+            else 1
+            if isinstance(destination, CylindricalBasis)
+            else 2
+        )
+
+        @native_state(
+            _native.ExpansionContext,
+            lambda inputs: (
+                len(destination),
+                inputs[0].shape[0],
+                len(source),
+                inputs[1].shape[0],
+                family,
+            ),
+        )
         def record(destination_at: Any, source_at: Any, ks: Any) -> Any:
             return diff.expansion(
                 type(destination)(destination.modes, destination_at),
@@ -278,6 +306,16 @@ class Backend:
     ) -> Any:
         """``diff.lattice_expansion`` within ``basis`` at moving positions."""
 
+        @native_state(
+            _native.LatticeExpansionContext,
+            lambda inputs: (
+                len(basis),
+                len(basis),
+                inputs[0].shape[0],
+                inputs[1].shape[0],
+                isinstance(basis, CylindricalBasis),
+            ),
+        )
         def record(destination: Any, source: Any, ks: Any, q: Any, a: Any) -> Any:
             return diff.lattice_expansion(
                 type(basis)(basis.modes, destination),
@@ -301,10 +339,8 @@ class Backend:
         This is ``operation`` with a check of the declared output. ``values``
         are the dynamic inputs; bases, labels and conventions stay static in the
         record's closure. The pullback returns one gradient per dynamic input,
-        in order. Each call runs one native forward: Advect keeps its context
-        for the reverse pass, PyTorch keeps it for the first backward and
-        records again for a repeated one, and JAX records again in every
-        reverse pass.
+        in order. Native contexts retain reusable derivative state; records
+        with saved-state metadata also preserve it across JAX callbacks.
 
         ``shape`` is the output shape and ``real`` selects a float64 output (and
         a real cotangent) instead of complex128. The adapters check both,
@@ -345,7 +381,9 @@ class Backend:
                 )
             return output, context
 
-        return self.operation(checked, *values, shape=shape, real=real)
+        return self.operation(
+            preserve_state(record, checked), *values, shape=shape, real=real
+        )
 
     def guard(self, check: Callable[..., None], value: Any, *metadata: Any) -> Any:
         """Pass ``value`` through after ``check(value, *metadata)`` in one record.
@@ -356,12 +394,32 @@ class Backend:
         records; ``apply`` lists them all.
         """
 
+        def context_for(*compared: Any) -> DerivativeContext:
+            def pullback(g: Any) -> tuple[Any]:
+                return (g,)
+
+            def pushforward(tangent: Any) -> Any:
+                return tangent
+
+            return with_zero_metadata(
+                DerivativeContext(pullback, pushforward), *compared
+            )
+
         def record(array: Any, *compared: Any) -> Recorded:
             check(array, *compared)
-            return array, with_zero_metadata(lambda g: (g,), *compared)
+            return array, context_for(*compared)
 
-        return self.apply(
+        def restore(_state: Any, _array: Any, *compared: Any) -> DerivativeContext:
+            return context_for(*compared)
+
+        prepared = SavedRecord(
             record,
+            lambda _inputs: (),
+            lambda _context: (),
+            restore,
+        )
+        return self.apply(
+            prepared,
             tuple(value.shape),
             value,
             *metadata,

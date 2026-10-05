@@ -131,6 +131,9 @@ def test_constant_cluster_factor_differentiates_repeated_illumination(engine):
         value, gradient = engine.value_and_grad(objective, amplitude)
         assert_allclose(value, objective(tr, amplitude), rtol=1e-12)
         assert_allclose(amplitude * gradient, 2 * value, rtol=1e-12)
+        forward_value, tangent = engine.jvp(objective, amplitude, 0.3)
+        assert_allclose(forward_value, value, rtol=1e-12)
+        assert_allclose(tangent, 0.3 * gradient, rtol=1e-12)
 
 
 def _cluster_objective(api, parameter, *, changing):
