@@ -1,0 +1,16 @@
+{"lines":[
+[0,"ran","rg -n \"for |parallel|rayon|solve|inverse|inv\\(|matmul|cache|quadr|ebcm|lattice\" crates/treams-rs/sr…"],
+[3,"ran","rg --files crates | rg 'ebcm|smatrix|AGENTS'"],
+[13,"ran","rg -n 'for |par_|parallel|Rayon|cache|solve|inv\\(|lu|Matrix|quadr|nquad|theta' crates/treams-core/s…"],
+[13,"ran","cat crates/treams-core/src/smatrix/README.md; cat crates/treams-core/src/smatrix/periodic.rs; cat c…"],
+[13,"ran","cat crates/AGENTS.md; wc -l crates/treams-core/src/ebcm.rs crates/treams-core/src/smatrix/*.rs"],
+[24,"ran","nl -ba crates/treams-core/src/ebcm.rs | sed -n '108,402p'"],
+[24,"ran","rg -n 'qmat|ebcm' python/treams_rs | head -70; rg -n 'smatrix|ebcm' benchmarks | head -100"],
+[24,"ran","nl -ba crates/treams-core/src/smatrix/layers.rs | sed -n '1,270p'; nl -ba crates/treams-core/src/sm…"],
+[38,"ran","nl -ba python/treams_rs/ebcm.py | sed -n '34,130p'; nl -ba crates/treams-core/src/smatrix/array.rs …"],
+[38,"ran","rg -n 'Band|periodic\\(|def bands|smatrix_bands|smatrix_periodic|residual' crates/treams-py/src/smat…"],
+[51,"sent","1 message to Banach"],
+[67,"ran","nl -ba python/treams_rs/_smatrix.py | sed -n '339,388p'; nl -ba python/treams_rs/_smatrix.py | sed …"],
+[67,"ran","rg -n 'enum Cache|struct Cache|pub.*WaveSet|SPATIAL_AND_K|const VALUES|struct VectorWave' crates/tr…"],
+[76,"ran","nl -ba crates/treams-core/src/linalg/mod.rs | sed -n '612,704p'; rg -n 'def _bands' python/treams_r…"]
+]}

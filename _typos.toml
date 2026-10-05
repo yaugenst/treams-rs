@@ -14,6 +14,8 @@ extend-exclude = [
   "third_party/",
   # Recorded scientific evidence is not spelling-edited.
   "benchmarks/results/",
+  # The recorded conversations quote their messages verbatim.
+  "docs/history/data/",
 ]
 
 # Allowlist entries are scoped to the file types they occur in, so prose and

@@ -1,0 +1,5 @@
+{"id":"release/jason","helpers":[],"groups":[],"items":[
+{"t":"note","at":1965920,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1965927,"to":1966257,"commands":15,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,16]]},
+{"t":"relay","at":1966274,"how":"report","from":null,"html":"<p>Prepared and handed off activate.py.</p>\n<p>Read-only preflight passed: correct new repository, private archive preserved, Actions disabled. Evidence files are owner-only.</p>\n<p>Root is executing activation. No mutations, pushes, PR changes, or workflow runs were performed by this agent. Remaining API uncertainties are release admin-bypass enforcement and Pages HTTPS; the script records readback gaps explicitly.</p>"}
+]}

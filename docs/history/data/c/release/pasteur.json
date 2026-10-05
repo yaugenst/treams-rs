@@ -1,0 +1,5 @@
+{"id":"release/pasteur","helpers":[],"groups":[],"items":[
+{"t":"note","at":1982738,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1982744,"to":1982863,"commands":5,"files":1,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,6]]},
+{"t":"relay","at":1982883,"how":"report","from":null,"html":"<p>Updated only <code>tests/autodiff/test_periodic_dispatch_methods.py</code>:</p>\n<ul>\n<li>Added larger diagonal and permuted-matrix regressions, including gradient shape and excluded-axis zeros.</li>\n<li>Covered larger constant cells with moving radius through periodic power and coupling.</li>\n<li>Converted the two requested tests to <code>check_gradient</code>, preserving tolerances and step size.</li>\n</ul>\n<p><code>git diff --check</code> passes. Tests await your unified run. No commits or pushes.</p>"}
+]}

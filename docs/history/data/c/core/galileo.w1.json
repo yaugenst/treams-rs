@@ -1,0 +1,11 @@
+{"lines":[
+[0,"left","Left out: 1 command that read the agent's own settings."],
+[5,"ran","git diff --stat 2843a70c8dae1a204d31eb672441900d30d160bb 357153477cabe98cae9382b1441663dd5eab9814; …"],
+[10,"ran","cat docs/user-guide.md; cat docs/api-physics-map.md; cat docs/api-autodiff-map.md; cat docs/adapter…"],
+[14,"ran","cat python/treams_rs/__init__.py; cat python/treams_rs/_physics.py"],
+[21,"ran","git diff 2843a70c8dae1a204d31eb672441900d30d160bb 357153477cabe98cae9382b1441663dd5eab9814 -- docs/…"],
+[28,"ran","sed -n '1,220p' python/treams_rs/support.py; sed -n '1,155p' python/treams_rs/jax.py; rg -n '^### `…"],
+[37,"ran","rg -n '^## treams_rs\\.(advect|jax|torch)\\.(Material|Wave|TMatrix|Cluster|sphere_tmatrix)|^## treams…"],
+[46,"ran","sed -n '250,320p' python/treams_rs/_framework.py; sed -n '630,762p' python/treams_rs/_framework.py;…"],
+[70,"ran","nl -ba python/treams_rs/_framework.py | sed -n '670,745p'; nl -ba docs/user-guide.md | sed -n '32,4…"]
+]}

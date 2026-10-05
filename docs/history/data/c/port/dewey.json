@@ -1,0 +1,8 @@
+{"id":"port/dewey","helpers":[{"id":"port/carver","nick":"Carver","task":"adapter contract review","parent":"port/dewey","depth":2,"model":"gpt-6-astra","effort":"ultra","from":116080,"minutes":9}],"groups":[],"items":[
+{"t":"note","at":115995,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":116000,"to":116900,"commands":33,"files":6,"notes":0,"helpers":1,"groups":0,"searches":0,"helper_ids":["port/carver"],"group_ix":[],"lines":[[1,0,45]]},
+{"t":"relay","at":116914,"how":"report","from":null,"html":"<p>Implemented optional JAX/PyTorch adapters, including requested-illumination gradients and generic native-operation wrappers.</p>\n<p><strong>34 tests pass</strong>, plus Ruff, strict Pyrefly and lock validation. Documentation examples and framework-free core import verified.</p>\n<p>Files are in <code>treams-rs-author</code>; no Git changes or remote sync. Parent still needs CI installation of optional framework dependencies.</p>"},
+{"t":"note","at":117769,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":117780,"to":118041,"commands":9,"files":2,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,45,58]]},
+{"t":"relay","at":118046,"how":"report","from":null,"html":"<p>CI/just integration complete in the shared author tree.</p>\n<ul>\n<li>CPU CI installs JAX and pinned CPU PyTorch; optional CUDA compiles separately without a toolkit.</li>\n<li>Added explicit <code>gpu-check</code> and WASM build/Node qualification with downloadable browser artifacts.</li>\n<li>Actionlint, ShellCheck, YAML/recipe validation and Linux Python 3.12/3.13 dependency resolution pass. No heavy builds or remote changes performed.</li>\n</ul>"}
+]}

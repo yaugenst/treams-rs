@@ -1,0 +1,14 @@
+{"lines":[
+[0,"ran","git status --short && git diff -- crates/treams-core/src/fields.rs crates/treams-core/tests/propert…"],
+[0,"ran","rg -n \"cached|solid|field|value_gradient|evaluate\" crates/treams-core/src/fields.rs"],
+[8,"helper","release/bacon"],
+[18,"ran","git diff -- crates/treams-core/src/properties/waves.rs && sed -n '1,290p' crates/treams-core/src/fi…"],
+[18,"ran","sed -n '1,140p' tests/waves/test_fields.py && rg -n \"def check_pullback|spherical_fields.*length|un…"],
+[31,"ran","sed -n '865,954p' crates/treams-core/src/fields.rs; sed -n '1060,1160p' crates/treams-core/src/prop…"],
+[31,"ran","sed -n '460,579p' crates/treams-core/src/fields.rs; sed -n '690,747p' crates/treams-core/src/proper…"],
+[55,"sent","1 message to Locke"],
+[63,"ran","sed -n '1,200p' python/treams_rs/testing.py; sed -n '290,330p' crates/treams-core/src/fields.rs; se…"],
+[103,"sent","1 message to Locke"],
+[122,"sent","1 message to Bacon"],
+[122,"reported","release/bacon"]
+]}

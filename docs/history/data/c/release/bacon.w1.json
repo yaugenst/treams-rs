@@ -1,0 +1,6 @@
+{"lines":[
+[0,"ran","git diff -- crates/treams-core/src/fields.rs && sed -n '1,270p' crates/treams-core/src/fields.rs"],
+[12,"ran","sed -n '270,340p' crates/treams-core/src/fields.rs; sed -n '350,620p' crates/treams-core/src/fields…"],
+[42,"ran","sed -n '42,64p' docs/validation/numerical-limits.md; sed -n '1,148p' crates/treams-core/src/special…"],
+[51,"sent","1 message to Leibniz"]
+]}

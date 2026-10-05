@@ -1,0 +1,5 @@
+{"id":"release/epicurus","helpers":[{"id":"release/copernicus","nick":"Copernicus","task":"scattering diagrams","parent":"release/epicurus","depth":2,"model":"gpt-6-astra","effort":"ultra","from":1964414,"minutes":1}],"groups":[],"items":[
+{"t":"note","at":1964381,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1964390,"to":1964550,"commands":7,"files":4,"notes":0,"helpers":1,"groups":0,"searches":0,"helper_ids":["release/copernicus"],"group_ix":[],"lines":[[1,0,11]]},
+{"t":"relay","at":1964571,"how":"report","from":null,"html":"<p>Added seven concise Mermaid diagrams covering core gradients, dense solves, spherical expansions, lattice sums, clusters, S-matrices and T-matrices.</p>\n<p>Verified architecture against source; <code>git diff --check</code> passes. Smaller READMEs remain prose-only. Rendering remains for parent validation. No runtime changes, commits, pushes or Actions runs.</p>"}
+]}

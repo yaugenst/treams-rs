@@ -1,0 +1,5 @@
+{"id":"speedups/hume","helpers":[],"groups":[],"items":[
+{"t":"note","at":2002304,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":2002310,"to":2002490,"commands":11,"files":1,"notes":1,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,15]]},
+{"t":"relay","at":2002511,"how":"report","from":null,"html":"<p>Added <code>restarted_batches_match_dense_for_strongly_coupled_spheres</code> in the <code>iterative.rs</code> tests module.</p>\n<ul>\n<li>Three near-touching spheres, <code>lmax=3</code>, ε=4–6.</li>\n<li>Eleven RHS spanning <code>1e-8</code>–<code>1e8</code>, forward and adjoint zero columns.</li>\n<li>Every nonzero solve must exceed <code>restart=3</code>.</li>\n<li>Dense forward, incident gradient and complete parameter-pullback comparisons.</li>\n<li>Loss pairing, translation and scaling gradient identities.</li>\n</ul>\n<p>Focused Rust test and formatting pass. Production code unchanged; no full suite or Python run. Nothing pushed or posted.</p>"}
+]}

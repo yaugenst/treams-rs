@@ -1,0 +1,17 @@
+{"lines":[
+[0,"left","Left out: 1 command that read the agent's own settings."],
+[6,"ran","git diff --stat 2843a70c8dae1a204d31eb672441900d30d160bb 357153477cabe98cae9382b1441663dd5eab9814 -…"],
+[11,"ran","sed -n '1,270p' python/treams_rs/jax.py && sed -n '1,255p' python/treams_rs/torch.py && cat pyproje…"],
+[15,"ran","sed -n '1,390p' python/treams_rs/_framework.py"],
+[19,"ran","sed -n '390,790p' python/treams_rs/_framework.py"],
+[24,"ran","sed -n '790,1195p' python/treams_rs/_framework.py"],
+[28,"ran","sed -n '1195,1525p' python/treams_rs/_framework.py && cat tests/test_framework_physics.py"],
+[36,"ran","tail -100 python/treams_rs/jax.py && tail -85 python/treams_rs/torch.py && sed -n '1,190p' python/t…"],
+[60,"ran","rg -n 'def (spherical_channels|cylindrical_channels|smatrix_from_array|bands|layer_stack)|poltype' …"],
+[78,"ran","sed -n '1,210p' python/treams_rs/_lattice.py && sed -n '335,365p' python/treams_rs/_physics.py && r…"],
+[85,"ran","sed -n '1,125p' docs/api-autodiff-map.md && sed -n '389,445p' python/treams_rs/_physics.py && rg -n…"],
+[0,"ran","git diff --stat && git diff -- python/treams_rs/_framework.py python/treams_rs/_core.py python/trea…"],
+[16,"ran","git diff -- python/treams_rs/__init__.py python/treams_rs/_physics.py tests/test_support.py && rg -…"],
+[21,"ran","sed -n '25,103p' python/treams_rs/_operators.py && sed -n '200,223p' python/treams_rs/_source.py &&…"],
+[0,"ran","git show 05a1310:python/treams_rs/_framework.py | sed -n '75,100p'; git show 05a1310:python/treams_…"]
+]}

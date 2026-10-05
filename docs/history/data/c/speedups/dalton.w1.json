@@ -1,0 +1,16 @@
+{"lines":[
+[0,"ran","pwd && git diff --stat && git diff -- crates/treams-core/src/fields.rs crates/treams-core/src/speci…"],
+[5,"ran","sed -n '1,220p' crates/treams-core/src/fields.rs && sed -n '300,700p' crates/treams-core/src/fields…"],
+[5,"ran","cat AGENTS.md && cat crates/AGENTS.md && sed -n '1,310p' crates/treams-core/src/special/harmonics.rs"],
+[11,"ran","nl -ba crates/treams-core/src/fields.rs | sed -n '156,252p;343,495p;711,881p' && nl -ba crates/trea…"],
+[11,"ran","cat crates/treams-core/src/basis.rs && sed -n '1,130p' crates/treams-core/src/sw/mod.rs && sed -n '…"],
+[15,"ran","sed -n '1,132p' crates/treams-core/src/basis.rs; sed -n '1,100p' crates/treams-core/src/sw/mod.rs; …"],
+[18,"ran","rg -n 'MAX_DEGREE|evaluate_waves|origin_waves' crates/treams-core/src/lib.rs crates/treams-core/src…"],
+[41,"sent","1 message to Epicurus"],
+[61,"ran","rg -n 'spherical_basis\\(|spherical_field|field.*pullback|field.*gradient|field.*basis' crates/tream…"],
+[66,"ran","sed -n '840,930p' crates/treams-core/src/properties/waves.rs; sed -n '1070,1140p' crates/treams-cor…"],
+[0,"ran","git diff -- crates/treams-core/src/fields.rs crates/treams-core/src/special/harmonics.rs"],
+[0,"ran","git diff -- crates/treams-core/src/fields.rs crates/treams-core/src/properties/waves.rs; rg -n 'sph…"],
+[4,"ran","sed -n '124,180p' crates/treams-core/src/fields.rs; sed -n '120,275p' crates/treams-core/src/specia…"],
+[20,"ran","sed -n '1,140p' crates/treams-core/src/special/bessel.rs; nl -ba crates/treams-core/src/fields.rs |…"]
+]}

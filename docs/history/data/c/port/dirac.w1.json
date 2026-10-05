@@ -1,0 +1,8 @@
+{"lines":[
+[0,"ran","cat AGENTS.md && sed -n '1,240p' web/styles.css"],
+[8,"ran","sed -n '1,240p' web/ui-check.mjs && sed -n '1,180p' web/advanced-ui-check.mjs && sed -n '1,100p' we…"],
+[8,"ran","rg -n \"svh|dvh|vh|overflow|safe-area|visualViewport|innerHeight|resize|touchmove\" web/styles.css we…"],
+[19,"ran","rg -n \"ResizeObserver|resize|scroll|matchMedia|touch\" web/app.ts web/advanced.ts && sed -n '270,340…"],
+[19,"ran","sed -n '550,760p' web/styles.css && sed -n '1230,1340p' web/styles.css && sed -n '330,410p' web/ui-…"],
+[70,"ran","node --input-type=module <<'JS'"]
+]}

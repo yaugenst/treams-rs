@@ -1,0 +1,5 @@
+{"id":"port/noether","helpers":[],"groups":[],"items":[
+{"t":"note","at":136379,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":136388,"to":136925,"commands":21,"files":7,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,26]]},
+{"t":"relay","at":136941,"how":"report","from":null,"html":"<p>Implemented one eight-example navigation; removed separate Advanced/Light Lab links. Existing share URLs and renderers preserved.</p>\n<p>Advanced short-screen clipping also fixed. Build, TypeScript, formatting, WASM/UI checks and navigation round-trip passed; mobile screenshots inspected. Files frozen; no commit or push.</p>"}
+]}

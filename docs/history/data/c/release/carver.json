@@ -1,0 +1,5 @@
+{"id":"release/carver","helpers":[],"groups":[],"items":[
+{"t":"note","at":1956649,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1956658,"to":1957281,"commands":15,"files":0,"notes":0,"helpers":0,"groups":0,"searches":1,"helper_ids":[],"group_ix":[],"lines":[[1,0,26]]},
+{"t":"relay","at":1957300,"how":"report","from":null,"html":"<p>Applied and verified Advect parity: wiki/projects disabled, rebase-only merges, auto-merge/update-branch/merged-branch deletion enabled, restricted SHA-pinned Actions, and Dependabot enabled.</p>\n<p>Report: repo-settings-parity.md. Two independent readbacks and matching assertions pass.</p>\n<p>Remaining: main protection after rewrite; public-only security/release approval controls and Pages activation. Prepared payloads preserve treams-specific workflows and experimental Actions support. Release approval must also verify <code>can_admins_bypass=false</code>.</p>\n<p>No source pushes, PR changes, merges, publication, visibility changes, or experimental-ref changes.</p>"}
+]}

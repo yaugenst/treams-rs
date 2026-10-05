@@ -1,0 +1,13 @@
+{"lines":[
+[0,"note","<p>I’ll trace candidate creation through publication and check that the source revision, manifests, wheels, and tags stay tied to the same release.</p>"],
+[5,"left","Left out: 1 command that read the agent's own notes."],
+[15,"ran","cat .github/scripts/verify-release-state.sh && cat scripts/_support/release_artifacts.py"],
+[15,"ran","cat scripts/assemble_release_artifacts.py && cat .github/workflows/native-wheels.yml && rg -n 'rele…"],
+[39,"ran","sed -n '280,380p' scripts/_support/release_artifacts.py && sed -n '1,260p' .github/workflows/docs.y…"],
+[39,"ran","sed -n '1,180p' pyproject.toml && sed -n '1,190p' .github/workflows/ci.yml && sed -n '370,460p' tes…"],
+[53,"sent","1 message to Lagrange"],
+[66,"note","<p>The source-to-artifact chain is consistent in the inspected code. I’m checking the documented promotion and retry paths for any case that could publish a different candidate or block the first release.</p>"],
+[76,"ran","rg -n 'source_revision|RELEASE-PROVENANCE|SHA256SUMS|release-production|candidate|TestPyPI|testpypi…"],
+[76,"ran","cat Cargo.toml && cat crates/treams-py/Cargo.toml && sed -n '460,640p' tests/scripts/test_release_a…"],
+[87,"ran","cat AGENTS.md && sed -n '425,510p' .github/workflows/ci.yml && git rev-parse HEAD && nl -ba .github…"]
+]}
