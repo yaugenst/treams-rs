@@ -8,7 +8,10 @@ use treams_core::{
     special::{IncgammaResidual, IntkambeResidual, incgamma_array, intkambe_array},
 };
 
-use crate::broadcast::{Recorded, broadcast_context, record, record_held};
+use crate::{
+    broadcast::{Recorded, broadcast_context, context, record, record_held},
+    context::error,
+};
 
 broadcast_context! {
     IncgammaContext(IncgammaResidual, 1);
@@ -29,6 +32,22 @@ pub(crate) fn incgamma_record<'py>(
         record(py, shape, [argument_shape], move || {
             incgamma_array(degrees, arguments)
         })
+    })
+}
+
+/// Reconstruct the incomplete-gamma derivative context from its broadcast inputs.
+#[pyfunction]
+pub(crate) fn incgamma_context(
+    degrees: PyReadonlyArray1<'_, f64>,
+    arguments: PyReadonlyArray1<'_, Complex>,
+    shape: Vec<usize>,
+    argument_shape: Vec<usize>,
+) -> PyResult<IncgammaContext> {
+    ieee(|| {
+        let residual =
+            IncgammaResidual::new(degrees.as_array().to_vec(), arguments.as_array().to_vec())
+                .map_err(error)?;
+        context(shape, [argument_shape], residual)
     })
 }
 
@@ -58,6 +77,25 @@ pub(crate) fn intkambe_record<'py>(
         record(py, shape, argument_shapes, move || {
             intkambe_array(orders, arguments)
         })
+    })
+}
+
+/// Reconstruct the Kambe derivative context from its broadcast inputs.
+#[pyfunction]
+pub(crate) fn intkambe_context(
+    orders: PyReadonlyArray1<'_, i32>,
+    z: PyReadonlyArray1<'_, Complex>,
+    eta: PyReadonlyArray1<'_, Complex>,
+    shape: Vec<usize>,
+    argument_shapes: [Vec<usize>; 2],
+) -> PyResult<IntkambeContext> {
+    ieee(|| {
+        let residual = IntkambeResidual::new(
+            orders.as_array().to_vec(),
+            [z.as_array().to_vec(), eta.as_array().to_vec()],
+        )
+        .map_err(error)?;
+        context(shape, argument_shapes, residual)
     })
 }
 

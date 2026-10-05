@@ -18,7 +18,7 @@ from treams_rs import _native, diff, special
 from treams_rs import advect as ad
 from treams_rs.testing import check_gradient, check_pullback
 
-from _support import assert_one_use_context, complex_normal, degree_order
+from _support import assert_reusable_context, complex_normal, degree_order
 
 
 @pytest.mark.reference
@@ -266,7 +266,7 @@ def test_bessel_ownership_strides_parallel_and_retry():
     value, context = diff.bessel(order[::-1], z[::-1])
     order[:] = 1
     z[:] = 0
-    assert_one_use_context(context, g, expected[::-1])
+    assert_reusable_context(context, g, expected[::-1])
 
 
 @pytest.mark.interface
@@ -458,7 +458,7 @@ def test_angular_broadcast_ownership_and_advect(kind):
     value, context = diff.angular(degrees, orders, z, function=kind)
     saved = z.copy()
     z[:] = 0
-    assert_one_use_context(context, g, gradient)
+    assert_reusable_context(context, g, gradient)
     for arguments in (saved, np.array(0.2 + 0.1j)):
 
         def objective(argument):

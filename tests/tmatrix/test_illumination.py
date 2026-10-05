@@ -9,7 +9,7 @@ import treams_rs as tr
 from treams_rs.testing import check_pullback
 
 from _support import (
-    assert_one_use_context,
+    assert_reusable_context,
     assert_tree_allclose,
     complex_normal,
     selecting,
@@ -41,7 +41,7 @@ def test_requested_columns_and_factor_linearity(n, p, scale):
 
 
 @pytest.mark.gradients
-def test_shared_factor_snapshots_and_one_use_context():
+def test_shared_factor_snapshots_and_reusable_context():
     t, c, a = matrices()
     factor = tr.diff.factor_interaction(t, c)
     baseline, context = factor.record(a)
@@ -53,7 +53,7 @@ def test_shared_factor_snapshots_and_one_use_context():
     a[:] = 300
     baseline[:] = -999
     del factor
-    assert_one_use_context(
+    assert_reusable_context(
         context, np.ones((6, 2), complex), expected_gradient, atol=1e-14
     )
     # The second record keeps its own snapshot of the shared factor.

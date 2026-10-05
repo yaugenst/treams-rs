@@ -1,10 +1,11 @@
 //! `spherical_channels` and `cylindrical_channels` with their contexts: the incidence
 //! and emission channels of periodic sphere and cylinder arrays
 //! (`treams_core::channels`).
+#![allow(clippy::indexing_slicing)] // The wavenumber tangent has a validated length of two.
 
 use nalgebra::DMatrix;
 use numpy::{
-    IntoPyArray,
+    IntoPyArray, PyArray1, PyReadonlyArray1,
     ndarray::{Array4, Ix4},
 };
 use pyo3::prelude::*;
@@ -16,8 +17,11 @@ use treams_core::{
 
 use crate::{
     args::{make_basis, make_cyl_basis},
-    context::{OneUse, context, detached},
-    convert::{C1, C4, Cotangent, R2, layout_error, merged_cotangent, rows_array},
+    context::{context, detached, error, restore_state, state_array},
+    convert::{
+        C1, C4, Cotangent, R2, RealTangent, Tangent, finite_tangent, layout_error,
+        merged_cotangent, rows_array, rows_from_dyn,
+    },
 };
 
 context!(SphericalChannelsContext(SphericalChannelsResidual));
@@ -27,17 +31,51 @@ context!(CylindricalChannelsContext(CylindricalChannelsResidual));
 /// wavevectors and the area (spheres) or the period (cylinders).
 type Gradient<'py> = (R2<'py>, C1<'py>, R2<'py>, f64);
 
+type ChannelTangents = (Vec<[f64; 3]>, [Complex; 2], Vec<[f64; 2]>);
+
 #[pymethods]
 impl SphericalChannelsContext {
-    fn pullback<'py>(
-        &mut self,
+    #[staticmethod]
+    fn _state_spec(multipoles: usize, positions: usize, channels: usize) -> PyResult<usize> {
+        ieee(|| {
+            SphericalChannelsResidual::state_size(multipoles, positions, channels).map_err(error)
+        })
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| state_array(py, &self.residual))
+    }
+
+    #[staticmethod]
+    fn _from_state(state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| restore_state(&state).map(Self::new))
+    }
+
+    fn pushforward<'py>(
+        &self,
         py: Python<'py>,
-        cotangent: Cotangent<'py>,
-    ) -> PyResult<Gradient<'py>> {
+        positions: RealTangent<'py>,
+        ks: Tangent<'py>,
+        q: RealTangent<'py>,
+        measure: f64,
+    ) -> PyResult<C4<'py>> {
+        ieee(|| {
+            let (positions, ks, q) = channel_tangents(&positions, &ks, &q)?;
+            let residual = &self.residual;
+            channel_array(
+                py,
+                detached(py, move || {
+                    residual.pushforward(&positions, ks, &q, measure)
+                })?,
+            )
+        })
+    }
+
+    fn pullback<'py>(&self, py: Python<'py>, cotangent: Cotangent<'py>) -> PyResult<Gradient<'py>> {
         ieee(|| {
             channel_pullback(
                 py,
-                &mut self.residual,
+                &self.residual,
                 &cotangent,
                 SphericalChannelsResidual::shape,
                 SphericalChannelsResidual::pullback,
@@ -48,15 +86,47 @@ impl SphericalChannelsContext {
 
 #[pymethods]
 impl CylindricalChannelsContext {
-    fn pullback<'py>(
-        &mut self,
+    #[staticmethod]
+    fn _state_spec(multipoles: usize, positions: usize, channels: usize) -> PyResult<usize> {
+        ieee(|| {
+            CylindricalChannelsResidual::state_size(multipoles, positions, channels).map_err(error)
+        })
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| state_array(py, &self.residual))
+    }
+
+    #[staticmethod]
+    fn _from_state(state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| restore_state(&state).map(Self::new))
+    }
+
+    fn pushforward<'py>(
+        &self,
         py: Python<'py>,
-        cotangent: Cotangent<'py>,
-    ) -> PyResult<Gradient<'py>> {
+        positions: RealTangent<'py>,
+        ks: Tangent<'py>,
+        q: RealTangent<'py>,
+        measure: f64,
+    ) -> PyResult<C4<'py>> {
+        ieee(|| {
+            let (positions, ks, q) = channel_tangents(&positions, &ks, &q)?;
+            let residual = &self.residual;
+            channel_array(
+                py,
+                detached(py, move || {
+                    residual.pushforward(&positions, ks, &q, measure)
+                })?,
+            )
+        })
+    }
+
+    fn pullback<'py>(&self, py: Python<'py>, cotangent: Cotangent<'py>) -> PyResult<Gradient<'py>> {
         ieee(|| {
             channel_pullback(
                 py,
-                &mut self.residual,
+                &self.residual,
                 &cotangent,
                 CylindricalChannelsResidual::shape,
                 CylindricalChannelsResidual::pullback,
@@ -65,21 +135,32 @@ impl CylindricalChannelsContext {
     }
 }
 
+/// Convert both channel families' array directions without assuming a memory layout.
+fn channel_tangents(
+    positions: &RealTangent<'_>,
+    ks: &Tangent<'_>,
+    q: &RealTangent<'_>,
+) -> PyResult<ChannelTangents> {
+    let positions = rows_from_dyn(positions, "position tangent")?;
+    let ks = finite_tangent::<_, numpy::ndarray::Ix1>(ks, &[2])?;
+    let ks = [ks[0], ks[1]];
+    let q = rows_from_dyn(q, "wavevector tangent")?;
+    Ok((positions, ks, q))
+}
+
 /// The pullback of both channel contexts: check the cotangent against the
-/// residual's `(2, 2, multipoles, channels)` shape, then consume the residual.
-fn channel_pullback<'py, R: Send>(
+/// residual's `(2, 2, multipoles, channels)` shape, then borrow the residual.
+fn channel_pullback<'py, R: Sync>(
     py: Python<'py>,
-    residual: &mut OneUse<R>,
+    residual: &R,
     cotangent: &Cotangent<'py>,
     shape: impl FnOnce(&R) -> (usize, usize),
     pullback: impl FnOnce(&R, &DMatrix<Complex>) -> treams_core::Result<ChannelGradient> + Send,
 ) -> PyResult<Gradient<'py>> {
-    let (residual, g) = residual.take_if(|residual| {
-        // (kind, side, multipole) rows in C order are the native row index.
-        let (rows, columns) = shape(residual);
-        merged_cotangent::<Ix4>(cotangent, &[2, 2, rows / 4, columns], (rows, columns))
-    })?;
-    let result = detached(py, move || pullback(&residual, &g))?;
+    // (kind, side, multipole) rows in C order are the native row index.
+    let (rows, columns) = shape(residual);
+    let g = merged_cotangent::<Ix4>(cotangent, &[2, 2, rows / 4, columns], (rows, columns))?;
+    let result = detached(py, move || pullback(residual, &g))?;
     Ok((
         rows_array(py, result.positions)?,
         result.ks.to_vec().into_pyarray(py),

@@ -19,7 +19,7 @@ from treams_rs import advect as ad
 from treams_rs import diff, special
 from treams_rs.testing import check_pullback
 
-from _support import assert_one_use_context, complex_normal, degree_order, sum_to
+from _support import assert_reusable_context, complex_normal, degree_order, sum_to
 
 
 @pytest.mark.reference
@@ -125,7 +125,7 @@ def test_polar_translation_owned_broadcast_pullback_and_advect(singular, poltype
         a[...] += 0.1
     # The context owns its real inputs and survives the rejected cotangents: it
     # pulls back what the fresh complex record, checked below, does.
-    gradients = assert_one_use_context(
+    gradients = assert_reusable_context(
         context,
         np.asfortranarray(g),
         record(*complex_saved)[1].pullback(g),
@@ -268,7 +268,7 @@ def test_cylindrical_polar_ownership_broadcast_adjoints_and_advect(singular):
         a[...] += 0.3
     # The context owns its real inputs and survives the rejected cotangents: it
     # pulls back what the fresh complex record, checked below, does.
-    gradients = assert_one_use_context(
+    gradients = assert_reusable_context(
         context, g, record(*complex_saved)[1].pullback(g), rtol=1e-13, atol=1e-15
     )
     # The azimuth and the axial offset enter only through exp(i m phi + i kz z).

@@ -30,8 +30,18 @@ Naming rules:
 
 A pullback takes the cotangent, the gradient of a real loss with respect to the
 value, and returns the gradients with respect to the inputs in the order of the
-arguments of the diff function. Gradients follow dL = Re Σ conj(g)·dx. A context
-can be used once; a second pullback raises ValueError.
+arguments of the diff function. Gradients follow dL = Re Σ conj(g)·dx. A
+pushforward takes one input tangent per differentiable argument in the same order
+and returns the corresponding output tangent. Array tangents match their original
+input shapes; broadcast records broadcast them as they broadcast primal inputs.
+A context supports repeated pullbacks and pushforwards over its immutable
+residual. Invalid tangent or cotangent shapes and non-finite entries leave it
+unchanged. Private ``_state`` and ``_from_state`` methods transfer numerical
+residuals through owned uint8 arrays; ``_state_spec`` derives their fixed size
+from static configuration. These buffers belong to the current native extension
+and are not a persistent file format. Input-only contexts instead have a
+``<family>_context`` constructor that prepares derivatives without evaluating
+the function values.
 """
 
 from collections.abc import Callable, Sequence
@@ -47,6 +57,12 @@ type RealArray = NDArray[np.float64]
 
 class SolveContext:
     """Created by ``diff.solve``. ``pullback(cotangent) -> (operator, rhs)``."""
+    @staticmethod
+    def _state_spec(n: int, rhs: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> SolveContext: ...
+    def pushforward(self, operator: ArrayLike, rhs: ArrayLike) -> ComplexArray: ...
     def pullback(self, cotangent: ArrayLike) -> tuple[ComplexArray, ComplexArray]: ...
 
 def solve(
@@ -56,7 +72,17 @@ def solve(
 class EigContext:
     """Created by ``diff.eig``. ``pullback(eigenvalues, eigenvectors) -> operator``, one
     cotangent for each output.
+
+    ``pushforward(operator)`` returns the eigenvalue and eigenvector tangents.
+    It requires distinct eigenvalues and unique largest eigenvector components
+    for the recorded phase convention.
     """
+    @staticmethod
+    def _state_spec(n: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> EigContext: ...
+    def pushforward(self, operator: ArrayLike) -> tuple[ComplexArray, ComplexArray]: ...
     def pullback(
         self, eigenvalues: ArrayLike, eigenvectors: ArrayLike
     ) -> ComplexArray: ...
@@ -64,7 +90,17 @@ class EigContext:
 def eig(operator: ComplexArray) -> tuple[ComplexArray, ComplexArray, EigContext]: ...
 
 class SvdvalsContext:
-    """Created by ``diff.svdvals``. ``pullback(cotangent) -> operator``."""
+    """Created by ``diff.svdvals``. ``pullback(cotangent) -> operator``.
+
+    ``pushforward(operator)`` requires distinct positive singular values.
+    Smooth spectral sums can still have pullbacks at repeated or zero values.
+    """
+    @staticmethod
+    def _state_spec(m: int, n: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> SvdvalsContext: ...
+    def pushforward(self, operator: ArrayLike) -> RealArray: ...
     def pullback(self, cotangent: ArrayLike) -> ComplexArray: ...
 
 def svdvals(operator: ComplexArray) -> tuple[RealArray, SvdvalsContext]: ...
@@ -79,6 +115,12 @@ def after_fork() -> None: ...
 
 class CoordinatesContext:
     """Created by ``diff.coordinates``. ``pullback(cotangent) -> points``."""
+    @staticmethod
+    def _state_spec(shape: Sequence[int]) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> CoordinatesContext: ...
+    def pushforward(self, points_tangent: ArrayLike) -> RealArray: ...
     def pullback(self, cotangent: RealArray) -> RealArray: ...
 
 def coordinates_record(
@@ -87,6 +129,17 @@ def coordinates_record(
 
 class VectorCoordinatesContext:
     """Created by ``diff.vector_coordinates``. ``pullback(cotangent) -> (vectors, points)``."""
+    @staticmethod
+    def _state_spec(
+        shape: Sequence[int],
+        argument_shapes: tuple[Sequence[int], Sequence[int]],
+    ) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> VectorCoordinatesContext: ...
+    def pushforward(
+        self, vectors_tangent: ArrayLike, points_tangent: ArrayLike
+    ) -> ComplexArray: ...
     def pullback(self, cotangent: ComplexArray) -> tuple[ComplexArray, RealArray]: ...
 
 def vector_coordinates_record(
@@ -101,8 +154,15 @@ def vector_coordinates_record(
 
 class IncgammaContext:
     """Created by ``diff.incgamma``. ``pullback(cotangent) -> z``."""
+    def pushforward(self, *tangents: ArrayLike) -> ComplexArray: ...
     def pullback(self, cotangent: ComplexArray) -> ComplexArray: ...
 
+def incgamma_context(
+    degrees: RealArray,
+    arguments: ComplexArray,
+    shape: Sequence[int],
+    argument_shape: Sequence[int],
+) -> IncgammaContext: ...
 def incgamma_record(
     degrees: RealArray,
     arguments: ComplexArray,
@@ -115,10 +175,18 @@ def incgamma_record_scalar(
 
 class IntkambeContext:
     """Created by ``diff.intkambe``. ``pullback(cotangent) -> (z, eta)``."""
+    def pushforward(self, *tangents: ArrayLike) -> ComplexArray: ...
     def pullback(
         self, cotangent: ComplexArray
     ) -> tuple[ComplexArray, ComplexArray]: ...
 
+def intkambe_context(
+    orders: NDArray[np.int32],
+    z: ComplexArray,
+    eta: ComplexArray,
+    shape: Sequence[int],
+    argument_shapes: tuple[Sequence[int], Sequence[int]],
+) -> IntkambeContext: ...
 def intkambe_record(
     orders: NDArray[np.int32],
     z: ComplexArray,
@@ -134,8 +202,18 @@ def intkambe_record_scalar(
 
 class BesselContext:
     """Created by ``diff.bessel``. ``pullback(cotangent) -> z``."""
+    def pushforward(self, *tangents: ArrayLike) -> ComplexArray: ...
     def pullback(self, cotangent: ComplexArray) -> ComplexArray: ...
 
+def bessel_context(
+    orders: RealArray,
+    arguments: ComplexArray,
+    function: str,
+    spherical: bool,
+    derivative: int,
+    shape: tuple[int, ...],
+    argument_shape: tuple[int, ...],
+) -> BesselContext: ...
 def bessel_record(
     orders: RealArray,
     arguments: ComplexArray,
@@ -151,8 +229,17 @@ def bessel_record_scalar(
 
 class AngularContext:
     """Created by ``diff.angular``. ``pullback(cotangent) -> z``."""
+    def pushforward(self, *tangents: ArrayLike) -> ComplexArray: ...
     def pullback(self, cotangent: ComplexArray) -> ComplexArray: ...
 
+def angular_context(
+    degrees: RealArray,
+    orders: RealArray,
+    arguments: ComplexArray,
+    function: str,
+    shape: tuple[int, ...],
+    argument_shape: tuple[int, ...],
+) -> AngularContext: ...
 def angular_record(
     degrees: RealArray,
     orders: RealArray,
@@ -167,10 +254,19 @@ def angular_record_scalar(
 
 class WignerdContext:
     """Created by ``diff.wignerd``. ``pullback(cotangent) -> (phi, theta, psi)``."""
+    def pushforward(self, *tangents: ArrayLike) -> ComplexArray: ...
     def pullback(
         self, cotangent: ComplexArray
     ) -> tuple[ComplexArray, ComplexArray, ComplexArray]: ...
 
+def wignerd_context(
+    labels: list[tuple[int, int, int]],
+    phi: ComplexArray,
+    theta: ComplexArray,
+    psi: ComplexArray,
+    shape: tuple[int, ...],
+    argument_shapes: tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...]],
+) -> WignerdContext: ...
 def wignerd_record(
     labels: list[tuple[int, int, int]],
     phi: ComplexArray,
@@ -187,6 +283,21 @@ def wignerd_record_scalar(
 
 class LatticeSumContext:
     """Created by ``diff.lattice_sum``. ``pullback(cotangent) -> (k, kpar, a, r, eta)``."""
+    @staticmethod
+    def _state_spec(
+        shape: Sequence[int],
+        argument_shapes: tuple[
+            Sequence[int], Sequence[int], Sequence[int], Sequence[int], Sequence[int]
+        ],
+        dim: int,
+        coordinates: int,
+    ) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> LatticeSumContext: ...
+    def pushforward(
+        self, k: ArrayLike, kpar: ArrayLike, a: ArrayLike, r: ArrayLike, eta: ArrayLike
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[ComplexArray, RealArray, RealArray, RealArray, ComplexArray]: ...
@@ -213,6 +324,34 @@ class LatticeExpansionContext:
     For cylindrical bases, ``pullback_axial(cotangent)`` appends the gradient of
     kzs, the sorted distinct axial wavenumbers.
     """
+    @staticmethod
+    def _state_spec(
+        destination_count: int,
+        source_count: int,
+        destination_positions: int,
+        source_positions: int,
+        cylindrical: bool,
+    ) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> LatticeExpansionContext: ...
+    def pushforward(
+        self,
+        destination: ArrayLike,
+        source: ArrayLike,
+        ks: ArrayLike,
+        kpar: ArrayLike,
+        vectors: ArrayLike,
+    ) -> ComplexArray: ...
+    def pushforward_axial(
+        self,
+        destination: ArrayLike,
+        source: ArrayLike,
+        ks: ArrayLike,
+        kpar: ArrayLike,
+        vectors: ArrayLike,
+        axial: ArrayLike,
+    ) -> ComplexArray: ...
     def pullback_axial(
         self, cotangent: ArrayLike
     ) -> tuple[RealArray, RealArray, ComplexArray, RealArray, RealArray, RealArray]: ...
@@ -246,6 +385,17 @@ class LatticeExpansionFromTableContext:
     """Created by ``diff.lattice_expansion_from_table``. ``pullback(cotangent) -> values``,
     the gradient of the lattice-sum table.
     """
+    @staticmethod
+    def _state_spec(
+        destination_count: int,
+        source_count: int,
+        destination_positions: int,
+        source_positions: int,
+    ) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> LatticeExpansionFromTableContext: ...
+    def pushforward(self, tangent: ArrayLike) -> ComplexArray: ...
     def pullback(self, cotangent: ArrayLike) -> ComplexArray: ...
 
 def lattice_expansion_from_table(
@@ -266,6 +416,14 @@ class SphericalChannelsContext:
     """Created by ``diff.spherical_channels``.
     ``pullback(cotangent) -> (positions, ks, q, area)``.
     """
+    @staticmethod
+    def _state_spec(multipoles: int, positions: int, channels: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> SphericalChannelsContext: ...
+    def pushforward(
+        self, positions: ArrayLike, ks: ArrayLike, q: ArrayLike, measure: float
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[RealArray, ComplexArray, RealArray, float]: ...
@@ -285,6 +443,14 @@ class CylindricalChannelsContext:
     """Created by ``diff.cylindrical_channels``.
     ``pullback(cotangent) -> (positions, ks, q, period)``.
     """
+    @staticmethod
+    def _state_spec(multipoles: int, positions: int, channels: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> CylindricalChannelsContext: ...
+    def pushforward(
+        self, positions: ArrayLike, ks: ArrayLike, q: ArrayLike, measure: float
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[RealArray, ComplexArray, RealArray, float]: ...
@@ -310,6 +476,30 @@ class ExpansionContext:
     cylindrical bases, ``pullback_axial(cotangent)`` appends the gradient of kzs,
     the sorted distinct axial wavenumbers.
     """
+    @staticmethod
+    def _state_spec(
+        destination_modes: int,
+        destination_positions: int,
+        source_modes: int,
+        source_positions: int,
+        family: int,
+    ) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> ExpansionContext: ...
+    def pushforward(
+        self,
+        destination_positions: ArrayLike,
+        source_positions: ArrayLike,
+        ks: ArrayLike,
+    ) -> ComplexArray: ...
+    def pushforward_axial(
+        self,
+        destination_positions: ArrayLike,
+        source_positions: ArrayLike,
+        ks: ArrayLike,
+        kz: ArrayLike,
+    ) -> ComplexArray: ...
     def pullback_axial(
         self, cotangent: ArrayLike
     ) -> tuple[RealArray, RealArray, ComplexArray, RealArray]: ...
@@ -348,6 +538,24 @@ class PeriodicToCwContext:
     ``pullback(cotangent) -> (destination_positions, source_positions, ks, kz, period)``,
     with one kz per destination mode.
     """
+    @staticmethod
+    def _state_spec(
+        destination_modes: int,
+        destination_positions: int,
+        source_modes: int,
+        source_positions: int,
+    ) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> PeriodicToCwContext: ...
+    def pushforward(
+        self,
+        destination_positions: ArrayLike,
+        source_positions: ArrayLike,
+        ks: ArrayLike,
+        kz: ArrayLike,
+        period: float,
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[RealArray, RealArray, ComplexArray, RealArray, float]: ...
@@ -371,6 +579,31 @@ class FieldContext:
     cylindrical basis, ``pullback_axial(cotangent)`` appends the gradient of kz,
     one per mode.
     """
+    @staticmethod
+    def _state_spec(
+        modes: int,
+        positions: int,
+        points: int,
+        cylindrical: bool,
+    ) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> FieldContext: ...
+    def pushforward(
+        self,
+        coefficients: ArrayLike,
+        points: ArrayLike,
+        positions: ArrayLike,
+        ks: ArrayLike,
+    ) -> ComplexArray: ...
+    def pushforward_axial(
+        self,
+        coefficients: ArrayLike,
+        points: ArrayLike,
+        positions: ArrayLike,
+        ks: ArrayLike,
+        kz: ArrayLike,
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[
@@ -409,6 +642,22 @@ class FieldOperatorContext:
     ``pullback(cotangent) -> (points, positions, ks)``. For a cylindrical basis,
     ``pullback_axial(cotangent)`` appends the gradient of kz, one per mode.
     """
+    @staticmethod
+    def _state_spec(
+        modes: int,
+        positions: int,
+        points: int,
+        cylindrical: bool,
+    ) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> FieldOperatorContext: ...
+    def pushforward(
+        self, points: ArrayLike, positions: ArrayLike, ks: ArrayLike
+    ) -> ComplexArray: ...
+    def pushforward_axial(
+        self, points: ArrayLike, positions: ArrayLike, ks: ArrayLike, kz: ArrayLike
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[RealArray, RealArray, ComplexArray]: ...
@@ -441,6 +690,17 @@ def plane_polarization(
 
 class PlaneExpansionContext:
     """Created by ``diff.plane_expansion``. ``pullback(cotangent) -> (positions, vectors)``."""
+    @staticmethod
+    def _state_spec(
+        multipoles: int,
+        positions: int,
+        modes: int,
+        cylindrical: bool = False,
+    ) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> PlaneExpansionContext: ...
+    def pushforward(self, positions: ArrayLike, vectors: ArrayLike) -> ComplexArray: ...
     def pullback(self, cotangent: ArrayLike) -> tuple[RealArray, ComplexArray]: ...
 
 def plane_expansion(
@@ -465,6 +725,14 @@ class PlaneFieldContext:
     ``pullback(cotangent) -> (coefficients, points, vectors)``; the coefficient
     gradient is empty for a field operator.
     """
+    @staticmethod
+    def _state_spec(points: int, modes: int, weighted: bool) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> PlaneFieldContext: ...
+    def pushforward(
+        self, coefficients: ArrayLike, points: ArrayLike, vectors: ArrayLike
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[ComplexArray, RealArray, ComplexArray]: ...
@@ -480,6 +748,12 @@ def plane_field(
 
 class PlanePhasesContext:
     """Created by ``diff.plane_phases``. ``pullback(cotangent) -> (points, vectors)``."""
+    @staticmethod
+    def _state_spec(points: int, modes: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> PlanePhasesContext: ...
+    def pushforward(self, points: ArrayLike, vectors: ArrayLike) -> ComplexArray: ...
     def pullback(self, cotangent: ArrayLike) -> tuple[RealArray, ComplexArray]: ...
 
 def plane_phases(
@@ -488,6 +762,12 @@ def plane_phases(
 
 class PlanePermutationContext:
     """Created by ``diff.plane_permutation``. ``pullback(cotangent) -> vectors``."""
+    @staticmethod
+    def _state_spec(modes: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> PlanePermutationContext: ...
+    def pushforward(self, vectors: ArrayLike) -> ComplexArray: ...
     def pullback(self, cotangent: ArrayLike) -> ComplexArray: ...
 
 def plane_permutation(
@@ -500,6 +780,16 @@ class RotationContext:
     """Created by ``diff.rotation``. ``pullback(cotangent) -> [phi, theta, psi]``, a list
     of three floats.
     """
+    @staticmethod
+    def _state_spec(
+        destination: Sequence[tuple[int, float, int, int]],
+        source: Sequence[tuple[int, float, int, int]],
+        cylindrical: bool = False,
+    ) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> RotationContext: ...
+    def pushforward(self, angles: ArrayLike) -> ComplexArray: ...
     def pullback(self, cotangent: ArrayLike) -> list[float]: ...
 
 def rotation(
@@ -523,10 +813,19 @@ class SphericalTranslationContext:
     """Created by ``diff.spherical_translation``.
     ``pullback(cotangent) -> (kr, theta, phi)``.
     """
+    def pushforward(self, *tangents: ArrayLike) -> ComplexArray: ...
     def pullback(
         self, cotangent: ComplexArray
     ) -> tuple[ComplexArray, ComplexArray, ComplexArray]: ...
 
+def spherical_translation_context(
+    modes: list[tuple[tuple[int, int, int], tuple[int, int, int]]],
+    arguments: tuple[ComplexArray, ...],
+    helicity: bool,
+    singular: bool,
+    shape: tuple[int, ...],
+    argument_shapes: tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...]],
+) -> SphericalTranslationContext: ...
 def spherical_translation_record(
     modes: list[tuple[tuple[int, int, int], tuple[int, int, int]]],
     arguments: tuple[ComplexArray, ...],
@@ -540,6 +839,7 @@ class CylindricalTranslationContext:
     """Created by ``diff.cylindrical_translation``.
     ``pullback(cotangent) -> (krr, phi, z, kz)``.
     """
+    def pushforward(self, *tangents: ArrayLike) -> ComplexArray: ...
     def pullback(
         self, cotangent: ComplexArray
     ) -> tuple[
@@ -549,6 +849,15 @@ class CylindricalTranslationContext:
         ComplexArray,
     ]: ...
 
+def cylindrical_translation_context(
+    orders: list[int],
+    arguments: tuple[ComplexArray, ...],
+    singular: bool,
+    shape: tuple[int, ...],
+    argument_shapes: tuple[
+        tuple[int, ...], tuple[int, ...], tuple[int, ...], tuple[int, ...]
+    ],
+) -> CylindricalTranslationContext: ...
 def cylindrical_translation_record(
     orders: list[int],
     arguments: tuple[ComplexArray, ...],
@@ -565,8 +874,16 @@ class VectorWaveContext:
     """Created by ``diff.vector_wave`` and ``diff.sph_harm``.
     ``pullback(cotangent)`` returns one gradient per argument, in order.
     """
+    def pushforward(self, *tangents: ArrayLike) -> ComplexArray: ...
     def pullback(self, cotangent: ComplexArray) -> tuple[ComplexArray, ...]: ...
 
+def vector_wave_context(
+    function: str,
+    labels: list[tuple[int, int, int]],
+    arguments: list[ComplexArray],
+    shape: tuple[int, ...],
+    argument_shapes: list[tuple[int, ...]],
+) -> VectorWaveContext: ...
 def vector_wave_record(
     function: str,
     labels: list[tuple[int, int, int]],
@@ -581,6 +898,14 @@ class SphereClusterContext:
     """Created by ``diff.sphere_cluster``.
     ``pullback(cotangent) -> (k0, radii, epsilon, positions)``.
     """
+    @staticmethod
+    def _state_spec(lmax: int, particles: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> SphereClusterContext: ...
+    def pushforward(
+        self, k0: ArrayLike, radii: ArrayLike, epsilon: ArrayLike, positions: ArrayLike
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[float, RealArray, ComplexArray, RealArray]: ...
@@ -591,6 +916,12 @@ def sphere_cluster(
 
 class InteractionContext:
     """Created by ``diff.interaction``. ``pullback(cotangent) -> (local, coupling)``."""
+    @staticmethod
+    def _state_spec(dimension: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> InteractionContext: ...
+    def pushforward(self, local: ArrayLike, coupling: ArrayLike) -> ComplexArray: ...
     def pullback(self, cotangent: ArrayLike) -> tuple[ComplexArray, ComplexArray]: ...
 
 def interaction(
@@ -602,6 +933,14 @@ class ParticleClusterContext:
     ``pullback(cotangent) -> (local, positions, ks)``, where ``local`` is a list
     with one gradient per particle.
     """
+    @staticmethod
+    def _state_spec(local_sizes: Sequence[int], cylindrical: bool) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> ParticleClusterContext: ...
+    def pushforward(
+        self, local: Sequence[ArrayLike], positions: ArrayLike, ks: ArrayLike
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[list[ComplexArray], RealArray, ComplexArray]: ...
@@ -638,6 +977,7 @@ class InteractionFactor:
     @property
     def dimension(self) -> int: ...
     def solve(self, incident: ComplexArray) -> ComplexArray: ...
+    def pullback_incident(self, cotangent: ArrayLike) -> ComplexArray: ...
     def record(
         self, incident: ComplexArray
     ) -> tuple[ComplexArray, IlluminateContext]: ...
@@ -645,15 +985,33 @@ class InteractionFactor:
 class IlluminateContext:
     """Created by ``InteractionFactor.record``, which ``diff.illuminate`` calls.
 
-    The factor decides the pullback method when it is built, and the other
-    method raises ValueError:
+    The factor decides the derivative method when it is built, and the other
+    form raises ValueError:
 
     * dense T (``factor_interaction``, ``illuminate``):
       ``pullback(cotangent) -> (local, coupling, incident)``;
     * blocks (``factor_interaction_blocks``, ``sphere_cluster_factor``):
       ``pullback_blocks(cotangent) -> (local, coupling, incident)``, where
       ``local`` is a list with one gradient per block.
+
+    ``pushforward(local, coupling, incident)`` and ``pushforward_blocks`` take
+    the corresponding dense or per-block tangents and return scattered-field
+    tangents.
     """
+    @staticmethod
+    def _state_spec(local_sizes: Sequence[int], columns: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> IlluminateContext: ...
+    def pushforward(
+        self, local: ArrayLike, coupling: ArrayLike, incident: ArrayLike
+    ) -> ComplexArray: ...
+    def pushforward_blocks(
+        self,
+        local: Sequence[ArrayLike],
+        coupling: ArrayLike,
+        incident: ArrayLike,
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[ComplexArray, ComplexArray, ComplexArray]: ...
@@ -669,6 +1027,14 @@ def sphere_cluster_factor(
 
 class MieContext:
     """Created by ``diff.mie``. ``pullback(cotangent) -> (x, epsilon, mu, kappa)``."""
+    @staticmethod
+    def _state_spec(boundaries: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> MieContext: ...
+    def pushforward(
+        self, sizes: ArrayLike, epsilon: ArrayLike, mu: ArrayLike, kappa: ArrayLike
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[RealArray, ComplexArray, ComplexArray, ComplexArray]: ...
@@ -685,6 +1051,20 @@ class MieCylContext:
     """Created by ``diff.mie_cyl``.
     ``pullback(cotangent) -> (kz, k0, radii, epsilon, mu, kappa)``.
     """
+    @staticmethod
+    def _state_spec(boundaries: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> MieCylContext: ...
+    def pushforward(
+        self,
+        kz: ArrayLike,
+        k0: ArrayLike,
+        radii: ArrayLike,
+        epsilon: ArrayLike,
+        mu: ArrayLike,
+        kappa: ArrayLike,
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[float, float, RealArray, ComplexArray, ComplexArray, ComplexArray]: ...
@@ -703,6 +1083,14 @@ def mie_cyl(
 
 class EbcmQmatContext:
     """Created by ``diff.ebcm_qmat``. ``pullback(cotangent) -> (radii, slopes, ks, zs)``."""
+    @staticmethod
+    def _state_spec(samples: int, destinations: int, sources: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> EbcmQmatContext: ...
+    def pushforward(
+        self, radii: ArrayLike, slopes: ArrayLike, ks: ArrayLike, zs: ArrayLike
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[RealArray, RealArray, ComplexArray, ComplexArray]: ...
@@ -766,7 +1154,23 @@ class IterativeContext:
     ``pullback(cotangent) -> (k0, radii, epsilon, positions, incident, convergence)``.
     The last item is no gradient: it holds the GMRES convergence of each
     solve of the adjoint (conjugate-transposed) system.
+
+    ``pushforward(k0, radii, epsilon, positions, incident)`` returns the scattered
+    coefficient tangent and convergence certificates for the tangent solves.
     """
+    @staticmethod
+    def _state_spec(lmax: int, particles: int, columns: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> IterativeContext: ...
+    def pushforward(
+        self,
+        k0: float,
+        radii: ArrayLike,
+        epsilon: ArrayLike,
+        positions: ArrayLike,
+        incident: ArrayLike,
+    ) -> tuple[ComplexArray, list[Convergence]]: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[
@@ -777,6 +1181,19 @@ class IterativeContext:
 
 class SphereContext:
     """Created by ``diff.sphere``. ``pullback(cotangent) -> (k0, radii, epsilon, mu, kappa)``."""
+    @staticmethod
+    def _state_spec(lmax: int, boundaries: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> SphereContext: ...
+    def pushforward(
+        self,
+        k0: ArrayLike,
+        radii: ArrayLike,
+        epsilon: ArrayLike,
+        mu: ArrayLike,
+        kappa: ArrayLike,
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[float, RealArray, ComplexArray, ComplexArray, ComplexArray]: ...
@@ -794,6 +1211,20 @@ class CylinderContext:
     """Created by ``diff.cylinder``.
     ``pullback(cotangent) -> (kzs, k0, radii, epsilon, mu, kappa)``.
     """
+    @staticmethod
+    def _state_spec(kz_count: int, mmax: int, boundaries: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> CylinderContext: ...
+    def pushforward(
+        self,
+        kzs: ArrayLike,
+        k0: ArrayLike,
+        radii: ArrayLike,
+        epsilon: ArrayLike,
+        mu: ArrayLike,
+        kappa: ArrayLike,
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[
@@ -819,6 +1250,12 @@ class TMatrixMetricContext:
     """Created by ``diff.tmatrix_metric``. ``pullback(cotangent) -> (operator, ks)`` for
     a float cotangent.
     """
+    @staticmethod
+    def _state_spec(dimension: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> TMatrixMetricContext: ...
+    def pushforward(self, operator: ArrayLike, ks: ArrayLike) -> float: ...
     def pullback(self, cotangent: float) -> tuple[ComplexArray, RealArray]: ...
 
 def tmatrix_metric(
@@ -829,6 +1266,12 @@ def tmatrix_metric(
 
 class SMatrixAddContext:
     """Created by ``diff.smatrix_add``. ``pullback(cotangent) -> (lower, upper)``."""
+    @staticmethod
+    def _state_spec(n: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> SMatrixAddContext: ...
+    def pushforward(self, lower: ArrayLike, upper: ArrayLike) -> ComplexArray: ...
     def pullback(self, cotangent: ArrayLike) -> tuple[ComplexArray, ComplexArray]: ...
 
 def smatrix_add(
@@ -839,6 +1282,14 @@ class SMatrixIlluminateContext:
     """Created by ``diff.smatrix_illuminate``.
     ``pullback(cotangent) -> (lower, upper, up, down)``.
     """
+    @staticmethod
+    def _state_spec(n: int, columns: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> SMatrixIlluminateContext: ...
+    def pushforward(
+        self, lower: ArrayLike, upper: ArrayLike, up: ArrayLike, down: ArrayLike
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[ComplexArray, ComplexArray, ComplexArray, ComplexArray]: ...
@@ -852,6 +1303,12 @@ def smatrix_illuminate_value(
 
 class SMatrixPeriodicContext:
     """Created by ``diff.smatrix_periodic``. ``pullback(cotangent) -> smats``."""
+    @staticmethod
+    def _state_spec(n: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> SMatrixPeriodicContext: ...
+    def pushforward(self, smats: ArrayLike) -> ComplexArray: ...
     def pullback(self, cotangent: ArrayLike) -> ComplexArray: ...
 
 def smatrix_periodic(
@@ -862,6 +1319,14 @@ class BandsContext:
     """Created by ``diff.bands``. ``pullback(wavenumbers, eigenvectors) -> (smats, period)``,
     one cotangent for each output.
     """
+    @staticmethod
+    def _state_spec(n: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> BandsContext: ...
+    def pushforward(
+        self, smats: ArrayLike, period: ArrayLike
+    ) -> tuple[ComplexArray, ComplexArray]: ...
     def pullback(
         self, wavenumbers: ArrayLike, eigenvectors: ArrayLike
     ) -> tuple[ComplexArray, float]: ...
@@ -874,6 +1339,12 @@ class SMatrixFromArrayContext:
     """Created by ``diff.smatrix_from_array``.
     ``pullback(cotangent) -> (response, channels)``.
     """
+    @staticmethod
+    def _state_spec(multipoles: int, modes: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> SMatrixFromArrayContext: ...
+    def pushforward(self, response: ArrayLike, channels: ArrayLike) -> ComplexArray: ...
     def pullback(self, cotangent: ArrayLike) -> tuple[ComplexArray, ComplexArray]: ...
 
 def smatrix_from_array(
@@ -884,6 +1355,19 @@ class SMatrixTrContext:
     """Created by ``diff.smatrix_tr``.
     ``pullback(cotangent) -> (matrices, incident, ks, zs, q)``.
     """
+    @staticmethod
+    def _state_spec(n: int, columns: int, groups: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> SMatrixTrContext: ...
+    def pushforward(
+        self,
+        matrices: ArrayLike,
+        incident: ArrayLike,
+        ks: ArrayLike,
+        zs: ArrayLike,
+        q: ArrayLike,
+    ) -> RealArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[ComplexArray, ComplexArray, ComplexArray, ComplexArray, RealArray]: ...
@@ -914,6 +1398,14 @@ def smatrix_tr_value(
 
 class FresnelContext:
     """Created by ``diff.fresnel``. ``pullback(cotangent) -> (ks, kzs, zs)``."""
+    @staticmethod
+    def _state_spec() -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> FresnelContext: ...
+    def pushforward(
+        self, ks: ArrayLike, kzs: ArrayLike, zs: ArrayLike
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[ComplexArray, ComplexArray, ComplexArray]: ...
@@ -926,6 +1418,14 @@ def fresnel(
 
 class InterfaceCoefficientsContext:
     """Created by ``diff.interface_coefficients``. ``pullback(cotangent) -> (ks, zs, q)``."""
+    @staticmethod
+    def _state_spec() -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> InterfaceCoefficientsContext: ...
+    def pushforward(
+        self, ks: ArrayLike, zs: ArrayLike, q: ArrayLike
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[ComplexArray, ComplexArray, RealArray]: ...
@@ -942,6 +1442,12 @@ class PropagationMatrixContext:
     """Created by ``diff.propagation_matrix``.
     ``pullback(cotangent) -> (vectors, distance)``.
     """
+    @staticmethod
+    def _state_spec(n: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> PropagationMatrixContext: ...
+    def pushforward(self, vectors: ArrayLike, distance: ArrayLike) -> ComplexArray: ...
     def pullback(self, cotangent: ArrayLike) -> tuple[ComplexArray, RealArray]: ...
 
 def propagation_matrix(
@@ -950,6 +1456,14 @@ def propagation_matrix(
 
 class LayerStackContext:
     """Created by ``diff.layer_stack``. ``pullback(cotangent) -> (ks, zs, q, thickness)``."""
+    @staticmethod
+    def _state_spec(media: int, channels: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> LayerStackContext: ...
+    def pushforward(
+        self, ks: ArrayLike, zs: ArrayLike, q: ArrayLike, thickness: ArrayLike
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[ComplexArray, ComplexArray, RealArray, RealArray]: ...
@@ -965,6 +1479,14 @@ def layer_stack(
 
 class ChiralityDensityContext:
     """Created by ``diff.chirality_density``. ``pullback(cotangent) -> (ks, normal, z)``."""
+    @staticmethod
+    def _state_spec(n: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> ChiralityDensityContext: ...
+    def pushforward(
+        self, ks: ArrayLike, normal: ArrayLike, interval: ArrayLike
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[ComplexArray, ComplexArray, RealArray]: ...
@@ -979,6 +1501,14 @@ class OrientedChiralityContext:
     """Created by ``diff.oriented_chirality``.
     ``pullback(cotangent) -> (transverse, normal, z)``.
     """
+    @staticmethod
+    def _state_spec(n: int) -> int: ...
+    def _state(self) -> NDArray[np.uint8]: ...
+    @staticmethod
+    def _from_state(state: NDArray[np.uint8]) -> OrientedChiralityContext: ...
+    def pushforward(
+        self, transverse: ArrayLike, normal: ArrayLike, interval: ArrayLike
+    ) -> ComplexArray: ...
     def pullback(
         self, cotangent: ArrayLike
     ) -> tuple[RealArray, ComplexArray, RealArray]: ...

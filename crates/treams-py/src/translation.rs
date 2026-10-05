@@ -2,7 +2,7 @@
 //! the translation coefficient of one mode pair
 //! (`treams_core::sw::polar_translation_array`, `cw::polar_translation_array`).
 use crate::{
-    broadcast::{Recorded, broadcast_context, record},
+    broadcast::{Recorded, broadcast_context, context, record},
     context::radial,
 };
 use numpy::PyReadonlyArray1;
@@ -56,5 +56,45 @@ pub(crate) fn cylindrical_translation_record<'py>(
         record(py, shape, argument_shapes, move || {
             cw::polar_translation_array(orders, arguments, radial(singular))
         })
+    })
+}
+
+/// Reconstruct spherical-translation inputs and static coupling plans.
+#[pyfunction]
+pub(crate) fn spherical_translation_context(
+    modes: Vec<[(i32, i32, u8); 2]>,
+    arguments: [PyReadonlyArray1<'_, Complex>; 3],
+    helicity: bool,
+    singular: bool,
+    shape: Vec<usize>,
+    argument_shapes: [Vec<usize>; 3],
+) -> PyResult<SphericalTranslationContext> {
+    ieee(|| {
+        let modes = modes
+            .into_iter()
+            .map(|pair| pair.map(|(l, m, pol)| Mode { l, m, pol }))
+            .collect();
+        let arguments = arguments.map(|a| a.as_array().to_vec());
+        let residual =
+            sw::PolarTranslationResidual::new(modes, arguments, helicity, radial(singular))
+                .map_err(crate::context::error)?;
+        context(shape, argument_shapes, residual)
+    })
+}
+
+/// Reconstruct cylindrical-translation inputs without evaluating coefficients.
+#[pyfunction]
+pub(crate) fn cylindrical_translation_context(
+    orders: Vec<i32>,
+    arguments: [PyReadonlyArray1<'_, Complex>; 4],
+    singular: bool,
+    shape: Vec<usize>,
+    argument_shapes: [Vec<usize>; 4],
+) -> PyResult<CylindricalTranslationContext> {
+    ieee(|| {
+        let arguments = arguments.map(|a| a.as_array().to_vec());
+        let residual = cw::PolarTranslationResidual::new(orders, arguments, radial(singular))
+            .map_err(crate::context::error)?;
+        context(shape, argument_shapes, residual)
     })
 }

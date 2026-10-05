@@ -154,7 +154,7 @@ def test_operator_and_magnetic_advect(cylindrical):
 
 @pytest.mark.gradients
 @pytest.mark.interface
-def test_empty_operator_and_one_use_context():
+def test_empty_operator_and_reusable_context():
     basis = tr.SphericalBasis.default(1)
     value, context = tr.diff.field_operator(np.empty((0, 3)), basis, [1, 1])
     assert value.shape == (0, 3, len(basis))
@@ -162,5 +162,9 @@ def test_empty_operator_and_one_use_context():
     assert points.shape == (0, 3)
     assert_allclose(origins, 0)
     assert_allclose(ks, 0)
-    with pytest.raises(ValueError, match="consumed"):
-        context.pullback(value)
+    assert_allclose(context.pushforward(points, origins, ks), value)
+    for actual, expected in zip(
+        context.pullback(value), (points, origins, ks), strict=True
+    ):
+        assert_allclose(actual, expected)
+    assert_allclose(context.pushforward(points, origins, ks), value)

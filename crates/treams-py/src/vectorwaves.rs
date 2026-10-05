@@ -26,8 +26,41 @@ broadcast_context!(VectorWaveContext(
 ));
 #[pymethods]
 impl VectorWaveContext {
+    #[pyo3(signature = (*tangents))]
+    fn pushforward<'py>(
+        &self,
+        py: Python<'py>,
+        tangents: &Bound<'py, PyTuple>,
+    ) -> PyResult<CDyn<'py>> {
+        ieee(|| {
+            let tangents = crate::broadcast::tangents(
+                tangents,
+                &self.shapes.argument_shapes,
+                &self.shapes.shape,
+            )?;
+            let residual = &self.residual;
+            let values = detached(py, move || {
+                let zero = [Complex::default()];
+                residual.pushforward(std::array::from_fn(|i| {
+                    tangents.get(i).map_or(zero.as_slice(), Vec::as_slice)
+                }))
+            })?;
+            let mut shape = self.shapes.shape.clone();
+            let values = if self.scalar {
+                values
+                    .into_iter()
+                    .map(vectorwaves::sph_harm_from_vsh_z)
+                    .collect()
+            } else {
+                shape.push(3);
+                values.into_flattened()
+            };
+            shaped(py, values, &shape)
+        })
+    }
+
     fn pullback<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         cotangent: Cotangent<'py>,
     ) -> PyResult<Bound<'py, PyTuple>> {
@@ -52,7 +85,7 @@ impl VectorWaveContext {
                     .map(|v| [v[0], v[1], v[2]])
                     .collect()
             };
-            let residual = self.residual.take()?;
+            let residual = &self.residual;
             let gradients = detached(py, move || residual.pullback(&g))?;
             // One tuple item per argument: two to six, depending on the function.
             let gradients = gradients
@@ -76,32 +109,10 @@ pub(crate) fn vector_wave_record<'py>(
     argument_shapes: Vec<Vec<usize>>,
 ) -> PyResult<(CDyn<'py>, VectorWaveContext)> {
     ieee(|| {
-        let (family, count, pol) = family(function)?;
-        if arguments.len() != count || argument_shapes.len() != count {
-            return Err(PyValueError::new_err(
-                "wave arguments must match the function",
-            ));
-        }
-        check_broadcast(&shape, &argument_shapes)?;
-        let labels = labels
-            .into_iter()
-            .map(|(l, m, p)| WaveLabel {
-                l,
-                m,
-                pol: pol.unwrap_or(p),
-            })
-            .collect();
-        let args = std::array::from_fn(|i| {
-            arguments
-                .get(i)
-                .map_or_else(|| vec![Complex::default()], |a| a.as_array().to_vec())
-        });
-        let (values, residual) = detached(py, move || {
-            vectorwaves::vector_wave_array(family, labels, args, pol.is_none())
-        })?;
-        let mut output_shape = shape.clone();
-        let scalar = function == "sph_harm";
-        let values = if scalar {
+        let context = prepare(function, labels, arguments, shape, argument_shapes)?;
+        let values = detached(py, || context.residual.values())?;
+        let mut output_shape = context.shapes.shape.clone();
+        let values = if context.scalar {
             values
                 .into_iter()
                 .map(vectorwaves::sph_harm_from_vsh_z)
@@ -110,16 +121,57 @@ pub(crate) fn vector_wave_record<'py>(
             output_shape.push(3);
             values.into_flattened()
         };
-        Ok((
-            shaped(py, values, &output_shape)?,
-            VectorWaveContext::new(
-                residual,
-                BroadcastShapes {
-                    shape,
-                    argument_shapes,
-                },
-                scalar,
-            ),
-        ))
+        Ok((shaped(py, values, &output_shape)?, context))
     })
+}
+
+/// Reconstruct vector-wave derivative inputs without evaluating the waves.
+#[pyfunction]
+pub(crate) fn vector_wave_context(
+    function: &str,
+    labels: Vec<(i32, i32, u8)>,
+    arguments: Vec<PyReadonlyArray1<'_, Complex>>,
+    shape: Vec<usize>,
+    argument_shapes: Vec<Vec<usize>>,
+) -> PyResult<VectorWaveContext> {
+    ieee(|| prepare(function, labels, arguments, shape, argument_shapes))
+}
+
+fn prepare(
+    function: &str,
+    labels: Vec<(i32, i32, u8)>,
+    arguments: Vec<PyReadonlyArray1<'_, Complex>>,
+    shape: Vec<usize>,
+    argument_shapes: Vec<Vec<usize>>,
+) -> PyResult<VectorWaveContext> {
+    let (family, count, pol) = family(function)?;
+    if arguments.len() != count || argument_shapes.len() != count {
+        return Err(PyValueError::new_err(
+            "wave arguments must match the function",
+        ));
+    }
+    check_broadcast(&shape, &argument_shapes)?;
+    let labels = labels
+        .into_iter()
+        .map(|(l, m, p)| WaveLabel {
+            l,
+            m,
+            pol: pol.unwrap_or(p),
+        })
+        .collect();
+    let args = std::array::from_fn(|i| {
+        arguments
+            .get(i)
+            .map_or_else(|| vec![Complex::default()], |a| a.as_array().to_vec())
+    });
+    let residual = VectorWaveResidual::new(family, labels, args, pol.is_none())
+        .map_err(crate::context::error)?;
+    Ok(VectorWaveContext::new(
+        residual,
+        BroadcastShapes {
+            shape,
+            argument_shapes,
+        },
+        function == "sph_harm",
+    ))
 }

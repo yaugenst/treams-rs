@@ -31,7 +31,7 @@ from treams_rs import (
 from treams_rs import advect as ad
 from treams_rs.testing import check_gradient, check_pullback
 
-from _support import assert_one_use_context, complex_normal
+from _support import assert_reusable_context, complex_normal
 
 #: (spherical, lattice dimension) of every Ewald family.
 FAMILIES = [(True, 1), (True, 2), (True, 3), (False, 1), (False, 2)]
@@ -749,7 +749,7 @@ def test_periodic_matrix_pullback(spherical, dim, equal_wavenumbers):
     g = complex_normal(rng, value.shape)
     # After the rejected cotangents the context pulls back what the fresh
     # record, checked below, does.
-    gradients = assert_one_use_context(
+    gradients = assert_reusable_context(
         context, g, record(*parameters)[1].pullback(g), rtol=1e-13, atol=1e-15
     )
     assert_allclose(gradients[0].sum(axis=0) + gradients[1].sum(axis=0), 0, atol=1e-12)

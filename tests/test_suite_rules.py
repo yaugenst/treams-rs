@@ -11,7 +11,7 @@ from hypothesis.extra import numpy as hnp
 from _support import (
     LAYOUTS,
     arrange,
-    assert_one_use_context,
+    assert_reusable_context,
     assert_tree_allclose,
     complex_arrays,
     layouts,
@@ -97,7 +97,7 @@ def test_strided_copies_reach_mixed_signs_and_other_axis_orders():
 
 
 class _Context:
-    """Fake one-use context for outputs of ``shapes``, with a switchable defect."""
+    """Fake reusable context for outputs of ``shapes``, with a switchable defect."""
 
     def __init__(self, shapes, defect=None):
         self.shapes = shapes
@@ -126,7 +126,7 @@ class _Context:
     def pullback(self, *cotangents):
         if self.defect == "consumes invalid":
             self.consumed = True
-        if self.consumed and self.defect != "reusable":
+        if self.consumed and self.defect in {"consumes invalid", "one use"}:
             raise ValueError("pullback residual has already been consumed")
         unchecked = 1 if self.defect == "checks only the last output" else 0
         cotangents = [
@@ -149,16 +149,16 @@ def _outputs(structure):
 
 
 @pytest.mark.parametrize("structure", ["one", "pair"])
-def test_one_use_checker_accepts_a_conforming_context(structure):
+def test_reusable_checker_accepts_a_conforming_context(structure):
     cotangent, shapes, expected = _outputs(structure)
-    gradients = assert_one_use_context(_Context(shapes), cotangent)
+    gradients = assert_reusable_context(_Context(shapes), cotangent)
     assert_tree_allclose(gradients, expected, rtol=0)
 
 
 DEFECTS = (
     "consumes invalid",
     "accepts nan",
-    "reusable",
+    "one use",
     "wrong gradient",
     "broadcasts",
     "checks only the size",
@@ -173,18 +173,18 @@ DEFECTS = (
         ("pair", "checks only the last output"),
     ],
 )
-def test_one_use_checker_detects_each_contract_violation(structure, defect):
+def test_reusable_checker_detects_each_contract_violation(structure, defect):
     cotangent, shapes, expected = _outputs(structure)
-    with pytest.raises((AssertionError, pytest.fail.Exception)):
-        assert_one_use_context(_Context(shapes, defect), cotangent, expected)
+    with pytest.raises((AssertionError, ValueError, pytest.fail.Exception)):
+        assert_reusable_context(_Context(shapes, defect), cotangent, expected)
 
 
 def test_site_probe_catches_a_size_only_check_of_a_vector():
     # No wrong shape of the same dimension keeps the size of a 1-d cotangent.
     g = np.array([1, 2j, 3])
-    assert_one_use_context(_Context((g.shape,), "checks only the size"), g)
+    assert_reusable_context(_Context((g.shape,), "checks only the size"), g)
     with pytest.raises(pytest.fail.Exception):
-        assert_one_use_context(
+        assert_reusable_context(
             _Context((g.shape,), "checks only the size"),
             g,
             wrong_shape=np.ones((3, 1), complex),

@@ -22,18 +22,46 @@ from treams_rs._upstream import UPSTREAM_NAMES
 #: the directory of the test module that imports it.
 ROOT = Path(__file__).resolve().parents[1]
 
-# One-use native contexts ---------------------------------------------------------
+# Reusable native contexts --------------------------------------------------------
 
 
-def assert_tree_allclose(actual, expected, *, rtol=1e-7, atol=0.0):
-    """Apply ``assert_allclose`` leafwise to matching tuples or lists of arrays."""
+def assert_tree_allclose(actual, expected, *, rtol=1e-7, atol=0.0, strict=False):
+    """Apply NumPy's ``assert_allclose`` leafwise, including its strict option."""
     if isinstance(expected, tuple | list):
         assert isinstance(actual, tuple | list), type(actual)
         assert len(actual) == len(expected)
         for a, e in zip(actual, expected, strict=True):
-            assert_tree_allclose(a, e, rtol=rtol, atol=atol)
+            assert_tree_allclose(a, e, rtol=rtol, atol=atol, strict=strict)
     else:
-        assert_allclose(actual, expected, rtol=rtol, atol=atol)
+        assert_allclose(actual, expected, rtol=rtol, atol=atol, strict=strict)
+
+
+def assert_saved_context(
+    context, directions, cotangent, *, size=None, suffix="", rtol=0
+):
+    """Check native state bytes and repeated restored JVPs/VJPs; return the bytes."""
+    state = context._state()
+    assert state.dtype == np.uint8
+    assert state.ndim == 1
+    if size is not None:
+        assert state.shape == (size,)
+    restored = type(context)._from_state(state)
+    np.testing.assert_array_equal(restored._state(), state)
+    for method, probes in (
+        ("pushforward", directions),
+        ("pullback", (cotangent,)),
+        ("pushforward", directions),
+    ):
+        assert_tree_allclose(
+            getattr(restored, method + suffix)(*probes),
+            getattr(context, method + suffix)(*probes),
+            rtol=rtol,
+            strict=True,
+        )
+    for malformed in (state[:-1], np.append(state, np.uint8(0))):
+        with pytest.raises(ValueError):
+            type(context)._from_state(malformed)
+    return state
 
 
 def _wrong_shapes(cotangent):
@@ -59,7 +87,7 @@ def _with_nan(cotangent):
     return cotangent
 
 
-def assert_one_use_context(
+def assert_reusable_context(
     context,
     cotangent,
     expected=None,
@@ -70,14 +98,14 @@ def assert_one_use_context(
     rtol=1e-7,
     atol=0.0,
 ):
-    """Check the one-use contract of a native pullback context; return its gradients.
+    """Check a reusable native pullback context; return its gradients.
 
     ``cotangent`` is one array, or a tuple with one array per output. Corrupting
     one cotangent at a time, wrong shapes raise ``ValueError`` matching
     ``shape_match`` and a NaN entry one matching ``finite_match``; neither
-    consumes the residual, so the valid cotangents then succeed (and match
-    ``expected``, a tree of arrays, when given), and a second use raises
-    ``ValueError`` mentioning "consumed". The wrong shapes keep dtype and
+    changes the residual, so valid cotangents then succeed (and match
+    ``expected``, a tree of arrays, when given). Repeating the pullback returns
+    the same gradients. The wrong shapes keep dtype and
     dimension: the first axis grown by one, each non-unit axis set to 1 (NumPy
     would broadcast these) and the axes reversed (same size, which a size-only
     check accepts). ``wrong_shape`` adds a site-specific probe with the structure
@@ -108,8 +136,7 @@ def assert_one_use_context(
     gradients = context.pullback(*cotangents)
     if expected is not None:
         assert_tree_allclose(gradients, expected, rtol=rtol, atol=atol)
-    with pytest.raises(ValueError, match="consumed"):
-        context.pullback(*cotangents)
+    assert_tree_allclose(context.pullback(*cotangents), gradients, rtol=rtol, atol=atol)
     return gradients
 
 

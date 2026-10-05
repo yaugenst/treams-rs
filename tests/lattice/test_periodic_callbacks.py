@@ -13,7 +13,7 @@ import treams_rs as tr
 from treams_rs import advect as ad
 from treams_rs.testing import check_gradient
 
-from _support import assert_one_use_context, complex_normal, finite_complex
+from _support import assert_reusable_context, complex_normal, finite_complex
 
 
 @pytest.mark.interface
@@ -79,7 +79,7 @@ def test_table_linear_pullback_owned_inputs_and_broadcast_values(poltype, scale)
     g = np.array([[0.2 + 0.3j, 0.4], [0.1j, -0.7 + 0.1j]])[:, ::-1]
     saved = table.copy()
     table[:] = 0
-    gradient = assert_one_use_context(context, g)
+    gradient = assert_reusable_context(context, g)
     assert gradient.shape == saved.shape
     assert_allclose(np.vdot(g, value), np.vdot(gradient, saved), atol=2e-12, rtol=2e-12)
     assert_allclose(

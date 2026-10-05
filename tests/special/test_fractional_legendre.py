@@ -11,7 +11,7 @@ from numpy.testing import assert_allclose, assert_array_equal
 from treams_rs import advect as ad
 from treams_rs import diff, special
 
-from _support import assert_one_use_context, degree_order
+from _support import assert_reusable_context, degree_order
 
 mp = pytest.importorskip("mpmath", reason="high-precision oracle")
 
@@ -98,7 +98,7 @@ def test_real_degree_broadcast_poles_and_owned_pullback():
     value, context = diff.angular(degrees, orders, x)
     _, duplicate = diff.angular(degrees, orders, x.copy())
     x[:] = 0
-    assert_one_use_context(
+    assert_reusable_context(
         context, np.ones_like(value), duplicate.pullback(np.ones_like(value))
     )
     for degree in (0.3, 2.3, 127.3):

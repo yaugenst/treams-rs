@@ -11,7 +11,8 @@ use treams_core::{
 
 use crate::{
     args::{angular_function, bessel_function},
-    broadcast::{Recorded, broadcast_context, record, record_held},
+    broadcast::{Recorded, broadcast_context, context, record, record_held},
+    context::error,
 };
 
 broadcast_context! {
@@ -38,6 +39,30 @@ pub(crate) fn bessel_record<'py>(
         record(py, shape, [argument_shape], move || {
             special::bessel_array(orders, arguments, function, spherical, derivative)
         })
+    })
+}
+
+/// Reconstruct the Bessel derivative context from its broadcast inputs.
+#[pyfunction]
+pub(crate) fn bessel_context(
+    orders: PyReadonlyArray1<'_, f64>,
+    arguments: PyReadonlyArray1<'_, Complex>,
+    function: &str,
+    spherical: bool,
+    derivative: u8,
+    shape: Vec<usize>,
+    argument_shape: Vec<usize>,
+) -> PyResult<BesselContext> {
+    ieee(|| {
+        let residual = BesselResidual::new(
+            orders.as_array().to_vec(),
+            arguments.as_array().to_vec(),
+            bessel_function(function)?,
+            spherical,
+            derivative,
+        )
+        .map_err(error)?;
+        context(shape, [argument_shape], residual)
     })
 }
 
@@ -100,6 +125,28 @@ pub(crate) fn angular_record<'py>(
     })
 }
 
+/// Reconstruct the angular derivative context from its broadcast inputs.
+#[pyfunction]
+pub(crate) fn angular_context(
+    degrees: PyReadonlyArray1<'_, f64>,
+    orders: PyReadonlyArray1<'_, f64>,
+    arguments: PyReadonlyArray1<'_, Complex>,
+    function: &str,
+    shape: Vec<usize>,
+    argument_shape: Vec<usize>,
+) -> PyResult<AngularContext> {
+    ieee(|| {
+        let residual = AngularResidual::new(
+            degrees.as_array().to_vec(),
+            orders.as_array().to_vec(),
+            arguments.as_array().to_vec(),
+            angular_function(function)?,
+        )
+        .map_err(error)?;
+        context(shape, [argument_shape], residual)
+    })
+}
+
 /// Record Wigner D functions on broadcast angles: `special::wigner_d_array`.
 #[pyfunction]
 pub(crate) fn wignerd_record<'py>(
@@ -116,6 +163,23 @@ pub(crate) fn wignerd_record<'py>(
         record(py, shape, argument_shapes, move || {
             special::wigner_d_array(labels, angles)
         })
+    })
+}
+
+/// Reconstruct the Wigner derivative context from its broadcast inputs.
+#[pyfunction]
+pub(crate) fn wignerd_context(
+    labels: Vec<[i32; 3]>,
+    phi: PyReadonlyArray1<'_, Complex>,
+    theta: PyReadonlyArray1<'_, Complex>,
+    psi: PyReadonlyArray1<'_, Complex>,
+    shape: Vec<usize>,
+    argument_shapes: [Vec<usize>; 3],
+) -> PyResult<WignerdContext> {
+    ieee(|| {
+        let angles = [phi, theta, psi].map(|angle| angle.as_array().to_vec());
+        let residual = WignerDResidual::new(labels, angles).map_err(error)?;
+        context(shape, argument_shapes, residual)
     })
 }
 

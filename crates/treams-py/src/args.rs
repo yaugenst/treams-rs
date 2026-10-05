@@ -1,7 +1,7 @@
 //! Python arguments as core inputs: layer materials (`coeffs::Material`), spheres,
 //! spherical and cylindrical bases (`sw::Basis`, `cw::Basis`), and the names that
 //! select a special function, vector wave or coordinate transform.
-use numpy::{PyReadonlyArray1, PyReadonlyArray2};
+use numpy::{PyReadonlyArray1, PyReadonlyArray2, ndarray::Ix1};
 use pyo3::{exceptions::PyValueError, prelude::*};
 use treams_core::{
     Complex,
@@ -12,7 +12,32 @@ use treams_core::{
     vectorwaves,
 };
 
-use crate::{convert::rows, coordinates::TRANSFORMS};
+use crate::{
+    convert::{RealTangent, Tangent, finite_tangent, rows, vector_tangent},
+    coordinates::TRANSFORMS,
+};
+
+/// One direction of concentric layer inputs. Material fields hold changes, so zero
+/// values are valid; only lengths and finiteness are checked.
+pub(crate) fn layer_tangents(
+    boundaries: usize,
+    radii: &RealTangent<'_>,
+    epsilon: &Tangent<'_>,
+    mu: &Tangent<'_>,
+    kappa: &Tangent<'_>,
+) -> PyResult<(Vec<f64>, Vec<Material>)> {
+    let radii = vector_tangent(radii, boundaries)?;
+    let epsilon = finite_tangent::<_, Ix1>(epsilon, &[boundaries + 1])?;
+    let mu = finite_tangent::<_, Ix1>(mu, &[boundaries + 1])?;
+    let kappa = finite_tangent::<_, Ix1>(kappa, &[boundaries + 1])?;
+    let materials = epsilon
+        .iter()
+        .zip(&mu)
+        .zip(&kappa)
+        .map(|((&epsilon, &mu), &kappa)| Material { epsilon, mu, kappa })
+        .collect();
+    Ok((radii, materials))
+}
 
 /// Layer materials from equally long epsilon, mu and kappa arrays.
 pub(crate) fn materials(

@@ -1,22 +1,65 @@
 //! `rotation` and `cylindrical_rotation` with `RotationContext`: rotation matrices
 //! of spherical and cylindrical bases (`treams_core::rotation`).
+#![allow(clippy::indexing_slicing)] // The Euler tangent length is validated before indexing.
+use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
-use treams_core::fpenv::ieee;
+use treams_core::{fpenv::ieee, rotation::RotationResidual};
 
 use crate::{
     args::{make_basis, make_cyl_basis},
-    context::{context, detached},
-    convert::{C2, Cotangent, matrix},
+    context::{context, detached, error, restore_state, state_array},
+    convert::{C2, Cotangent, RealTangent, matrix, matrix_cotangent, owned_matrix, vector_tangent},
 };
 
-context!(RotationContext(treams_core::rotation::RotationResidual));
+context!(RotationContext(RotationResidual));
 #[pymethods]
 impl RotationContext {
-    fn pullback(&mut self, py: Python<'_>, cotangent: Cotangent<'_>) -> PyResult<[f64; 3]> {
+    #[staticmethod]
+    #[pyo3(signature = (destination, source, cylindrical=false))]
+    fn _state_spec(
+        destination: &Bound<'_, PyAny>,
+        source: &Bound<'_, PyAny>,
+        cylindrical: bool,
+    ) -> PyResult<usize> {
         ieee(|| {
-            let (residual, g) = self
-                .residual
-                .take_with_matrix(&cotangent, treams_core::rotation::RotationResidual::shape)?;
+            if cylindrical {
+                RotationResidual::cw_state_size(
+                    &make_cyl_basis(destination.extract()?, Vec::new()).modes,
+                    &make_cyl_basis(source.extract()?, Vec::new()).modes,
+                )
+            } else {
+                RotationResidual::sw_state_size(
+                    &make_basis(destination.extract()?, Vec::new()).modes,
+                    &make_basis(source.extract()?, Vec::new()).modes,
+                )
+            }
+            .map_err(error)
+        })
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| state_array(py, &self.residual))
+    }
+
+    #[staticmethod]
+    fn _from_state(state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| restore_state(&state).map(Self::new))
+    }
+
+    fn pushforward<'py>(&self, py: Python<'py>, angles: RealTangent<'py>) -> PyResult<C2<'py>> {
+        ieee(|| {
+            let direction = vector_tangent(&angles, 3)?;
+            let angles = [direction[0], direction[1], direction[2]];
+            let residual = &self.residual;
+            let result = detached(py, || residual.pushforward(angles))?;
+            owned_matrix(py, result)
+        })
+    }
+
+    fn pullback(&self, py: Python<'_>, cotangent: Cotangent<'_>) -> PyResult<[f64; 3]> {
+        ieee(|| {
+            let residual = &self.residual;
+            let g = matrix_cotangent(&cotangent, residual.shape())?;
             detached(py, move || residual.pullback(&g))
         })
     }
@@ -26,7 +69,7 @@ impl RotationContext {
 /// its context.
 fn finish_rotation(
     py: Python<'_>,
-    residual: treams_core::rotation::RotationResidual,
+    residual: RotationResidual,
 ) -> PyResult<(C2<'_>, RotationContext)> {
     Ok((
         matrix(py, residual.value())?,

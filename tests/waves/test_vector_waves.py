@@ -15,7 +15,7 @@ from treams_rs import diff, pw, special
 from treams_rs.testing import check_pullback
 
 from _support import (
-    assert_one_use_context,
+    assert_reusable_context,
     complex_normal,
     degree_order,
     selecting,
@@ -128,7 +128,7 @@ def test_wave_pullbacks_all_arguments_ownership_broadcast_and_advect(name):
         a[...] += 0.1
     # The context owns its inputs and survives the rejected cotangents: it
     # pulls back what a fresh record at the saved inputs, checked below, does.
-    grads = assert_one_use_context(
+    grads = assert_reusable_context(
         ctx, cot, record(*saved)[1].pullback(cot), rtol=1e-13, atol=1e-15
     )
     assert isinstance(grads, tuple)

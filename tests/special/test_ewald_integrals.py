@@ -20,7 +20,7 @@ from treams_rs import (
 )
 from treams_rs import advect as ad
 
-from _support import assert_one_use_context
+from _support import assert_reusable_context
 
 
 @pytest.mark.reference
@@ -92,7 +92,7 @@ def test_gamma_owned_complex_argument(n):
     z[:] = 9
     g = np.array([0.3 + 0.2j, -0.2j, 0.4])
     # d/dz Gamma(n, z) = -z^(n-1) exp(-z).
-    assert_one_use_context(
+    assert_reusable_context(
         context,
         g,
         -g * (original ** (n - 1) * np.exp(-original)).conj(),
@@ -121,7 +121,7 @@ def test_kambe_owned_broadcast_arguments(n):
         np.sum(g * dz.conj(), axis=1, keepdims=True),
         np.sum(g * deta.conj(), axis=0, keepdims=True),
     )
-    assert_one_use_context(context, g, expected, rtol=1e-12)
+    assert_reusable_context(context, g, expected, rtol=1e-12)
 
 
 @pytest.mark.gradients

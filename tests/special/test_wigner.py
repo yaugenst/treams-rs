@@ -18,7 +18,7 @@ from treams_rs import advect as ad
 from treams_rs import diff, special
 from treams_rs.testing import check_gradient
 
-from _support import assert_one_use_context, degree_order, sum_to
+from _support import assert_reusable_context, degree_order, sum_to
 
 
 @pytest.mark.reference
@@ -329,7 +329,7 @@ def test_wigner_all_euler_adjoints_and_owned_broadcast(scalar):
     _, context = diff.wignerd(*labels, *angles)
     for a in angles:
         a[...] = 0
-    assert_one_use_context(context, g, gradient)
+    assert_reusable_context(context, g, gradient)
 
 
 @pytest.mark.gradients

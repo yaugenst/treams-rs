@@ -2,7 +2,10 @@
 //! single spheres and cylinders, and the metrics cd, db and chi
 //! (`treams_core::tmatrix`).
 
-use numpy::{IntoPyArray, PyReadonlyArray1, PyReadonlyArray2, ndarray::Ix0};
+use numpy::{
+    IntoPyArray, PyArray1, PyReadonlyArray1, PyReadonlyArray2,
+    ndarray::{Ix0, Ix1},
+};
 use pyo3::{exceptions::PyValueError, prelude::*};
 use treams_core::{
     Complex,
@@ -11,10 +14,12 @@ use treams_core::{
 };
 
 use crate::{
-    args::materials,
-    context::{context, detached},
+    args::{layer_tangents, materials},
+    context::{context, detached, error, restore_state, state_array},
     convert::{
-        C1, C2, Cotangent, R1, RealCotangent, finite_cotangent, from_array, matrix, owned_matrix,
+        C1, C2, Cotangent, R1, RealCotangent, RealTangent, Tangent, finite_cotangent,
+        finite_tangent, from_array, matrix, matrix_cotangent, matrix_tangent, owned_matrix,
+        vector_tangent,
     },
 };
 
@@ -22,15 +27,47 @@ context!(SphereContext(SphereResidual));
 
 #[pymethods]
 impl SphereContext {
+    #[staticmethod]
+    fn _state_spec(lmax: usize, boundaries: usize) -> PyResult<usize> {
+        ieee(|| SphereResidual::state_size(lmax, boundaries).map_err(error))
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| state_array(py, &self.residual))
+    }
+
+    #[staticmethod]
+    fn _from_state(state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| restore_state(&state).map(Self::new))
+    }
+
+    fn pushforward<'py>(
+        &self,
+        py: Python<'py>,
+        k0: RealTangent<'py>,
+        radii: RealTangent<'py>,
+        epsilon: Tangent<'py>,
+        mu: Tangent<'py>,
+        kappa: Tangent<'py>,
+    ) -> PyResult<C2<'py>> {
+        ieee(|| {
+            let residual = &self.residual;
+            let k0 = finite_tangent::<_, Ix0>(&k0, &[])?[()];
+            let (radii, materials) =
+                layer_tangents(residual.boundaries(), &radii, &epsilon, &mu, &kappa)?;
+            let tangent = detached(py, move || residual.pushforward(k0, &radii, &materials))?;
+            owned_matrix(py, tangent)
+        })
+    }
+
     fn pullback<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         cotangent: Cotangent<'py>,
     ) -> PyResult<(f64, R1<'py>, C1<'py>, C1<'py>, C1<'py>)> {
         ieee(|| {
-            let (residual, g) = self
-                .residual
-                .take_with_matrix(&cotangent, SphereResidual::shape)?;
+            let residual = &self.residual;
+            let g = matrix_cotangent(&cotangent, residual.shape())?;
             let result = detached(py, move || residual.pullback(&g))?;
             Ok((
                 result.k0,
@@ -67,15 +104,51 @@ context!(CylinderContext(tmatrix::CylinderResidual));
 
 #[pymethods]
 impl CylinderContext {
+    #[staticmethod]
+    fn _state_spec(kz_count: usize, mmax: usize, boundaries: usize) -> PyResult<usize> {
+        ieee(|| tmatrix::CylinderResidual::state_size(kz_count, mmax, boundaries).map_err(error))
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| state_array(py, &self.residual))
+    }
+
+    #[staticmethod]
+    fn _from_state(state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| restore_state(&state).map(Self::new))
+    }
+
+    fn pushforward<'py>(
+        &self,
+        py: Python<'py>,
+        kzs: RealTangent<'py>,
+        k0: RealTangent<'py>,
+        radii: RealTangent<'py>,
+        epsilon: Tangent<'py>,
+        mu: Tangent<'py>,
+        kappa: Tangent<'py>,
+    ) -> PyResult<C2<'py>> {
+        ieee(|| {
+            let residual = &self.residual;
+            let (kz_count, boundaries) = residual.input_counts();
+            let kzs = vector_tangent(&kzs, kz_count)?;
+            let k0 = finite_tangent::<_, Ix0>(&k0, &[])?[()];
+            let (radii, materials) = layer_tangents(boundaries, &radii, &epsilon, &mu, &kappa)?;
+            let tangent = detached(py, move || {
+                residual.pushforward(&kzs, k0, &radii, &materials)
+            })?;
+            owned_matrix(py, tangent)
+        })
+    }
+
     fn pullback<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         cotangent: Cotangent<'py>,
     ) -> PyResult<(R1<'py>, f64, R1<'py>, C1<'py>, C1<'py>, C1<'py>)> {
         ieee(|| {
-            let (residual, g) = self
-                .residual
-                .take_with_matrix(&cotangent, tmatrix::CylinderResidual::shape)?;
+            let residual = &self.residual;
+            let g = matrix_cotangent(&cotangent, residual.shape())?;
             let result = detached(py, move || residual.pullback(&g))?;
             Ok((
                 result.kzs.into_pyarray(py),
@@ -116,14 +189,43 @@ context!(TMatrixMetricContext(tmatrix::MetricResidual));
 
 #[pymethods]
 impl TMatrixMetricContext {
+    #[staticmethod]
+    fn _state_spec(dimension: usize) -> PyResult<usize> {
+        ieee(|| tmatrix::MetricResidual::state_size(dimension).map_err(error))
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| state_array(py, &self.residual))
+    }
+
+    #[staticmethod]
+    fn _from_state(state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| restore_state(&state).map(Self::new))
+    }
+
+    fn pushforward(
+        &self,
+        py: Python<'_>,
+        operator: Tangent<'_>,
+        ks: RealTangent<'_>,
+    ) -> PyResult<f64> {
+        ieee(|| {
+            let matrix = matrix_tangent(&operator, self.residual.shape())?;
+            let ks = finite_tangent::<_, Ix1>(&ks, &[2])?;
+            let ks = [ks[0], ks[1]];
+            let residual = &self.residual;
+            detached(py, move || residual.pushforward(&matrix, ks))
+        })
+    }
+
     fn pullback<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         cotangent: RealCotangent<'py>,
     ) -> PyResult<(C2<'py>, R1<'py>)> {
         ieee(|| {
             let cotangent = finite_cotangent::<_, Ix0>(&cotangent, &[])?[()];
-            let residual = self.residual.take()?;
+            let residual = &self.residual;
             let gradient = detached(py, move || residual.pullback(cotangent))?;
             Ok((
                 owned_matrix(py, gradient.matrix)?,
