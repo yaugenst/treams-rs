@@ -374,6 +374,12 @@ def _check_numpy_special_functions() -> None:
     _close(
         context.pullback(np.ones_like(z)), tr.special.hankel1_d(3, z).conj(), rtol=1e-13
     )
+    direction = np.array([0.2 + 0.3j, -0.1 + 0.4j])
+    _close(
+        context.pushforward(direction),
+        tr.special.hankel1_d(3, z) * direction,
+        rtol=1e-13,
+    )
     scalar, context = tr.diff.bessel(3, 1.3 + 0.2j, function="h1")
     _close(scalar, value[0], rtol=1e-13)
     _close(
@@ -382,7 +388,7 @@ def _check_numpy_special_functions() -> None:
         rtol=1e-13,
     )
     print(
-        "Clean wheel: scalar and ufunc special functions, output masks and adjoint passed"
+        "Clean wheel: special functions, output masks, forward and reverse checks passed"
     )
 
     x = np.array([-1.0, -0.4, 0.7, 1.0])
@@ -534,6 +540,7 @@ def _check_advect_workflows() -> None:
     anp = cast("Any", importlib.import_module("advect.numpy"))
     ad = cast("Any", importlib.import_module("treams_rs.advect"))
     grad = cast("Callable[..., Callable[..., Any]]", advect.grad)
+    jvp = cast("Callable[..., Callable[..., Any]]", advect.jvp)
 
     for name in (
         "PlaneWavePorts",
@@ -790,7 +797,11 @@ def _check_advect_workflows() -> None:
         return anp.real(anp.sum(ad.angular(value, degree=3, order=0)))
 
     _close(grad(angular_sum)(x), (15 * x**2 - 3) / 2)
-    print("Clean wheel: angular Advect composition passed")
+    direction = np.array([0.2, -0.1, 0.4, 0.3])
+    value, tangent = jvp(angular_sum)(x, tangents=direction)
+    _close(value, np.sum((5 * x**3 - 3 * x) / 2))
+    _close(tangent, np.dot((15 * x**2 - 3) / 2, direction))
+    print("Clean wheel: angular Advect forward and reverse composition passed")
 
     cp = np.array([[0.4, -0.3, 0.2]])
     ck = np.array([1.3 + 0.05j, 1.5 + 0.07j])
@@ -874,6 +885,7 @@ def _check_autograd_workflows() -> None:
     autograd = importlib.import_module("autograd")
     anp = cast("Any", importlib.import_module("autograd.numpy"))
     grad = cast("Callable[..., Callable[..., Any]]", autograd.grad)
+    make_jvp = cast("Callable[..., Callable[..., Any]]", autograd.make_jvp)
 
     def scattering(parameters: Any) -> Any:
         radius, epsilon = parameters
@@ -899,6 +911,14 @@ def _check_autograd_workflows() -> None:
     argument = 0.8 + 0.2j
     gradient = grad(bessel_norm)(argument)
     for direction in (1.0, 1.0j):
+        value, tangent = make_jvp(bessel_norm)(argument)(direction)
+        bessel = tr.special.jv(1, argument)
+        _close(value, abs(bessel) ** 2)
+        _close(
+            tangent,
+            2 * np.real(np.conj(bessel) * tr.special.jv_d(1, argument) * direction),
+            rtol=1e-12,
+        )
         _close(
             np.real(gradient * direction),
             (
@@ -908,7 +928,9 @@ def _check_autograd_workflows() -> None:
             / (2 * _STEP),
             rtol=1e-7,
         )
-    print("Clean wheel: automatic HIPS Autograd physics and complex gradients passed")
+    print(
+        "Clean wheel: HIPS Autograd physics and complex forward/reverse checks passed"
+    )
 
 
 def _check_io_workflows() -> None:

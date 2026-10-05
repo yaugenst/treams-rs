@@ -24,7 +24,8 @@ Before the first release, check these settings:
 
 - Make the repository public and enable the protections below.
 - Give the Codecov GitHub App access to the repository. The coverage upload
-  uses OIDC, and an upload failure fails `CI Success`.
+  uses OIDC for the badge and is best-effort. CI enforces coverage independently
+  from the saved reports; a Codecov upload failure does not fail `CI Success`.
 - Register pending trusted publishers on TestPyPI and PyPI for
   `yaugenst/treams-rs`, workflow `publish-release.yml`, with environments
   `testpypi` and `pypi` respectively. Existing projects use the same publishers.

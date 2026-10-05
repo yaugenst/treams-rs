@@ -2,8 +2,12 @@
 
 ## Unreleased
 
-- Add a "How it was built" section to the documentation: the story, messages
-  and conversations of the AI coding agents that wrote treams-rs.
+## 0.2.0 (2026-10-05)
+
+Forward-mode differentiation joins reverse mode across Advect, JAX, PyTorch and
+HIPS Autograd. Follow a few input changes through a large field map, compute
+reverse gradients for a scalar objective, or combine both at fixed inputs.
+
 - Check analytic adjoint identities independently of finite-difference error,
   cover saved-state dimensions and multilayer pushforwards, and record final
   release-build comparisons with their remaining small-operation slowdowns.
@@ -41,6 +45,15 @@
 - Preserve Clippy's default correctness errors and enable every Hypothesis
   health check on CI. Let Maturin configure Python extension linking and build
   source-distribution verification wheels through uv's default sdist rebuild.
+- Enforce coverage in CI using cached base reports, with regeneration only when
+  both cache and artifact are missing. Codecov supplies the badge independently
+  of the required coverage checks.
+- Record the remaining performance tradeoffs: all 25 established CPU physics
+  cases pass their speed budgets, while tiny JIT solve gradients and Wigner
+  value-plus-JVP calls remain slower. See the
+  [final measurements](https://github.com/yaugenst/treams-rs/blob/v0.2.0/benchmarks/forward-autodiff-final-20261005.json).
+- Add a "How it was built" section to the documentation: the story, messages
+  and conversations of the AI coding agents that wrote treams-rs.
 
 ## 0.1.1 (2026-10-04)
 
