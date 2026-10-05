@@ -118,12 +118,70 @@ no adapter changes a framework's global precision settings. For JAX, enable
 `jax_enable_x64` when the objective needs double-precision arrays and gradients.
 
 Higher derivatives are unsupported, including nested gradients and differentiating
-a JVP or VJP. Advect also rejects `stage` and `checkpoint`; PyTorch rejects
+a JVP or VJP with respect to the original model parameters. Combining first
+derivatives at fixed parameters is possible, as shown below. Advect also rejects
+`stage` and `checkpoint`; PyTorch rejects
 `create_graph=True`. The supported PyTorch functional transform is
 `torch.func.jvp`; other `torch.func` transforms and `torch.compile` are outside
 the supported contract.
 [How long a context lives](../design/adapters.md#how-long-a-context-lives) gives
 the reasons for these context lifetimes.
+
+## Use both modes together
+
+When fitting a model to measurements, an optimizer may need to follow a
+parameter change to the predicted measurements, then send that change back to
+the parameters. If `J` is the matrix of first derivatives and `v` is the
+parameter change, the result is `J.T @ J @ v`, often called a
+**Gauss–Newton product**. Neither step needs to build `J`.
+
+In JAX, keep the parameters fixed with `linearize`, then transpose that linear
+map. This small example uses spherical Bessel values; `predictions` can instead
+return the real measurements from your scattering model.
+
+```python exec jax
+import jax
+import jax.numpy as jnp
+import treams_rs as tr
+
+
+def predictions(parameters):
+    return tr.special.spherical_jn(2, parameters).real
+
+
+parameters = jnp.array([0.4, 0.7])
+direction = jnp.array([0.2, -0.3])
+_, linear = jax.linearize(predictions, parameters)
+change, transpose = jax.vjp(linear, direction)
+(result,) = transpose(change)
+assert result.shape == parameters.shape
+```
+
+In PyTorch, use the original outputs for the reverse step. The forward and
+reverse steps share one native calculation. `detach()` treats the output change
+as a fixed weight, so the reverse step does not differentiate the tangent.
+
+```python exec torch
+import torch
+import treams_rs as tr
+
+
+def predictions(parameters):
+    return tr.special.spherical_jn(2, parameters).real
+
+
+parameters = torch.tensor([0.4, 0.7], dtype=torch.float64, requires_grad=True)
+direction = torch.tensor([0.2, -0.3], dtype=torch.float64)
+value, change = torch.func.jvp(predictions, (parameters,), (direction,))
+(result,) = torch.autograd.grad(value, parameters, change.detach())
+assert result.shape == parameters.shape
+```
+
+These are two first-order actions at the same parameters. The result is useful
+for least-squares fitting, but is not a general second derivative: it leaves
+out how `J` itself changes with the parameters. General Hessians and nested
+higher derivatives remain unsupported. PyTorch also rejects differentiating
+the tangent directly; use the original `value` as above.
 
 ## Automatic selection and constants
 

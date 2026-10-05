@@ -148,7 +148,7 @@ class _NativeCall:
     def _restore(
         self, packed: tuple[Any, ...]
     ) -> tuple[Any, tuple[ArrayMetadata, ...], int]:
-        primals = tuple(np.asarray(value) for value in packed[: self.retained_count])
+        primals = packed[: self.retained_count]
         boundary = self.retained_count + len(self.state_specs)
         state = unpack_state(packed[self.retained_count : boundary], self.state_specs)
         context = self.record.restore(
@@ -223,7 +223,24 @@ def _higher_order(*_: Any, **__: Any) -> Any:
     raise ValueError("treams-rs supports first-order differentiation only")
 
 
-ad.primitive_jvps[_tangent] = _higher_order
+def _tangent_jvp(
+    primals: tuple[Any, ...], tangents: tuple[Any, ...], *, operation: _NativeCall
+) -> tuple[Any, Any]:
+    boundary = operation.retained_count + len(operation.state_specs)
+    # The recorded point stays fixed when differentiating a linearized map
+    # with respect to its direction. Differentiating the state needs a Hessian.
+    if any(not isinstance(value, ad.Zero) for value in tangents[:boundary]):
+        _higher_order()
+    outputs = _tangent.bind(*primals, operation=operation)
+    output_tangents = _tangent.bind(
+        *primals[:boundary],
+        *(ad.instantiate_zeros(value) for value in tangents[boundary:]),
+        operation=operation,
+    )
+    return outputs, output_tangents
+
+
+ad.primitive_jvps[_tangent] = _tangent_jvp
 
 
 def _saved_transpose(
@@ -247,13 +264,31 @@ def _saved_transpose(
 ad.primitive_transposes[_tangent] = _saved_transpose
 
 
-def _saved_call(
-    record: SavedRecord,
+def _primitive(
+    record: Record,
     specs: tuple[jax.ShapeDtypeStruct, ...],
     multiple: bool,
     inputs: tuple[jax.Array, ...],
-) -> Output:
-    operation = _NativeCall(record, specs, multiple, inputs)
+) -> Callable[..., Output]:
+    """One custom JVP backed by native pushforward and pullback callbacks."""
+    prepared = saved_record(record)
+    if prepared is None:
+        # Arbitrary user records have no array-state contract. Replaying the
+        # record preserves reverse compatibility and enables a basic JVP.
+        def state_spec(_inputs: tuple[ArraySpec, ...]) -> tuple[ArraySpec, ...]:
+            return ()
+
+        def save(_context: Any) -> tuple[Any, ...]:
+            return ()
+
+        def restore(_state: tuple[Any, ...], *primals: Any) -> Any:
+            return record(*primals)[1]
+
+        prepared = SavedRecord(record, state_spec, save, restore)
+
+    # JAX caches callbacks by identity. Keep one operation per wrapper so eager
+    # calls reuse their compiled callbacks as well as jitted calls do.
+    operation = _NativeCall(prepared, specs, multiple, inputs)
 
     @jax.custom_jvp
     def primitive(*values: jax.Array) -> tuple[jax.Array, ...]:
@@ -286,31 +321,9 @@ def _saved_call(
         )
         return outputs, tuple(output_tangents)
 
-    outputs = primitive(*inputs)
-    return outputs if multiple else outputs[0]
-
-
-def _primitive(
-    record: Record, specs: tuple[jax.ShapeDtypeStruct, ...], multiple: bool
-) -> Callable[..., Output]:
-    """One custom JVP backed by native pushforward and pullback callbacks."""
-    prepared = saved_record(record)
-    if prepared is None:
-        # Arbitrary user records have no array-state contract. Replaying the
-        # record preserves reverse compatibility and enables a basic JVP.
-        def state_spec(_inputs: tuple[ArraySpec, ...]) -> tuple[ArraySpec, ...]:
-            return ()
-
-        def save(_context: Any) -> tuple[Any, ...]:
-            return ()
-
-        def restore(_state: tuple[Any, ...], *primals: Any) -> Any:
-            return record(*primals)[1]
-
-        prepared = SavedRecord(record, state_spec, save, restore)
-
-    def call(*values: ArrayLike) -> Output:
-        return _saved_call(prepared, specs, multiple, _inputs(values))
+    def call(*values: jax.Array) -> Output:
+        outputs = primitive(*values)
+        return outputs if multiple else outputs[0]
 
     return call
 
@@ -349,6 +362,7 @@ def wrap(record: Record, *example_values: ArrayLike) -> Callable[..., Output]:
             for v in outputs
         ),
         multiple,
+        arrays,
     )
     signatures = tuple((v.shape, v.dtype) for v in arrays)
 
@@ -367,7 +381,8 @@ def _operation(
     spec = jax.ShapeDtypeStruct(
         shape, jax.dtypes.canonicalize_dtype(np.float64 if real else np.complex128)
     )
-    return cast("jax.Array", _primitive(record, (spec,), False)(*values))
+    arrays = _inputs(values)
+    return cast("jax.Array", _primitive(record, (spec,), False, arrays)(*arrays))
 
 
 def _physics_validate(value: Any) -> None:

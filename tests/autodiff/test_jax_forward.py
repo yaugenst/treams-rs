@@ -24,6 +24,36 @@ def double_precision():
         yield
 
 
+@pytest.mark.parametrize("mode", ["primal", "jvp", "grad"])
+@pytest.mark.parametrize("saved", [False, True])
+def test_eager_wrap_reuses_compiled_callbacks(caplog, mode, saved):
+    matrix = jnp.array([[2.0, 0.2], [0.1, 3.0]])
+    rhs = jnp.array([[1.0], [2.0]])
+    record = diff.solve if saved else lambda a, b: diff.solve(a, b)
+    wrapped = tj.wrap(record, matrix, rhs)
+
+    def function(rhs):
+        return wrapped(matrix, rhs).real.sum()
+
+    direction = jnp.ones_like(rhs)
+    run = {
+        "primal": function,
+        "jvp": lambda rhs: jax.jvp(function, (rhs,), (direction,)),
+        "grad": jax.grad(function),
+    }[mode]
+    values = (rhs, rhs * 2, rhs * 3)
+    with jax.log_compiles(True):
+        jax.block_until_ready(run(rhs))
+        caplog.clear()
+        for value in values:
+            jax.block_until_ready(run(value))
+    assert not [
+        record.message
+        for record in caplog.records
+        if record.message.startswith("Compiling ")
+    ]
+
+
 @pytest.mark.parametrize("compiled", [False, True])
 def test_opaque_custom_records_replay_for_each_derivative(compiled):
     calls = []
@@ -189,6 +219,24 @@ def test_radius_jvp_returns_the_whole_scattered_field_map():
 def test_nested_forward_derivatives_remain_unsupported():
     with pytest.raises(ValueError, match="first-order differentiation"):
         jax.jacfwd(jax.jacfwd(lambda x: tj.bessel(x, order=1).real))(0.3)
+
+
+@pytest.mark.parametrize("compiled", [False, True])
+def test_transpose_of_linearized_map_applies_gauss_newton(compiled):
+    def function(x):
+        return tj.bessel(x, order=2, spherical=True).real
+
+    x = jnp.array([0.4, 0.7])
+    direction = jnp.array([0.2, -0.3])
+    _, linear = jax.linearize(function, x)
+
+    def gauss_newton(direction):
+        tangent, transpose = jax.vjp(linear, direction)
+        return transpose(tangent)[0]
+
+    actual = (jax.jit(gauss_newton) if compiled else gauss_newton)(direction)
+    derivative = special.spherical_jn(2, np.asarray(x), derivative=True).real
+    assert_allclose(actual, derivative**2 * direction, atol=1e-14)
 
 
 @pytest.mark.interface
