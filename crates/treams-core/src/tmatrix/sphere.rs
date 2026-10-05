@@ -14,6 +14,8 @@ use crate::{
     numerics::{self, finite},
 };
 
+mod saved;
+
 /// What [`sphere`] saves for its pullback: the Mie residual of each degree.
 #[derive(Clone, Debug)]
 pub struct SphereResidual {
@@ -76,6 +78,12 @@ pub(crate) fn block_degrees(count: usize) -> impl Iterator<Item = usize> {
 }
 
 impl SphereResidual {
+    /// The number of recorded layer boundaries.
+    #[must_use]
+    pub fn boundaries(&self) -> usize {
+        self.radii.len()
+    }
+
     /// The shape of the T-matrix: `2 lmax (lmax + 2)` modes, as [`sw::modes`] lists them.
     #[must_use]
     pub fn shape(&self) -> (usize, usize) {
@@ -83,12 +91,46 @@ impl SphereResidual {
         (2 * lmax * (lmax + 2), 2 * lmax * (lmax + 2))
     }
 
+    /// The T-matrix tangent along changes of `k0`, the radii and the materials.
+    /// Material entries store changes of epsilon, mu and kappa. Each degree is
+    /// differentiated once and its block is repeated over the azimuthal orders.
+    pub fn pushforward(
+        &self,
+        k0: f64,
+        radii: &[f64],
+        materials: &[Material],
+    ) -> Result<DMatrix<Complex>> {
+        crate::coeffs::validate_layer_tangents(self.radii.len(), radii, materials)?;
+        if !k0.is_finite() {
+            return Err(Error::InvalidInput("k0 tangent must be finite".into()));
+        }
+        let sizes: Vec<_> = self
+            .radii
+            .iter()
+            .zip(radii)
+            .map(|(r, dr)| k0 * r + self.k0 * dr)
+            .collect();
+        let degrees = self
+            .degrees
+            .iter()
+            .map(|degree| degree.pushforward(&sizes, materials))
+            .collect::<Result<Vec<_>>>()?;
+        let (rows, cols) = self.shape();
+        let mut tangent = numerics::zeros(rows, cols)?;
+        for (block, degree) in block_degrees(degrees.len()).enumerate() {
+            tangent
+                .fixed_view_mut::<2, 2>(2 * block, 2 * block)
+                .copy_from(&to_mode_order(&degrees[degree]));
+        }
+        Ok(tangent)
+    }
+
     /// Gradients of `k0`, the radii and the materials from `cotangent`, the gradient of
     /// a real loss with respect to the T-matrix.
     ///
     /// The pullback runs on the calling thread and adds the degrees in order, so the
     /// Rayon pool does not change it.
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<SphereGradient> {
+    pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<SphereGradient> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|z| !finite(*z)) {
             return Err(Error::InvalidInput(
                 "invalid spherical T-matrix cotangent".into(),
@@ -102,7 +144,7 @@ impl SphereResidual {
             blocks[degree] += to_mode_order(&g);
         }
         let mut sum = MieGradient::zeros(self.radii.len());
-        for (residual, g) in self.degrees.into_iter().zip(blocks) {
+        for (residual, g) in self.degrees.iter().zip(blocks) {
             sum.accumulate(&residual.pullback(&g)?);
         }
         // The size parameters k0 r carry both the radius and the k0 gradients. The

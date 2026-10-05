@@ -260,10 +260,39 @@ impl TranslationPlan {
         position: [f64; 3],
         radial: Radial,
         input: MatRef<'_, Complex>,
-        mut output: MatMut<'_, Complex>,
+        output: MatMut<'_, Complex>,
         adjoint: bool,
     ) -> Result<()> {
         let table = self.values(k, position, radial)?;
+        self.apply_table(&table, input, output, adjoint);
+        Ok(())
+    }
+
+    /// Apply the directional derivative of a translation directly to its incident
+    /// columns, without allocating a dense particle-pair block.
+    pub(crate) fn apply_pushforward(
+        &self,
+        k: Complex,
+        position: [f64; 3],
+        radial: Radial,
+        position_tangent: [f64; 3],
+        k_tangent: Complex,
+        input: MatRef<'_, Complex>,
+        output: MatMut<'_, Complex>,
+    ) -> Result<()> {
+        let table = self.tangent_table(k, position, radial, position_tangent, k_tangent)?;
+        self.apply_table(&table, input, output, false);
+        Ok(())
+    }
+
+    /// A value or tangent harmonic table, shared over all incident columns.
+    fn apply_table(
+        &self,
+        table: &[Complex],
+        input: MatRef<'_, Complex>,
+        mut output: MatMut<'_, Complex>,
+        adjoint: bool,
+    ) {
         let (destinations, sources) = if adjoint {
             (input.nrows(), output.nrows())
         } else {
@@ -290,7 +319,6 @@ impl TranslationPlan {
                 }
             }
         }
-        Ok(())
     }
 
     /// Cache-sharing groups in harmonic order. Whole degrees retain the most reuse;
@@ -344,6 +372,57 @@ impl TranslationPlan {
             .map(|(value, (l, m))| value / crate::special::harmonic_normalization(l, m))
             .collect();
         Ok(self.evaluate_table(&table))
+    }
+
+    /// Apply the angular plan to directional lattice-sum derivatives. Equal medium
+    /// wavenumbers share their Ewald jets even when their input directions differ.
+    pub(crate) fn pushforward_periodic(
+        &self,
+        ks: [Complex; 2],
+        position: [f64; 3],
+        lattice: &crate::lattice::BlochLattice,
+        eta: Complex,
+        tangents: &[crate::lattice::SumTangent; 2],
+        workers: usize,
+    ) -> Result<[Vec<Complex>; 2]> {
+        let groups = crate::threads::install(|| {
+            self.harmonic_groups(workers)
+                .into_par_iter()
+                .map(|(l, orders)| {
+                    let orders: Vec<_> = orders.collect();
+                    let mut values = [Vec::new(), Vec::new()];
+                    for pol in 0..2 {
+                        if pol == 1 && ks[0] == ks[1] {
+                            continue;
+                        }
+                        let derivatives = crate::lattice::spherical_degree_derivatives(
+                            l,
+                            &orders,
+                            ks[pol],
+                            lattice,
+                            position.map(|x| -x),
+                            eta,
+                        )?;
+                        for (&m, derivative) in orders.iter().zip(derivatives) {
+                            let normalization = crate::special::harmonic_normalization(l, m);
+                            for target in pol..if ks[0] == ks[1] { 2 } else { pol + 1 } {
+                                values[target].push(
+                                    derivative.pushforward(&tangents[target]) / normalization,
+                                );
+                            }
+                        }
+                    }
+                    Ok(values)
+                })
+                .collect::<Result<Vec<_>>>()
+        })?;
+        let mut tables = [Vec::new(), Vec::new()];
+        for group in groups {
+            for (table, values) in tables.iter_mut().zip(group) {
+                table.extend(values);
+            }
+        }
+        Ok(tables.map(|table| self.evaluate_table(&table)))
     }
 
     /// The lattice-sum gradients of the block cotangents of both polarizations.
@@ -429,6 +508,49 @@ impl TranslationPlan {
                 total
             },
         ))
+    }
+
+    /// Contract the shared harmonic derivatives before assembling the block.
+    pub(crate) fn pushforward(
+        &self,
+        k: Complex,
+        position: [f64; 3],
+        radial: Radial,
+        position_tangent: [f64; 3],
+        k_tangent: Complex,
+    ) -> Result<Vec<Complex>> {
+        Ok(self.evaluate_table(&self.tangent_table(
+            k,
+            position,
+            radial,
+            position_tangent,
+            k_tangent,
+        )?))
+    }
+
+    /// Contract derivatives before expanding harmonic coefficients into mode pairs.
+    fn tangent_table(
+        &self,
+        k: Complex,
+        position: [f64; 3],
+        radial: Radial,
+        position_tangent: [f64; 3],
+        k_tangent: Complex,
+    ) -> Result<Vec<Complex>> {
+        let table: Vec<_> = self
+            .table(k, position, radial)?
+            .into_iter()
+            .map(|entry| {
+                entry.k * k_tangent
+                    + entry
+                        .position
+                        .into_iter()
+                        .zip(position_tangent)
+                        .map(|(derivative, tangent)| derivative * tangent)
+                        .sum::<Complex>()
+            })
+            .collect();
+        Ok(table)
     }
 
     /// Pull a block cotangent of [`evaluate`](Self::evaluate) back to the real displacement

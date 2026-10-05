@@ -24,10 +24,10 @@ use crate::{
 /// on the thread count.
 #[derive(Debug)]
 pub struct PermutationResidual {
-    vectors: Vec<[Complex; 3]>,
-    polarizations: Vec<u8>,
-    turns: usize,
-    helicity: bool,
+    pub(super) vectors: Vec<[Complex; 3]>,
+    pub(super) polarizations: Vec<u8>,
+    pub(super) turns: usize,
+    pub(super) helicity: bool,
 }
 
 /// The parity coefficients `[same, cross]` of the plane wave `vector` under `turns`
@@ -212,9 +212,68 @@ impl PermutationResidual {
         (2, self.vectors.len())
     }
 
+    /// Validate a wavevector tangent for the recorded operation.
+    pub fn validate_tangents(&self, vectors: &[[Complex; 3]]) -> Result<()> {
+        if vectors.len() != self.vectors.len() || vectors.iter().flatten().any(|&k| !finite(k)) {
+            return Err(Error::InvalidInput(
+                "invalid plane-permutation tangent".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Contract the polarization coefficient jets with one wavevector direction.
+    pub fn pushforward(&self, vectors: &[[Complex; 3]]) -> Result<DMatrix<Complex>> {
+        self.validate_tangents(vectors)?;
+        let mut tangent = DMatrix::zeros(2, self.vectors.len());
+        if self.turns == 0 {
+            return Ok(tangent);
+        }
+        // Adjacent modes share their polarization jet when their directions agree,
+        // while each mode still carries its independent wavevector tangent.
+        try_fill_chunks(
+            tangent.as_mut_slice(),
+            4,
+            self.vectors.len() >= PARALLEL_ITEMS,
+            |group, output| -> Result<()> {
+                let first = 2 * group;
+                let mut previous = None;
+                for (offset, column) in output.chunks_mut(2).enumerate() {
+                    let i = first + offset;
+                    if vectors[i].iter().all(|&v| v == Complex::default()) {
+                        continue;
+                    }
+                    let pair = if let Some((vector, pair)) = previous
+                        && vector == self.vectors[i]
+                    {
+                        pair
+                    } else {
+                        let pair = permutation_pair::<3>(self.vectors[i], self.turns)?;
+                        previous = Some((self.vectors[i], pair));
+                        pair
+                    };
+                    for (out, coefficient) in column.iter_mut().zip(permutation_polarization(
+                        pair,
+                        self.polarizations[i],
+                        self.helicity,
+                    )) {
+                        *out = coefficient
+                            .derivative
+                            .iter()
+                            .zip(vectors[i])
+                            .map(|(&d, v)| d * v)
+                            .sum();
+                    }
+                }
+                Ok(())
+            },
+        )?;
+        Ok(tangent)
+    }
+
     /// Wavevector gradients for a `cotangent` of the coefficients' shape. Direction
     /// derivatives at an axial polarization gauge are undefined.
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<Vec<[Complex; 3]>> {
+    pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<Vec<[Complex; 3]>> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&z| !finite(z)) {
             return Err(Error::InvalidInput(
                 "invalid plane-permutation cotangent".into(),

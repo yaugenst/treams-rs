@@ -18,6 +18,7 @@ use crate::tmatrix::{SphereResidual, sphere};
 use crate::{
     Complex, Error, Result,
     numerics::{self, finite},
+    saved::{Reader, SavedState, Writer},
 };
 
 /// What [`sphere_cluster`] saves for its pullback: the Mie residual of each sphere,
@@ -169,11 +170,30 @@ fn cluster_parts(
     })?
     .into_iter()
     .unzip();
+    let plan = TranslationPlan::between(&modes, &modes, true)?;
+    let coupling = coupling_matrix(spheres.len(), modes_per_particle, |i, j| {
+        let displacement = std::array::from_fn(|axis| positions[i][axis] - positions[j][axis]);
+        plan.evaluate(Complex::new(k0, 0.0), displacement, Radial::Singular)
+    })?;
+    Ok(ClusterParts {
+        blocks,
+        spheres,
+        plan,
+        coupling,
+    })
+}
+
+/// Assemble complete particle columns in parallel, for either coupling values or
+/// their directional derivative. Self-couplings are exactly zero in both cases.
+fn coupling_matrix(
+    particles: usize,
+    modes_per_particle: usize,
+    pair: impl Fn(usize, usize) -> Result<Vec<Complex>> + Sync,
+) -> Result<DMatrix<Complex>> {
     let dimension = modes_per_particle
-        .checked_mul(spheres.len())
+        .checked_mul(particles)
         .ok_or_else(|| Error::InvalidInput("cluster is too large".into()))?;
     let mut coupling = numerics::zeros(dimension, dimension)?;
-    let plan = TranslationPlan::between(&modes, &modes, true)?;
     // Each worker owns complete source-particle columns; no locks or dense pair copies.
     crate::threads::install(|| {
         coupling
@@ -181,14 +201,11 @@ fn cluster_parts(
             .par_chunks_mut(dimension * modes_per_particle)
             .enumerate()
             .try_for_each(|(j, columns)| -> Result<()> {
-                for i in 0..spheres.len() {
+                for i in 0..particles {
                     if i == j {
                         continue;
                     }
-                    let displacement =
-                        std::array::from_fn(|axis| positions[i][axis] - positions[j][axis]);
-                    let values =
-                        plan.evaluate(Complex::new(k0, 0.0), displacement, Radial::Singular)?;
+                    let values = pair(i, j)?;
                     for col in 0..modes_per_particle {
                         let start = col * dimension + i * modes_per_particle;
                         columns[start..start + modes_per_particle].copy_from_slice(
@@ -199,15 +216,36 @@ fn cluster_parts(
                 Ok(())
             })
     })?;
-    Ok(ClusterParts {
-        blocks,
-        spheres,
-        plan,
-        coupling,
-    })
+    Ok(coupling)
 }
 
 impl SphereClusterResidual {
+    /// Byte count for a cluster's saved numerical state, from its static layout.
+    pub fn state_size(lmax: usize, particles: usize) -> Result<usize> {
+        if particles == 0 {
+            return Err(invalid_state());
+        }
+        let sphere_size = SphereResidual::state_size(lmax, 1)?;
+        let modes = lmax
+            .checked_add(2)
+            .and_then(|value| value.checked_mul(lmax))
+            .and_then(|value| value.checked_mul(2))
+            .ok_or_else(invalid_state)?;
+        let particle_size = sphere_size.checked_add(24).ok_or_else(invalid_state)?;
+        let interaction_size = InteractionResidual::state_size_uniform(modes, particles)?;
+        particles
+            .checked_mul(particle_size)
+            .and_then(|size| size.checked_add(24))
+            .and_then(|size| size.checked_add(interaction_size))
+            .ok_or_else(invalid_state)
+    }
+
+    /// Number of spheres in the recorded cluster.
+    #[must_use]
+    pub fn particles(&self) -> usize {
+        self.spheres.len()
+    }
+
     /// Interacting T-matrix in the local multipole bases.
     #[must_use]
     pub const fn value(&self) -> &DMatrix<Complex> {
@@ -220,6 +258,59 @@ impl SphereClusterResidual {
         self.interaction.shape()
     }
 
+    /// Directional derivative for vacuum wavenumber, radii, permittivities and
+    /// positions. Particle and translation tangents feed one solve with the saved LU.
+    pub fn pushforward(
+        &self,
+        k0: f64,
+        radii: &[f64],
+        epsilon: &[Complex],
+        positions: &[[f64; 3]],
+    ) -> Result<DMatrix<Complex>> {
+        let n = self.spheres.len();
+        if !k0.is_finite()
+            || radii.len() != n
+            || epsilon.len() != n
+            || positions.len() != n
+            || radii.iter().any(|r| !r.is_finite())
+            || epsilon.iter().any(|&z| !finite(z))
+            || positions.iter().flatten().any(|x| !x.is_finite())
+        {
+            return Err(Error::InvalidInput(
+                "sphere tangents must be finite and match the recorded cluster".into(),
+            ));
+        }
+        let blocks = crate::threads::install(|| {
+            self.spheres
+                .par_iter()
+                .zip(radii)
+                .zip(epsilon)
+                .map(|((sphere, &radius), &epsilon)| {
+                    let zero = Material {
+                        epsilon: Complex::default(),
+                        mu: Complex::default(),
+                        kappa: Complex::default(),
+                    };
+                    sphere.pushforward(k0, &[radius], &[Material { epsilon, ..zero }, zero])
+                })
+                .collect::<Result<Vec<_>>>()
+        })?;
+        let modes_per_particle = self.shape().0 / n;
+        let coupling = coupling_matrix(n, modes_per_particle, |i, j| {
+            let displacement =
+                std::array::from_fn(|axis| self.positions[i][axis] - self.positions[j][axis]);
+            let tangent = std::array::from_fn(|axis| positions[i][axis] - positions[j][axis]);
+            self.plan.pushforward(
+                Complex::new(self.k0, 0.0),
+                displacement,
+                Radial::Singular,
+                tangent,
+                Complex::new(k0, 0.0),
+            )
+        })?;
+        self.interaction.pushforward_blocks(&blocks, &coupling)
+    }
+
     /// Gradients of `k0`, the radii, the permittivities and the positions from
     /// `cotangent`, the gradient of a real loss with respect to the interacting T-matrix.
     ///
@@ -227,7 +318,7 @@ impl SphereClusterResidual {
     /// pool does not change them. The LU solve and the matrix products of
     /// [`InteractionResidual::pullback_blocks`] run in faer with the worker count of
     /// [`linalg`](crate::linalg).
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<SphereClusterGradient> {
+    pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<SphereClusterGradient> {
         let InteractionGradient { local, coupling } =
             self.interaction.pullback_blocks(cotangent)?;
         let n = self.spheres.len();
@@ -237,7 +328,7 @@ impl SphereClusterResidual {
         // gradients are summed in sphere order.
         let parts = crate::threads::install(|| {
             self.spheres
-                .into_par_iter()
+                .par_iter()
                 .zip(local)
                 .enumerate()
                 .map(|(i, (sphere, local))| {
@@ -284,5 +375,131 @@ impl SphereClusterResidual {
             }
         }
         Ok(result)
+    }
+}
+
+fn invalid_state() -> Error {
+    Error::InvalidInput("invalid native sphere-cluster state".into())
+}
+
+impl SavedState for SphereClusterResidual {
+    fn save_state(&self) -> Result<Vec<u8>> {
+        let lmax = self.spheres.first().ok_or_else(invalid_state)?.lmax();
+        let particles = self.particles();
+        let mut writer = Writer::new(Self::state_size(lmax, particles)?);
+        writer.usize(lmax);
+        writer.usize(particles);
+        writer.f64(self.k0);
+        for position in &self.positions {
+            for &coordinate in position {
+                writer.f64(coordinate);
+            }
+        }
+        for sphere in &self.spheres {
+            sphere.write_state(&mut writer);
+        }
+        self.interaction.write_state(&mut writer);
+        Ok(writer.finish())
+    }
+
+    fn from_state(bytes: &[u8]) -> Result<Self> {
+        let mut reader = Reader::new(bytes);
+        let lmax = reader.usize()?;
+        let particles = reader.usize()?;
+        // Prove the complete layout fits before allocating particle or matrix data.
+        if bytes.len() != Self::state_size(lmax, particles)? {
+            return Err(invalid_state());
+        }
+        let k0 = reader.f64()?;
+        if !k0.is_finite() || k0 <= 0.0 {
+            return Err(invalid_state());
+        }
+        let positions = (0..particles)
+            .map(|_| {
+                let position = [reader.f64()?, reader.f64()?, reader.f64()?];
+                if position.iter().any(|value| !value.is_finite()) {
+                    return Err(invalid_state());
+                }
+                Ok(position)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let spheres = (0..particles)
+            .map(|_| {
+                let sphere = SphereResidual::read_state(&mut reader)?;
+                if sphere.lmax() != lmax || sphere.boundaries() != 1 {
+                    return Err(invalid_state());
+                }
+                Ok(sphere)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let interaction = InteractionResidual::read_state(&mut reader)?;
+        let modes_per_particle = 2 * lmax * (lmax + 2);
+        if interaction.local_shapes().len() != particles
+            || interaction
+                .local_shapes()
+                .any(|shape| shape != (modes_per_particle, modes_per_particle))
+        {
+            return Err(invalid_state());
+        }
+        reader.finish()?;
+        // The plan depends only on mode labels; all numerical forward state,
+        // including the interaction LU, comes directly from the saved bytes.
+        let modes = sw::modes(u32::try_from(lmax).map_err(|_| invalid_state())?)?;
+        let plan = TranslationPlan::between(&modes, &modes, true)?;
+        Ok(Self {
+            k0,
+            positions,
+            plan,
+            spheres,
+            interaction,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::float_cmp)] // Saved state must preserve the exact numerical results.
+
+    use super::*;
+
+    #[test]
+    fn saved_state_preserves_value_and_both_derivatives() -> Result<()> {
+        let cluster = sphere_cluster(
+            1,
+            0.9,
+            &[0.25, 0.3],
+            &[Complex::new(2.1, 0.04), Complex::new(1.7, 0.02)],
+            &[[0.0, 0.0, 0.0], [1.3, 0.2, -0.1]],
+        )?;
+        let bytes = cluster.save_state()?;
+        assert_eq!(bytes.len(), SphereClusterResidual::state_size(1, 2)?);
+        let restored = SphereClusterResidual::from_state(&bytes)?;
+        assert_eq!(cluster.value(), restored.value());
+        assert_eq!(restored.save_state()?, bytes);
+
+        let tangent = |residual: &SphereClusterResidual| {
+            residual.pushforward(
+                0.12,
+                &[0.04, -0.02],
+                &[Complex::new(0.13, 0.01), Complex::new(-0.04, 0.02)],
+                &[[0.01, -0.03, 0.02], [-0.02, 0.04, 0.01]],
+            )
+        };
+        assert_eq!(tangent(&cluster)?, tangent(&restored)?);
+        let cotangent = cluster
+            .value()
+            .map(|value| value + Complex::new(0.03, 0.07));
+        let original = cluster.pullback(&cotangent)?;
+        let roundtrip = restored.pullback(&cotangent)?;
+        assert_eq!(original.k0, roundtrip.k0);
+        assert_eq!(original.radii, roundtrip.radii);
+        assert_eq!(original.epsilon, roundtrip.epsilon);
+        assert_eq!(original.positions, roundtrip.positions);
+
+        assert!(SphereClusterResidual::from_state(&bytes[..bytes.len() - 1]).is_err());
+        let mut extra = bytes;
+        extra.push(0);
+        assert!(SphereClusterResidual::from_state(&extra).is_err());
+        Ok(())
     }
 }

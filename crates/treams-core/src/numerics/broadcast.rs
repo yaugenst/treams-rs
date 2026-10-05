@@ -50,6 +50,26 @@ pub(crate) fn map<T: Send>(
     }
 }
 
+/// Apply one input direction to an elementwise evaluation. Each tangent is scalar
+/// or has one finite entry per output; `f` receives the direction at that output.
+pub(crate) fn pushforward<const A: usize, T: Send>(
+    tangents: [&[Complex]; A],
+    size: usize,
+    message: &str,
+    parallel: Parallel,
+    f: impl Fn(usize, [Complex; A]) -> Result<T> + Sync + Send,
+) -> Result<Vec<T>> {
+    if tangents.iter().any(|tangent| {
+        (tangent.len() != 1 && tangent.len() != size)
+            || tangent.iter().any(|&value| !crate::numerics::finite(value))
+    }) {
+        return Err(Error::InvalidInput(message.into()));
+    }
+    map(size, parallel, |i| {
+        f(i, tangents.map(|tangent| element(tangent, i)))
+    })
+}
+
 /// The cotangent of one output element.
 pub(crate) trait Cotangent: Sync {
     /// Whether every component is finite.
@@ -148,7 +168,7 @@ pub(crate) fn pullback<G: Cotangent, const A: usize>(
 mod tests {
     use proptest::{prelude::*, test_runner::TestCaseError};
 
-    use super::{Parallel, element, map, pullback, size};
+    use super::{Parallel, element, map, pullback, pushforward, size};
     use crate::{Complex, test_support::DEFAULT_CASES};
 
     #[test]
@@ -225,6 +245,24 @@ mod tests {
         let cotangent: Vec<_> = (0..size)
             .map(|i| Complex::new(0.25, f64::from(u32::try_from(i).unwrap())))
             .collect();
+        let tangents = arguments.each_ref().map(|values| {
+            values
+                .iter()
+                .map(|z| Complex::new(0.3, -0.2) * z)
+                .collect::<Vec<_>>()
+        });
+        let direction = pushforward(
+            tangents.each_ref().map(Vec::as_slice),
+            size,
+            "tangent",
+            parallel,
+            |i, [da, db]| Ok(da * element(&arguments[1], i) + element(&arguments[0], i) * db),
+        )?;
+        for (i, &actual) in direction.iter().enumerate() {
+            let expected = element(&tangents[0], i) * element(&arguments[1], i)
+                + element(&arguments[0], i) * element(&tangents[1], i);
+            prop_assert_eq!(actual, expected);
+        }
         let gradients = pullback(&cotangent, size, "cotangent", lengths, parallel, |i, &g| {
             let [a, b] = arguments.each_ref().map(|v| element(v, i));
             Ok([g * b.conj(), g * a.conj()])
@@ -270,5 +308,19 @@ mod tests {
         nonfinite[1][0].im = f64::NAN;
         let error = pullback(&nonfinite, 2, "cotangent", [2], parallel, zero).unwrap_err();
         assert_eq!(error.to_string(), "cotangent");
+    }
+
+    #[test]
+    fn pushforward_rejects_mismatched_or_nonfinite_tangents() {
+        let parallel = Parallel::AtLeast(1024);
+        let identity = |_: usize, [value]: [Complex; 1]| Ok(value);
+        let finite = [Complex::new(0.5, 0.2); 2];
+        assert!(pushforward([&finite], 2, "tangent", parallel, identity).is_ok());
+        assert!(pushforward([&finite[..1]], 2, "tangent", parallel, identity).is_ok());
+        assert!(pushforward([&finite], 3, "tangent", parallel, identity).is_err());
+        assert!(pushforward([&[]], 2, "tangent", parallel, identity).is_err());
+        assert!(pushforward([&[]], 0, "tangent", parallel, identity).is_ok());
+        let bad = [Complex::new(f64::NAN, 0.0)];
+        assert!(pushforward([&bad], 2, "tangent", parallel, identity).is_err());
     }
 }

@@ -223,6 +223,87 @@ pub fn point_pullback(
     })
 }
 
+/// The directional derivative of [`point`] along the input `tangent`.
+///
+/// On a coordinate axis or origin, directions that change an undefined radial or
+/// angular coordinate give an error. Directions confined to the axis remain valid.
+pub fn point_pushforward(
+    position: [f64; 3],
+    transform: Transform,
+    tangent: [f64; 3],
+) -> Result<[f64; 3]> {
+    validate(position)?;
+    validate(tangent)?;
+    let [a, b, c] = position;
+    let [da, db, dc] = tangent;
+    let undefined =
+        || Error::InvalidInput("coordinate derivative is undefined at this axis or origin".into());
+    Ok(match transform {
+        CarToCyl | CarToPol => {
+            let rho = radius(a, b);
+            if rho == 0.0 && (da != 0.0 || db != 0.0) {
+                return Err(undefined());
+            }
+            let (drho, dphi) = if rho == 0.0 {
+                (0.0, 0.0)
+            } else {
+                let (sin, cos) = (b / rho, a / rho);
+                (cos * da + sin * db, (cos * db - sin * da) / rho)
+            };
+            [
+                drho,
+                dphi,
+                if matches!(transform, CarToPol) {
+                    0.0
+                } else {
+                    dc
+                },
+            ]
+        }
+        CylToCar | PolToCar => {
+            let (sin, cos) = b.sin_cos();
+            [
+                cos * da - a * sin * db,
+                sin * da + a * cos * db,
+                if matches!(transform, PolToCar) {
+                    0.0
+                } else {
+                    dc
+                },
+            ]
+        }
+        CylToSph => {
+            let r = radius(a, c);
+            if r == 0.0 && (da != 0.0 || dc != 0.0) {
+                return Err(undefined());
+            }
+            if r == 0.0 {
+                [0.0, 0.0, db]
+            } else {
+                [
+                    (a / r) * da + (c / r) * dc,
+                    ((c / r) * da - (a / r) * dc) / r,
+                    db,
+                ]
+            }
+        }
+        SphToCyl => {
+            let (sin, cos) = b.sin_cos();
+            [sin * da + a * cos * db, dc, cos * da - a * sin * db]
+        }
+        CarToSph => point_pushforward(
+            point(position, CarToCyl)?,
+            CylToSph,
+            point_pushforward(position, CarToCyl, tangent)?,
+        )?,
+        SphToCar => point_pushforward(
+            point(position, SphToCyl)?,
+            CylToCar,
+            point_pushforward(position, SphToCyl, tangent)?,
+        )?,
+    })
+}
+
 /// Rotation of vector components into the output frame of `transform`, and its
 /// derivatives with respect to the (at most two) angles it depends on. Inverse
 /// transforms use the transposed matrices. Polar vectors use the first two
@@ -352,12 +433,57 @@ pub fn vector_pullback(
     Ok((apply(transpose(rotation), cotangent), point))
 }
 
+/// The directional derivative of [`vector`] along its components and position.
+///
+/// This applies the frame rotation to `value_tangent` and its angular derivative
+/// to `value`; no dense coordinate Jacobian is formed.
+pub fn vector_pushforward(
+    value: [Complex; 3],
+    position: [f64; 3],
+    transform: Transform,
+    value_tangent: [Complex; 3],
+    position_tangent: [f64; 3],
+) -> Result<[Complex; 3]> {
+    validate(position)?;
+    validate(position_tangent)?;
+    if value.into_iter().chain(value_tangent).any(|v| !finite(v)) {
+        return Err(Error::InvalidInput(
+            "vector and tangent must be finite".into(),
+        ));
+    }
+    let angles = match transform {
+        CarToCyl | CarToPol | CylToSph => [
+            point_pushforward(position, transform, position_tangent)?[1],
+            0.0,
+        ],
+        CarToSph => {
+            let tangent = point_pushforward(position, transform, position_tangent)?;
+            [tangent[1], tangent[2]]
+        }
+        CylToCar | PolToCar | SphToCyl => [position_tangent[1], 0.0],
+        SphToCar => [position_tangent[1], position_tangent[2]],
+    };
+    let (rotation, derivatives) = frame(position, transform);
+    let mut result = apply(rotation, value_tangent);
+    for (derivative, angle) in derivatives.into_iter().zip(angles) {
+        if angle != 0.0 {
+            for (result, angular) in result.iter_mut().zip(apply(derivative, value)) {
+                *result += angular * angle;
+            }
+        }
+    }
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     //! Charts against their inverses and compositions, and coordinate pullbacks against
     //! finite differences.
 
-    use super::{Complex, Transform, point, point_pullback, radius, vector, vector_pullback};
+    use super::{
+        Complex, Transform, point, point_pullback, point_pushforward, radius, vector,
+        vector_pullback, vector_pushforward,
+    };
     use crate::test_support::{
         ALGEBRA_CASES, DEFAULT_CASES, complex, log_uniform, prop_assert_close, re_dot,
     };
@@ -432,6 +558,88 @@ mod tests {
         ) {
             check_adjoints([a, b, c], value, cotangent)?;
         }
+
+        #[test]
+        fn coordinate_and_vector_pushforwards(
+            a in 0.2_f64..2.0,
+            b in -1.0_f64..1.0,
+            c in -1.0_f64..1.0,
+            value in prop::array::uniform3(complex(1.0)),
+            cotangent in prop::array::uniform3(complex(1.0)),
+            dp in prop::array::uniform3(-0.2_f64..0.2),
+            dv in prop::array::uniform3(complex(0.2)),
+        ) {
+            check_pushforwards([a, b, c], value, cotangent, dp, dv)?;
+        }
+    }
+
+    /// Directional finite differences, the forward/reverse pairing, and inverse
+    /// coordinate charts independently check every point and vector transform.
+    fn check_pushforwards(
+        cartesian: [f64; 3],
+        value: [Complex; 3],
+        cotangent: [Complex; 3],
+        dp: [f64; 3],
+        dv: [Complex; 3],
+    ) -> Result<(), TestCaseError> {
+        let h = 1e-6;
+        for (forward, inverse) in PAIRS {
+            for (transform, other) in [(forward, inverse), (inverse, forward)] {
+                let (position, value) = input(cartesian, value, transform);
+                let planar = transform.dimension() == 2;
+                let dp = if planar { [dp[0], dp[1], 0.0] } else { dp };
+                let dv = if planar {
+                    [dv[0], dv[1], Complex::default()]
+                } else {
+                    dv
+                };
+                let g = cotangent.map(|g| g.re);
+                let tangent = point_pushforward(position, transform, dp).unwrap();
+                let rotated = vector_pushforward(value, position, transform, dv, dp).unwrap();
+                let plus = std::array::from_fn(|i| position[i] + h * dp[i]);
+                let minus = std::array::from_fn(|i| position[i] - h * dp[i]);
+                let p_plus = point(plus, transform).unwrap();
+                let p_minus = point(minus, transform).unwrap();
+                let numeric: [f64; 3] =
+                    std::array::from_fn(|i| (p_plus[i] - p_minus[i]) / (2.0 * h));
+                prop_assert_close!(tangent, numeric, 2e-8, "{transform:?}");
+                let v_plus = vector(
+                    std::array::from_fn(|i| value[i] + h * dv[i]),
+                    plus,
+                    transform,
+                )
+                .unwrap();
+                let v_minus = vector(
+                    std::array::from_fn(|i| value[i] - h * dv[i]),
+                    minus,
+                    transform,
+                )
+                .unwrap();
+                let numeric: [Complex; 3] =
+                    std::array::from_fn(|i| (v_plus[i] - v_minus[i]) / (2.0 * h));
+                prop_assert_close!(rotated, numeric, 2e-8, "{transform:?}");
+                let gp = point_pullback(position, transform, g).unwrap();
+                let dot = |a: [f64; 3], b: [f64; 3]| {
+                    a.into_iter().zip(b).map(|(a, b)| a * b).sum::<f64>()
+                };
+                prop_assert_close!(dot(tangent, g), dot(dp, gp), 1e-13, "{transform:?}");
+                let (gv, gp) = vector_pullback(value, position, transform, cotangent).unwrap();
+                prop_assert_close!(
+                    re_dot(rotated, cotangent),
+                    re_dot(dv, gv) + dot(dp, gp),
+                    1e-13,
+                    "{transform:?}"
+                );
+                let image = point(position, transform).unwrap();
+                let chained = point_pushforward(image, other, tangent).unwrap();
+                prop_assert_close!(chained, dp, 1e-13, "{transform:?}");
+                let image_value = vector(value, position, transform).unwrap();
+                let chained =
+                    vector_pushforward(image_value, image, other, rotated, tangent).unwrap();
+                prop_assert_close!(chained, dv, 1e-13, "{transform:?}");
+            }
+        }
+        Ok(())
     }
 
     /// The point and vector components of `transform`'s input system, restricted to
@@ -619,6 +827,16 @@ mod tests {
         );
         assert_eq!(
             point_pullback([0.0; 3], CarToPol, [0.0; 3]).unwrap(),
+            [0.0; 3]
+        );
+        assert!(point_pushforward([0.0, 0.0, 1.0], CarToSph, [1.0, 0.0, 0.0]).is_err());
+        assert!(point_pushforward([0.0; 3], CylToSph, [0.0, 0.0, 1.0]).is_err());
+        assert_eq!(
+            point_pushforward([0.0, 0.0, -1.0], CarToSph, [0.0, 0.0, 0.7]).unwrap(),
+            [-0.7, 0.0, 0.0]
+        );
+        assert_eq!(
+            point_pushforward([0.0; 3], CarToPol, [0.0; 3]).unwrap(),
             [0.0; 3]
         );
     }

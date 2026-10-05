@@ -235,6 +235,7 @@ mod inputs;
 mod real;
 mod reciprocal;
 mod reduced;
+mod saved;
 mod sheets;
 mod shells;
 mod spectral;
@@ -604,7 +605,33 @@ impl SumGradient {
 }
 
 impl Derivatives {
-    pub(crate) fn pullback(self, cotangent: Complex) -> SumGradient {
+    /// Directional derivative in all continuous inputs of this scalar sum.
+    #[must_use]
+    pub fn pushforward(&self, tangent: &SumTangent) -> Complex {
+        self.k * tangent.k
+            + self.eta * tangent.eta
+            + self
+                .shift
+                .into_iter()
+                .zip(tangent.shift)
+                .map(|(d, t)| d * t)
+                .sum::<Complex>()
+            + self
+                .kpar
+                .into_iter()
+                .zip(tangent.kpar)
+                .map(|(d, t)| d * t)
+                .sum::<Complex>()
+            + self
+                .vectors
+                .into_iter()
+                .flatten()
+                .zip(tangent.vectors.into_iter().flatten())
+                .map(|(d, t)| d * t)
+                .sum::<Complex>()
+    }
+
+    pub(crate) fn pullback(&self, cotangent: Complex) -> SumGradient {
         SumGradient {
             k: self.k.conj() * cotangent,
             eta: self.eta.conj() * cotangent,
@@ -614,6 +641,60 @@ impl Derivatives {
                 .vectors
                 .map(|row| row.map(|x| (cotangent.conj() * x).re)),
         }
+    }
+}
+
+/// A direction in the continuous inputs of a lattice sum.
+///
+/// Geometry components outside the lattice or shift dimension are zero.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SumTangent {
+    /// Complex wavenumber direction.
+    pub k: Complex,
+    /// Complex Ewald-split direction.
+    pub eta: Complex,
+    /// Cartesian shift direction.
+    pub shift: [f64; 3],
+    /// Bloch-wavevector direction in the lattice frame.
+    pub kpar: [f64; 3],
+    /// Row lattice-vector directions in the lattice frame.
+    pub vectors: [[f64; 3]; 3],
+}
+
+impl SumTangent {
+    /// Validate and pad the geometry direction of a periodic expansion.
+    pub(crate) fn with_lattice(
+        kpar: &[f64],
+        vectors: &nalgebra::DMatrix<f64>,
+        dim: usize,
+    ) -> Result<Self> {
+        if kpar.len() != dim
+            || vectors.shape() != (dim, dim)
+            || kpar.iter().chain(vectors.iter()).any(|x| !x.is_finite())
+        {
+            return Err(Error::InvalidInput(
+                "lattice tangent must be finite and match the lattice dimension".into(),
+            ));
+        }
+        let mut result = Self::default();
+        result.kpar[..dim].copy_from_slice(kpar);
+        for i in 0..dim {
+            for j in 0..dim {
+                result.vectors[i][j] = vectors[(i, j)];
+            }
+        }
+        Ok(result)
+    }
+
+    pub(crate) fn is_finite(&self) -> bool {
+        finite(self.k)
+            && finite(self.eta)
+            && self
+                .shift
+                .iter()
+                .chain(&self.kpar)
+                .chain(self.vectors.iter().flatten())
+                .all(|x| x.is_finite())
     }
 }
 

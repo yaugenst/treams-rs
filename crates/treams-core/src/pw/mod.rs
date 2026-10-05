@@ -11,6 +11,7 @@
 //! | `field.rs` | [`translate`], [`phases`] and [`field()`] | `pw.translate`, `special.vpw_*` |
 //! | `permute.rs` | [`permute_xyz`] and [`permutation`] | `pw.permute_xyz` |
 //! | `expand.rs` | [`to_sw`], [`to_cw`] and [`expansion`] | `pw.to_sw`, `pw.to_cw`, the `Expand` operator from a plane-wave basis |
+//! | `saved.rs` | Fixed numerical layouts for derivative state | treams-rs extension |
 //!
 //! Conventions:
 //!
@@ -31,6 +32,7 @@ mod expand;
 mod field;
 mod permute;
 mod polarization;
+mod saved;
 
 pub(crate) use expand::cylindrical_mode_matches;
 pub use expand::{ExpansionGradient, ExpansionResidual, expansion, to_cw, to_sw};

@@ -2,10 +2,12 @@
 //!
 //! Upstream: `treams.SMatrices.tr`.
 
+mod saved;
+
 use faer::MatRef;
 use nalgebra::DMatrix;
 
-use super::{Blocks, StoredBlock, any_nonfinite, interface::port_boundary};
+use super::{Blocks, StoredBlock, any_nonfinite, checked_dimension, interface::port_boundary};
 use crate::{
     Complex, Error, Result,
     linalg::{product_adjoint_right, product_views, view},
@@ -46,6 +48,17 @@ fn port_waves<const N: usize>(
             Jet::variable(q[j], Q + j)
         }
     });
+    port_wave_inputs(ks, zs, q, axis, helicity)
+}
+
+/// Field algebra shared by coordinate derivatives and a single directional seed.
+fn port_wave_inputs<const N: usize>(
+    ks: [[Jet<N>; 2]; 2],
+    zs: [Jet<N>; 2],
+    q: [Jet<N>; 2],
+    axis: usize,
+    helicity: bool,
+) -> Result<PortWaves<N>> {
     let mut waves = [
         port_boundary(ks[0], zs[0], q, axis)?,
         port_boundary(ks[1], zs[1], q, axis)?,
@@ -68,6 +81,12 @@ fn port_waves<const N: usize>(
 /// fields `e` and `h`.
 fn cross(e: [Complex; 4], h: [Complex; 4]) -> f64 {
     0.5 * (e[0] * h[3].conj() - e[1] * h[2].conj()).re
+}
+
+/// Real directional derivative of the sesquilinear power flux.
+fn cross_direction(e: [Jet<1>; 4], h: [Jet<1>; 4]) -> f64 {
+    cross(e.map(|v| v.derivative[0]), h.map(|v| v.value))
+        + cross(e.map(|v| v.value), h.map(|v| v.derivative[0]))
 }
 
 /// The cotangents of `e` and `h` in [`cross`] for the flux cotangent `weight`.
@@ -93,36 +112,45 @@ fn cross_pullback(e: [Complex; 4], h: [Complex; 4], weight: f64) -> ([Complex; 4
 ///
 /// `direction` is the propagation direction of the illumination; it also indexes the
 /// port that receives the transmitted wave.
-fn aggregate(
-    waves: &[PortWaves<0>],
+fn aggregate<const N: usize>(
+    waves: &[PortWaves<N>],
     modes: &[(usize, u8)],
-    incident: &DMatrix<Complex>,
-    outgoing: &[DMatrix<Complex>; 2],
-    illumination: usize,
+    amplitudes: impl Fn(usize) -> [Jet<N>; 3],
     direction: usize,
-) -> Vec<[[Complex; 4]; 3]> {
+) -> Vec<[[Jet<N>; 4]; 3]> {
     let transmission = direction;
     let reflection = 1 - transmission;
-    let mut fields = vec![[[Complex::default(); 4]; 3]; waves.len()];
+    let mut fields = vec![[[Jet::default(); 4]; 3]; waves.len()];
     for (mode, &(group, pol)) in modes.iter().enumerate() {
-        for (which, (port, wave_direction, amplitude)) in [
-            (reflection, transmission, incident[(mode, illumination)]),
-            (
-                transmission,
-                transmission,
-                outgoing[0][(mode, illumination)],
-            ),
-            (reflection, reflection, outgoing[1][(mode, illumination)]),
+        for (which, ((port, wave_direction), amplitude)) in [
+            (reflection, transmission),
+            (transmission, transmission),
+            (reflection, reflection),
         ]
         .into_iter()
+        .zip(amplitudes(mode))
         .enumerate()
         {
             for (j, field) in fields[group][which].iter_mut().enumerate() {
-                *field += waves[group][port][wave_direction][usize::from(pol)][j].value * amplitude;
+                *field += waves[group][port][wave_direction][usize::from(pol)][j] * amplitude;
             }
         }
     }
     fields
+}
+
+/// Incident, transmitted and reflected amplitudes of one mode and illumination.
+fn amplitudes(
+    incident: &DMatrix<Complex>,
+    outgoing: &[DMatrix<Complex>; 2],
+    mode: usize,
+    illumination: usize,
+) -> [Complex; 3] {
+    [
+        incident[(mode, illumination)],
+        outgoing[0][(mode, illumination)],
+        outgoing[1][(mode, illumination)],
+    ]
 }
 
 /// The two plane-wave ports of [`tr`] and [`tr_value`]: port 0 on the positive side
@@ -262,11 +290,10 @@ fn evaluate(
         for [input, trans, reflect] in aggregate(
             &waves,
             &ports.modes,
-            incident,
-            &outgoing,
-            illumination,
+            |mode| amplitudes(incident, &outgoing, mode, illumination).map(Jet::constant),
             ports.direction,
         ) {
+            let [input, trans, reflect] = [input, trans, reflect].map(|f| f.map(|v| v.value));
             flux[illumination] +=
                 sign * (cross(input, input) + cross(input, reflect) + cross(reflect, input));
             transmitted += sign * cross(trans, trans);
@@ -349,8 +376,140 @@ impl TrResidual {
         self.forward.value.shape()
     }
 
+    /// Numbers of modes, independent illumination columns and diffraction groups.
+    #[must_use]
+    pub fn input_shape(&self) -> (usize, usize, usize) {
+        (
+            self.incident.nrows(),
+            self.incident.ncols(),
+            self.ports.q.len(),
+        )
+    }
+
+    /// Propagate matrix, illumination and port-geometry directions together. Local
+    /// one-direction jets include the real power pairing and lossy-port interference.
+    pub fn pushforward(
+        &self,
+        matrices: &Blocks,
+        incident: &DMatrix<Complex>,
+        ks: [[Complex; 2]; 2],
+        zs: [Complex; 2],
+        q: &[[f64; 2]],
+    ) -> Result<DMatrix<f64>> {
+        checked_dimension(
+            matrices,
+            self.incident.nrows(),
+            "power matrix tangent shape mismatch",
+        )?;
+        if incident.shape() != self.incident.shape()
+            || q.len() != self.ports.q.len()
+            || incident
+                .iter()
+                .chain(ks.iter().flatten())
+                .chain(&zs)
+                .any(|&v| !finite(v))
+            || q.iter().flatten().any(|v| !v.is_finite())
+        {
+            return Err(Error::InvalidInput(
+                "power tangents must be finite and match inputs".into(),
+            ));
+        }
+        let t = self.ports.direction;
+        let r = 1 - t;
+        let outgoing = std::array::from_fn(|which| {
+            let direction = if which == 0 { t } else { r };
+            product_views(view(&matrices[2 * direction + t]), view(&self.incident))
+                + product_views(self.matrices[which].view(), view(incident))
+        });
+        let fixed_media = ks
+            .iter()
+            .flatten()
+            .chain(&zs)
+            .all(|&v| v == Complex::default());
+        let ks = std::array::from_fn(|p| {
+            std::array::from_fn(|j| Jet {
+                value: self.ports.ks[p][j],
+                derivative: [ks[p][j]],
+            })
+        });
+        let zs = std::array::from_fn(|p| Jet {
+            value: self.ports.zs[p],
+            derivative: [zs[p]],
+        });
+        let waves = self
+            .ports
+            .q
+            .iter()
+            .zip(q)
+            .enumerate()
+            .map(|(group, (value, tangent))| {
+                // Matrix/illumination sensitivities reuse the saved port fields;
+                // they do not require derivatives of the port dispersion.
+                if fixed_media && (self.fixed_q || tangent.iter().all(|&v| v == 0.0)) {
+                    return Ok(self.forward.waves[group].map(|port| {
+                        port.map(|direction| {
+                            direction.map(|wave| wave.map(|v| Jet::constant(v.value)))
+                        })
+                    }));
+                }
+                port_wave_inputs(
+                    ks,
+                    zs,
+                    std::array::from_fn(|j| Jet {
+                        value: value[j].into(),
+                        derivative: [if self.fixed_q {
+                            Complex::default()
+                        } else {
+                            tangent[j].into()
+                        }],
+                    }),
+                    self.ports.axis,
+                    self.ports.helicity,
+                )
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let sign = if t == 0 { 1.0 } else { -1.0 };
+        let mut tangent = DMatrix::zeros(2, incident.ncols());
+        for illumination in 0..incident.ncols() {
+            let fields = aggregate(
+                &waves,
+                &self.ports.modes,
+                |mode| {
+                    let values =
+                        amplitudes(&self.incident, &self.forward.outgoing, mode, illumination);
+                    let directions = amplitudes(incident, &outgoing, mode, illumination);
+                    std::array::from_fn(|i| Jet {
+                        value: values[i],
+                        derivative: [directions[i]],
+                    })
+                },
+                t,
+            );
+            let mut dflux = 0.0;
+            let mut dtransmitted = 0.0;
+            let mut dreflected = 0.0;
+            for [input, trans, reflect] in fields {
+                dflux += sign
+                    * (cross_direction(input, input)
+                        + cross_direction(input, reflect)
+                        + cross_direction(reflect, input));
+                dtransmitted += sign * cross_direction(trans, trans);
+                dreflected -= sign * cross_direction(reflect, reflect);
+            }
+            for (row, dpower) in [dtransmitted, dreflected].into_iter().enumerate() {
+                tangent[(row, illumination)] = (dpower
+                    - self.forward.value[(row, illumination)] * dflux)
+                    / self.forward.flux[illumination];
+            }
+        }
+        if tangent.iter().any(|v| !v.is_finite()) {
+            return Err(Error::NonFinite("non-finite power derivative".into()));
+        }
+        Ok(tangent)
+    }
+
     /// Pull back the cotangents of the transmittance and reflectance.
-    pub fn pullback(self, cotangent: &DMatrix<f64>) -> Result<TrGradient> {
+    pub fn pullback(&self, cotangent: &DMatrix<f64>) -> Result<TrGradient> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|v| !v.is_finite()) {
             return Err(Error::InvalidInput(
                 "power cotangent must be finite and match output".into(),
@@ -382,9 +541,15 @@ impl TrResidual {
             let wi = -(cotangent[(0, illumination)] * value[(0, illumination)]
                 + cotangent[(1, illumination)] * value[(1, illumination)])
                 / flux[illumination];
-            let fields = aggregate(&waves, &ports.modes, &input, &output, illumination, t);
+            let fields = aggregate(
+                waves,
+                &ports.modes,
+                |mode| amplitudes(input, output, mode, illumination).map(Jet::constant),
+                t,
+            );
             let mut gradient = vec![[[Complex::default(); 4]; 3]; ports.q.len()];
             for (group, f) in fields.iter().enumerate() {
+                let f = f.map(|field| field.map(|v| v.value));
                 for (e, h, weight) in [
                     (0, 0, sign * wi),
                     (0, 2, sign * wi),
@@ -429,7 +594,7 @@ impl TrResidual {
         }
         let mut matrices = std::array::from_fn(|_| DMatrix::zeros(n, n));
         for (which, direction) in [t, r].into_iter().enumerate() {
-            matrices[2 * direction + t] = product_adjoint_right(&outgoing[which], &input);
+            matrices[2 * direction + t] = product_adjoint_right(&outgoing[which], input);
             incident += product_views(stored[which].view().adjoint(), view(&outgoing[which]));
         }
         let mut result = TrGradient {
@@ -449,7 +614,7 @@ impl TrResidual {
             {
                 continue;
             }
-            let jets = ports.waves::<8>(q, fixed_q)?;
+            let jets = ports.waves::<8>(q, *fixed_q)?;
             let mut parameters = [Complex::default(); 8];
             for (v, g) in jets
                 .iter()

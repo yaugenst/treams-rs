@@ -15,11 +15,12 @@ use crate::{
     basis::ModeLabel,
     cw,
     numerics::{self, finite, label_bits},
+    saved::{Reader, SavedState, Writer, invalid},
     special::{index, ladder, pol_index, wigner_d, wigner_small_d_matrix},
     sw,
 };
 use nalgebra::DMatrix;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// Entries `(row, column)` whose coupling keys agree, in column-major order; all
 /// other entries of a rotation vanish.
@@ -32,6 +33,20 @@ fn coupled<K: Eq + std::hash::Hash>(rows: &[K], columns: &[K]) -> Vec<(usize, us
         .iter()
         .enumerate()
         .flat_map(|(j, key)| groups.get(key).into_iter().flatten().map(move |&i| (i, j)))
+        .collect()
+}
+
+fn sw_keys(modes: &[(usize, sw::Mode)]) -> Vec<(usize, i32, u8)> {
+    modes
+        .iter()
+        .map(|&(pidx, mode)| (pidx, mode.l, mode.pol))
+        .collect()
+}
+
+fn cw_keys(modes: &[(usize, cw::Mode)]) -> Vec<(usize, u64, i32, u8)> {
+    modes
+        .iter()
+        .map(|&(pidx, mode)| (pidx, label_bits(mode.kz), mode.m, mode.pol))
         .collect()
 }
 
@@ -80,14 +95,7 @@ pub fn sw_rotation(
             e.insert(wigner_small_d_matrix(mode.l, angles[1])?);
         }
     }
-    let key = |basis: &sw::Basis| -> Vec<_> {
-        basis
-            .modes
-            .iter()
-            .map(|&(pidx, mode)| (pidx, mode.l, mode.pol))
-            .collect()
-    };
-    let entries = coupled(&key(destination), &key(source));
+    let entries = coupled(&sw_keys(&destination.modes), &sw_keys(&source.modes));
     let orders = |basis: &sw::Basis| -> Vec<_> { basis.modes.iter().map(|(_, m)| m.m).collect() };
     let (rows, columns) = (orders(destination), orders(source));
     let phase = |m: i32, angle: f64| (-Complex::i() * f64::from(m) * angle).exp();
@@ -130,14 +138,7 @@ pub fn cw_rotation(
             "cylindrical rotation requires finite angles and theta=0".into(),
         ));
     }
-    let key = |basis: &cw::Basis| -> Vec<_> {
-        basis
-            .modes
-            .iter()
-            .map(|&(pidx, mode)| (pidx, label_bits(mode.kz), mode.m, mode.pol))
-            .collect()
-    };
-    let entries = coupled(&key(destination), &key(source));
+    let entries = coupled(&cw_keys(&destination.modes), &cw_keys(&source.modes));
     let orders = |basis: &cw::Basis| -> Vec<_> { basis.modes.iter().map(|(_, m)| m.m).collect() };
     let (rows, columns) = (orders(destination), orders(source));
     let mut value = numerics::zeros(rows.len(), columns.len())?;
@@ -154,6 +155,39 @@ pub fn cw_rotation(
 }
 
 impl RotationResidual {
+    /// Saved-state size from spherical mode labels, without evaluating a rotation.
+    pub fn sw_state_size(
+        destination: &[(usize, sw::Mode)],
+        source: &[(usize, sw::Mode)],
+    ) -> Result<usize> {
+        for &(_, mode) in destination.iter().chain(source) {
+            mode.validate()?;
+        }
+        let degrees = destination.iter().map(|(_, mode)| mode.l).collect();
+        state_size(
+            destination.len(),
+            source.len(),
+            coupled_count(&sw_keys(destination), &sw_keys(source))?,
+            Some(&degrees),
+        )
+    }
+
+    /// Saved-state size from cylindrical mode labels, without evaluating a rotation.
+    pub fn cw_state_size(
+        destination: &[(usize, cw::Mode)],
+        source: &[(usize, cw::Mode)],
+    ) -> Result<usize> {
+        for &(_, mode) in destination.iter().chain(source) {
+            mode.validate()?;
+        }
+        state_size(
+            destination.len(),
+            source.len(),
+            coupled_count(&cw_keys(destination), &cw_keys(source))?,
+            None,
+        )
+    }
+
     /// The rotation from the source to the destination multipole coefficients, which
     /// the pullback reads.
     #[must_use]
@@ -167,8 +201,49 @@ impl RotationResidual {
         self.value.shape()
     }
 
+    /// Contract the Euler-angle derivatives with one real direction. Cylindrical
+    /// theta remains a fixed zero constraint and contributes no derivative.
+    pub fn pushforward(&self, angles: [f64; 3]) -> Result<DMatrix<Complex>> {
+        if angles.iter().any(|a| !a.is_finite()) {
+            return Err(Error::InvalidInput(
+                "rotation tangents must be finite".into(),
+            ));
+        }
+        let mut result = numerics::zeros(self.shape().0, self.shape().1)?;
+        for &(i, j) in &self.entries {
+            let (mu, m) = (self.rows[i], self.columns[j]);
+            result[(i, j)] = -Complex::i()
+                * self.value[(i, j)]
+                * (f64::from(mu) * angles[0] + f64::from(m) * angles[2])
+                + self.theta_derivative(i, j) * angles[1];
+        }
+        Ok(result)
+    }
+
+    /// The shared ladder rule used by the JVP and VJP.
+    fn theta_derivative(&self, i: usize, j: usize) -> Complex {
+        let Some(s) = &self.spherical else {
+            return Complex::default();
+        };
+        let (mu, m) = (self.rows[i], self.columns[j]);
+        let l = s.degrees[i];
+        let d = &s.tables[&l];
+        let column = index(l, m);
+        let raised = if mu < l {
+            ladder(l, mu) * d[(index(l, mu + 1), column)]
+        } else {
+            0.0
+        };
+        let lowered = if mu > -l {
+            ladder(l, mu - 1) * d[(index(l, mu - 1), column)]
+        } else {
+            0.0
+        };
+        s.phases[0][i] * s.phases[1][j] * (raised - lowered)
+    }
+
     /// Euler-angle cotangents. Cylindrical theta is a fixed zero constraint.
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<[f64; 3]> {
+    pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<[f64; 3]> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&z| !finite(z)) {
             return Err(Error::InvalidInput("invalid rotation cotangent".into()));
         }
@@ -180,28 +255,204 @@ impl RotationResidual {
             let paired = (g * (-Complex::i()) * self.value[(i, j)]).re;
             result[0] += f64::from(mu) * paired;
             result[2] += f64::from(m) * paired;
-            if let Some(s) = &self.spherical {
-                // `d/dtheta d_(mu m) = c(mu) d_(mu+1, m) - c(mu-1) d_(mu-1, m)` with the
-                // ladder coefficients `c`.
-                let l = s.degrees[i];
-                let d = &s.tables[&l];
-                let column = index(l, m);
-                let raised = if mu < l {
-                    ladder(l, mu) * d[(index(l, mu + 1), column)]
-                } else {
-                    0.0
-                };
-                let lowered = if mu > -l {
-                    ladder(l, mu - 1) * d[(index(l, mu - 1), column)]
-                } else {
-                    0.0
-                };
-                let phase = s.phases[0][i] * s.phases[1][j];
-                result[1] += (g * phase * (raised - lowered)).re;
-            }
+            result[1] += (g * self.theta_derivative(i, j)).re;
         }
         Ok(result)
     }
+}
+
+fn coupled_count<K: Eq + std::hash::Hash>(rows: &[K], columns: &[K]) -> Result<usize> {
+    let mut counts = HashMap::new();
+    for key in rows {
+        *counts.entry(key).or_insert(0_usize) += 1;
+    }
+    columns.iter().try_fold(0_usize, |total, key| {
+        total
+            .checked_add(*counts.get(key).unwrap_or(&0))
+            .ok_or_else(invalid)
+    })
+}
+
+fn bytes(count: usize, stride: usize) -> Result<usize> {
+    count.checked_mul(stride).ok_or_else(invalid)
+}
+
+fn table_dimension(degree: i32) -> Result<usize> {
+    if !(1..=MAX_DEGREE).contains(&degree) {
+        return Err(invalid());
+    }
+    usize::try_from(2 * degree + 1).map_err(|_| invalid())
+}
+
+fn state_size(
+    rows: usize,
+    columns: usize,
+    entries: usize,
+    degrees: Option<&BTreeSet<i32>>,
+) -> Result<usize> {
+    let labels = rows.checked_add(columns).ok_or_else(invalid)?;
+    let matrix = bytes(bytes(rows, columns)?, 16)?;
+    let mut parts = vec![25, bytes(labels, 4)?, bytes(entries, 16)?, matrix];
+    if let Some(degrees) = degrees {
+        parts.extend([bytes(rows, 4)?, bytes(labels, 16)?, 8]);
+        for &degree in degrees {
+            let dimension = table_dimension(degree)?;
+            parts.extend([4, bytes(bytes(dimension, dimension)?, 8)?]);
+        }
+    }
+    parts.into_iter().try_fold(0_usize, |total, part| {
+        total.checked_add(part).ok_or_else(invalid)
+    })
+}
+
+/// Check the entire byte layout before any residual allocation. Wigner block sizes
+/// are determined by their degree labels, so sparse blocks retain their native shape.
+fn check_state_layout(state: &[u8]) -> Result<()> {
+    let mut reader = Reader::new(state);
+    let spherical = match reader.byte()? {
+        0 => false,
+        1 => true,
+        _ => return Err(invalid()),
+    };
+    let (rows, columns, entries) = (reader.usize()?, reader.usize()?, reader.usize()?);
+    let labels = rows.checked_add(columns).ok_or_else(invalid)?;
+    reader.raw(bytes(labels, 4)?)?;
+    reader.raw(bytes(entries, 16)?)?;
+    reader.raw(bytes(bytes(rows, columns)?, 16)?)?;
+    if spherical {
+        reader.raw(bytes(rows, 4)?)?;
+        reader.raw(bytes(labels, 16)?)?;
+        for _ in 0..reader.count(4)? {
+            let dimension = table_dimension(reader.i32()?)?;
+            reader.raw(bytes(bytes(dimension, dimension)?, 8)?)?;
+        }
+    }
+    reader.finish()
+}
+
+impl SavedState for RotationResidual {
+    fn save_state(&self) -> Result<Vec<u8>> {
+        let degrees = self
+            .spherical
+            .as_ref()
+            .map(|s| s.tables.keys().copied().collect());
+        let mut writer = Writer::new(state_size(
+            self.rows.len(),
+            self.columns.len(),
+            self.entries.len(),
+            degrees.as_ref(),
+        )?);
+        writer.byte(u8::from(self.spherical.is_some()));
+        writer.usize(self.rows.len());
+        writer.usize(self.columns.len());
+        writer.usize(self.entries.len());
+        for &order in self.rows.iter().chain(&self.columns) {
+            writer.i32(order);
+        }
+        for &(row, column) in &self.entries {
+            writer.usize(row);
+            writer.usize(column);
+        }
+        for &value in &self.value {
+            writer.complex(value);
+        }
+        if let Some(s) = &self.spherical {
+            for &degree in &s.degrees {
+                writer.i32(degree);
+            }
+            for &phase in s.phases.iter().flatten() {
+                writer.complex(phase);
+            }
+            writer.usize(s.tables.len());
+            for (&degree, table) in &s.tables {
+                writer.i32(degree);
+                for &value in table {
+                    writer.f64(value);
+                }
+            }
+        }
+        Ok(writer.finish())
+    }
+
+    fn from_state(state: &[u8]) -> Result<Self> {
+        check_state_layout(state)?;
+        let mut reader = Reader::new(state);
+        let spherical = reader.byte()? == 1;
+        let (nrows, ncolumns, nentries) = (reader.usize()?, reader.usize()?, reader.usize()?);
+        let rows = read_orders(&mut reader, nrows)?;
+        let columns = read_orders(&mut reader, ncolumns)?;
+        let entries = (0..nentries)
+            .map(|_| {
+                let (i, j) = (reader.usize()?, reader.usize()?);
+                if i >= nrows || j >= ncolumns {
+                    return Err(invalid());
+                }
+                Ok((i, j))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let mut value = numerics::zeros(nrows, ncolumns)?;
+        for z in &mut value {
+            *z = reader.complex()?;
+        }
+        let spherical = if spherical {
+            let degrees = (0..nrows)
+                .map(|_| reader.i32())
+                .collect::<Result<Vec<_>>>()?;
+            let mut phases = [Vec::with_capacity(nrows), Vec::with_capacity(ncolumns)];
+            for (phase, length) in phases.iter_mut().zip([nrows, ncolumns]) {
+                for _ in 0..length {
+                    phase.push(reader.complex()?);
+                }
+            }
+            let mut tables = BTreeMap::new();
+            for _ in 0..reader.usize()? {
+                let degree = reader.i32()?;
+                let dimension = table_dimension(degree)?;
+                let values = (0..dimension * dimension)
+                    .map(|_| reader.f64())
+                    .collect::<Result<Vec<_>>>()?;
+                let table = DMatrix::from_vec(dimension, dimension, values);
+                if tables.insert(degree, table).is_some() {
+                    return Err(invalid());
+                }
+            }
+            if degrees
+                .iter()
+                .zip(&rows)
+                .any(|(l, m)| !tables.contains_key(l) || m.abs() > *l)
+                || entries.iter().any(|&(i, j)| columns[j].abs() > degrees[i])
+            {
+                return Err(invalid());
+            }
+            Some(Spherical {
+                degrees,
+                tables,
+                phases,
+            })
+        } else {
+            None
+        };
+        reader.finish()?;
+        Ok(Self {
+            rows,
+            columns,
+            entries,
+            spherical,
+            value,
+        })
+    }
+}
+
+fn read_orders(reader: &mut Reader<'_>, count: usize) -> Result<Vec<i32>> {
+    (0..count)
+        .map(|_| {
+            let order = reader.i32()?;
+            if order.unsigned_abs() > MAX_DEGREE.unsigned_abs() {
+                return Err(invalid());
+            }
+            Ok(order)
+        })
+        .collect()
 }
 
 /// Rotation coefficient of one spherical mode pair.
@@ -269,5 +520,81 @@ pub fn cw_rotate(kz: f64, mu: i64, p: i64, qz: f64, m: i64, q: i64, phi: f64) ->
             f64::from(i32::try_from(m).map_err(|_| Error::InvalidInput("invalid order".into()))?);
         let (sin, cos) = (-order * phi).sin_cos();
         Ok(Complex::new(cos, sin))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn check_saved_rotation(residual: &RotationResidual, size: usize) {
+        let state = residual.save_state().unwrap();
+        assert_eq!(state.len(), size);
+        let restored = RotationResidual::from_state(&state).unwrap();
+        assert_eq!(restored.save_state().unwrap(), state);
+        assert_eq!(restored.value(), residual.value());
+        let direction = [0.3, -0.4, 0.2];
+        assert_eq!(
+            restored.pushforward(direction).unwrap(),
+            residual.pushforward(direction).unwrap()
+        );
+        let cotangent = crate::test_support::patterned(residual.shape().0, residual.shape().1, 0.3);
+        assert_eq!(
+            restored.pullback(&cotangent).unwrap(),
+            residual.pullback(&cotangent).unwrap()
+        );
+        for length in 0..state.len() {
+            assert!(RotationResidual::from_state(&state[..length]).is_err());
+        }
+        let mut malformed = state.clone();
+        malformed[1..9].copy_from_slice(&u64::MAX.to_le_bytes());
+        assert!(RotationResidual::from_state(&malformed).is_err());
+        malformed = state;
+        malformed.push(0);
+        assert!(RotationResidual::from_state(&malformed).is_err());
+    }
+
+    #[test]
+    fn saved_spherical_rotation_preserves_sparse_blocks_and_derivatives() {
+        let basis = |labels: &[(usize, i32, i32, u8)]| sw::Basis {
+            modes: labels
+                .iter()
+                .map(|&(position, l, m, pol)| (position, sw::Mode { l, m, pol }))
+                .collect(),
+            positions: vec![[0.0; 3], [1.0, 0.0, 0.0]],
+        };
+        let destination = basis(&[(0, 1, 0, 0), (1, 2, 2, 1), (0, 3, -2, 0)]);
+        let source = basis(&[(0, 1, 1, 0), (1, 2, -1, 1), (0, 3, 1, 1), (0, 1, -1, 0)]);
+        let residual = sw_rotation(&destination, &source, [0.3, 0.8, -0.4]).unwrap();
+        let size = RotationResidual::sw_state_size(&destination.modes, &source.modes).unwrap();
+        check_saved_rotation(&residual, size);
+        let state = residual.save_state().unwrap();
+        let restored = RotationResidual::from_state(&state).unwrap();
+        assert_eq!(restored.entries, residual.entries);
+        let spherical = restored.spherical.unwrap();
+        assert_eq!(
+            spherical.tables.keys().copied().collect::<Vec<_>>(),
+            [1, 2, 3]
+        );
+        assert_eq!(spherical.tables[&3].shape(), (7, 7));
+    }
+
+    #[test]
+    fn saved_cylindrical_rotation_preserves_sparse_couplings_and_derivatives() {
+        let basis = |labels: &[(usize, f64, i32, u8)]| cw::Basis {
+            modes: labels
+                .iter()
+                .map(|&(position, kz, m, pol)| (position, cw::Mode { kz, m, pol }))
+                .collect(),
+            positions: vec![[0.0; 3]],
+        };
+        let destination = basis(&[(0, 0.0, -1, 0), (0, 0.2, 2, 1)]);
+        let source = basis(&[(0, -0.0, -1, 0), (0, 0.2, 1, 1), (0, 0.2, 2, 1)]);
+        let residual = cw_rotation(&destination, &source, [0.3, 0.0, -0.4]).unwrap();
+        let size = RotationResidual::cw_state_size(&destination.modes, &source.modes).unwrap();
+        check_saved_rotation(&residual, size);
+        let restored = RotationResidual::from_state(&residual.save_state().unwrap()).unwrap();
+        assert_eq!(restored.entries, [(0, 0), (1, 2)]);
+        assert!(restored.spherical.is_none());
     }
 }

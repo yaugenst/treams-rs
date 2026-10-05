@@ -4,6 +4,8 @@
 //! Upstream: `treams.coeffs.fresnel`, `treams.SMatrices.interface` and
 //! `treams.SMatrices.propagation`.
 
+mod saved;
+
 use nalgebra::DMatrix;
 
 use super::{Blocks, checked_dimension, dimension, identity_blocks};
@@ -128,8 +130,60 @@ pub struct FresnelGradient {
 }
 
 impl FresnelResidual {
+    /// Propagate one joint wavenumber, normal-wavenumber and impedance direction.
+    pub fn pushforward(
+        &self,
+        ks: [[Complex; 2]; 2],
+        kz: [[Complex; 2]; 2],
+        z: [Complex; 2],
+    ) -> Result<Blocks> {
+        if ks
+            .iter()
+            .flatten()
+            .chain(kz.iter().flatten())
+            .chain(&z)
+            .any(|&v| !finite(v))
+        {
+            return Err(Error::InvalidInput(
+                "Fresnel tangents must be finite".into(),
+            ));
+        }
+        let values = fresnel_values(
+            std::array::from_fn(|i| {
+                std::array::from_fn(|j| Jet {
+                    value: self.ks[i][j],
+                    derivative: [ks[i][j]],
+                })
+            }),
+            std::array::from_fn(|i| {
+                std::array::from_fn(|j| Jet {
+                    value: self.kzs[i][j],
+                    derivative: [kz[i][j]],
+                })
+            }),
+            std::array::from_fn(|i| Jet {
+                value: self.zs[i],
+                derivative: [z[i]],
+            }),
+        );
+        if values
+            .iter()
+            .flatten()
+            .flatten()
+            .flatten()
+            .any(|v| !v.finite())
+        {
+            return Err(Error::InvalidInput(
+                "Fresnel derivative is undefined for this grazing-channel limit".into(),
+            ));
+        }
+        Ok(std::array::from_fn(|b| {
+            DMatrix::from_fn(2, 2, |i, j| values[b / 2][b % 2][i][j].derivative[0])
+        }))
+    }
+
     /// The gradients of all ten complex inputs under the real pairing `Re Σ conj(g)·dx`.
-    pub fn pullback(self, cotangent: &Blocks) -> Result<FresnelGradient> {
+    pub fn pullback(&self, cotangent: &Blocks) -> Result<FresnelGradient> {
         // Jet seed offsets: `ks[i][j]` at `KS + 2 i + j`, `kzs[i][j]` at `KZS + 2 i + j`
         // and `zs[i]` at `ZS + i`.
         const KS: usize = 0;
@@ -368,8 +422,55 @@ pub struct InterfaceGradient {
 }
 
 impl InterfaceResidual {
+    /// Differentiate the tangential-field solve using its saved inverse and one
+    /// direction of local field derivatives.
+    pub fn pushforward(
+        &self,
+        ks: [[Complex; 2]; 2],
+        z: [Complex; 2],
+        q: [f64; 2],
+    ) -> Result<Blocks> {
+        if ks.iter().flatten().chain(&z).any(|&v| !finite(v)) || q.iter().any(|v| !v.is_finite()) {
+            return Err(Error::InvalidInput(
+                "interface tangents must be finite".into(),
+            ));
+        }
+        let inverse = self.inverse.ok_or_else(|| {
+            Error::InvalidInput(
+                "interface derivative is undefined at an exact diffraction threshold".into(),
+            )
+        })?;
+        let fixed_q = self.fixed_q || (self.axis == 2 && self.q.iter().all(|&v| v == 0.0));
+        let (lhs, rhs) = interface_boundary(
+            std::array::from_fn(|i| {
+                std::array::from_fn(|j| Jet {
+                    value: self.ks[i][j],
+                    derivative: [ks[i][j]],
+                })
+            }),
+            std::array::from_fn(|i| Jet {
+                value: self.zs[i],
+                derivative: [z[i]],
+            }),
+            std::array::from_fn(|i| Jet {
+                value: self.q[i].into(),
+                derivative: [if fixed_q {
+                    Complex::default()
+                } else {
+                    q[i].into()
+                }],
+            }),
+            self.axis,
+        )?;
+        let lhs = InterfaceMatrix::from_fn(|i, j| lhs[i][j].derivative[0]);
+        let rhs = InterfaceMatrix::from_fn(|i, j| rhs[i][j].derivative[0]);
+        let tangent = interface_blocks(&(inverse * (rhs - lhs * self.result)));
+        dimension(&tangent)?;
+        Ok(tangent)
+    }
+
     /// Reuse the 4-by-4 inverse for the implicit solve adjoint; recompute local field derivatives.
-    pub fn pullback(self, cotangent: &Blocks) -> Result<InterfaceGradient> {
+    pub fn pullback(&self, cotangent: &Blocks) -> Result<InterfaceGradient> {
         // Jet seed offsets: `ks[i][j]` at `KS + 2 i + j`, `zs[i]` at `ZS + i` and `q[i]`
         // at `Q + i`.
         const KS: usize = 0;
@@ -490,8 +591,37 @@ impl PropagationResidual {
         (self.vectors.len(), self.vectors.len())
     }
 
+    /// Propagate a wavevector and displacement direction through the saved phases.
+    pub fn pushforward(&self, vectors: &[[Complex; 3]], distance: [f64; 3]) -> Result<Blocks> {
+        if vectors.len() != self.vectors.len()
+            || vectors.iter().flatten().any(|&v| !finite(v))
+            || distance.iter().any(|v| !v.is_finite())
+        {
+            return Err(Error::InvalidInput(
+                "propagation tangents must be finite and match inputs".into(),
+            ));
+        }
+        let n = self.vectors.len();
+        let mut tangent: Blocks = std::array::from_fn(|_| DMatrix::zeros(n, n));
+        for (i, ((k, dk), phase)) in self
+            .vectors
+            .iter()
+            .zip(vectors)
+            .zip(&self.phases)
+            .enumerate()
+        {
+            let dot: [Complex; 3] =
+                std::array::from_fn(|a| dk[a] * self.distance[a] + k[a] * distance[a]);
+            for ((block, sign), phase) in [(0, 1.0), (3, -1.0)].into_iter().zip(phase) {
+                tangent[block][(i, i)] = Complex::i() * phase * (sign * (dot[0] + dot[1]) + dot[2]);
+            }
+        }
+        dimension(&tangent)?;
+        Ok(tangent)
+    }
+
     /// Wavevector and displacement gradients from the cotangents of the four blocks.
-    pub fn pullback(self, cotangent: &Blocks) -> Result<PropagationGradient> {
+    pub fn pullback(&self, cotangent: &Blocks) -> Result<PropagationGradient> {
         let n = checked_dimension(
             cotangent,
             self.vectors.len(),

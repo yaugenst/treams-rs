@@ -107,7 +107,12 @@ impl PolarTranslation {
     /// `args = [kr, theta, phi]`, with the derivatives with respect to the `N` leading
     /// arguments.
     fn evaluate<const N: usize>(&self, args: [Complex; 3]) -> Result<Jet<N>> {
-        if args.iter().any(|&v| !finite(v)) {
+        self.evaluate_jets(std::array::from_fn(|i| Jet::<N>::variable(args[i], i)))
+    }
+
+    /// One numerical kernel for value-only, coordinate and directional jets.
+    fn evaluate_jets<const N: usize>(&self, args: [Jet<N>; 3]) -> Result<Jet<N>> {
+        if args.iter().any(|&v| !v.finite()) {
             return Err(Error::InvalidInput(
                 "translation arguments must be finite".into(),
             ));
@@ -115,7 +120,7 @@ impl PolarTranslation {
         if self.terms.is_empty() {
             return Ok(Jet::default());
         }
-        let [kr, theta, phi] = std::array::from_fn(|i| Jet::<N>::variable(args[i], i));
+        let [kr, theta, phi] = args;
         let [cosine, sine] = polar_trig(theta);
         let order = self.order;
         let phase = sine.powi(order.abs()) * (Complex::i() * f64::from(order) * phi).exp();
@@ -205,9 +210,27 @@ impl PolarTranslationResidual {
         )
     }
 
+    /// Directional derivative of the three broadcast polar arguments.
+    pub fn pushforward(&self, tangents: [&[Complex]; 3]) -> Result<Vec<Complex>> {
+        broadcast::pushforward(
+            tangents,
+            self.size,
+            "translation tangents must be finite and match output",
+            PARALLEL,
+            |i, tangent| {
+                let (plan, args) = self.element(i);
+                let jets = std::array::from_fn(|a| Jet {
+                    value: args[a],
+                    derivative: [tangent[a]],
+                });
+                Ok(plan.evaluate_jets(jets)?.derivative[0])
+            },
+        )
+    }
+
     /// The argument gradients from one cotangent per translation; an argument given as
     /// one value for all outputs gets the sum of its gradients.
-    pub fn pullback(self, cotangent: &[Complex]) -> Result<[Vec<Complex>; 3]> {
+    pub fn pullback(&self, cotangent: &[Complex]) -> Result<[Vec<Complex>; 3]> {
         broadcast::pullback(
             cotangent,
             self.size,
@@ -231,37 +254,49 @@ pub fn polar_translation_array(
     helicity: bool,
     radial: Radial,
 ) -> Result<(Vec<Complex>, PolarTranslationResidual)> {
-    let [a, b, c] = arguments.each_ref().map(Vec::len);
-    let size = broadcast::size(
-        &[modes.len(), a, b, c],
-        "translation arrays must have equal lengths or scalar inputs",
-    )?;
-    let mut lookup = std::collections::HashMap::new();
-    let mut distinct = Vec::new();
-    let indices = modes
-        .into_iter()
-        .map(|pair| {
-            *lookup.entry(pair).or_insert_with(|| {
-                distinct.push(pair);
-                distinct.len() - 1
-            })
-        })
-        .collect();
-    let plans = broadcast::map(distinct.len(), PLANS, |i| {
-        let [to, from] = distinct[i];
-        PolarTranslation::new(to, from, helicity, radial)
-    })?;
-    let residual = PolarTranslationResidual {
-        plans,
-        indices,
-        arguments,
-        size,
-    };
-    let values = broadcast::map(size, PARALLEL, |i| {
+    let residual = PolarTranslationResidual::new(modes, arguments, helicity, radial)?;
+    let values = broadcast::map(residual.size, PARALLEL, |i| {
         let (plan, args) = residual.element(i);
         plan.value(args)
     })?;
     Ok((values, residual))
+}
+
+impl PolarTranslationResidual {
+    /// Retain broadcast inputs and prepare static labels without evaluating translations.
+    pub fn new(
+        modes: Vec<[Mode; 2]>,
+        arguments: [Vec<Complex>; 3],
+        helicity: bool,
+        radial: Radial,
+    ) -> Result<Self> {
+        let [a, b, c] = arguments.each_ref().map(Vec::len);
+        let size = broadcast::size(
+            &[modes.len(), a, b, c],
+            "translation arrays must have equal lengths or scalar inputs",
+        )?;
+        let mut lookup = std::collections::HashMap::new();
+        let mut distinct = Vec::new();
+        let indices = modes
+            .into_iter()
+            .map(|pair| {
+                *lookup.entry(pair).or_insert_with(|| {
+                    distinct.push(pair);
+                    distinct.len() - 1
+                })
+            })
+            .collect();
+        let plans = broadcast::map(distinct.len(), PLANS, |i| {
+            let [to, from] = distinct[i];
+            PolarTranslation::new(to, from, helicity, radial)
+        })?;
+        Ok(Self {
+            plans,
+            indices,
+            arguments,
+            size,
+        })
+    }
 }
 
 #[cfg(test)]

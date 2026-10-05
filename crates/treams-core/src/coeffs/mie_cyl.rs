@@ -3,6 +3,8 @@
 //! Upstream: `treams.coeffs.mie_cyl`. The pullback is a treams-rs extension.
 #![allow(clippy::indexing_slicing)] // Fixed four-channel interface matrices.
 
+mod saved;
+
 use super::{LayerGradient, Material, Matrix2, Matrix4, Matrix42};
 use crate::{
     Complex, Error, MAX_DEGREE, Result,
@@ -232,10 +234,66 @@ pub fn mie_cyl(
     })
 }
 impl MieCylResidual {
+    /// The number of recorded layer boundaries.
+    #[must_use]
+    pub fn boundaries(&self) -> usize {
+        self.radii.len()
+    }
+
     /// The coefficients in negative, positive helicity order, which the pullback reads.
     #[must_use]
     pub const fn value(&self) -> &Matrix2 {
         &self.value
+    }
+
+    /// The coefficient tangent along changes of `kz`, `k0`, the radii and the
+    /// materials. Material entries store changes of epsilon, mu and kappa.
+    /// Cached interface inverses and radial derivatives are reused for one forward
+    /// pass, with no additional factorizations or Bessel evaluations.
+    pub fn pushforward(
+        &self,
+        kz: f64,
+        k0: f64,
+        radii: &[f64],
+        materials: &[Material],
+    ) -> Result<Matrix2> {
+        super::validate_layer_tangents(self.radii.len(), radii, materials)?;
+        if !kz.is_finite() || !k0.is_finite() {
+            return Err(Error::InvalidInput(
+                "wavenumber tangents must be finite".into(),
+            ));
+        }
+        let optical: Vec<_> = self
+            .materials
+            .iter()
+            .zip(materials)
+            .map(|(&material, &direction)| material.pushforward(direction))
+            .collect();
+        let mut dq = Matrix42::zeros();
+        for (i, interface) in self.interfaces.iter().enumerate() {
+            let derivative = |side: usize, boundary: &Side| {
+                let tangent = optical[i + side];
+                let dn = [tangent.index - tangent.kappa, tangent.index + tangent.kappa];
+                boundary.derivative(
+                    self.order,
+                    self.kz,
+                    self.radii[i],
+                    Direction {
+                        ks: std::array::from_fn(|pol| {
+                            boundary.ks[pol] * (k0 / self.k0) + self.k0 * dn[pol]
+                        }),
+                        kz: kz.into(),
+                        radius: radii[i].into(),
+                        impedance: tangent.impedance,
+                    },
+                )
+            };
+            let inner = derivative(0, &interface.inside);
+            let outer = derivative(1, &interface.outside);
+            let transfer = interface.inverse_outer * (inner - outer * interface.transfer);
+            dq = transfer * interface.before + interface.transfer * dq;
+        }
+        Ok((dq.fixed_rows::<2>(2) - self.value * dq.fixed_rows::<2>(0)) * self.inverse)
     }
 
     /// Gradients of `kz`, `k0`, the radii and the materials from `cotangent`, the
@@ -243,13 +301,7 @@ impl MieCylResidual {
     ///
     /// The pullback runs on the calling thread and adds the boundaries in order, from
     /// the outermost in.
-    pub fn pullback(self, cotangent: &Matrix2) -> Result<MieCylGradient> {
-        self.gradient(cotangent)
-    }
-
-    /// [`pullback`](Self::pullback) without consuming the residual, so the T-matrix
-    /// pullback can reuse one solve for a block and its mirror.
-    pub(crate) fn gradient(&self, cotangent: &Matrix2) -> Result<MieCylGradient> {
+    pub fn pullback(&self, cotangent: &Matrix2) -> Result<MieCylGradient> {
         if cotangent.iter().any(|&z| !finite(z)) {
             return Err(Error::InvalidInput("cotangent must be finite".into()));
         }

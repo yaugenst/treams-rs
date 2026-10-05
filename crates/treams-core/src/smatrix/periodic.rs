@@ -2,9 +2,11 @@
 //!
 //! Upstream: `treams.SMatrices.periodic` and `treams.SMatrices.bands_kz`.
 
+mod saved;
+
 use nalgebra::DMatrix;
 
-use super::{Blocks, dimension};
+use super::{Blocks, checked_dimension, dimension};
 use crate::{
     Complex, Error, Result,
     linalg::{
@@ -57,8 +59,23 @@ impl PeriodicResidual {
         (2 * self.top.nrows(), 2 * self.top.nrows())
     }
 
+    /// Transfer-matrix tangent from the four scattering-block tangents, reusing LU.
+    pub fn pushforward(&self, blocks: &Blocks) -> Result<DMatrix<Complex>> {
+        let n = self.top.nrows();
+        checked_dimension(blocks, n, "invalid periodic transfer tangent")?;
+        let mut top = DMatrix::zeros(n, 2 * n);
+        top.columns_mut(0, n).copy_from(&blocks[0]);
+        top.columns_mut(n, n).copy_from(&blocks[1]);
+        let rhs = -product(&blocks[2], &self.top) - product(&self.reflection, &top);
+        let bottom = self.solve.pushforward(&blocks[3], rhs)?;
+        let mut value = DMatrix::zeros(2 * n, 2 * n);
+        value.rows_mut(0, n).copy_from(&top);
+        value.rows_mut(n, n).copy_from(&bottom);
+        Ok(value)
+    }
+
     /// Pull back a transfer-matrix cotangent into all four scattering blocks.
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<Blocks> {
+    pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<Blocks> {
         let n = self.top.nrows();
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&z| !finite(z)) {
             return Err(Error::InvalidInput(
@@ -143,9 +160,38 @@ impl BandsResidual {
         self.eigen.vectors()
     }
 
+    /// Bloch wavenumber and eigenvector tangents with a fixed logarithm branch.
+    /// The recorded eigensystem defines the normalization and phase convention.
+    pub fn pushforward(
+        &self,
+        blocks: &Blocks,
+        period: f64,
+    ) -> Result<(Vec<Complex>, DMatrix<Complex>)> {
+        if !period.is_finite() {
+            return Err(Error::InvalidInput("invalid band period tangent".into()));
+        }
+        let transfer = self.periodic.pushforward(blocks)?;
+        let logarithm_derivatives: Vec<_> = self
+            .eigen
+            .values()
+            .iter()
+            .map(|&v| ratio(-Complex::i() / self.period, v))
+            .collect();
+        let (values, vectors) = self.eigen.pushforward(&transfer)?;
+        let wavenumbers = values
+            .iter()
+            .zip(&logarithm_derivatives)
+            .zip(&self.wavenumbers)
+            .map(|((&value, &derivative), &wavenumber)| {
+                derivative * value - wavenumber * (period / self.period)
+            })
+            .collect();
+        Ok((wavenumbers, vectors))
+    }
+
     /// Return S-matrix and repeat-distance cotangents; logarithm branch is fixed.
     pub fn pullback(
-        self,
+        &self,
         wavenumbers: &[Complex],
         vectors: DMatrix<Complex>,
     ) -> Result<BandsGradient> {

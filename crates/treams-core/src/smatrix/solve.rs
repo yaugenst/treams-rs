@@ -9,6 +9,8 @@
 //! (above) and `U2` the reflection of the upper stack for waves incident from the
 //! negative side (below), so `up` holds the upgoing fields between the stacks.
 
+mod saved;
+
 use faer::MatRef;
 use nalgebra::DMatrix;
 
@@ -246,57 +248,85 @@ impl InternalSolve {
         })
     }
 
-    /// Solve the adjoint system for `rhs`, consuming the forward solve.
+    /// Solve the adjoint system for `rhs`, reusing the forward solve.
     /// `lower` and `upper` must be the reflection pair used by that forward solve.
     pub(super) fn solve_adjoint(
-        self,
+        &self,
+        lower: MatRef<'_, Complex>,
+        upper: MatRef<'_, Complex>,
+        rhs: DMatrix<Complex>,
+    ) -> Result<AdjointSolve<'_>> {
+        let adjoint = self.solve_rhs(lower, upper, rhs, true)?;
+        Ok(AdjointSolve {
+            adjoint,
+            value: &self.value,
+        })
+    }
+
+    /// Solve a tangent right-hand side with the recorded forward operator.
+    pub(super) fn solve_forward(
+        &self,
+        lower: MatRef<'_, Complex>,
+        upper: MatRef<'_, Complex>,
+        rhs: DMatrix<Complex>,
+    ) -> Result<DMatrix<Complex>> {
+        self.solve_rhs(lower, upper, rhs, false)
+    }
+
+    /// Reuse the recorded solve strategy for either derivative direction.
+    fn solve_rhs(
+        &self,
         lower: MatRef<'_, Complex>,
         upper: MatRef<'_, Complex>,
         mut rhs: DMatrix<Complex>,
-    ) -> Result<AdjointSolve> {
-        let lu = match self.factor {
+        adjoint: bool,
+    ) -> Result<DMatrix<Complex>> {
+        let fallback;
+        let lu = match &self.factor {
             InternalFactor::Lu(lu) => lu,
             InternalFactor::Reflections => {
-                if let Ok(adjoint) =
-                    internal_iteration(&rhs, |x| reflection_action(lower, upper, x, true))
+                if let Ok(value) =
+                    internal_iteration(&rhs, |x| reflection_action(lower, upper, x, adjoint))
                 {
-                    return Ok(AdjointSolve {
-                        adjoint,
-                        value: self.value,
-                    });
+                    return Ok(value);
                 }
-                Lu::new(internal_operator(lower, upper))?
+                fallback = Lu::new(internal_operator(lower, upper))?;
+                &fallback
             }
             InternalFactor::Krylov(operator) => {
-                if let Ok(adjoint) =
-                    internal_iteration(&rhs, |x| product_views(view(&operator).adjoint(), x))
-                {
-                    return Ok(AdjointSolve {
-                        adjoint,
-                        value: self.value,
-                    });
+                if let Ok(value) = internal_iteration(&rhs, |x| {
+                    let operator = view(operator);
+                    if adjoint {
+                        product_views(operator.adjoint(), x)
+                    } else {
+                        product_views(operator, x)
+                    }
+                }) {
+                    return Ok(value);
                 }
-                Lu::new(operator)?
+                fallback = Lu::new(operator.clone())?;
+                &fallback
             }
         };
-        lu.solve_adjoint_in_place(view_mut(&mut rhs))?;
+        if adjoint {
+            lu.solve_adjoint_in_place(view_mut(&mut rhs))?;
+        } else {
+            lu.solve_in_place(view_mut(&mut rhs))?;
+        }
         if rhs.iter().any(|&z| !finite(z)) {
             return Err(Error::Singular);
         }
-        Ok(AdjointSolve {
-            adjoint: rhs,
-            value: self.value,
-        })
+        Ok(rhs)
     }
 }
 
-/// The adjoint solution of an internal system, beside the forward one it releases.
+/// The adjoint solution of an internal system, beside its borrowed forward solution.
 #[derive(Debug)]
-pub(super) struct AdjointSolve {
+pub(super) struct AdjointSolve<'a> {
     /// Solution of the adjoint system `(I - L U)^H x = rhs`.
     pub(super) adjoint: DMatrix<Complex>,
-    /// Solution of the forward system, moved out of the [`InternalSolve`].
-    pub(super) value: DMatrix<Complex>,
+    /// Solution of the forward system, borrowed from the [`InternalSolve`].
+    pub(super) value: &'a DMatrix<Complex>,
 }
 
 #[cfg(test)]
@@ -377,6 +407,10 @@ mod tests {
                 iterates
             );
             prop_assert_close!(&solve.value * coefficient, &rhs, 2e-13 * rhs.norm());
+            let tangent = solve
+                .solve_forward(view(&weak), view(&weak), rhs.clone())
+                .unwrap();
+            prop_assert_close!(tangent * coefficient, &rhs, 2e-13 * rhs.norm());
             let gradient = solve
                 .solve_adjoint(view(&weak), view(&weak), rhs.clone())
                 .unwrap()
@@ -401,6 +435,10 @@ mod tests {
             InternalSolve::with_threshold(view(&lower), view(&upper), rhs.clone(), n).unwrap();
         prop_assert!(matches!(solve.factor, InternalFactor::Krylov(_)));
         prop_assert_close!(&operator * &solve.value, &rhs, 2e-13 * rhs.norm());
+        let tangent = solve
+            .solve_forward(view(&lower), view(&upper), rhs.clone())
+            .unwrap();
+        prop_assert_close!(&operator * tangent, &rhs, 2e-13 * rhs.norm());
         let adjoint = solve
             .solve_adjoint(view(&lower), view(&upper), rhs.clone())
             .unwrap()
@@ -479,6 +517,11 @@ mod tests {
         let eigenvector = DMatrix::from_element(n, 2, Complex::new(1.0, 0.0));
         let easy_forward = solve(&cyclic, &identity, eigenvector, min_rows).unwrap();
         prop_assert!(matches!(easy_forward.factor, InternalFactor::Reflections));
+        // A tangent direction can require the same direct fallback as an adjoint.
+        let tangent = easy_forward
+            .solve_forward(view(&cyclic), view(&identity), rhs.clone())
+            .unwrap();
+        prop_assert_close!(&operator * tangent, &rhs, 2e-13 * rhs.norm());
         // A forward eigenvector can converge immediately while an unrelated
         // adjoint RHS needs the direct fallback. Certify that path separately.
         let reverse = easy_forward

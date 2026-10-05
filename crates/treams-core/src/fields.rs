@@ -22,6 +22,7 @@ use crate::{
         self, Jet, finite,
         parallel::{try_fill_chunks, try_fold_ordered, try_map},
     },
+    saved::{self, Reader, SavedState, Writer},
     special::{
         Radial, SERIES_RADIUS, Solid, SolidTable, bessel, helicity_sign, polarized_wave, solid,
         spherical_hankels,
@@ -407,16 +408,53 @@ fn sampled_waves(
     radial: Radial,
 ) -> Result<(WaveSet, Vec<[f64; 3]>)> {
     basis.validate()?;
-    if points.iter().flatten().any(|v| !v.is_finite()) {
-        return Err(Error::InvalidInput("field points must be finite".into()));
-    }
+    validate_points(&points)?;
     Ok((
         WaveSet::of_valid_basis(basis, ks, helicity, radial)?,
         points,
     ))
 }
 
+fn validate_points(points: &[[f64; 3]]) -> Result<()> {
+    if points.iter().flatten().any(|v| !v.is_finite()) {
+        return Err(Error::InvalidInput("field points must be finite".into()));
+    }
+    Ok(())
+}
+
+fn validate_coefficients(basis: &MultipoleBasis, coefficients: &[Complex]) -> Result<()> {
+    if coefficients.len() != basis.len() || coefficients.iter().any(|&v| !finite(v)) {
+        return Err(Error::InvalidInput(
+            "require one finite field coefficient per mode".into(),
+        ));
+    }
+    Ok(())
+}
+
 impl WaveSet {
+    fn write_state(&self, writer: &mut Writer) {
+        saved::write_basis(writer, &self.basis);
+        for k in self.ks {
+            writer.complex(k);
+        }
+        writer.byte(u8::from(self.helicity));
+        saved::write_radial(writer, self.radial);
+    }
+
+    /// Rebuild only basis-dependent normalization and recurrence plans. Sampling
+    /// values and derivatives remains the responsibility of the later operation.
+    fn read_state(reader: &mut Reader<'_>) -> Result<Self> {
+        let basis = saved::read_basis(reader)?;
+        let ks = [reader.complex()?, reader.complex()?];
+        let helicity = match reader.byte()? {
+            0 => false,
+            1 => true,
+            _ => return Err(saved::invalid()),
+        };
+        let radial = saved::read_radial(reader)?;
+        Self::new(basis, ks, helicity, radial)
+    }
+
     pub(crate) fn new(
         basis: MultipoleBasis,
         ks: [Complex; 2],
@@ -682,6 +720,54 @@ impl WaveSet {
         })
     }
 
+    /// Sample an operator with shared radial and harmonic work per point. Both
+    /// the primal and its pushforward write directly into column-major storage.
+    fn sampled_operator<const N: usize>(
+        &self,
+        points: &[[f64; 3]],
+        value: impl Fn(usize, usize, VectorWave, [Complex; 3]) -> [Complex; 3] + Sync,
+    ) -> Result<nalgebra::DMatrix<Complex>> {
+        let samples = points.len();
+        let mut output = numerics::zeros(3 * samples, self.basis.len())?;
+        if samples == 0 {
+            return Ok(output);
+        }
+        // Each task evaluates all modes at consecutive samples, preserving the
+        // radial cache while writing the corresponding rows of every column.
+        let block = samples
+            .div_ceil(crate::threads::current_num_threads().saturating_mul(8))
+            .clamp(1, 64);
+        let mut blocks: Vec<Vec<&mut [Complex]>> = (0..samples.div_ceil(block))
+            .map(|_| {
+                let mut columns = Vec::new();
+                numerics::reserve(&mut columns, self.basis.len()).map(|()| columns)
+            })
+            .collect::<Result<_>>()?;
+        for column in output.as_mut_slice().chunks_exact_mut(3 * samples) {
+            for (rows, columns) in column.chunks_mut(3 * block).zip(&mut blocks) {
+                columns.push(rows);
+            }
+        }
+        try_fill_chunks(
+            &mut blocks,
+            1,
+            samples > block,
+            |index, chunk| -> Result<()> {
+                let columns = &mut chunk[0];
+                for (sample, &point) in points.iter().skip(index * block).take(block).enumerate() {
+                    let mut cache = self.cache::<N>();
+                    for (mode, column) in columns.iter_mut().enumerate() {
+                        let (wave, axial) = self.wave(mode, point, &mut cache)?;
+                        let result = value(index * block + sample, mode, wave, axial);
+                        column[3 * sample..3 * sample + 3].copy_from_slice(&result);
+                    }
+                }
+                Ok(())
+            },
+        )?;
+        Ok(output)
+    }
+
     /// The pullback over all `points`; level [`WITH_AXIAL`] adds per-mode axial
     /// gradients.
     fn pullback<const N: usize>(
@@ -747,6 +833,67 @@ impl WaveSet {
     }
 }
 
+/// A direction in field geometry, shared by field sums and operators. Local wave
+/// derivatives are contracted immediately, without constructing a global Jacobian.
+#[derive(Clone, Copy)]
+struct GeometryTangent<'a> {
+    points: &'a [[f64; 3]],
+    positions: &'a [[f64; 3]],
+    ks: [Complex; 2],
+    axial: Option<&'a [f64]>,
+}
+
+impl GeometryTangent<'_> {
+    fn validate(&self, waves: &WaveSet, samples: usize) -> Result<()> {
+        if self.points.len() != samples
+            || self.positions.len() != waves.basis.positions().len()
+            || self
+                .points
+                .iter()
+                .chain(self.positions)
+                .flatten()
+                .any(|v| !v.is_finite())
+            || self.ks.iter().any(|&v| !finite(v))
+        {
+            return Err(Error::InvalidInput("invalid field geometry tangent".into()));
+        }
+        if let Some(axial) = self.axial {
+            if matches!(waves.basis, MultipoleBasis::Spherical(_)) {
+                return Err(Error::InvalidInput(
+                    "axial field derivatives require a cylindrical basis".into(),
+                ));
+            }
+            if axial.len() != waves.basis.len() || axial.iter().any(|v| !v.is_finite()) {
+                return Err(Error::InvalidInput("invalid field axial tangent".into()));
+            }
+        }
+        Ok(())
+    }
+
+    fn contract(
+        &self,
+        waves: &WaveSet,
+        sample: usize,
+        mode: usize,
+        wave: VectorWave,
+        axial: [Complex; 3],
+    ) -> [Complex; 3] {
+        let (position, polarization) = waves.basis.position_pol(mode);
+        from_fn(|component| {
+            wave.k[component] * self.ks[polarization]
+                + (0..3)
+                    .map(|axis| {
+                        wave.position[component][axis]
+                            * (self.points[sample][axis] - self.positions[position][axis])
+                    })
+                    .sum::<Complex>()
+                + self
+                    .axial
+                    .map_or_else(Complex::default, |kz| axial[component] * kz[mode])
+        })
+    }
+}
+
 /// Partial sums of a field pullback over a chunk of consecutive samples. Point
 /// gradients are written in place, one per sample.
 struct Accumulator {
@@ -806,11 +953,7 @@ pub fn field(
     radial: Radial,
 ) -> Result<(Vec<[Complex; 3]>, FieldResidual)> {
     let basis = basis.into();
-    if coefficients.len() != basis.len() || coefficients.iter().any(|&v| !finite(v)) {
-        return Err(Error::InvalidInput(
-            "require one finite field coefficient per mode".into(),
-        ));
-    }
+    validate_coefficients(&basis, &coefficients)?;
     let (waves, points) = sampled_waves(basis, points, ks, helicity, radial)?;
     let value = try_map(points.len(), points.len() > 1, |index| -> Result<_> {
         let mut cache = waves.cache::<VALUES>();
@@ -834,10 +977,96 @@ pub fn field(
 }
 
 impl FieldResidual {
+    /// Saved-state byte count determined solely by the input dimensions and wave
+    /// family, independent of material values or derivative directions.
+    pub fn state_size(
+        modes: usize,
+        positions: usize,
+        points: usize,
+        cylindrical: bool,
+    ) -> Result<usize> {
+        OperatorResidual::state_size(modes, positions, points, cylindrical)?
+            .checked_add(modes.checked_mul(16).ok_or_else(saved::invalid)?)
+            .ok_or_else(saved::invalid)
+    }
+
     /// Samples and Cartesian components: the shape of the field array.
     #[must_use]
     pub fn shape(&self) -> (usize, usize) {
         (self.points.len(), 3)
+    }
+
+    /// Number of mode coefficients and expansion centres in the input.
+    #[must_use]
+    pub fn input_sizes(&self) -> (usize, usize) {
+        (self.coefficients.len(), self.waves.basis.positions().len())
+    }
+
+    /// Field tangent in one direction of coefficients, sample points, expansion
+    /// centres and medium wavenumbers. Each sample reuses the primal wave caches.
+    pub fn pushforward(
+        &self,
+        coefficients: &[Complex],
+        points: &[[f64; 3]],
+        positions: &[[f64; 3]],
+        ks: [Complex; 2],
+    ) -> Result<Vec<[Complex; 3]>> {
+        self.pushforward_impl::<SPATIAL_AND_K>(
+            coefficients,
+            GeometryTangent {
+                points,
+                positions,
+                ks,
+                axial: None,
+            },
+        )
+    }
+
+    /// [`Self::pushforward`] with an axial-wavenumber tangent per cylindrical mode.
+    pub fn pushforward_axial(
+        &self,
+        coefficients: &[Complex],
+        points: &[[f64; 3]],
+        positions: &[[f64; 3]],
+        ks: [Complex; 2],
+        kz: &[f64],
+    ) -> Result<Vec<[Complex; 3]>> {
+        self.pushforward_impl::<WITH_AXIAL>(
+            coefficients,
+            GeometryTangent {
+                points,
+                positions,
+                ks,
+                axial: Some(kz),
+            },
+        )
+    }
+
+    fn pushforward_impl<const N: usize>(
+        &self,
+        coefficients: &[Complex],
+        tangent: GeometryTangent<'_>,
+    ) -> Result<Vec<[Complex; 3]>> {
+        if coefficients.len() != self.coefficients.len() || coefficients.iter().any(|&v| !finite(v))
+        {
+            return Err(Error::InvalidInput(
+                "invalid field coefficient tangent".into(),
+            ));
+        }
+        tangent.validate(&self.waves, self.points.len())?;
+        try_map(self.points.len(), self.points.len() > 1, |sample| {
+            let mut cache = self.waves.cache::<N>();
+            let mut value = [Complex::default(); 3];
+            for (mode, &coefficient) in coefficients.iter().enumerate() {
+                let (wave, axial) = self.waves.wave(mode, self.points[sample], &mut cache)?;
+                let derivative = tangent.contract(&self.waves, sample, mode, wave, axial);
+                for component in 0..3 {
+                    value[component] += coefficient * wave.value[component]
+                        + self.coefficients[mode] * derivative[component];
+                }
+            }
+            Ok(value)
+        })
     }
 
     /// Input gradients from `cotangent`, the gradient of a real loss with respect to the
@@ -849,19 +1078,19 @@ impl FieldResidual {
     /// sample count, and the chunk sums in chunk order
     /// (`numerics::parallel::try_fold_ordered`), so the thread count does not change
     /// them.
-    pub fn pullback(self, cotangent: &[[Complex; 3]]) -> Result<FieldGradient> {
+    pub fn pullback(&self, cotangent: &[[Complex; 3]]) -> Result<FieldGradient> {
         self.pullback_impl::<SPATIAL_AND_K>(cotangent)
             .map(|(gradient, _)| gradient)
     }
 
     /// [`Self::pullback`] plus a real axial-wavenumber gradient for each mode of a
     /// cylindrical basis; the axial gradients add their chunk sums the same way.
-    pub fn pullback_axial(self, cotangent: &[[Complex; 3]]) -> Result<(FieldGradient, Vec<f64>)> {
+    pub fn pullback_axial(&self, cotangent: &[[Complex; 3]]) -> Result<(FieldGradient, Vec<f64>)> {
         self.pullback_impl::<WITH_AXIAL>(cotangent)
     }
 
     fn pullback_impl<const N: usize>(
-        self,
+        &self,
         cotangent: &[[Complex; 3]],
     ) -> Result<(FieldGradient, Vec<f64>)> {
         if cotangent.len() != self.points.len() || cotangent.iter().flatten().any(|&g| !finite(g)) {
@@ -872,6 +1101,73 @@ impl FieldResidual {
                 cotangent[sample]
             })
     }
+}
+
+impl SavedState for FieldResidual {
+    fn save_state(&self) -> Result<Vec<u8>> {
+        let (modes, positions) = self.input_sizes();
+        let cylindrical = matches!(self.waves.basis, MultipoleBasis::Cylindrical(_));
+        let mut writer = Writer::new(Self::state_size(
+            modes,
+            positions,
+            self.points.len(),
+            cylindrical,
+        )?);
+        write_sampled_state(&mut writer, &self.waves, &self.points);
+        for &coefficient in &self.coefficients {
+            writer.complex(coefficient);
+        }
+        Ok(writer.finish())
+    }
+
+    fn from_state(bytes: &[u8]) -> Result<Self> {
+        let (waves, points, mut reader) = read_sampled_state(bytes, true)?;
+        let coefficients = (0..waves.basis.len())
+            .map(|_| reader.complex())
+            .collect::<Result<Vec<_>>>()?;
+        reader.finish()?;
+        validate_coefficients(&waves.basis, &coefficients)?;
+        Ok(Self {
+            waves,
+            points,
+            coefficients,
+        })
+    }
+}
+
+fn write_sampled_state(writer: &mut Writer, waves: &WaveSet, points: &[[f64; 3]]) {
+    writer.usize(points.len());
+    waves.write_state(writer);
+    for &coordinate in points.as_flattened() {
+        writer.f64(coordinate);
+    }
+}
+
+/// Check the complete byte size from the allocation-free header before decoding
+/// any arrays. Both residual layouts share the same sampled-wave prefix.
+fn read_sampled_state(
+    bytes: &[u8],
+    coefficients: bool,
+) -> Result<(WaveSet, Vec<[f64; 3]>, Reader<'_>)> {
+    let mut header = Reader::new(bytes);
+    let samples = header.usize()?;
+    let (modes, positions, cylindrical) = saved::read_basis_dimensions(&mut header)?;
+    let size = if coefficients {
+        FieldResidual::state_size(modes, positions, samples, cylindrical)?
+    } else {
+        OperatorResidual::state_size(modes, positions, samples, cylindrical)?
+    };
+    if bytes.len() != size {
+        return Err(saved::invalid());
+    }
+    let mut reader = Reader::new(bytes);
+    reader.usize()?;
+    let waves = WaveSet::read_state(&mut reader)?;
+    let points = (0..samples)
+        .map(|_| Ok([reader.f64()?, reader.f64()?, reader.f64()?]))
+        .collect::<Result<Vec<_>>>()?;
+    validate_points(&points)?;
+    Ok((waves, points, reader))
 }
 
 /// What [`operator`] saves for its pullback: the wave set and the points, without the
@@ -895,54 +1191,88 @@ pub fn operator(
     radial: Radial,
 ) -> Result<(nalgebra::DMatrix<Complex>, OperatorResidual)> {
     let (waves, points) = sampled_waves(basis.into(), points, ks, helicity, radial)?;
-    let samples = points.len();
-    let mut value = numerics::zeros(3 * samples, waves.basis.len())?;
-    if samples > 0 {
-        // Each task evaluates all modes at a block of consecutive samples, so the
-        // waves of one sample share their radial functions. It writes the rows of
-        // its samples in every column.
-        let block = samples
-            .div_ceil(crate::threads::current_num_threads().saturating_mul(8))
-            .clamp(1, 64);
-        // One column slice per block and mode: a third of the matrix for one-sample
-        // blocks.
-        let mut blocks: Vec<Vec<&mut [Complex]>> = (0..samples.div_ceil(block))
-            .map(|_| {
-                let mut columns = Vec::new();
-                numerics::reserve(&mut columns, waves.basis.len()).map(|()| columns)
-            })
-            .collect::<Result<_>>()?;
-        for column in value.as_mut_slice().chunks_exact_mut(3 * samples) {
-            for (rows, columns) in column.chunks_mut(3 * block).zip(&mut blocks) {
-                columns.push(rows);
-            }
-        }
-        try_fill_chunks(
-            &mut blocks,
-            1,
-            samples > block,
-            |index, chunk| -> Result<()> {
-                let columns = &mut chunk[0];
-                let block_points = points.iter().skip(index * block).take(block);
-                for (sample, &point) in block_points.enumerate() {
-                    let mut cache = waves.cache::<VALUES>();
-                    for (i, column) in columns.iter_mut().enumerate() {
-                        let (wave, _) = waves.wave(i, point, &mut cache)?;
-                        column[3 * sample..3 * sample + 3].copy_from_slice(&wave.value);
-                    }
-                }
-                Ok(())
-            },
-        )?;
-    }
+    let value = waves.sampled_operator::<VALUES>(&points, |_, _, wave, _| wave.value)?;
     Ok((value, OperatorResidual { waves, points }))
 }
 
 impl OperatorResidual {
+    /// Saved-state byte count determined solely by the input dimensions and wave
+    /// family, without evaluating a field operator.
+    pub fn state_size(
+        modes: usize,
+        positions: usize,
+        points: usize,
+        cylindrical: bool,
+    ) -> Result<usize> {
+        let basis = if cylindrical {
+            saved::cw_basis_size(modes, positions)?
+        } else {
+            saved::sw_basis_size(modes, positions)?
+        };
+        // Samples (8), family (1), wavenumbers (32), helicity and radial (2).
+        basis
+            .checked_add(43)
+            .and_then(|size| {
+                points
+                    .checked_mul(24)
+                    .and_then(|points| size.checked_add(points))
+            })
+            .ok_or_else(saved::invalid)
+    }
+
     /// Flattened operator shape (three times samples, modes).
     #[must_use]
     pub fn shape(&self) -> (usize, usize) {
         (3 * self.points.len(), self.waves.basis.len())
+    }
+
+    /// Number of expansion centres in the input basis.
+    #[must_use]
+    pub fn position_count(&self) -> usize {
+        self.waves.basis.positions().len()
+    }
+
+    /// Operator tangent in one direction of sample points, expansion centres and
+    /// wavenumbers, evaluated directly into the output's column-major storage.
+    pub fn pushforward(
+        &self,
+        points: &[[f64; 3]],
+        positions: &[[f64; 3]],
+        ks: [Complex; 2],
+    ) -> Result<nalgebra::DMatrix<Complex>> {
+        self.pushforward_impl::<SPATIAL_AND_K>(GeometryTangent {
+            points,
+            positions,
+            ks,
+            axial: None,
+        })
+    }
+
+    /// [`Self::pushforward`] with an axial-wavenumber tangent per cylindrical mode.
+    pub fn pushforward_axial(
+        &self,
+        points: &[[f64; 3]],
+        positions: &[[f64; 3]],
+        ks: [Complex; 2],
+        kz: &[f64],
+    ) -> Result<nalgebra::DMatrix<Complex>> {
+        self.pushforward_impl::<WITH_AXIAL>(GeometryTangent {
+            points,
+            positions,
+            ks,
+            axial: Some(kz),
+        })
+    }
+
+    fn pushforward_impl<const N: usize>(
+        &self,
+        tangent: GeometryTangent<'_>,
+    ) -> Result<nalgebra::DMatrix<Complex>> {
+        tangent.validate(&self.waves, self.points.len())?;
+        self.waves
+            .sampled_operator::<N>(&self.points, |sample, mode, wave, axial| {
+                tangent.contract(&self.waves, sample, mode, wave, axial)
+            })
     }
 
     /// Point, position and wavenumber gradients from `cotangent`, the gradient of a real
@@ -951,7 +1281,7 @@ impl OperatorResidual {
     /// Each point gradient comes from its own sample only. The position and wavenumber
     /// gradients add as in [`FieldResidual::pullback`], so the thread count does not
     /// change them.
-    pub fn pullback(self, cotangent: &nalgebra::DMatrix<Complex>) -> Result<FieldGradient> {
+    pub fn pullback(&self, cotangent: &nalgebra::DMatrix<Complex>) -> Result<FieldGradient> {
         self.pullback_impl::<SPATIAL_AND_K>(cotangent)
             .map(|(gradient, _)| gradient)
     }
@@ -959,14 +1289,14 @@ impl OperatorResidual {
     /// [`Self::pullback`] plus a real axial-wavenumber gradient for each mode of a
     /// cylindrical basis; the axial gradients add their chunk sums the same way.
     pub fn pullback_axial(
-        self,
+        &self,
         cotangent: &nalgebra::DMatrix<Complex>,
     ) -> Result<(FieldGradient, Vec<f64>)> {
         self.pullback_impl::<WITH_AXIAL>(cotangent)
     }
 
     fn pullback_impl<const N: usize>(
-        self,
+        &self,
         cotangent: &nalgebra::DMatrix<Complex>,
     ) -> Result<(FieldGradient, Vec<f64>)> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&g| !finite(g)) {
@@ -978,6 +1308,26 @@ impl OperatorResidual {
             .pullback::<N>(&self.points, None, |sample, mode| {
                 from_fn(|i| cotangent[(3 * sample + i, mode)])
             })
+    }
+}
+
+impl SavedState for OperatorResidual {
+    fn save_state(&self) -> Result<Vec<u8>> {
+        let cylindrical = matches!(self.waves.basis, MultipoleBasis::Cylindrical(_));
+        let mut writer = Writer::new(Self::state_size(
+            self.waves.basis.len(),
+            self.position_count(),
+            self.points.len(),
+            cylindrical,
+        )?);
+        write_sampled_state(&mut writer, &self.waves, &self.points);
+        Ok(writer.finish())
+    }
+
+    fn from_state(bytes: &[u8]) -> Result<Self> {
+        let (waves, points, reader) = read_sampled_state(bytes, false)?;
+        reader.finish()?;
+        Ok(Self { waves, points })
     }
 }
 

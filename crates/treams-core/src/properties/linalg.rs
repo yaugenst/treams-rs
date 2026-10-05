@@ -1,4 +1,4 @@
-//! Dense linear-algebra adjoints.
+//! Dense linear-algebra tangents and adjoints.
 
 use nalgebra::{DMatrix, DVector};
 use proptest::{prelude::*, test_runner::TestCaseError};
@@ -10,6 +10,19 @@ use crate::{
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(ALGEBRA_CASES))]
+
+    #[test]
+    fn linear_solve_pushforward_satisfies_implicit_equation_and_adjoint(
+        (a, b, da, db, g) in (1_usize..=6, 1_usize..=4).prop_flat_map(|(n, columns)| (
+            separated(n),
+            complex_matrix(n, columns, 1.0),
+            complex_matrix(n, n, 0.5),
+            complex_matrix(n, columns, 0.5),
+            complex_matrix(n, columns, 0.5),
+        )),
+    ) {
+        check_linear_solve_pushforward(&a, &b, &da, &db, &g)?;
+    }
 
     #[test]
     fn singular_values_frobenius_gradient(
@@ -34,6 +47,30 @@ proptest! {
     ) {
         check_general_eigensystem(&a, &direction, gw.as_slice(), &gv)?;
     }
+}
+
+/// The tangent satisfies the differentiated equation `A dX + dA X = dB`, agrees
+/// with a central difference, and transposes to the recorded adjoint.
+fn check_linear_solve_pushforward(
+    a: &DMatrix<Complex>,
+    b: &DMatrix<Complex>,
+    da: &DMatrix<Complex>,
+    db: &DMatrix<Complex>,
+    g: &DMatrix<Complex>,
+) -> Result<(), TestCaseError> {
+    let residual = linalg::solve(a, b.clone()).unwrap();
+    let value = residual.value().clone();
+    let tangent = residual.pushforward(da, db.clone()).unwrap();
+    prop_assert_close!(a * &tangent + da * value, db, 1e-12);
+    let gradient = residual.pullback(g.clone()).unwrap();
+    let pairing = re_dot(&gradient.operator, da) + re_dot(&gradient.rhs, db);
+    prop_assert_close!(re_dot(g, &tangent), pairing, 1e-12);
+    let loss = |t: f64| {
+        let moved = linalg::solve(&(a + da * Complex::from(t)), b + db * Complex::from(t)).unwrap();
+        re_dot(g, moved.value())
+    };
+    prop_assert_close!(central(1e-6, loss), pairing, 1e-7 * (1.0 + pairing.abs()));
+    Ok(())
 }
 
 /// `n × n` matrices with diagonal `(1 + 0.7 j) + 0.1 i j` and off-diagonal entries
@@ -84,6 +121,12 @@ fn check_singular_values(
         };
         let gradient = linalg::svdvals(a).unwrap().pullback(weights).unwrap();
         let analytic = re_dot(&gradient, direction);
+        let tangent = linalg::svdvals(a).unwrap().pushforward(direction).unwrap();
+        let pairing: f64 = tangent.iter().zip(weights).map(|(d, w)| d * w).sum();
+        prop_assert_close!(pairing, analytic, 1e-12);
+        // Differentiating Σ σ² = ‖A‖²_F gives 2 Σ σ dσ = 2 Re⟨A, dA⟩.
+        let norm_tangent: f64 = tangent.iter().zip(&values).map(|(d, s)| 2.0 * s * d).sum();
+        prop_assert_close!(norm_tangent, 2.0 * re_dot(a, direction), 1e-12);
         prop_assert_close!(central(1e-6, loss), analytic, 1e-7 * (1.0 + analytic.abs()));
     }
     Ok(())
@@ -117,6 +160,23 @@ fn check_general_eigensystem(
     let gradient = residual.pullback(gw, gv.clone()).unwrap();
     prop_assert_close!(re_dot(&gradient, a), re_dot(gw, &w), 1e-12);
     prop_assert_close!(gradient.trace(), gw.iter().sum::<Complex>(), 1e-12);
+    let (dw, dv) = linalg::eig(a).unwrap().pushforward(direction).unwrap();
+    let tangent_pairing = re_dot(gw, &dw) + re_dot(gv, &dv);
+    prop_assert_close!(tangent_pairing, re_dot(&gradient, direction), 1e-12);
+    let w_diagonal = DMatrix::from_diagonal(&DVector::from_vec(w.clone()));
+    let dw_diagonal = DMatrix::from_diagonal(&DVector::from_vec(dw));
+    prop_assert_close!(
+        direction * &vectors + a * &dv,
+        &dv * w_diagonal + &vectors * dw_diagonal,
+        1e-12
+    );
+    for (vector, tangent) in vectors.column_iter().zip(dv.column_iter()) {
+        prop_assert_close!(vector.dotc(&tangent).re, 0.0, 1e-14);
+        let pivot = (0..vector.len())
+            .max_by(|&i, &j| vector[i].norm().total_cmp(&vector[j].norm()))
+            .unwrap();
+        prop_assert_close!(tangent[pivot].im, 0.0, 1e-14);
+    }
 
     let loss = |t: f64| {
         let moved = linalg::eig(&(a + direction * Complex::from(t))).unwrap();

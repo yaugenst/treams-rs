@@ -29,8 +29,8 @@ pub(crate) fn phase(vector: [Complex; 3], point: [f64; 3]) -> Complex {
 /// phases of every point and mode.
 #[derive(Debug)]
 pub struct PhasesResidual {
-    points: Vec<[f64; 3]>,
-    vectors: Vec<[Complex; 3]>,
+    pub(super) points: Vec<[f64; 3]>,
+    pub(super) vectors: Vec<[Complex; 3]>,
 }
 /// Cotangents of real displacements and complex full wavevectors.
 #[derive(Debug)]
@@ -97,6 +97,46 @@ impl PhasesResidual {
     pub fn shape(&self) -> (usize, usize) {
         (self.points.len(), self.vectors.len())
     }
+
+    /// Validate point and wavevector tangents for the recorded operation.
+    pub fn validate_tangents(&self, points: &[[f64; 3]], vectors: &[[Complex; 3]]) -> Result<()> {
+        if points.len() != self.points.len()
+            || vectors.len() != self.vectors.len()
+            || points.iter().flatten().any(|r| !r.is_finite())
+            || vectors.iter().flatten().any(|&k| !finite(k))
+        {
+            return Err(Error::InvalidInput("invalid plane-phase tangents".into()));
+        }
+        Ok(())
+    }
+
+    /// Differentiate each phase in one input direction without constructing a Jacobian.
+    pub fn pushforward(
+        &self,
+        points: &[[f64; 3]],
+        vectors: &[[Complex; 3]],
+    ) -> Result<DMatrix<Complex>> {
+        self.validate_tangents(points, vectors)?;
+        let mut tangent = DMatrix::zeros(self.points.len(), self.vectors.len());
+        let parallel = tangent.len() >= PARALLEL_ENTRIES;
+        try_fill_chunks(
+            tangent.as_mut_slice(),
+            self.points.len().max(1),
+            parallel,
+            |j, column| -> Result<()> {
+                for (i, out) in column.iter_mut().enumerate() {
+                    let angle: Complex = (0..3)
+                        .map(|a| {
+                            self.vectors[j][a] * points[i][a] + vectors[j][a] * self.points[i][a]
+                        })
+                        .sum();
+                    *out = Complex::i() * phase(self.vectors[j], self.points[i]) * angle;
+                }
+                Ok(())
+            },
+        )?;
+        Ok(tangent)
+    }
     /// Recompute each phase once and add its terms to the point and wavevector gradients.
     ///
     /// The longer axis is split into at most 32 blocks, fixed by the shape, that
@@ -105,7 +145,7 @@ impl PhasesResidual {
     /// order. The result is deterministic and the scratch is at most 32 gradients
     /// of the shorter axis.
     pub fn pullback<S: nalgebra::Storage<Complex, nalgebra::Dyn, nalgebra::Dyn> + Sync>(
-        self,
+        &self,
         cotangent: &nalgebra::Matrix<Complex, nalgebra::Dyn, nalgebra::Dyn, S>,
     ) -> Result<PhasesGradient> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&v| !finite(v)) {
@@ -200,12 +240,12 @@ impl PhasesResidual {
 /// below, so the thread count does not change the result.
 #[derive(Debug)]
 pub struct FieldResidual {
-    vectors: Vec<[Complex; 3]>,
-    polarizations: Vec<u8>,
-    points: Vec<[f64; 3]>,
-    coefficients: Option<Vec<Complex>>,
-    helicity: bool,
-    fixed_vectors: bool,
+    pub(super) vectors: Vec<[Complex; 3]>,
+    pub(super) polarizations: Vec<u8>,
+    pub(super) points: Vec<[f64; 3]>,
+    pub(super) coefficients: Option<Vec<Complex>>,
+    pub(super) helicity: bool,
+    pub(super) fixed_vectors: bool,
 }
 /// Cotangents in the real Hermitian pairing.
 #[derive(Debug)]
@@ -298,6 +338,12 @@ pub fn field(
     ))
 }
 impl FieldResidual {
+    /// Number of weighted amplitudes, or zero for a field operator.
+    #[must_use]
+    pub fn coefficient_count(&self) -> usize {
+        self.coefficients.as_ref().map_or(0, Vec::len)
+    }
+
     /// Flattened output dimensions (3 * samples, modes or one weighted column).
     #[must_use]
     pub fn shape(&self) -> (usize, usize) {
@@ -310,9 +356,101 @@ impl FieldResidual {
             },
         )
     }
+
+    /// Validate amplitude, sample-point and wavevector tangents. An operator takes
+    /// an empty amplitude tangent because it has no amplitude input.
+    pub fn validate_tangents(
+        &self,
+        coefficients: &[Complex],
+        points: &[[f64; 3]],
+        vectors: &[[Complex; 3]],
+    ) -> Result<()> {
+        if coefficients.len() != self.coefficient_count()
+            || points.len() != self.points.len()
+            || vectors.len() != self.vectors.len()
+            || coefficients.iter().any(|&c| !finite(c))
+            || points.iter().flatten().any(|r| !r.is_finite())
+            || vectors.iter().flatten().any(|&k| !finite(k))
+        {
+            return Err(Error::InvalidInput("invalid plane-field tangents".into()));
+        }
+        Ok(())
+    }
+
+    /// Push one direction through the amplitudes, phases and polarizations. Each
+    /// mode's polarization derivative is contracted once and reused at every point.
+    pub fn pushforward(
+        &self,
+        coefficients: &[Complex],
+        points: &[[f64; 3]],
+        vectors: &[[Complex; 3]],
+    ) -> Result<DMatrix<Complex>> {
+        self.validate_tangents(coefficients, points, vectors)?;
+        let (rows, columns) = self.shape();
+        let mut tangent = DMatrix::zeros(rows, columns);
+        if self.points.is_empty() {
+            return Ok(tangent);
+        }
+        let terms = (0..self.vectors.len())
+            .map(|j| {
+                let vector = if self.fixed_vectors {
+                    [Complex::default(); 3]
+                } else {
+                    vectors[j]
+                };
+                let mode = self.mode(j, vector.iter().any(|&v| v != Complex::default()))?;
+                let electric: [Complex; 3] = mode
+                    .electric
+                    .map(|e| e.derivative.iter().zip(vector).map(|(&d, v)| d * v).sum());
+                Ok((mode, vector, electric))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let parallel = self.points.len() * self.vectors.len() >= PARALLEL_ENTRIES;
+        // This local contraction is shared by the weighted and operator layouts.
+        let evaluate = |i: usize, j: usize| -> [Complex; 3] {
+            let (mode, vector, electric) = &terms[j];
+            let phase = phase(mode.vector, self.points[i]);
+            let angle: Complex = (0..3)
+                .map(|a| mode.vector[a] * points[i][a] + vector[a] * self.points[i][a])
+                .sum();
+            let coefficient = coefficients.get(j).copied().unwrap_or_default();
+            let weight = coefficient + Complex::i() * angle * mode.coefficient;
+            std::array::from_fn(|a| {
+                phase * (weight * mode.electric[a].value + mode.coefficient * electric[a])
+            })
+        };
+        if self.coefficients.is_some() {
+            try_fill_chunks(
+                tangent.as_mut_slice(),
+                3,
+                parallel,
+                |i, out| -> Result<()> {
+                    for j in 0..self.vectors.len() {
+                        for (out, value) in out.iter_mut().zip(evaluate(i, j)) {
+                            *out += value;
+                        }
+                    }
+                    Ok(())
+                },
+            )?;
+        } else {
+            try_fill_chunks(
+                tangent.as_mut_slice(),
+                rows.max(1),
+                parallel,
+                |j, out| -> Result<()> {
+                    for (i, out) in out.chunks_exact_mut(3).enumerate() {
+                        out.copy_from_slice(&evaluate(i, j));
+                    }
+                    Ok(())
+                },
+            )?;
+        }
+        Ok(tangent)
+    }
     /// Gradients for a `cotangent` of the field's shape. The pullback recomputes the
     /// polarization and phase derivatives instead of storing a dense field Jacobian.
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<FieldGradient> {
+    pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<FieldGradient> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&v| !finite(v)) {
             return Err(Error::InvalidInput("invalid plane-field cotangent".into()));
         }
@@ -346,7 +484,7 @@ impl FieldResidual {
                 |mut points, b, (vectors, mut coefficients)| -> Result<_> {
                     for (offset, vector) in vectors.iter_mut().enumerate() {
                         let j = b * block + offset;
-                        let mode = self.mode(j)?;
+                        let mode = self.mode(j, !self.fixed_vectors)?;
                         let mut sums = ModeSums::default();
                         let rows = self.rows(cotangent, j);
                         self.contract(&mode, &self.points, rows, &mut points, &mut sums);
@@ -366,7 +504,7 @@ impl FieldResidual {
             // Blocks of points write the gradients of their points and add into partial
             // sums of every mode, which finish once all blocks are added.
             let terms = (0..modes)
-                .map(|j| self.mode(j))
+                .map(|j| self.mode(j, !self.fixed_vectors))
                 .collect::<Result<Vec<_>>>()?;
             let blocks: Vec<_> = gradient.points.chunks_mut(block).collect();
             let sums = try_fold_ordered(
@@ -398,12 +536,12 @@ impl FieldResidual {
     }
 
     /// The wavevector, polarization jet and amplitude of plane mode `j`.
-    fn mode(&self, j: usize) -> Result<ModeTerms> {
+    fn mode(&self, j: usize, variable: bool) -> Result<ModeTerms> {
         let vector = self.vectors[j];
-        let electric = if self.fixed_vectors {
-            polarization(vector, self.polarizations[j], self.helicity)?.map(Jet::<3>::constant)
-        } else {
+        let electric = if variable {
             polarization_jet::<3>(vector, self.polarizations[j], self.helicity)?
+        } else {
+            polarization(vector, self.polarizations[j], self.helicity)?.map(Jet::<3>::constant)
         };
         let coefficient = self
             .coefficients
@@ -528,12 +666,49 @@ impl ModeSums {
 
 #[cfg(test)]
 mod tests {
-    use super::field;
+    use super::{field, phases};
     use crate::{
         Complex,
         numerics::parallel::PARALLEL_ENTRIES,
         test_support::{assert_same_bits_on_pools, bits, patterned},
     };
+
+    #[test]
+    fn phase_directions_and_gradients_share_one_residual() {
+        let points = vec![[0.2, -0.4, 0.7], [-0.3, 0.1, 0.6]];
+        let vectors = vec![[Complex::new(0.5, 0.1); 3], [Complex::new(-0.3, 0.2); 3]];
+        let (_, residual) = phases(points, vectors).unwrap();
+        let dpoints = [[0.3, 0.2, -0.1], [-0.2, 0.1, 0.4]];
+        let dvectors = [[Complex::new(0.2, -0.1); 3]; 2];
+        let cotangent = patterned(2, 2, 0.8);
+
+        let first = residual.pushforward(&dpoints, &dvectors).unwrap();
+        let gradient = residual.pullback(&cotangent).unwrap();
+        let repeated = residual.pushforward(&dpoints, &dvectors).unwrap();
+        assert_eq!(first, repeated);
+
+        let output_pair: f64 = cotangent
+            .iter()
+            .zip(&first)
+            .map(|(g, d)| (g.conj() * d).re)
+            .sum();
+        let input_pair: f64 = gradient
+            .points
+            .iter()
+            .flatten()
+            .zip(dpoints.iter().flatten())
+            .map(|(g, d)| g * d)
+            .chain(
+                gradient
+                    .vectors
+                    .iter()
+                    .flatten()
+                    .zip(dvectors.iter().flatten())
+                    .map(|(g, d)| (g.conj() * d).re),
+            )
+            .sum();
+        assert!((output_pair - input_pair).abs() < 1e-14);
+    }
 
     /// Field pullbacks add their partial sums in blocks fixed by the shape: blocks of
     /// modes and blocks of points, for weighted fields and operators, with and without

@@ -26,3 +26,9 @@ Each operation saves what its analytic gradient needs. Blocks index outgoing
 direction first, then incident direction. [mod.rs](mod.rs) defines the side
 and direction conventions, including the different port order used by
 transmittance calculations.
+
+The `saved.rs` modules encode those numerical residuals for array-only framework
+callbacks. Layout sizes depend on input dimensions. Internal solves reserve one
+factor slot large enough for LU, with a tag distinguishing cached LU, a cached
+dense operator, or the existing reflection pair. The reflection case fills the
+slot with zeros, so saving and restoring it never builds or factors a dense operator.

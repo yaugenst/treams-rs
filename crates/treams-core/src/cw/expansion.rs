@@ -16,6 +16,9 @@ use nalgebra::DMatrix;
 use rayon::prelude::*;
 use std::collections::HashMap;
 
+#[path = "expansion_lattice_state.rs"]
+mod lattice_state;
+
 /// The sorted distinct axial wavenumbers of both bases: the entries of the axial
 /// cotangent of `pullback_axial`.
 fn axial_groups(destination: &Basis, source: &Basis) -> Vec<f64> {
@@ -182,26 +185,7 @@ pub fn expansion(
     ks: [Complex; 2],
     radial: Radial,
 ) -> Result<(DMatrix<Complex>, ExpansionResidual)> {
-    destination.validate()?;
-    source.validate()?;
-    // The expansion takes no polarization convention and never couples the two
-    // polarizations, so it skips the parity check.
-    validate_wavenumbers(ks, true, false)?;
-    // Like cartesian_translation, reject a wavenumber whose square underflows, also
-    // when no entry couples.
-    if ks.iter().any(|k| k.norm_sqr() == 0.0) {
-        return Err(Error::InvalidInput(
-            "medium wavenumber squared underflows to zero".into(),
-        ));
-    }
-    let couplings = Couplings::new(&destination, &source, ks)?;
-    let residual = ExpansionResidual {
-        destination,
-        source,
-        ks,
-        radial,
-        couplings,
-    };
+    let residual = ExpansionResidual::prepare(destination, source, ks, radial)?;
     let requests = &residual.couplings.requests;
     let values = broadcast::map(requests.len(), PARALLEL, |r| {
         Ok(residual.translation(requests[r].1)?.value)
@@ -213,21 +197,152 @@ pub fn expansion(
 }
 
 impl ExpansionResidual {
+    fn prepare(
+        destination: Basis,
+        source: Basis,
+        ks: [Complex; 2],
+        radial: Radial,
+    ) -> Result<Self> {
+        destination.validate()?;
+        source.validate()?;
+        // The expansion takes no polarization convention and never couples the two
+        // polarizations, so it skips the parity check.
+        validate_wavenumbers(ks, true, false)?;
+        // Like cartesian_translation, reject a wavenumber whose square underflows, also
+        // when no entry couples.
+        if ks.iter().any(|k| k.norm_sqr() == 0.0) {
+            return Err(Error::InvalidInput(
+                "medium wavenumber squared underflows to zero".into(),
+            ));
+        }
+        let couplings = Couplings::new(&destination, &source, ks)?;
+        Ok(Self {
+            destination,
+            source,
+            ks,
+            radial,
+            couplings,
+        })
+    }
+
+    /// Fixed saved-state bytes for the two basis shapes.
+    pub fn state_size(
+        destination_modes: usize,
+        destination_positions: usize,
+        source_modes: usize,
+        source_positions: usize,
+    ) -> Result<usize> {
+        let destination = crate::saved::cw_basis_size(destination_modes, destination_positions)?;
+        let source = crate::saved::cw_basis_size(source_modes, source_positions)?;
+        destination
+            .checked_add(source)
+            .and_then(|n| n.checked_add(33))
+            .ok_or_else(crate::saved::invalid)
+    }
+
+    /// Append state for a containing residual without an intermediate buffer.
+    pub(crate) fn write_state(&self, writer: &mut crate::saved::Writer) {
+        crate::saved::write_cw_basis(writer, &self.destination);
+        crate::saved::write_cw_basis(writer, &self.source);
+        for k in self.ks {
+            writer.complex(k);
+        }
+        crate::saved::write_radial(writer, self.radial);
+    }
     /// Destination and source mode counts: the shape of the expansion matrix.
     #[must_use]
     pub fn shape(&self) -> (usize, usize) {
         (self.destination.modes.len(), self.source.modes.len())
     }
 
+    /// Directional derivative with fixed axial mode labels.
+    pub fn pushforward(
+        &self,
+        destination: &[[f64; 3]],
+        source: &[[f64; 3]],
+        ks: [Complex; 2],
+    ) -> Result<DMatrix<Complex>> {
+        self.pushforward_impl(destination, source, ks, None)
+    }
+
+    /// Also perturb the sorted distinct shared axial wavenumbers, holding their
+    /// equality partitions fixed.
+    pub fn pushforward_axial(
+        &self,
+        destination: &[[f64; 3]],
+        source: &[[f64; 3]],
+        ks: [Complex; 2],
+        kz: &[f64],
+    ) -> Result<DMatrix<Complex>> {
+        self.pushforward_impl(destination, source, ks, Some(kz))
+    }
+
+    fn pushforward_impl(
+        &self,
+        destination: &[[f64; 3]],
+        source: &[[f64; 3]],
+        ks: [Complex; 2],
+        kz: Option<&[f64]>,
+    ) -> Result<DMatrix<Complex>> {
+        crate::basis::validate_expansion_tangent(
+            destination,
+            source,
+            ks,
+            (
+                self.destination.positions.len(),
+                self.source.positions.len(),
+            ),
+        )?;
+        let groups = kz.map(|_| axial_groups(&self.destination, &self.source));
+        if let (Some(kz), Some(groups)) = (kz, &groups)
+            && (kz.len() != groups.len() || kz.iter().any(|k| !k.is_finite()))
+        {
+            return Err(Error::InvalidInput(
+                "axial tangents must be finite and match shared labels".into(),
+            ));
+        }
+        let requests = &self.couplings.requests;
+        // Equal primal wavenumbers may have distinct polarization directions, so
+        // share each coefficient's jet and contract it separately per polarization.
+        let values = broadcast::map(requests.len(), PARALLEL, |r| {
+            let (key, pair) = requests[r];
+            let jet = self.translation(pair)?;
+            let axial = if let (Some(kz), Some(groups)) = (kz, &groups) {
+                jet.kz * kz[groups.partition_point(|&k| k < f64::from_bits(key.kz))]
+            } else {
+                Complex::default()
+            };
+            Ok([0, 1].map(|pol| {
+                crate::basis::pair_tangent(
+                    destination,
+                    source,
+                    ks,
+                    [key.destination, key.source, pol],
+                    jet.position,
+                    jet.k,
+                ) + axial
+            }))
+        })?;
+        let mut result = numerics::zeros(self.shape().0, self.shape().1)?;
+        self.couplings
+            .for_each(&self.destination, &self.source, |i, j, request| {
+                result[(i, j)] = values[request][usize::from(self.source.modes[j].1.pol)];
+            });
+        Ok(result)
+    }
+
     /// Position and complex wavenumber gradients. Axial mode labels stay fixed.
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<crate::basis::ExpansionGradient> {
+    pub fn pullback(
+        &self,
+        cotangent: &DMatrix<Complex>,
+    ) -> Result<crate::basis::ExpansionGradient> {
         self.pullback_impl::<false>(cotangent).map(|(g, _)| g)
     }
 
     /// Also differentiate each shared axial wavenumber. The final array follows
     /// the sorted distinct kz values from both bases; equality partitions stay fixed.
     pub fn pullback_axial(
-        self,
+        &self,
         cotangent: &DMatrix<Complex>,
     ) -> Result<(crate::basis::ExpansionGradient, Vec<f64>)> {
         self.pullback_impl::<true>(cotangent)
@@ -249,7 +364,7 @@ impl ExpansionResidual {
     }
 
     fn pullback_impl<const AXIAL: bool>(
-        self,
+        &self,
         cotangent: &DMatrix<Complex>,
     ) -> Result<(crate::basis::ExpansionGradient, Vec<f64>)> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&g| !finite(g)) {
@@ -295,6 +410,35 @@ impl ExpansionResidual {
             }
         }
         Ok((result, axial))
+    }
+}
+
+impl crate::saved::SavedState for ExpansionResidual {
+    fn save_state(&self) -> Result<Vec<u8>> {
+        let mut writer = crate::saved::Writer::new(Self::state_size(
+            self.destination.modes.len(),
+            self.destination.positions.len(),
+            self.source.modes.len(),
+            self.source.positions.len(),
+        )?);
+        self.write_state(&mut writer);
+        Ok(writer.finish())
+    }
+
+    fn from_state(bytes: &[u8]) -> Result<Self> {
+        let mut shape = crate::saved::Reader::new(bytes);
+        let (dm, dp) = crate::saved::read_cw_basis_dimensions(&mut shape)?;
+        let (sm, sp) = crate::saved::read_cw_basis_dimensions(&mut shape)?;
+        if bytes.len() != Self::state_size(dm, dp, sm, sp)? {
+            return Err(crate::saved::invalid());
+        }
+        let mut reader = crate::saved::Reader::new(bytes);
+        let destination = crate::saved::read_cw_basis(&mut reader)?;
+        let source = crate::saved::read_cw_basis(&mut reader)?;
+        let ks = [reader.complex()?, reader.complex()?];
+        let radial = crate::saved::read_radial(&mut reader)?;
+        reader.finish()?;
+        Self::prepare(destination, source, ks, radial)
     }
 }
 
@@ -365,6 +509,99 @@ pub struct LatticeExpansionResidual {
 }
 
 impl LatticeExpansionResidual {
+    /// Directional derivative in positions, medium wavenumbers and lattice geometry.
+    pub fn pushforward(
+        &self,
+        destination: &[[f64; 3]],
+        source: &[[f64; 3]],
+        ks: [Complex; 2],
+        kpar: &[f64],
+        vectors: &DMatrix<f64>,
+    ) -> Result<DMatrix<Complex>> {
+        self.pushforward_impl(destination, source, ks, kpar, vectors, None)
+    }
+
+    /// Also vary the sorted distinct shared axial wavenumbers, holding matching
+    /// mode groups fixed.
+    pub fn pushforward_axial(
+        &self,
+        destination: &[[f64; 3]],
+        source: &[[f64; 3]],
+        ks: [Complex; 2],
+        kpar: &[f64],
+        vectors: &DMatrix<f64>,
+        axial: &[f64],
+    ) -> Result<DMatrix<Complex>> {
+        self.pushforward_impl(destination, source, ks, kpar, vectors, Some(axial))
+    }
+
+    fn pushforward_impl(
+        &self,
+        destination: &[[f64; 3]],
+        source: &[[f64; 3]],
+        ks: [Complex; 2],
+        kpar: &[f64],
+        vectors: &DMatrix<f64>,
+        axial: Option<&[f64]>,
+    ) -> Result<DMatrix<Complex>> {
+        crate::basis::validate_expansion_tangent(
+            destination,
+            source,
+            ks,
+            (
+                self.destination.positions.len(),
+                self.source.positions.len(),
+            ),
+        )?;
+        let geometry =
+            crate::lattice::SumTangent::with_lattice(kpar, vectors, self.lattice.dimension())?;
+        let groups = axial
+            .map(|_| axial_groups(&self.destination, &self.source))
+            .unwrap_or_default();
+        if axial.is_some_and(|a| a.len() != groups.len() || a.iter().any(|x| !x.is_finite())) {
+            return Err(Error::InvalidInput(
+                "axial tangent must be finite and match the shared wavenumbers".into(),
+            ));
+        }
+        let tangents = crate::threads::install(|| {
+            self.couplings
+                .requests
+                .par_iter()
+                .map(|&(key, _)| {
+                    let kz = f64::from_bits(key.kz);
+                    let dkz = axial.map_or(0.0, |a| a[groups.partition_point(|&k| k < kz)]);
+                    let (k, krho, r, phase) = self.geometry(key);
+                    let shift: [f64; 3] = std::array::from_fn(|a| {
+                        source[key.source][a] - destination[key.destination][a]
+                    });
+                    let derivative = crate::lattice::derivatives(
+                        crate::lattice::Family::Cylindrical { m: key.order },
+                        krho,
+                        &self.lattice,
+                        [r[0], r[1], 0.0],
+                        self.eta,
+                    )?;
+                    let phase_tangent = -Complex::i() * (kz * shift[2] + dkz * r[2]) * phase;
+                    Ok(ks.map(|dk| {
+                        phase
+                            * derivative.pushforward(&crate::lattice::SumTangent {
+                                k: (k * dk - kz * dkz) / krho,
+                                shift: [shift[0], shift[1], 0.0],
+                                ..geometry
+                            })
+                            + derivative.value * phase_tangent
+                    }))
+                })
+                .collect::<Result<Vec<_>>>()
+        })?;
+        let mut result = numerics::zeros(self.shape().0, self.shape().1)?;
+        self.couplings
+            .for_each(&self.destination, &self.source, |i, j, request| {
+                result[(i, j)] = tangents[request][usize::from(self.source.modes[j].1.pol)];
+            });
+        Ok(result)
+    }
+
     /// Destination and source mode counts: the shape of the coupling matrix.
     #[must_use]
     pub fn shape(&self) -> (usize, usize) {
@@ -383,9 +620,9 @@ impl LatticeExpansionResidual {
         (k, transverse_wavenumber(k, kz), r, phase)
     }
 
-    /// Consume the residual and differentiate positions, medium wavenumbers and lattice geometry.
+    /// Differentiate positions, medium wavenumbers and lattice geometry.
     pub fn pullback(
-        self,
+        &self,
         cotangent: &DMatrix<Complex>,
     ) -> Result<crate::basis::LatticeExpansionGradient> {
         self.pullback_impl::<false>(cotangent).map(|(g, _)| g)
@@ -393,14 +630,14 @@ impl LatticeExpansionResidual {
 
     /// Also differentiate sorted distinct axial wavenumbers with matching groups fixed.
     pub fn pullback_axial(
-        self,
+        &self,
         cotangent: &DMatrix<Complex>,
     ) -> Result<(crate::basis::LatticeExpansionGradient, Vec<f64>)> {
         self.pullback_impl::<true>(cotangent)
     }
 
     fn pullback_impl<const AXIAL: bool>(
-        self,
+        &self,
         cotangent: &DMatrix<Complex>,
     ) -> Result<(crate::basis::LatticeExpansionGradient, Vec<f64>)> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&g| !finite(g)) {

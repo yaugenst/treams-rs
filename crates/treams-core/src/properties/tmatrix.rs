@@ -1,5 +1,10 @@
 //! T-matrices of spheres, cylinders, EBCM particles and clusters.
 
+#[path = "tmatrix/iterative_ebcm_forward.rs"]
+mod iterative_ebcm_forward;
+#[path = "tmatrix_pushforward.rs"]
+mod pushforward;
+
 use std::{collections::HashMap, ops::RangeInclusive};
 
 use nalgebra::DMatrix;

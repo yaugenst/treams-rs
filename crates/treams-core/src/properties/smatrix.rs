@@ -1,5 +1,10 @@
 //! Planar S-matrices: interfaces, layers, composition, illumination and observables.
 
+#[path = "smatrix/pushforward_composition.rs"]
+mod pushforward_composition;
+#[path = "smatrix/pushforward_physics.rs"]
+mod pushforward_physics;
+
 use std::f64::consts::TAU;
 
 use faer::MatRef;
@@ -49,6 +54,13 @@ proptest! {
     #[test]
     fn compact_layer_scale_adjoint(k in 1.1_f64..2.0, d in 0.1_f64..0.8, axis in 0_usize..3) {
         check_compact_layer_scale(k, d, axis)?;
+    }
+
+    #[test]
+    fn compact_layer_pushforward_matches_adjoint_and_reference(
+        k in 1.1_f64..2.0, d in 0.1_f64..0.8, axis in 0_usize..3, fixed_q in any::<bool>(),
+    ) {
+        check_compact_layer_pushforward(k, d, axis, fixed_q)?;
     }
 
     #[test]
@@ -694,6 +706,12 @@ fn check_compact_layer_scale(k: f64, d: f64, axis: usize) -> Result<(), TestCase
     let q = vec![[0.1, 0.2], [0.3, 0.2]];
     let (value, residual) =
         smatrix::layer_stack(ks.clone(), &zs, q.clone(), &[d], axis, false).unwrap();
+    let invariant = residual
+        .pushforward(&ks, &[Complex::default(); 3], &q, &[-d])
+        .unwrap();
+    for block in invariant.iter().flatten() {
+        prop_assert_close!(block.norm(), 0.0, 1e-12);
+    }
     let g = value
         .iter()
         .map(|_| std::array::from_fn(|_| DMatrix::from_element(2, 2, Complex::new(0.2, 0.1))))
@@ -715,6 +733,86 @@ fn check_compact_layer_scale(k: f64, d: f64, axis: usize) -> Result<(), TestCase
     prop_assert_eq!(value.len(), scaled.len());
     for (a, b) in value.iter().flatten().zip(scaled.iter().flatten()) {
         prop_assert_close!(a, b, 1e-12);
+    }
+    Ok(())
+}
+
+/// A simultaneous material, position and thickness direction agrees with a
+/// centered reference and with the real-Hermitian adjoint pairing, including
+/// fixed transverse channels.
+fn check_compact_layer_pushforward(
+    k: f64,
+    d: f64,
+    axis: usize,
+    fixed_q: bool,
+) -> Result<(), TestCaseError> {
+    let c = Complex::new;
+    let ks = vec![
+        [c(k, 0.02); 2],
+        [c(1.7 * k, 0.04), c(1.8 * k, 0.05)],
+        [c(k, 0.01); 2],
+    ];
+    let zs = [c(1.0, 0.01), c(0.7, 0.02), c(1.1, 0.03)];
+    let q = vec![[0.1, 0.2], [0.3, 0.2]];
+    let dks = [
+        [c(0.2, -0.1), c(-0.1, 0.3)],
+        [c(0.3, 0.2); 2],
+        [c(-0.3, 0.1); 2],
+    ];
+    let dzs = [c(0.1, 0.2), c(-0.2, 0.1), c(0.05, -0.2)];
+    let dq = [[-0.2, 0.1], [0.1, -0.1]];
+    let dd = [0.13];
+    let (_, residual) =
+        smatrix::layer_stack(ks.clone(), &zs, q.clone(), &[d], axis, fixed_q).unwrap();
+    let tangent = residual.pushforward(&dks, &dzs, &dq, &dd).unwrap();
+    let g: Vec<Blocks> = [0.2, 0.7]
+        .map(|seed| {
+            [0.0, 0.3, 0.6, 0.9].map(|shift| crate::test_support::patterned(2, 2, seed + shift))
+        })
+        .into();
+    let pairing = tangent
+        .iter()
+        .flatten()
+        .zip(g.iter().flatten())
+        .map(|(d, g)| re_dot(g, d))
+        .sum::<f64>();
+    let gradient = residual.pullback(g).unwrap();
+    let adjoint = re_dot(gradient.ks.iter().flatten(), dks.iter().flatten())
+        + re_dot(&gradient.zs, dzs)
+        + dot(gradient.q.iter().flatten(), dq.iter().flatten())
+        + dot(&gradient.thickness, dd);
+    prop_assert_close!(pairing, adjoint, 2e-12 * (1.0 + adjoint.abs()));
+    let evaluate = |h: f64| {
+        smatrix::layer_stack(
+            ks.iter()
+                .zip(dks)
+                .map(|(ks, dk)| std::array::from_fn(|p| ks[p] + h * dk[p]))
+                .collect(),
+            &std::array::from_fn::<_, 3, _>(|i| zs[i] + h * dzs[i]),
+            q.iter()
+                .zip(dq)
+                .map(|(q, dq)| {
+                    std::array::from_fn(|p| q[p] + if fixed_q { 0.0 } else { h * dq[p] })
+                })
+                .collect(),
+            &[d + h * dd[0]],
+            axis,
+            fixed_q,
+        )
+        .unwrap()
+        .0
+    };
+    let h = 1e-5;
+    let positive = evaluate(h);
+    let negative = evaluate(-h);
+    for ((actual, positive), negative) in tangent
+        .iter()
+        .flatten()
+        .zip(positive.iter().flatten())
+        .zip(negative.iter().flatten())
+    {
+        let reference = (positive - negative) / c(2.0 * h, 0.0);
+        prop_assert_close!(actual, &reference, 1e-8 * (1.0 + reference.norm()));
     }
     Ok(())
 }

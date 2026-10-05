@@ -27,6 +27,7 @@
 //! Shared pairings, strategies, finite differences and assertions live in
 //! [`crate::test_support`].
 
+mod cluster_forward;
 mod lattice;
 mod linalg;
 mod plane;

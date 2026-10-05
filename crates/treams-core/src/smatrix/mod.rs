@@ -43,6 +43,7 @@ mod illuminate;
 mod interface;
 mod layers;
 mod periodic;
+mod saved;
 mod solve;
 mod tr;
 
@@ -142,11 +143,6 @@ impl StoredBlock {
         } else {
             data
         }
-    }
-
-    /// The storage, for reuse as a gradient buffer of the same shape.
-    fn into_buffer(self) -> DMatrix<Complex> {
-        self.values
     }
 }
 

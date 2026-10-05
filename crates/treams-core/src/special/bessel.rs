@@ -246,31 +246,6 @@ pub struct BesselResidual {
     size: usize,
 }
 
-/// Evaluate borrowed elementwise Bessel arguments without recording a pullback; the
-/// forward pass of [`bessel_array`].
-pub(crate) fn bessel_values(
-    orders: &[f64],
-    arguments: &[Complex],
-    kind: Bessel,
-    spherical: bool,
-    derivative: u8,
-) -> Result<Vec<Complex>> {
-    let message = "Bessel arrays must have equal lengths or scalar inputs, and derivative 0 or 1";
-    if derivative > 1 {
-        return Err(Error::InvalidInput(message.into()));
-    }
-    let size = broadcast::size(&[orders.len(), arguments.len()], message)?;
-    broadcast::map(size, PARALLEL, |i| {
-        bessel(
-            element(orders, i),
-            element(arguments, i),
-            kind,
-            spherical,
-            derivative,
-        )
-    })
-}
-
 /// Evaluate elementwise Bessel functions, broadcasting either scalar input.
 ///
 /// `kind` and `spherical` select the function as in [`bessel`]. `derivative` is 0 or 1,
@@ -284,22 +259,38 @@ pub fn bessel_array(
     spherical: bool,
     derivative: u8,
 ) -> Result<(Vec<Complex>, BesselResidual)> {
-    let value = bessel_values(&orders, &arguments, kind, spherical, derivative)?;
-    let size = value.len();
-    Ok((
-        value,
-        BesselResidual {
+    let residual = BesselResidual::new(orders, arguments, kind, spherical, derivative)?;
+    let value = broadcast::map(residual.size, PARALLEL, |i| {
+        residual.evaluate(i, derivative)
+    })?;
+    Ok((value, residual))
+}
+
+impl BesselResidual {
+    /// Keep the broadcast inputs needed by derivatives without evaluating values.
+    pub fn new(
+        orders: Vec<f64>,
+        arguments: Vec<Complex>,
+        kind: Bessel,
+        spherical: bool,
+        derivative: u8,
+    ) -> Result<Self> {
+        let message =
+            "Bessel arrays must have equal lengths or scalar inputs, and derivative 0 or 1";
+        if derivative > 1 {
+            return Err(Error::InvalidInput(message.into()));
+        }
+        let size = broadcast::size(&[orders.len(), arguments.len()], message)?;
+        Ok(Self {
             orders,
             arguments,
             kind,
             spherical,
             derivative,
             size,
-        },
-    ))
-}
+        })
+    }
 
-impl BesselResidual {
     fn evaluate(&self, i: usize, derivative: u8) -> Result<Complex> {
         bessel(
             element(&self.orders, i),
@@ -310,11 +301,28 @@ impl BesselResidual {
         )
     }
 
+    /// Directional derivative of every value with respect to its complex argument.
+    pub fn pushforward(&self, tangents: [&[Complex]; 1]) -> Result<Vec<Complex>> {
+        broadcast::pushforward(
+            tangents,
+            self.size,
+            "Bessel tangent must be finite and broadcast to output",
+            PARALLEL,
+            |i, [tangent]| {
+                if tangent == Complex::default() {
+                    Ok(tangent)
+                } else {
+                    Ok(tangent * self.evaluate(i, self.derivative + 1)?)
+                }
+            },
+        )
+    }
+
     /// The gradient with respect to the arguments, given the gradient `cotangent` with
     /// respect to the values: `cotangent` times the conjugate of the next derivative. An
     /// argument given as one value for all elements receives the sum of its element
     /// gradients; the orders have no gradient.
-    pub fn pullback(self, cotangent: &[Complex]) -> Result<Vec<Complex>> {
+    pub fn pullback(&self, cotangent: &[Complex]) -> Result<Vec<Complex>> {
         let [gradient] = broadcast::pullback(
             cotangent,
             self.size,
