@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["INVALID_INPUTS","KS","Q","ZS"],"fn":["aggregate","cross","cross_pullback","evaluate","port_waves","tr","tr_value"],"struct":["TrForward","TrGradient","TrPorts","TrResidual"],"type":["PortWaves"]};
+window.SIDEBAR_ITEMS = {"constant":["INVALID_INPUTS","KS","Q","ZS"],"fn":["aggregate","amplitudes","cross","cross_direction","cross_pullback","evaluate","port_wave_inputs","port_waves","tr","tr_value"],"mod":["saved"],"struct":["TrForward","TrGradient","TrPorts","TrResidual"],"type":["PortWaves"]};

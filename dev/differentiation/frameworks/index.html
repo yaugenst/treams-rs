@@ -16,7 +16,7 @@
         <link rel="prev" href="../">
       
       
-        <link rel="next" href="../custom-records/">
+        <link rel="next" href="../choosing-a-mode/">
       
       
         
@@ -970,6 +970,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1472,6 +1476,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/forward_field_sensitivity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across a field map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/reverse_cluster_gradient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scattering gradient
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1492,6 +1552,8 @@
       
         
           
+        
+      
         
       
         
@@ -1632,6 +1694,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#use-both-modes-together" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use both modes together
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#automatic-selection-and-constants" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1741,21 +1814,38 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#known-framework-issues" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Known framework issues
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../choosing-a-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a differentiation mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1947,7 +2037,7 @@
   <span class="md-ellipsis">
     
   
-    Analytic pullbacks
+    Analytic pushforwards and pullbacks
   
 
     
@@ -3563,6 +3653,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#use-both-modes-together" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use both modes together
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#automatic-selection-and-constants" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3672,17 +3773,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#known-framework-issues" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Known framework issues
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -3755,7 +3845,8 @@
 <p>Use <code>import treams_rs as tr</code> with Advect, JAX, PyTorch or
 <a href="https://github.com/HIPS/autograd">HIPS Autograd</a>. Framework arrays and traced
 values select their adapter automatically, so an objective written with the
-ordinary API differentiates within the <a href="#limits">limits</a> below. Rust supplies
+ordinary API supports first-order forward and reverse differentiation within
+the <a href="#limits">limits</a> below. Rust supplies
 analytic derivatives at native boundaries through the records of
 <a href="../">Differentiation</a>;
 shared array operations stay in the selected framework. The adapters add no
@@ -3773,9 +3864,14 @@ Autograd differentiate NumPy-style code.</p>
 
 <span class="n">value</span><span class="p">,</span> <span class="n">gradient</span> <span class="o">=</span> <span class="n">advect</span><span class="o">.</span><span class="n">value_and_grad</span><span class="p">(</span><span class="n">scattering</span><span class="p">)(</span><span class="n">advect</span><span class="o">.</span><span class="n">numpy</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="mf">0.2</span><span class="p">))</span>
 <span class="k">assert</span> <span class="n">gradient</span> <span class="o">&gt;</span> <span class="mi">0</span>
+<span class="n">value</span><span class="p">,</span> <span class="n">tangent</span> <span class="o">=</span> <span class="n">advect</span><span class="o">.</span><span class="n">jvp</span><span class="p">(</span><span class="n">scattering</span><span class="p">)(</span>
+    <span class="n">advect</span><span class="o">.</span><span class="n">numpy</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="mf">0.2</span><span class="p">),</span> <span class="n">tangents</span><span class="o">=</span><span class="n">advect</span><span class="o">.</span><span class="n">numpy</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="k">assert</span> <span class="n">tangent</span> <span class="o">&gt;</span> <span class="mi">0</span>
 </code></pre></div>
 <p>The same objective in JAX:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">treams_rs</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">tr</span>
 
 
@@ -3787,20 +3883,30 @@ Autograd differentiate NumPy-style code.</p>
 
 <span class="n">value</span><span class="p">,</span> <span class="n">gradient</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">value_and_grad</span><span class="p">(</span><span class="n">scattering</span><span class="p">))(</span><span class="mf">0.2</span><span class="p">)</span>
 <span class="k">assert</span> <span class="n">gradient</span> <span class="o">&gt;</span> <span class="mi">0</span>
+<span class="n">radius</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="mf">0.2</span><span class="p">)</span>
+<span class="n">value</span><span class="p">,</span> <span class="n">tangent</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">jvp</span><span class="p">(</span><span class="n">scattering</span><span class="p">,</span> <span class="p">(</span><span class="n">radius</span><span class="p">,),</span> <span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">radius</span><span class="p">),))</span>
+<span class="n">derivative</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">jacfwd</span><span class="p">(</span><span class="n">scattering</span><span class="p">)(</span><span class="n">radius</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">tangent</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">derivative</span> <span class="o">&gt;</span> <span class="mi">0</span>
 </code></pre></div>
 <p>And in PyTorch:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">treams_rs</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">tr</span>
 
-<span class="n">radius</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="n">sphere</span> <span class="o">=</span> <span class="n">tr</span><span class="o">.</span><span class="n">sphere_tmatrix</span><span class="p">(</span><span class="n">k0</span><span class="o">=</span><span class="mf">1.3</span><span class="p">,</span> <span class="n">lmax</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">radius</span><span class="o">=</span><span class="n">radius</span><span class="p">,</span> <span class="n">material</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-<span class="n">incident</span> <span class="o">=</span> <span class="n">tr</span><span class="o">.</span><span class="n">plane_wave</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="s2">"positive_helicity"</span><span class="p">,</span> <span class="n">k0</span><span class="o">=</span><span class="mf">1.3</span><span class="p">)</span>
-<span class="n">scattering</span> <span class="o">=</span> <span class="n">sphere</span><span class="o">.</span><span class="n">cross_sections</span><span class="p">(</span><span class="n">incident</span><span class="p">)</span><span class="o">.</span><span class="n">scattering</span>
-<span class="n">scattering</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">scattering</span><span class="p">(</span><span class="n">radius</span><span class="p">):</span>
+    <span class="n">sphere</span> <span class="o">=</span> <span class="n">tr</span><span class="o">.</span><span class="n">sphere_tmatrix</span><span class="p">(</span><span class="n">k0</span><span class="o">=</span><span class="mf">1.3</span><span class="p">,</span> <span class="n">lmax</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">radius</span><span class="o">=</span><span class="n">radius</span><span class="p">,</span> <span class="n">material</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+    <span class="n">incident</span> <span class="o">=</span> <span class="n">tr</span><span class="o">.</span><span class="n">plane_wave</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="s2">"positive_helicity"</span><span class="p">,</span> <span class="n">k0</span><span class="o">=</span><span class="mf">1.3</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">sphere</span><span class="o">.</span><span class="n">cross_sections</span><span class="p">(</span><span class="n">incident</span><span class="p">)</span><span class="o">.</span><span class="n">scattering</span>
+
+
+<span class="n">radius</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">,</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">scattering</span><span class="p">(</span><span class="n">radius</span><span class="p">)</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
 <span class="k">assert</span> <span class="n">radius</span><span class="o">.</span><span class="n">grad</span> <span class="o">&gt;</span> <span class="mi">0</span>
+<span class="n">value</span><span class="p">,</span> <span class="n">tangent</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">jvp</span><span class="p">(</span><span class="n">scattering</span><span class="p">,</span> <span class="p">(</span><span class="n">radius</span><span class="p">,),</span> <span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">radius</span><span class="p">),))</span>
+<span class="k">assert</span> <span class="n">tangent</span> <span class="o">&gt;</span> <span class="mi">0</span>
 </code></pre></div>
 <p>And in HIPS Autograd:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">autograd</span><span class="w"> </span><span class="kn">import</span> <span class="n">value_and_grad</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">autograd</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_jvp</span><span class="p">,</span> <span class="n">value_and_grad</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">treams_rs</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">tr</span>
 
 
@@ -3812,7 +3918,13 @@ Autograd differentiate NumPy-style code.</p>
 
 <span class="n">value</span><span class="p">,</span> <span class="n">gradient</span> <span class="o">=</span> <span class="n">value_and_grad</span><span class="p">(</span><span class="n">scattering</span><span class="p">)(</span><span class="mf">0.2</span><span class="p">)</span>
 <span class="k">assert</span> <span class="n">gradient</span> <span class="o">&gt;</span> <span class="mi">0</span>
+<span class="n">value</span><span class="p">,</span> <span class="n">tangent</span> <span class="o">=</span> <span class="n">make_jvp</span><span class="p">(</span><span class="n">scattering</span><span class="p">)(</span><span class="mf">0.2</span><span class="p">)(</span><span class="mf">1.0</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">tangent</span> <span class="o">&gt;</span> <span class="mi">0</span>
 </code></pre></div>
+<p>The JVP in each example uses a unit radius perturbation. For an array-valued
+function, it returns the sensitivity of every output to that input direction.
+JVPs are often useful for field maps, frequency sensitivity and correlated
+geometry perturbations; they do not construct a full Jacobian.</p>
 <h2 id="frameworks-compared">Frameworks compared<a class="headerlink" href="#frameworks-compared" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -3840,11 +3952,18 @@ Autograd differentiate NumPy-style code.</p>
 <td><code>treams-rs[autograd]</code></td>
 </tr>
 <tr>
-<td>Context lifetime</td>
-<td>One use: each reverse pass consumes the context of its forward</td>
-<td>Recorded again for every reverse pass</td>
-<td>Kept for the first backward, recorded again for each further backward</td>
-<td>Kept for the first reverse pass, recorded again for each further pass</td>
+<td>Reverse context lifetime</td>
+<td>Owned by the Advect tape</td>
+<td>Built-ins keep numerical state or inputs; unannotated custom records repeat the forward</td>
+<td>Kept through the first backward, recorded again for later backwards</td>
+<td>Reused for repeated VJPs</td>
+</tr>
+<tr>
+<td>Native work per direct JVP</td>
+<td>One forward; its context computes the tangent</td>
+<td>One record for built-ins; unannotated custom records repeat it for the tangent</td>
+<td>The forward context computes the tangent</td>
+<td>The forward context computes the tangent</td>
 </tr>
 <tr>
 <td>Dtypes</td>
@@ -3855,10 +3974,10 @@ Autograd differentiate NumPy-style code.</p>
 </tr>
 <tr>
 <td>Transforms</td>
-<td><code>grad</code>, <code>value_and_grad</code></td>
-<td><code>grad</code>, <code>value_and_grad</code>, <code>vjp</code>, <code>jit</code>, <code>checkpoint</code>, sequential <code>vmap</code></td>
-<td><code>backward</code>, <code>torch.autograd.grad</code>, repeated backward with <code>retain_graph=True</code></td>
-<td><code>grad</code>, <code>value_and_grad</code>, <code>make_vjp</code></td>
+<td><code>grad</code>, <code>value_and_grad</code>, <code>jvp</code></td>
+<td><code>grad</code>, <code>value_and_grad</code>, <code>vjp</code>, <code>jvp</code>, <code>jacfwd</code>, <code>jacrev</code>, <code>linearize</code>, <code>jit</code>, <code>checkpoint</code>, sequential <code>vmap</code></td>
+<td><code>backward</code>, <code>torch.autograd.grad</code>, repeated backward with <code>retain_graph=True</code>, <code>torch.func.jvp</code>, <code>torch.autograd.forward_ad</code></td>
+<td><code>grad</code>, <code>value_and_grad</code>, <code>make_vjp</code>, <code>make_jvp</code></td>
 </tr>
 <tr>
 <td>Devices</td>
@@ -3879,12 +3998,62 @@ Autograd differentiate NumPy-style code.</p>
 <p>Native calculations use double precision. Gradients retain their input dtype;
 no adapter changes a framework's global precision settings. For JAX, enable
 <code>jax_enable_x64</code> when the objective needs double-precision arrays and gradients.</p>
-<p>Unsupported transforms raise: <code>jvp</code>, nested <code>grad</code>, <code>stage</code> and <code>checkpoint</code> in
-Advect, <code>jvp</code> in JAX and <code>create_graph=True</code> in PyTorch. <code>torch.func</code> and
-<code>torch.compile</code> are not supported. HIPS Autograd supports first-order reverse
-mode only; nested gradients and forward-mode transforms are unsupported.
+<p>Higher derivatives are unsupported, including nested gradients and differentiating
+a JVP or VJP with respect to the original model parameters. Combining first
+derivatives at fixed parameters is possible, as shown below. Advect also rejects
+<code>stage</code> and <code>checkpoint</code>; PyTorch rejects
+<code>create_graph=True</code>. The supported PyTorch functional transform is
+<code>torch.func.jvp</code>; other <code>torch.func</code> transforms and <code>torch.compile</code> are outside
+the supported contract.
 <a href="../../design/adapters/#how-long-a-context-lives">How long a context lives</a> gives
 the reasons for these context lifetimes.</p>
+<h2 id="use-both-modes-together">Use both modes together<a class="headerlink" href="#use-both-modes-together" title="Permanent link">&para;</a></h2>
+<p>When fitting a model to measurements, an optimizer may need to follow a
+parameter change to the predicted measurements, then send that change back to
+the parameters. If <code>J</code> is the matrix of first derivatives and <code>v</code> is the
+parameter change, the result is <code>J.T @ J @ v</code>, often called a
+<strong>Gauss–Newton product</strong>. Neither step needs to build <code>J</code>.</p>
+<p>In JAX, keep the parameters fixed with <code>linearize</code>, then transpose that linear
+map. This small example uses spherical Bessel values; <code>predictions</code> can instead
+return the real measurements from your scattering model.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">treams_rs</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">tr</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">predictions</span><span class="p">(</span><span class="n">parameters</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">tr</span><span class="o">.</span><span class="n">special</span><span class="o">.</span><span class="n">spherical_jn</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">parameters</span><span class="p">)</span><span class="o">.</span><span class="n">real</span>
+
+
+<span class="n">parameters</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.4</span><span class="p">,</span> <span class="mf">0.7</span><span class="p">])</span>
+<span class="n">direction</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.2</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.3</span><span class="p">])</span>
+<span class="n">_</span><span class="p">,</span> <span class="n">linear</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">linearize</span><span class="p">(</span><span class="n">predictions</span><span class="p">,</span> <span class="n">parameters</span><span class="p">)</span>
+<span class="n">change</span><span class="p">,</span> <span class="n">transpose</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vjp</span><span class="p">(</span><span class="n">linear</span><span class="p">,</span> <span class="n">direction</span><span class="p">)</span>
+<span class="p">(</span><span class="n">result</span><span class="p">,)</span> <span class="o">=</span> <span class="n">transpose</span><span class="p">(</span><span class="n">change</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">result</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">parameters</span><span class="o">.</span><span class="n">shape</span>
+</code></pre></div>
+<p>In PyTorch, use the original outputs for the reverse step. The forward and
+reverse steps share one native calculation. <code>detach()</code> treats the output change
+as a fixed weight, so the reverse step does not differentiate the tangent.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">treams_rs</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">tr</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">predictions</span><span class="p">(</span><span class="n">parameters</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">tr</span><span class="o">.</span><span class="n">special</span><span class="o">.</span><span class="n">spherical_jn</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">parameters</span><span class="p">)</span><span class="o">.</span><span class="n">real</span>
+
+
+<span class="n">parameters</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">0.4</span><span class="p">,</span> <span class="mf">0.7</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">,</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">direction</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">0.2</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.3</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+<span class="n">value</span><span class="p">,</span> <span class="n">change</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">jvp</span><span class="p">(</span><span class="n">predictions</span><span class="p">,</span> <span class="p">(</span><span class="n">parameters</span><span class="p">,),</span> <span class="p">(</span><span class="n">direction</span><span class="p">,))</span>
+<span class="p">(</span><span class="n">result</span><span class="p">,)</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">autograd</span><span class="o">.</span><span class="n">grad</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">change</span><span class="o">.</span><span class="n">detach</span><span class="p">())</span>
+<span class="k">assert</span> <span class="n">result</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">parameters</span><span class="o">.</span><span class="n">shape</span>
+</code></pre></div>
+<p>These are two first-order actions at the same parameters. The result is useful
+for least-squares fitting, but is not a general second derivative: it leaves
+out how <code>J</code> itself changes with the parameters. General Hessians and nested
+higher derivatives remain unsupported. PyTorch also rejects differentiating
+the tangent directly; use the original <code>value</code> as above.</p>
 <h2 id="automatic-selection-and-constants">Automatic selection and constants<a class="headerlink" href="#automatic-selection-and-constants" title="Permanent link">&para;</a></h2>
 <p>The ordinary API examines inputs before converting arrays. An Advect tracer,
 JAX array or tracer, PyTorch tensor, or HIPS Autograd box selects that framework.
@@ -4027,9 +4196,9 @@ illuminations. With framework inputs, each solve records its own native
 factorization; these helpers do not retain LU factors across differentiated
 calls. NumPy factors can reuse them when geometry and materials stay fixed.</p>
 <h2 id="advect">Advect<a class="headerlink" href="#advect" title="Permanent link">&para;</a></h2>
-<p>Pass arrays to Advect transforms, scalars included:
-<code>advect.grad(f)(advect.numpy.asarray(0.2))</code>. Each reverse pass consumes its
-contexts, so call the transformed function again for every gradient. Besides
+<p>The adapter requires Advect 0.3.1 or later. Pass arrays to Advect transforms, scalars included:
+<code>advect.grad(f)(advect.numpy.asarray(0.2))</code>. The Advect tape owns the native
+contexts and reuses them across tangent directions. Besides
 the physics objects, <code>treams_rs.advect</code> offers an array function for every
 <code>diff</code> record except the reusable factors; <a href="../custom-records/">custom records</a>
 maps them.</p>
@@ -4047,9 +4216,14 @@ maps them.</p>
 
 <span class="n">gradient</span> <span class="o">=</span> <span class="n">advect</span><span class="o">.</span><span class="n">grad</span><span class="p">(</span><span class="n">size</span><span class="p">)(</span><span class="n">anp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="mf">0.3</span><span class="p">))</span>
 </code></pre></div>
+<p><code>advect.jvp(size)(radius, tangents=direction)</code> computes a first-order tangent.
+Advect passes the forward invocation's saved context to its JVP callback, so
+each direction reuses its numerical factors and a direct JVP needs one native forward.</p>
 <h2 id="jax">JAX<a class="headerlink" href="#jax" title="Permanent link">&para;</a></h2>
-<p>JAX works with its default single-precision arrays. Enable <code>jax_enable_x64</code>
-when you need double-precision outputs and gradients, as below. On a machine
+<p>JAX 0.10 and 0.11 work with their default single-precision arrays. Enable
+<code>jax_enable_x64</code> globally, as below, when you need double-precision outputs and
+gradients. A scoped <code>with jax.enable_x64(True)</code> can lose its setting on JAX's
+callback worker threads. On a machine
 whose default JAX backend is a GPU, set <code>JAX_PLATFORMS=cpu</code> before importing JAX. Native calls
 run in <code>jax.pure_callback</code> on the CPU; <code>vmap</code> calls them once per batch element.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
@@ -4067,11 +4241,21 @@ run in <code>jax.pure_callback</code> on the CPU; <code>vmap</code> calls them o
 
 <span class="n">value</span><span class="p">,</span> <span class="n">gradient</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">value_and_grad</span><span class="p">(</span><span class="n">size</span><span class="p">)(</span><span class="mf">0.3</span><span class="p">)</span>
 </code></pre></div>
-<p>JAX keeps only the inputs of a native call. Each reverse pass records the
-forward again and consumes the new context at once. Repeated <code>jax.vjp</code> calls
-and <code>jax.checkpoint</code> work, and nothing outside JAX holds a context; the price
-is one extra native forward per reverse pass. <code>tr.wrap</code> makes any <code>diff</code> record
-a JAX function; see <a href="../custom-records/">custom records</a>.</p>
+<p>JAX keeps computed numerical state, such as matrix factors, for repeated
+<code>jax.vjp</code> and <code>jax.linearize</code> calls. Functions whose derivatives need only the
+inputs retain those inputs instead. Both paths reconstruct the derivative
+context without evaluating the values again. <code>jax.jacfwd</code> evaluates tangent
+seeds sequentially; for input-only contexts it can omit value evaluation entirely.
+JAX owns the arrays; there is no global native-context registry.
+<code>jax.checkpoint</code> may recompute the record according to its rematerialization policy.</p>
+<p>Other records, including unannotated custom records, retain the inputs and
+reconstruct a native record for every derivative application, including a direct
+JVP. Built-in records supply their value and saved data with one native forward.
+Saving and restoring this data adds memory and copying costs; the timing
+comparison includes those costs as well as the numerical work.
+These first-order
+transforms compose with <code>jit</code>, <code>checkpoint</code> and sequential <code>vmap</code>. <code>tr.wrap</code>
+makes another record a JAX function; see <a href="../custom-records/">custom records</a>.</p>
 <h2 id="pytorch">PyTorch<a class="headerlink" href="#pytorch" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">treams_rs</span><span class="w"> </span><span class="kn">import</span> <span class="n">torch</span> <span class="k">as</span> <span class="n">tr</span>
@@ -4081,14 +4265,28 @@ a JAX function; see <a href="../custom-records/">custom records</a>.</p>
 <span class="n">matrix</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">square</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
 <span class="n">gradient</span> <span class="o">=</span> <span class="n">radius</span><span class="o">.</span><span class="n">grad</span>
 </code></pre></div>
-<p>The first backward consumes the context of the forward, so the pullback of
-<code>tr.solve</code> reuses the LU factors of its forward. A second backward with
+<p>The first backward uses the context of the forward, so the pullback of
+<code>tr.solve</code> reuses its LU factors. A later backward with
 <code>retain_graph=True</code> records the forward again from snapshots of the inputs. The
 snapshots add their memory to that of the context and are freed with PyTorch's
 saved tensors. An in-place change of an input tensor raises at the next
 backward, as for any PyTorch operation. Noncontiguous and conjugated CPU views
 work, and outputs own their memory. <code>tr.wrap</code> makes any <code>diff</code> record a PyTorch
 function; see <a href="../custom-records/">custom records</a>.</p>
+<p>Forward mode uses <code>torch.func.jvp</code> or the dual-tensor API. Both use the native
+context saved by the forward call for its tangent. A subsequent backward
+through the returned primal reuses that context too; the first backward then
+releases it. For example:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">treams_rs</span><span class="w"> </span><span class="kn">import</span> <span class="n">torch</span> <span class="k">as</span> <span class="n">tr</span>
+
+<span class="n">operator</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([[</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">]],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+<span class="n">rhs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+<span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">autograd</span><span class="o">.</span><span class="n">forward_ad</span><span class="o">.</span><span class="n">dual_level</span><span class="p">():</span>
+    <span class="n">dual_rhs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">autograd</span><span class="o">.</span><span class="n">forward_ad</span><span class="o">.</span><span class="n">make_dual</span><span class="p">(</span><span class="n">rhs</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">rhs</span><span class="p">))</span>
+    <span class="n">value</span><span class="p">,</span> <span class="n">tangent</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">autograd</span><span class="o">.</span><span class="n">forward_ad</span><span class="o">.</span><span class="n">unpack_dual</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">dual_rhs</span><span class="p">))</span>
+    <span class="n">torch</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_close</span><span class="p">(</span><span class="n">tangent</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+</code></pre></div>
 <h2 id="hips-autograd">HIPS Autograd<a class="headerlink" href="#hips-autograd" title="Permanent link">&para;</a></h2>
 <p>Use <code>autograd.numpy</code> for arithmetic around the treams-rs calls. Traced scalar,
 array and nested material inputs select the adapter automatically:</p>
@@ -4109,14 +4307,19 @@ array and nested material inputs select the adapter automatically:</p>
 <span class="k">assert</span> <span class="n">anp</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">anp</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">gradient</span><span class="p">))</span>
 </code></pre></div>
 <p>The adapter uses Autograd primitives and the shared native pullback contract.
-It keeps a native context for the first reverse pass and records again for a
-repeated VJP. Like JAX, HIPS Autograd uses the unconjugated complex pairing;
+It keeps and reuses the invocation's native context for repeated VJPs.
+Like JAX, HIPS Autograd uses the unconjugated complex pairing;
 the adapter converts cotangents and gradients at the native boundary. Its
 <code>tr.autograd.wrap(record)</code> also accepts custom records without example inputs.</p>
+<p><code>autograd.make_jvp(function)(inputs)(direction)</code> returns the value and its
+tangent. The adapter uses the context of that forward evaluation, so one
+native record supplies both. Input directions use ordinary real or complex
+increments, without the conjugations needed for reverse cotangents.</p>
 <h2 id="limits">Limits<a class="headerlink" href="#limits" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Gradients are first order and reverse mode, on the CPU. Forward mode, higher
-  derivatives, <code>torch.func</code> and <code>torch.compile</code> are unsupported. Under <code>jax.jit</code>,
+<li>Derivatives are first order, in forward and reverse mode, on the CPU. Higher
+  derivatives, <code>torch.compile</code> and <code>torch.func</code> transforms other than <code>jvp</code> are
+  unsupported. Under <code>jax.jit</code>,
   return arrays rather than physics objects. The
   <a href="#frameworks-compared">comparison above</a> lists supported transforms and dtypes.</li>
 <li>Cylindrical physics objects keep their basis axial wavenumbers fixed;
@@ -4147,23 +4350,6 @@ the adapter converts cotangents and gradients at the native boundary. Its
 <p>Cutoffs, discrete labels and topology stay fixed. Eigenvalue crossings,
 diffraction thresholds and the polarization axis have no smooth derivative;
 see <a href="../#points-without-a-gradient">points without a gradient</a>.</p>
-<h2 id="known-framework-issues">Known framework issues<a class="headerlink" href="#known-framework-issues" title="Permanent link">&para;</a></h2>
-<p><strong>Advect 0.2.0: Python floats promoted to complex.</strong> If the input of an Advect
-transform is a Python float, an expression such as
-<code>advect.numpy.abs(epsilon + 0.1j)</code> makes
-the reverse pass raise <code>RuntimeError: Transpose rule for 'array.absolute'
-failed</code>. An array input works. Advect 0.3.0, now selected in <code>uv.lock</code>, returns
-the correct gradient for both inputs. Use an array when supporting Advect 0.2.0:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">advect</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">advect.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">anp</span>
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">loss</span><span class="p">(</span><span class="n">epsilon</span><span class="p">):</span>
-    <span class="k">return</span> <span class="n">anp</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">epsilon</span> <span class="o">+</span> <span class="mf">0.1</span><span class="n">j</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span>
-
-
-<span class="k">assert</span> <span class="n">advect</span><span class="o">.</span><span class="n">grad</span><span class="p">(</span><span class="n">loss</span><span class="p">)(</span><span class="n">anp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="mf">3.0</span><span class="p">))</span> <span class="o">==</span> <span class="mf">6.0</span>
-</code></pre></div>
 <p>References: <a href="https://docs.jax.dev/en/latest/external-callbacks.html">JAX external callbacks</a>
 and <a href="https://docs.pytorch.org/docs/stable/notes/extending.html">PyTorch custom autograd functions</a>.</p>
 
@@ -4223,13 +4409,13 @@ and <a href="https://docs.pytorch.org/docs/stable/notes/extending.html">PyTorch 
         
         
           
-          <a href="../custom-records/" class="md-footer__link md-footer__link--next" aria-label="Next: Custom records">
+          <a href="../choosing-a-mode/" class="md-footer__link md-footer__link--next" aria-label="Next: Choosing a differentiation mode">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Custom records
+                Choosing a differentiation mode
               </div>
             </div>
             <div class="md-footer__button md-icon">

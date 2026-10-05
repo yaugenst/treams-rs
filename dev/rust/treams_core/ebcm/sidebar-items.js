@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["HELICITY"],"fn":["cross","dot","evaluate_waves","node_geometry","origin_waves","qmat","triple"],"struct":["NodeGradient","QmatGradient","QmatResidual","Sample","Surface"]};
+window.SIDEBAR_ITEMS = {"constant":["HELICITY"],"fn":["cross","dot","evaluate_waves","node_geometry","origin_waves","qmat","triple"],"struct":["NodeGradient","QmatGradient","QmatResidual","Sample","SampleTangent","Surface"]};

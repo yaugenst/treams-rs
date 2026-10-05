@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["block_degrees","sphere"],"struct":["SphereGradient","SphereResidual"]};
+window.SIDEBAR_ITEMS = {"fn":["block_degrees","sphere"],"mod":["saved"],"struct":["SphereGradient","SphereResidual"]};

@@ -31,6 +31,11 @@ against central differences.
 | --- | --- | --- |
 | [Sphere radius optimization](sphere_radius_optimization.md) | Five gradient-ascent steps on the radius of a sphere to maximize its scattering efficiency | Advect |
 | [Array transmission gradient](array_transmission_gradient.md) | The derivatives of the transmission of a sphere array on a slab with respect to the sphere radius and the slab thickness | JAX |
+| [Changes across a field map](forward_field_sensitivity.md) | Forward-mode changes at every field point when the wavelength or common sphere radius changes | JAX |
+| [Cluster scattering gradient](reverse_cluster_gradient.md) | Reverse-mode changes in one scattering cross section with respect to eight radii and all particle positions | JAX |
+
+[Choosing a differentiation mode](../differentiation/choosing-a-mode.md) compares
+both modes on the same results, with a runnable timing script.
 
 ## Running the examples
 

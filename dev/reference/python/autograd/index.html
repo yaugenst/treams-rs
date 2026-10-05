@@ -970,6 +970,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1472,6 +1476,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/forward_field_sensitivity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across a field map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/reverse_cluster_gradient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scattering gradient
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1490,6 +1550,8 @@
       
         
           
+        
+      
         
       
         
@@ -1567,6 +1629,34 @@
     
   
     Framework adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../differentiation/choosing-a-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a differentiation mode
   
 
     
@@ -1766,7 +1856,7 @@
   <span class="md-ellipsis">
     
   
-    Analytic pullbacks
+    Analytic pushforwards and pullbacks
   
 
     
@@ -9480,10 +9570,9 @@
 <!-- fmt: off -->
 
 <p>HIPS Autograd adapter: physics objects and native records on the CPU.</p>
-<p>First-order reverse differentiation supports float64 and complex128 inputs
-and outputs. The first reverse pass consumes the Rust context saved by the
-forward; repeated calls to a pullback rerun the forward from input snapshots.
-Forward mode and higher derivatives are not available.</p>
+<p>First-order forward and reverse differentiation support float64 and complex128
+inputs and outputs. Derivative products reuse the Rust context saved by the
+forward invocation. Higher derivatives are not available.</p>
 <p>Differentiate a scattering cross section:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">autograd</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">treams_rs</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">tr</span>
@@ -10245,7 +10334,10 @@ carry gradients.</p>
 <h3 id="smatrixcascade"><code>SMatrix.cascade</code><a class="headerlink" href="#smatrixcascade" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><span class="n">SMatrix</span><span class="o">.</span><span class="n">cascade</span><span class="p">(</span><span class="n">next_layer</span><span class="p">:</span> <span class="n">SMatrix</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SMatrix</span>
 </code></pre></div>
-<p>Compose this lower system with the adjacent upper system.</p>
+<p>Compose adjacent systems whose port wavevectors have the same dependence.</p>
+<p>Fixed basis ports cannot be mixed with diffraction-order ports: matching
+their current wavevectors does not match their derivatives. Use a fixed
+basis for both systems, or diffraction orders for both.</p>
 <h3 id="smatrixbands"><code>SMatrix.bands</code><a class="headerlink" href="#smatrixbands" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><span class="n">SMatrix</span><span class="o">.</span><span class="n">bands</span><span class="p">(</span><span class="n">period</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BandModes</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span>
 </code></pre></div>
@@ -10682,15 +10774,18 @@ ignores <code>basis.positions</code>.</p>
 <h2 id="wrap"><code>wrap</code><a class="headerlink" href="#wrap" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="n">wrap</span><span class="p">(</span><span class="n">record</span><span class="p">:</span> <span class="n">Record</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 </code></pre></div>
-<p>Turn a record into an Autograd function with a first-order gradient.</p>
+<p>Turn a record into an Autograd function with first-order derivatives.</p>
 <p>For example, <code>wrap(diff.solve)</code> differentiates a linear solve. A record
 returns <code>(value, context)</code> or <code>(value, pullback)</code>; the value is an array,
 scalar or nonempty flat tuple of them. The pullback returns one gradient
 per dynamic input in argument order. Bind static labels and options with
 a closure or <code>functools.partial</code>.</p>
+<p>Forward mode additionally requires a context with <code>pushforward</code> accepting
+one tangent per dynamic input and returning one tangent per output.</p>
 <p>Inputs must have dtype float64 or complex128. Outputs are NumPy arrays,
-or a flat tuple of arrays. Repeated pullbacks recompute the record, which
-must therefore be deterministic. Use <code>autograd.numpy</code> around this call.</p>
+or a flat tuple of arrays. Repeated derivative products reuse the record's
+context; its derivative methods must be reusable. Use <code>autograd.numpy</code>
+around this call.</p>
 
 
 

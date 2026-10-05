@@ -458,132 +458,167 @@
 <a href=#458 id=458 data-nosnippet>458</a>}
 <a href=#459 id=459 data-nosnippet>459</a>
 <a href=#460 id=460 data-nosnippet>460</a><span class="kw">impl </span>WignerDResidual {
-<a href=#461 id=461 data-nosnippet>461</a>    <span class="kw">fn </span>element(<span class="kw-2">&amp;</span><span class="self">self</span>, i: usize) -&gt; ([i32; <span class="number">3</span>], [Complex; <span class="number">3</span>]) {
-<a href=#462 id=462 data-nosnippet>462</a>        (
-<a href=#463 id=463 data-nosnippet>463</a>            broadcast::element(<span class="kw-2">&amp;</span><span class="self">self</span>.labels, i),
-<a href=#464 id=464 data-nosnippet>464</a>            <span class="self">self</span>.angles.each_ref().map(|a| broadcast::element(a, i)),
-<a href=#465 id=465 data-nosnippet>465</a>        )
-<a href=#466 id=466 data-nosnippet>466</a>    }
-<a href=#467 id=467 data-nosnippet>467</a>
-<a href=#468 id=468 data-nosnippet>468</a>    <span class="doccomment">/// The gradients with respect to the three Euler angles, given the gradient
-<a href=#469 id=469 data-nosnippet>469</a>    /// `cotangent` with respect to the values. An angle given as one value for all
-<a href=#470 id=470 data-nosnippet>470</a>    /// elements receives the sum of its element gradients.
-<a href=#471 id=471 data-nosnippet>471</a>    </span><span class="kw">pub fn </span>pullback(<span class="self">self</span>, cotangent: <span class="kw-2">&amp;</span>[Complex]) -&gt; <span class="prelude-ty">Result</span>&lt;[Vec&lt;Complex&gt;; <span class="number">3</span>]&gt; {
-<a href=#472 id=472 data-nosnippet>472</a>        broadcast::pullback(
-<a href=#473 id=473 data-nosnippet>473</a>            cotangent,
-<a href=#474 id=474 data-nosnippet>474</a>            <span class="self">self</span>.size,
-<a href=#475 id=475 data-nosnippet>475</a>            <span class="string">"Wigner cotangent must be finite and match output"</span>,
-<a href=#476 id=476 data-nosnippet>476</a>            <span class="self">self</span>.angles.each_ref().map(Vec::len),
-<a href=#477 id=477 data-nosnippet>477</a>            PARALLEL,
-<a href=#478 id=478 data-nosnippet>478</a>            |i, <span class="kw-2">&amp;</span>g| {
-<a href=#479 id=479 data-nosnippet>479</a>                <span class="kw">let </span>([l, m, k], angles) = <span class="self">self</span>.element(i);
-<a href=#480 id=480 data-nosnippet>480</a>                <span class="kw">if </span>g == Complex::default()
-<a href=#481 id=481 data-nosnippet>481</a>                    || m.unsigned_abs() &gt; l.unsigned_abs()
-<a href=#482 id=482 data-nosnippet>482</a>                    || k.unsigned_abs() &gt; l.unsigned_abs()
-<a href=#483 id=483 data-nosnippet>483</a>                {
-<a href=#484 id=484 data-nosnippet>484</a>                    <span class="kw">return </span><span class="prelude-val">Ok</span>([Complex::default(); <span class="number">3</span>]);
-<a href=#485 id=485 data-nosnippet>485</a>                }
-<a href=#486 id=486 data-nosnippet>486</a>                <span class="kw">let </span>angles: [Jet&lt;<span class="number">3</span>&gt;; <span class="number">3</span>] =
-<a href=#487 id=487 data-nosnippet>487</a>                    std::array::from_fn(|axis| Jet::variable(angles[axis], axis));
-<a href=#488 id=488 data-nosnippet>488</a>                <span class="kw">let </span>value = (-Complex::i() * (f64::from(m) * angles[<span class="number">0</span>] + f64::from(k) * angles[<span class="number">2</span>]))
-<a href=#489 id=489 data-nosnippet>489</a>                    .exp()
-<a href=#490 id=490 data-nosnippet>490</a>                    * wigner_small_d_jet(l, m, k, angles[<span class="number">1</span>]);
-<a href=#491 id=491 data-nosnippet>491</a>                <span class="kw">if </span>!value.finite() {
-<a href=#492 id=492 data-nosnippet>492</a>                    <span class="kw">return </span><span class="prelude-val">Err</span>(Error::SpecialFunction(
-<a href=#493 id=493 data-nosnippet>493</a>                        <span class="string">"non-finite Wigner derivative"</span>.into(),
-<a href=#494 id=494 data-nosnippet>494</a>                    ));
-<a href=#495 id=495 data-nosnippet>495</a>                }
-<a href=#496 id=496 data-nosnippet>496</a>                <span class="prelude-val">Ok</span>(value.derivative.map(|derivative| g * derivative.conj()))
-<a href=#497 id=497 data-nosnippet>497</a>            },
-<a href=#498 id=498 data-nosnippet>498</a>        )
-<a href=#499 id=499 data-nosnippet>499</a>    }
-<a href=#500 id=500 data-nosnippet>500</a>}
-<a href=#501 id=501 data-nosnippet>501</a>
-<a href=#502 id=502 data-nosnippet>502</a><span class="doccomment">/// Broadcast [`wigner_d`] values with all three Euler angles differentiable: each input
-<a href=#503 id=503 data-nosnippet>503</a>/// is either one value or one value per element.
-<a href=#504 id=504 data-nosnippet>504</a>///
-<a href=#505 id=505 data-nosnippet>505</a>/// Upstream: `treams.special.wignerd` over arrays.
-<a href=#506 id=506 data-nosnippet>506</a></span><span class="kw">pub fn </span>wigner_d_array(
-<a href=#507 id=507 data-nosnippet>507</a>    labels: Vec&lt;[i32; <span class="number">3</span>]&gt;,
-<a href=#508 id=508 data-nosnippet>508</a>    angles: [Vec&lt;Complex&gt;; <span class="number">3</span>],
-<a href=#509 id=509 data-nosnippet>509</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;Complex&gt;, WignerDResidual)&gt; {
-<a href=#510 id=510 data-nosnippet>510</a>    <span class="kw">let </span>[a, b, c] = angles.each_ref().map(Vec::len);
-<a href=#511 id=511 data-nosnippet>511</a>    <span class="kw">let </span>size = broadcast::size(
-<a href=#512 id=512 data-nosnippet>512</a>        <span class="kw-2">&amp;</span>[labels.len(), a, b, c],
-<a href=#513 id=513 data-nosnippet>513</a>        <span class="string">"Wigner arrays must have equal lengths or scalar inputs"</span>,
-<a href=#514 id=514 data-nosnippet>514</a>    )<span class="question-mark">?</span>;
-<a href=#515 id=515 data-nosnippet>515</a>    <span class="kw">let </span>residual = WignerDResidual {
-<a href=#516 id=516 data-nosnippet>516</a>        labels,
-<a href=#517 id=517 data-nosnippet>517</a>        angles,
-<a href=#518 id=518 data-nosnippet>518</a>        size,
-<a href=#519 id=519 data-nosnippet>519</a>    };
-<a href=#520 id=520 data-nosnippet>520</a>    <span class="kw">let </span>values = broadcast::map(size, PARALLEL, |i| {
-<a href=#521 id=521 data-nosnippet>521</a>        <span class="kw">let </span>([l, m, k], a) = residual.element(i);
-<a href=#522 id=522 data-nosnippet>522</a>        wigner_d(l, m, k, a)
-<a href=#523 id=523 data-nosnippet>523</a>    })<span class="question-mark">?</span>;
-<a href=#524 id=524 data-nosnippet>524</a>    <span class="prelude-val">Ok</span>((values, residual))
-<a href=#525 id=525 data-nosnippet>525</a>}
-<a href=#526 id=526 data-nosnippet>526</a>
-<a href=#527 id=527 data-nosnippet>527</a><span class="attr">#[cfg(test)]
-<a href=#528 id=528 data-nosnippet>528</a></span><span class="kw">mod </span>tests {
-<a href=#529 id=529 data-nosnippet>529</a>    <span class="doccomment">//! 3j rows against single symbols and exact values; the Wigner identities of the
-<a href=#530 id=530 data-nosnippet>530</a>    //! public functions are in `properties/special.rs`.
-<a href=#531 id=531 data-nosnippet>531</a>
-<a href=#532 id=532 data-nosnippet>532</a>    </span><span class="kw">use </span>proptest::{prelude::<span class="kw-2">*</span>, test_runner::TestCaseError};
-<a href=#533 id=533 data-nosnippet>533</a>
-<a href=#534 id=534 data-nosnippet>534</a>    <span class="kw">use </span>super::{Wigner3jRow, wigner3j};
-<a href=#535 id=535 data-nosnippet>535</a>    <span class="kw">use </span><span class="kw">crate</span>::test_support::ALGEBRA_CASES;
-<a href=#536 id=536 data-nosnippet>536</a>
-<a href=#537 id=537 data-nosnippet>537</a>    <span class="macro">proptest!</span> {
-<a href=#538 id=538 data-nosnippet>538</a>        <span class="attr">#![proptest_config(ProptestConfig::with_cases(ALGEBRA_CASES))]
-<a href=#539 id=539 data-nosnippet>539</a>
-<a href=#540 id=540 data-nosnippet>540</a>        #[test]
-<a href=#541 id=541 data-nosnippet>541</a>        </span><span class="kw">fn </span>wigner3j_rows_match_single_symbols(
-<a href=#542 id=542 data-nosnippet>542</a>            (j1, j2, m1, m2) <span class="kw">in </span>(<span class="number">0_i32</span>..=<span class="number">90</span>, <span class="number">0_i32</span>..=<span class="number">90</span>).prop_flat_map(|(j1, j2)| {
-<a href=#543 id=543 data-nosnippet>543</a>                <span class="kw">let </span>order = |j: i32| <span class="macro">prop_oneof!</span>[Just(j), Just(-j), -j..=j];
-<a href=#544 id=544 data-nosnippet>544</a>                (Just(j1), Just(j2), order(j1), order(j2))
-<a href=#545 id=545 data-nosnippet>545</a>            }),
-<a href=#546 id=546 data-nosnippet>546</a>        ) {
-<a href=#547 id=547 data-nosnippet>547</a>            check_wigner3j_row(j1, j2, m1, m2)<span class="question-mark">?</span>;
-<a href=#548 id=548 data-nosnippet>548</a>        }
-<a href=#549 id=549 data-nosnippet>549</a>    }
-<a href=#550 id=550 data-nosnippet>550</a>
-<a href=#551 id=551 data-nosnippet>551</a>    <span class="doccomment">/// A row from one recurrence equals [`wigner3j`] bit for bit at every `j3`, including
-<a href=#552 id=552 data-nosnippet>552</a>    /// zero just outside the admissible range.
-<a href=#553 id=553 data-nosnippet>553</a>    </span><span class="kw">fn </span>check_wigner3j_row(j1: i32, j2: i32, m1: i32, m2: i32) -&gt; <span class="prelude-ty">Result</span>&lt;(), TestCaseError&gt; {
-<a href=#554 id=554 data-nosnippet>554</a>        <span class="kw">let </span>row = Wigner3jRow::new(j1, j2, m1, m2);
-<a href=#555 id=555 data-nosnippet>555</a>        <span class="kw">for </span>j3 <span class="kw">in </span>-<span class="number">1</span>..=j1 + j2 + <span class="number">1 </span>{
-<a href=#556 id=556 data-nosnippet>556</a>            <span class="kw">let </span>single = wigner3j(j1, j2, j3, m1, m2, -m1 - m2);
-<a href=#557 id=557 data-nosnippet>557</a>            <span class="macro">prop_assert_eq!</span>(row.get(j3).to_bits(), single.to_bits(), <span class="string">"j3 = {}"</span>, j3);
-<a href=#558 id=558 data-nosnippet>558</a>        }
-<a href=#559 id=559 data-nosnippet>559</a>        <span class="prelude-val">Ok</span>(())
-<a href=#560 id=560 data-nosnippet>560</a>    }
+<a href=#461 id=461 data-nosnippet>461</a>    <span class="doccomment">/// Keep the broadcast inputs needed by derivatives without evaluating values.
+<a href=#462 id=462 data-nosnippet>462</a>    </span><span class="kw">pub fn </span>new(labels: Vec&lt;[i32; <span class="number">3</span>]&gt;, angles: [Vec&lt;Complex&gt;; <span class="number">3</span>]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
+<a href=#463 id=463 data-nosnippet>463</a>        <span class="kw">let </span>[a, b, c] = angles.each_ref().map(Vec::len);
+<a href=#464 id=464 data-nosnippet>464</a>        <span class="kw">let </span>size = broadcast::size(
+<a href=#465 id=465 data-nosnippet>465</a>            <span class="kw-2">&amp;</span>[labels.len(), a, b, c],
+<a href=#466 id=466 data-nosnippet>466</a>            <span class="string">"Wigner arrays must have equal lengths or scalar inputs"</span>,
+<a href=#467 id=467 data-nosnippet>467</a>        )<span class="question-mark">?</span>;
+<a href=#468 id=468 data-nosnippet>468</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+<a href=#469 id=469 data-nosnippet>469</a>            labels,
+<a href=#470 id=470 data-nosnippet>470</a>            angles,
+<a href=#471 id=471 data-nosnippet>471</a>            size,
+<a href=#472 id=472 data-nosnippet>472</a>        })
+<a href=#473 id=473 data-nosnippet>473</a>    }
+<a href=#474 id=474 data-nosnippet>474</a>
+<a href=#475 id=475 data-nosnippet>475</a>    <span class="kw">fn </span>element(<span class="kw-2">&amp;</span><span class="self">self</span>, i: usize) -&gt; ([i32; <span class="number">3</span>], [Complex; <span class="number">3</span>]) {
+<a href=#476 id=476 data-nosnippet>476</a>        (
+<a href=#477 id=477 data-nosnippet>477</a>            broadcast::element(<span class="kw-2">&amp;</span><span class="self">self</span>.labels, i),
+<a href=#478 id=478 data-nosnippet>478</a>            <span class="self">self</span>.angles.each_ref().map(|a| broadcast::element(a, i)),
+<a href=#479 id=479 data-nosnippet>479</a>        )
+<a href=#480 id=480 data-nosnippet>480</a>    }
+<a href=#481 id=481 data-nosnippet>481</a>
+<a href=#482 id=482 data-nosnippet>482</a>    <span class="doccomment">/// Apply one direction in the Euler angles, carrying one jet slot per value.
+<a href=#483 id=483 data-nosnippet>483</a>    </span><span class="kw">pub fn </span>pushforward(<span class="kw-2">&amp;</span><span class="self">self</span>, tangents: [<span class="kw-2">&amp;</span>[Complex]; <span class="number">3</span>]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Complex&gt;&gt; {
+<a href=#484 id=484 data-nosnippet>484</a>        broadcast::pushforward(
+<a href=#485 id=485 data-nosnippet>485</a>            tangents,
+<a href=#486 id=486 data-nosnippet>486</a>            <span class="self">self</span>.size,
+<a href=#487 id=487 data-nosnippet>487</a>            <span class="string">"Wigner tangents must be finite and broadcast to output"</span>,
+<a href=#488 id=488 data-nosnippet>488</a>            PARALLEL,
+<a href=#489 id=489 data-nosnippet>489</a>            |i, tangent| {
+<a href=#490 id=490 data-nosnippet>490</a>                <span class="kw">let </span>([l, m, k], angles) = <span class="self">self</span>.element(i);
+<a href=#491 id=491 data-nosnippet>491</a>                <span class="kw">if </span>tangent == [Complex::default(); <span class="number">3</span>]
+<a href=#492 id=492 data-nosnippet>492</a>                    || m.unsigned_abs() &gt; l.unsigned_abs()
+<a href=#493 id=493 data-nosnippet>493</a>                    || k.unsigned_abs() &gt; l.unsigned_abs()
+<a href=#494 id=494 data-nosnippet>494</a>                {
+<a href=#495 id=495 data-nosnippet>495</a>                    <span class="kw">return </span><span class="prelude-val">Ok</span>(Complex::default());
+<a href=#496 id=496 data-nosnippet>496</a>                }
+<a href=#497 id=497 data-nosnippet>497</a>                <span class="kw">let </span>angles: [Jet&lt;<span class="number">1</span>&gt;; <span class="number">3</span>] = std::array::from_fn(|axis| Jet {
+<a href=#498 id=498 data-nosnippet>498</a>                    value: angles[axis],
+<a href=#499 id=499 data-nosnippet>499</a>                    derivative: [tangent[axis]],
+<a href=#500 id=500 data-nosnippet>500</a>                });
+<a href=#501 id=501 data-nosnippet>501</a>                <span class="prelude-val">Ok</span>(wigner_d_jet(l, m, k, angles)<span class="question-mark">?</span>.derivative[<span class="number">0</span>])
+<a href=#502 id=502 data-nosnippet>502</a>            },
+<a href=#503 id=503 data-nosnippet>503</a>        )
+<a href=#504 id=504 data-nosnippet>504</a>    }
+<a href=#505 id=505 data-nosnippet>505</a>
+<a href=#506 id=506 data-nosnippet>506</a>    <span class="doccomment">/// The gradients with respect to the three Euler angles, given the gradient
+<a href=#507 id=507 data-nosnippet>507</a>    /// `cotangent` with respect to the values. An angle given as one value for all
+<a href=#508 id=508 data-nosnippet>508</a>    /// elements receives the sum of its element gradients.
+<a href=#509 id=509 data-nosnippet>509</a>    </span><span class="kw">pub fn </span>pullback(<span class="kw-2">&amp;</span><span class="self">self</span>, cotangent: <span class="kw-2">&amp;</span>[Complex]) -&gt; <span class="prelude-ty">Result</span>&lt;[Vec&lt;Complex&gt;; <span class="number">3</span>]&gt; {
+<a href=#510 id=510 data-nosnippet>510</a>        broadcast::pullback(
+<a href=#511 id=511 data-nosnippet>511</a>            cotangent,
+<a href=#512 id=512 data-nosnippet>512</a>            <span class="self">self</span>.size,
+<a href=#513 id=513 data-nosnippet>513</a>            <span class="string">"Wigner cotangent must be finite and match output"</span>,
+<a href=#514 id=514 data-nosnippet>514</a>            <span class="self">self</span>.angles.each_ref().map(Vec::len),
+<a href=#515 id=515 data-nosnippet>515</a>            PARALLEL,
+<a href=#516 id=516 data-nosnippet>516</a>            |i, <span class="kw-2">&amp;</span>g| {
+<a href=#517 id=517 data-nosnippet>517</a>                <span class="kw">let </span>([l, m, k], angles) = <span class="self">self</span>.element(i);
+<a href=#518 id=518 data-nosnippet>518</a>                <span class="kw">if </span>g == Complex::default()
+<a href=#519 id=519 data-nosnippet>519</a>                    || m.unsigned_abs() &gt; l.unsigned_abs()
+<a href=#520 id=520 data-nosnippet>520</a>                    || k.unsigned_abs() &gt; l.unsigned_abs()
+<a href=#521 id=521 data-nosnippet>521</a>                {
+<a href=#522 id=522 data-nosnippet>522</a>                    <span class="kw">return </span><span class="prelude-val">Ok</span>([Complex::default(); <span class="number">3</span>]);
+<a href=#523 id=523 data-nosnippet>523</a>                }
+<a href=#524 id=524 data-nosnippet>524</a>                <span class="kw">let </span>angles: [Jet&lt;<span class="number">3</span>&gt;; <span class="number">3</span>] =
+<a href=#525 id=525 data-nosnippet>525</a>                    std::array::from_fn(|axis| Jet::variable(angles[axis], axis));
+<a href=#526 id=526 data-nosnippet>526</a>                <span class="kw">let </span>value = wigner_d_jet(l, m, k, angles)<span class="question-mark">?</span>;
+<a href=#527 id=527 data-nosnippet>527</a>                <span class="prelude-val">Ok</span>(value.derivative.map(|derivative| g * derivative.conj()))
+<a href=#528 id=528 data-nosnippet>528</a>            },
+<a href=#529 id=529 data-nosnippet>529</a>        )
+<a href=#530 id=530 data-nosnippet>530</a>    }
+<a href=#531 id=531 data-nosnippet>531</a>}
+<a href=#532 id=532 data-nosnippet>532</a>
+<a href=#533 id=533 data-nosnippet>533</a><span class="doccomment">/// The same Euler-angle chain rule serves both one tangent and three adjoint
+<a href=#534 id=534 data-nosnippet>534</a>/// partials, with the derivative width selected by the caller.
+<a href=#535 id=535 data-nosnippet>535</a></span><span class="kw">fn </span>wigner_d_jet&lt;<span class="kw">const </span>N: usize&gt;(l: i32, m: i32, k: i32, angles: [Jet&lt;N&gt;; <span class="number">3</span>]) -&gt; <span class="prelude-ty">Result</span>&lt;Jet&lt;N&gt;&gt; {
+<a href=#536 id=536 data-nosnippet>536</a>    <span class="kw">let </span>value = (-Complex::i() * (f64::from(m) * angles[<span class="number">0</span>] + f64::from(k) * angles[<span class="number">2</span>])).exp()
+<a href=#537 id=537 data-nosnippet>537</a>        * wigner_small_d_jet(l, m, k, angles[<span class="number">1</span>]);
+<a href=#538 id=538 data-nosnippet>538</a>    <span class="kw">if </span>!value.finite() {
+<a href=#539 id=539 data-nosnippet>539</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(Error::SpecialFunction(
+<a href=#540 id=540 data-nosnippet>540</a>            <span class="string">"non-finite Wigner derivative"</span>.into(),
+<a href=#541 id=541 data-nosnippet>541</a>        ));
+<a href=#542 id=542 data-nosnippet>542</a>    }
+<a href=#543 id=543 data-nosnippet>543</a>    <span class="prelude-val">Ok</span>(value)
+<a href=#544 id=544 data-nosnippet>544</a>}
+<a href=#545 id=545 data-nosnippet>545</a>
+<a href=#546 id=546 data-nosnippet>546</a><span class="doccomment">/// Broadcast [`wigner_d`] values with all three Euler angles differentiable: each input
+<a href=#547 id=547 data-nosnippet>547</a>/// is either one value or one value per element.
+<a href=#548 id=548 data-nosnippet>548</a>///
+<a href=#549 id=549 data-nosnippet>549</a>/// Upstream: `treams.special.wignerd` over arrays.
+<a href=#550 id=550 data-nosnippet>550</a></span><span class="kw">pub fn </span>wigner_d_array(
+<a href=#551 id=551 data-nosnippet>551</a>    labels: Vec&lt;[i32; <span class="number">3</span>]&gt;,
+<a href=#552 id=552 data-nosnippet>552</a>    angles: [Vec&lt;Complex&gt;; <span class="number">3</span>],
+<a href=#553 id=553 data-nosnippet>553</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;Complex&gt;, WignerDResidual)&gt; {
+<a href=#554 id=554 data-nosnippet>554</a>    <span class="kw">let </span>residual = WignerDResidual::new(labels, angles)<span class="question-mark">?</span>;
+<a href=#555 id=555 data-nosnippet>555</a>    <span class="kw">let </span>values = broadcast::map(residual.size, PARALLEL, |i| {
+<a href=#556 id=556 data-nosnippet>556</a>        <span class="kw">let </span>([l, m, k], a) = residual.element(i);
+<a href=#557 id=557 data-nosnippet>557</a>        wigner_d(l, m, k, a)
+<a href=#558 id=558 data-nosnippet>558</a>    })<span class="question-mark">?</span>;
+<a href=#559 id=559 data-nosnippet>559</a>    <span class="prelude-val">Ok</span>((values, residual))
+<a href=#560 id=560 data-nosnippet>560</a>}
 <a href=#561 id=561 data-nosnippet>561</a>
-<a href=#562 id=562 data-nosnippet>562</a>    <span class="attr">#[test]
-<a href=#563 id=563 data-nosnippet>563</a>    </span><span class="kw">fn </span>wigner3j_matches_exact_symbols_in_the_forbidden_regions() {
-<a href=#564 id=564 data-nosnippet>564</a>        <span class="comment">// Exact values of the Racah formula in rational arithmetic. The first four lie in
-<a href=#565 id=565 data-nosnippet>565</a>        // the lower classically forbidden region, where the downward recurrence of treams
-<a href=#566 id=566 data-nosnippet>566</a>        // errs by 2e-8, 2e-10, 2e-3 and 4e-12. The last three lie in the upper one, where
-<a href=#567 id=567 data-nosnippet>567</a>        // its upward recurrence below the switch gives -6.91248e-8, -7.8e-10 and -2.8e-9.
-<a href=#568 id=568 data-nosnippet>568</a>        </span><span class="kw">for </span>(symbol, exact) <span class="kw">in </span>[
-<a href=#569 id=569 data-nosnippet>569</a>            ([<span class="number">47</span>, <span class="number">60</span>, <span class="number">39</span>, -<span class="number">47</span>, <span class="number">8</span>, <span class="number">39</span>], <span class="number">1.329_555_988_816_024_3e-11</span>),
-<a href=#570 id=570 data-nosnippet>570</a>            ([<span class="number">53</span>, <span class="number">69</span>, <span class="number">46</span>, -<span class="number">52</span>, <span class="number">10</span>, <span class="number">42</span>], -<span class="number">1.230_181_842_452_470_3e-9</span>),
-<a href=#571 id=571 data-nosnippet>571</a>            ([<span class="number">88</span>, <span class="number">66</span>, <span class="number">56</span>, -<span class="number">10</span>, <span class="number">66</span>, -<span class="number">56</span>], <span class="number">5.787_402_366_675_233e-17</span>),
-<a href=#572 id=572 data-nosnippet>572</a>            ([<span class="number">78</span>, <span class="number">71</span>, <span class="number">64</span>, <span class="number">0</span>, <span class="number">64</span>, -<span class="number">64</span>], -<span class="number">2.792_414_470_253_1e-8</span>),
-<a href=#573 id=573 data-nosnippet>573</a>            ([<span class="number">128</span>, <span class="number">64</span>, <span class="number">95</span>, -<span class="number">128</span>, <span class="number">64</span>, <span class="number">64</span>], -<span class="number">6.912_539_260_950_578e-8</span>),
-<a href=#574 id=574 data-nosnippet>574</a>            ([<span class="number">245</span>, <span class="number">195</span>, <span class="number">144</span>, -<span class="number">245</span>, <span class="number">194</span>, <span class="number">51</span>], -<span class="number">1.884_797_170_508_145_5e-10</span>),
-<a href=#575 id=575 data-nosnippet>575</a>            (
-<a href=#576 id=576 data-nosnippet>576</a>                [<span class="number">260</span>, <span class="number">130</span>, <span class="number">190</span>, -<span class="number">260</span>, <span class="number">129</span>, <span class="number">131</span>],
-<a href=#577 id=577 data-nosnippet>577</a>                -<span class="number">1.512_351_282_082_983_2e-12</span>,
-<a href=#578 id=578 data-nosnippet>578</a>            ),
-<a href=#579 id=579 data-nosnippet>579</a>        ] {
-<a href=#580 id=580 data-nosnippet>580</a>            <span class="kw">let </span>[j1, j2, j3, m1, m2, m3] = symbol;
-<a href=#581 id=581 data-nosnippet>581</a>            <span class="kw">let </span>value = wigner3j(j1, j2, j3, m1, m2, m3);
-<a href=#582 id=582 data-nosnippet>582</a>            <span class="macro">assert!</span>(
-<a href=#583 id=583 data-nosnippet>583</a>                (value - exact).abs() &lt;= <span class="number">1e-12 </span>* exact.abs(),
-<a href=#584 id=584 data-nosnippet>584</a>                <span class="string">"{symbol:?}: {value:e} != {exact:e}"
-<a href=#585 id=585 data-nosnippet>585</a>            </span>);
-<a href=#586 id=586 data-nosnippet>586</a>        }
-<a href=#587 id=587 data-nosnippet>587</a>    }
-<a href=#588 id=588 data-nosnippet>588</a>}
+<a href=#562 id=562 data-nosnippet>562</a><span class="attr">#[cfg(test)]
+<a href=#563 id=563 data-nosnippet>563</a></span><span class="kw">mod </span>tests {
+<a href=#564 id=564 data-nosnippet>564</a>    <span class="doccomment">//! 3j rows against single symbols and exact values; the Wigner identities of the
+<a href=#565 id=565 data-nosnippet>565</a>    //! public functions are in `properties/special.rs`.
+<a href=#566 id=566 data-nosnippet>566</a>
+<a href=#567 id=567 data-nosnippet>567</a>    </span><span class="kw">use </span>proptest::{prelude::<span class="kw-2">*</span>, test_runner::TestCaseError};
+<a href=#568 id=568 data-nosnippet>568</a>
+<a href=#569 id=569 data-nosnippet>569</a>    <span class="kw">use </span>super::{Wigner3jRow, wigner3j};
+<a href=#570 id=570 data-nosnippet>570</a>    <span class="kw">use </span><span class="kw">crate</span>::test_support::ALGEBRA_CASES;
+<a href=#571 id=571 data-nosnippet>571</a>
+<a href=#572 id=572 data-nosnippet>572</a>    <span class="macro">proptest!</span> {
+<a href=#573 id=573 data-nosnippet>573</a>        <span class="attr">#![proptest_config(ProptestConfig::with_cases(ALGEBRA_CASES))]
+<a href=#574 id=574 data-nosnippet>574</a>
+<a href=#575 id=575 data-nosnippet>575</a>        #[test]
+<a href=#576 id=576 data-nosnippet>576</a>        </span><span class="kw">fn </span>wigner3j_rows_match_single_symbols(
+<a href=#577 id=577 data-nosnippet>577</a>            (j1, j2, m1, m2) <span class="kw">in </span>(<span class="number">0_i32</span>..=<span class="number">90</span>, <span class="number">0_i32</span>..=<span class="number">90</span>).prop_flat_map(|(j1, j2)| {
+<a href=#578 id=578 data-nosnippet>578</a>                <span class="kw">let </span>order = |j: i32| <span class="macro">prop_oneof!</span>[Just(j), Just(-j), -j..=j];
+<a href=#579 id=579 data-nosnippet>579</a>                (Just(j1), Just(j2), order(j1), order(j2))
+<a href=#580 id=580 data-nosnippet>580</a>            }),
+<a href=#581 id=581 data-nosnippet>581</a>        ) {
+<a href=#582 id=582 data-nosnippet>582</a>            check_wigner3j_row(j1, j2, m1, m2)<span class="question-mark">?</span>;
+<a href=#583 id=583 data-nosnippet>583</a>        }
+<a href=#584 id=584 data-nosnippet>584</a>    }
+<a href=#585 id=585 data-nosnippet>585</a>
+<a href=#586 id=586 data-nosnippet>586</a>    <span class="doccomment">/// A row from one recurrence equals [`wigner3j`] bit for bit at every `j3`, including
+<a href=#587 id=587 data-nosnippet>587</a>    /// zero just outside the admissible range.
+<a href=#588 id=588 data-nosnippet>588</a>    </span><span class="kw">fn </span>check_wigner3j_row(j1: i32, j2: i32, m1: i32, m2: i32) -&gt; <span class="prelude-ty">Result</span>&lt;(), TestCaseError&gt; {
+<a href=#589 id=589 data-nosnippet>589</a>        <span class="kw">let </span>row = Wigner3jRow::new(j1, j2, m1, m2);
+<a href=#590 id=590 data-nosnippet>590</a>        <span class="kw">for </span>j3 <span class="kw">in </span>-<span class="number">1</span>..=j1 + j2 + <span class="number">1 </span>{
+<a href=#591 id=591 data-nosnippet>591</a>            <span class="kw">let </span>single = wigner3j(j1, j2, j3, m1, m2, -m1 - m2);
+<a href=#592 id=592 data-nosnippet>592</a>            <span class="macro">prop_assert_eq!</span>(row.get(j3).to_bits(), single.to_bits(), <span class="string">"j3 = {}"</span>, j3);
+<a href=#593 id=593 data-nosnippet>593</a>        }
+<a href=#594 id=594 data-nosnippet>594</a>        <span class="prelude-val">Ok</span>(())
+<a href=#595 id=595 data-nosnippet>595</a>    }
+<a href=#596 id=596 data-nosnippet>596</a>
+<a href=#597 id=597 data-nosnippet>597</a>    <span class="attr">#[test]
+<a href=#598 id=598 data-nosnippet>598</a>    </span><span class="kw">fn </span>wigner3j_matches_exact_symbols_in_the_forbidden_regions() {
+<a href=#599 id=599 data-nosnippet>599</a>        <span class="comment">// Exact values of the Racah formula in rational arithmetic. The first four lie in
+<a href=#600 id=600 data-nosnippet>600</a>        // the lower classically forbidden region, where the downward recurrence of treams
+<a href=#601 id=601 data-nosnippet>601</a>        // errs by 2e-8, 2e-10, 2e-3 and 4e-12. The last three lie in the upper one, where
+<a href=#602 id=602 data-nosnippet>602</a>        // its upward recurrence below the switch gives -6.91248e-8, -7.8e-10 and -2.8e-9.
+<a href=#603 id=603 data-nosnippet>603</a>        </span><span class="kw">for </span>(symbol, exact) <span class="kw">in </span>[
+<a href=#604 id=604 data-nosnippet>604</a>            ([<span class="number">47</span>, <span class="number">60</span>, <span class="number">39</span>, -<span class="number">47</span>, <span class="number">8</span>, <span class="number">39</span>], <span class="number">1.329_555_988_816_024_3e-11</span>),
+<a href=#605 id=605 data-nosnippet>605</a>            ([<span class="number">53</span>, <span class="number">69</span>, <span class="number">46</span>, -<span class="number">52</span>, <span class="number">10</span>, <span class="number">42</span>], -<span class="number">1.230_181_842_452_470_3e-9</span>),
+<a href=#606 id=606 data-nosnippet>606</a>            ([<span class="number">88</span>, <span class="number">66</span>, <span class="number">56</span>, -<span class="number">10</span>, <span class="number">66</span>, -<span class="number">56</span>], <span class="number">5.787_402_366_675_233e-17</span>),
+<a href=#607 id=607 data-nosnippet>607</a>            ([<span class="number">78</span>, <span class="number">71</span>, <span class="number">64</span>, <span class="number">0</span>, <span class="number">64</span>, -<span class="number">64</span>], -<span class="number">2.792_414_470_253_1e-8</span>),
+<a href=#608 id=608 data-nosnippet>608</a>            ([<span class="number">128</span>, <span class="number">64</span>, <span class="number">95</span>, -<span class="number">128</span>, <span class="number">64</span>, <span class="number">64</span>], -<span class="number">6.912_539_260_950_578e-8</span>),
+<a href=#609 id=609 data-nosnippet>609</a>            ([<span class="number">245</span>, <span class="number">195</span>, <span class="number">144</span>, -<span class="number">245</span>, <span class="number">194</span>, <span class="number">51</span>], -<span class="number">1.884_797_170_508_145_5e-10</span>),
+<a href=#610 id=610 data-nosnippet>610</a>            (
+<a href=#611 id=611 data-nosnippet>611</a>                [<span class="number">260</span>, <span class="number">130</span>, <span class="number">190</span>, -<span class="number">260</span>, <span class="number">129</span>, <span class="number">131</span>],
+<a href=#612 id=612 data-nosnippet>612</a>                -<span class="number">1.512_351_282_082_983_2e-12</span>,
+<a href=#613 id=613 data-nosnippet>613</a>            ),
+<a href=#614 id=614 data-nosnippet>614</a>        ] {
+<a href=#615 id=615 data-nosnippet>615</a>            <span class="kw">let </span>[j1, j2, j3, m1, m2, m3] = symbol;
+<a href=#616 id=616 data-nosnippet>616</a>            <span class="kw">let </span>value = wigner3j(j1, j2, j3, m1, m2, m3);
+<a href=#617 id=617 data-nosnippet>617</a>            <span class="macro">assert!</span>(
+<a href=#618 id=618 data-nosnippet>618</a>                (value - exact).abs() &lt;= <span class="number">1e-12 </span>* exact.abs(),
+<a href=#619 id=619 data-nosnippet>619</a>                <span class="string">"{symbol:?}: {value:e} != {exact:e}"
+<a href=#620 id=620 data-nosnippet>620</a>            </span>);
+<a href=#621 id=621 data-nosnippet>621</a>        }
+<a href=#622 id=622 data-nosnippet>622</a>    }
+<a href=#623 id=623 data-nosnippet>623</a>}
 </code></pre></div></section></main></body></html>

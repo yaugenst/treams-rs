@@ -970,6 +970,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1472,6 +1476,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/forward_field_sensitivity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across a field map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/reverse_cluster_gradient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scattering gradient
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1490,6 +1550,8 @@
       
         
           
+        
+      
         
       
         
@@ -1567,6 +1629,34 @@
     
   
     Framework adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../differentiation/choosing-a-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a differentiation mode
   
 
     
@@ -1766,7 +1856,7 @@
   <span class="md-ellipsis">
     
   
-    Analytic pullbacks
+    Analytic pushforwards and pullbacks
   
 
     
@@ -3774,7 +3864,7 @@ complete workflows through the public API.</p>
   objects compose records; adapter modules supply only their framework bridge.
   Keep native derivative formulas in Rust, not in a dispatcher or adapter.</li>
 <li><strong>Recorded evidence.</strong> Numerical measurements stay unchanged. Privacy-only
-  transformations follow <a href="https://github.com/yaugenst/treams-rs/blob/1340631c5fe75108443b5c2defccf40e4aaaecde/benchmarks/README.md#privacy-and-provenance">the evidence policy</a>.</li>
+  transformations follow <a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/benchmarks/README.md#privacy-and-provenance">the evidence policy</a>.</li>
 <li><strong>Renames.</strong> Every public rename gets a bullet under "Unreleased" in
   <code>CHANGELOG.md</code>. A public name that differs from its treams counterpart also
   gets an entry in <code>python/treams_rs/_upstream.py</code>, which feeds the
@@ -3783,7 +3873,7 @@ complete workflows through the public API.</p>
 </ul>
 <h2 id="adding-a-binding">Adding a binding<a class="headerlink" href="#adding-a-binding" title="Permanent link">&para;</a></h2>
 <p>The crate docs of <code>treams-py</code>, in
-<a href="https://github.com/yaugenst/treams-rs/blob/1340631c5fe75108443b5c2defccf40e4aaaecde/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>, hold the
+<a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>, hold the
 checklist under "Adding a binding". Start with the core function and its tests.
 Add the binding, context and <code>pullback</code> to the file for that core module.
 Then add the export, stub, Python caller and a <code>CASES</code> entry in
@@ -3797,7 +3887,7 @@ Finish with <code>just docs</code>.</p>
    holds what the gradient needs. When the pullback reads the value, it
    returns only <code>XResidual</code> with a <code>value()</code> accessor, as <code>coeffs::mie</code> does
    (see 'Names' in the crate docs). Its pullback,
-   <code>XResidual::pullback(self, cotangent)</code>, turns the cotangent (the gradient of
+   <code>XResidual::pullback(&amp;self, cotangent)</code>, turns the cotangent (the gradient of
    a real loss with respect to the value) into the input gradients <code>XGradient</code>
    (<a href="../../reference/glossary/#records-and-gradients">glossary</a>). Test the
    implementation in the module's inline <code>tests</code> module and the physics in
@@ -3824,7 +3914,7 @@ the bindings, Python and treams. The crate docs state the rules for each
 layer: "Names" in the
 <a href="../../rust/treams_core/#names"><code>treams-core</code> docs</a>
 and "Naming rules" in
-<a href="https://github.com/yaugenst/treams-rs/blob/1340631c5fe75108443b5c2defccf40e4aaaecde/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>. The rules
+<a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>. The rules
 that cross layers:</p>
 <ul>
 <li><strong>Residuals and contexts.</strong> The Rust function <code>X</code> returns <code>XResidual</code>, and its

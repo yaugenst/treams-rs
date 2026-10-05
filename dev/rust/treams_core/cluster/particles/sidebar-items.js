@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ParticleExpansion"],"fn":["couple","cylindrical_particle_cluster","particle_cluster","validate_particle_blocks"],"struct":["ParticleClusterGradient","ParticleClusterResidual"]};
+window.SIDEBAR_ITEMS = {"enum":["ParticleExpansion"],"fn":["couple","cylindrical_particle_cluster","framed_state_size","invalid_state","particle_cluster","validate_particle_blocks"],"struct":["ParticleClusterGradient","ParticleClusterResidual"]};

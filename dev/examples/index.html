@@ -972,6 +972,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1474,6 +1478,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="forward_field_sensitivity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across a field map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reverse_cluster_gradient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scattering gradient
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1492,6 +1552,8 @@
       
         
           
+        
+      
         
       
         
@@ -1569,6 +1631,34 @@
     
   
     Framework adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../differentiation/choosing-a-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a differentiation mode
   
 
     
@@ -1768,7 +1858,7 @@
   <span class="md-ellipsis">
     
   
-    Analytic pullbacks
+    Analytic pushforwards and pullbacks
   
 
     
@@ -3570,8 +3660,20 @@ against central differences.</p>
 <td>The derivatives of the transmission of a sphere array on a slab with respect to the sphere radius and the slab thickness</td>
 <td>JAX</td>
 </tr>
+<tr>
+<td><a href="forward_field_sensitivity/">Changes across a field map</a></td>
+<td>Forward-mode changes at every field point when the wavelength or common sphere radius changes</td>
+<td>JAX</td>
+</tr>
+<tr>
+<td><a href="reverse_cluster_gradient/">Cluster scattering gradient</a></td>
+<td>Reverse-mode changes in one scattering cross section with respect to eight radii and all particle positions</td>
+<td>JAX</td>
+</tr>
 </tbody>
 </table>
+<p><a href="../differentiation/choosing-a-mode/">Choosing a differentiation mode</a> compares
+both modes on the same results, with a runnable timing script.</p>
 <h2 id="running-the-examples">Running the examples<a class="headerlink" href="#running-the-examples" title="Permanent link">&para;</a></h2>
 <p>Run a script from the repository root with treams-rs installed:</p>
 <div class="highlight"><pre><span></span><code>python<span class="w"> </span>docs/examples/sphere.py

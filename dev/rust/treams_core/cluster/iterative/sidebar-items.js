@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["IterativeGradient","IterativeResidual","IterativeSolution","IterativeSphereCluster"]};
+window.SIDEBAR_ITEMS = {"mod":["saved"],"struct":["IterativeGradient","IterativeResidual","IterativeSolution","IterativeSphereCluster"]};

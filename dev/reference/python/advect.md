@@ -4,9 +4,9 @@
 <!-- fmt: off -->
 
 Advect adapter: physics objects and records differentiated by Advect, on the
-CPU and in first-order reverse mode only. Each gradient pass uses the data
-stored by its forward pass once, so call the transformed objective again for
-every optimization step. Inputs may be float64, complex128, float32 or
+CPU and in first-order forward and reverse mode. Derivative directions reuse
+the data stored by their forward invocation; a new optimization step records
+the new inputs. Inputs may be float64, complex128, float32 or
 complex64; the Rust code computes in double precision, outputs are float64 or
 complex128, and each gradient has the dtype of its input.
 
@@ -29,10 +29,12 @@ The Rust core computes each gradient analytically with a pullback: a map from
 the gradient with respect to an output to the gradients with respect to the
 inputs. ``treams_rs.diff`` defines records, contexts and pullbacks.
 
-Install ``treams-rs[advect]``. Forward mode, higher derivatives, staging and
+Install ``treams-rs[advect]``. Higher derivatives, staging and
 checkpointing are not available. Mode cutoffs, integer labels and topology are
 static. Pass inputs as arrays (scalars as ``np.asarray(x)``) and keep traced
 values inside Advect: converting them to float or NumPy loses derivatives.
+Advect 0.3.1 or later reuses the native context from the forward invocation,
+including its factorizations, for every direction on a linear map.
 Plain Python and NumPy inputs retain NumPy behavior; constant physics objects
 are promoted when combined with Advect values. Use this explicit namespace
 when constants alone should produce Advect objects, or for its record helpers.
@@ -1434,7 +1436,11 @@ Transmission/reflection for port amplitudes; fixed port wavevectors.
 SMatrix.cascade(next_layer: SMatrix) -> SMatrix
 ```
 
-Compose this lower system with the adjacent upper system.
+Compose adjacent systems whose port wavevectors have the same dependence.
+
+Fixed basis ports cannot be mixed with diffraction-order ports: matching
+their current wavevectors does not match their derivatives. Use a fixed
+basis for both systems, or diffraction orders for both.
 
 ### `SMatrix.bands`
 
@@ -2214,6 +2220,18 @@ Eigenvalues and phase-fixed eigenvectors of a complex matrix, differentiable.
 At repeated eigenvalues only equally weighted sums of those eigenvalues,
 without eigenvector dependence, have a gradient. Individual eigenmodes
 have no gradient there.
+
+## `eigvals`
+
+```python
+eigvals(operator: ArrayLike) -> NDArray[np.complex128]
+```
+
+Differentiable eigenvalues, without an eigenvector phase constraint.
+
+Values are sorted by real part, then imaginary part. Forward mode requires
+distinct real parts to keep that order fixed. Reverse mode also supports
+equal loss weights at ordering ties and repeated eigenvalues.
 
 ## `expansion`
 

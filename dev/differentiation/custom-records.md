@@ -1,7 +1,9 @@
 # Custom records
 
 `treams_rs.jax.wrap`, `treams_rs.torch.wrap` and `treams_rs.autograd.wrap` turn
-any record into a function that the framework differentiates. Use them for the `diff` records that the
+any record into a function that the framework differentiates. A context with
+both derivative methods supports forward and reverse mode; a pullback closure
+supports reverse mode. Use them for the `diff` records that the
 physics objects do not call, or to combine several records into one operation.
 
 ```python
@@ -24,6 +26,9 @@ def spread(operator):
 
 values, vectors = jax.jit(eigensystem)(jnp.asarray(matrix))
 gradient = jax.grad(spread)(jnp.asarray(matrix))
+values_and_vectors, tangents = jax.jvp(
+    eigensystem, (jnp.asarray(matrix),), (jnp.ones_like(jnp.asarray(matrix)),)
+)
 ```
 
 Advect has no public `wrap`. `treams_rs.advect` offers an array function for
@@ -42,8 +47,18 @@ A record for `wrap` follows these rules:
   inputs: a tuple for several inputs, an array for one. The
   [glossary](../reference/glossary.md#records-and-gradients) defines both
   terms.
-- Each gradient has the shape of its input. The adapter keeps the real part of
-  the gradient of a real input.
+- Each gradient has the shape of its input. A native gradient of shape `(1,)`
+  is also accepted for a scalar input and converted to shape `()`.
+  The adapter keeps the real part of the gradient of a real input.
+- Forward mode requires `context.pushforward(*tangents)`: one tangent per
+  dynamic input, in the same order as the pullback's results. Each tangent has
+  the input's shape and real or complex domain. The returned tangent has the
+  primal output's shape and tuple structure. There is no conjugation of JVP
+  inputs or outputs, in any framework.
+- A native context is reusable. Its saved residual must correspond to the
+  current record inputs; a context from different inputs gives incorrect
+  derivatives. A pullback-only closure remains supported for reverse mode,
+  but a JVP through it raises `NotImplementedError`.
 - Gradients follow the [pairing](index.md#rules) of the `diff` records. JAX and
   HIPS Autograd pair complex numbers without the conjugate, so their adapters conjugate the
   cotangents and the gradients around the pullback; a record never converts.
@@ -54,24 +69,28 @@ The JAX `wrap(record, *examples)` runs the record once on the examples to learn
 the output shapes and dtypes. Later calls must use the same input shapes and
 dtypes, and the examples must be valid physical inputs. The PyTorch and HIPS Autograd
 `wrap(record)` needs no examples: it learns the outputs on each call.
+Built-in records expose numerical saved state to JAX. A custom record without
+that metadata runs again for every derivative application, including a direct
+JVP; keep the record deterministic and account for this extra primal work.
 
-## Fixed configuration in closures
+## Fixed configuration
 
-The inputs of a record are its differentiable arrays. Everything else, such as
-`lmax`, bases, labels and keywords, belongs in the record's closure:
+The inputs of a record are its differentiable arrays. Bind fixed choices such
+as `lmax`, bases, labels and keywords with `functools.partial`. This also keeps
+a built-in record's saved-state support, so JAX can reuse its numerical work:
 
 ```python
 import jax
 import jax.numpy as jnp
 import numpy as np
+from functools import partial
 from treams_rs import diff
 from treams_rs import jax as tr
 
 jax.config.update("jax_enable_x64", True)
 
 
-def record_cluster(k0, radii, epsilon, positions):
-    return diff.sphere_cluster(1, float(k0), radii, epsilon, positions)  # lmax = 1
+record_cluster = partial(diff.sphere_cluster, 1)  # lmax = 1
 
 
 k0 = np.asarray(1.0)
@@ -93,16 +112,21 @@ d_radii, d_positions = jax.grad(size, argnums=(0, 1))(
 
 `diff.sphere_cluster` returns its gradients in the order of its arguments,
 `(k0, radii, epsilon, positions)`, so the record passes them on unchanged.
+A Python closure also works, but JAX treats it as a custom record and repeats
+its forward calculation when applying a derivative.
 
 ## Choosing the gradients
 
 A record differentiates every input it takes. Some contexts return gradients for
 more inputs than an objective needs. The context of `diff.sphere` always returns
 five gradients, `(k0, radii, epsilon, mu, kappa)`, even when `mu` and `kappa`
-take their defaults. A small pullback closure selects and orders the gradients:
+take their defaults. Select the pullback results and insert zero tangents for
+fixed inputs in the pushforward:
 
 ```python
 import torch
+import numpy as np
+from types import SimpleNamespace
 from treams_rs import diff
 from treams_rs import torch as tr
 
@@ -114,14 +138,28 @@ def record_sphere(radii, epsilon):
         _, d_radii, d_epsilon, _, _ = context.pullback(cotangent)
         return d_radii, d_epsilon
 
-    return matrix, pullback
+    def pushforward(d_radii, d_epsilon):
+        fixed_material = np.zeros_like(epsilon)
+        return context.pushforward(
+            0.0, d_radii, d_epsilon, fixed_material, fixed_material
+        )
+
+    return matrix, SimpleNamespace(pullback=pullback, pushforward=pushforward)
 
 
 sphere = tr.wrap(record_sphere)
 radii = torch.tensor([0.3], dtype=torch.float64, requires_grad=True)
 epsilon = torch.tensor([3.0 + 0.1j, 1.0], dtype=torch.complex128, requires_grad=True)
 sphere(radii, epsilon).abs().square().sum().backward()
+value, tangent = torch.func.jvp(
+    sphere, (radii, epsilon), (torch.ones_like(radii), torch.zeros_like(epsilon))
+)
+assert tangent.shape == value.shape
 ```
+
+Returning only `matrix, pullback` from this example preserves reverse-mode
+behavior, but removes forward-mode support: the adapter does not infer a JVP
+from a pullback or construct a dense Jacobian.
 
 The same pattern selects the axial gradients of cylindrical records.
 `context.pullback_axial` appends them to the other gradients:
@@ -134,6 +172,11 @@ The same pattern selects the axial gradients of cylindrical records.
 
 The docstring of each `diff` record states its gradients. The adapter never
 guesses which inputs are differentiable.
+
+The matching `pushforward_axial` takes those axial tangents last. For factors
+built from particle blocks, `pushforward_blocks` takes a sequence of local block
+tangents, followed by coupling and incident-field tangents. A wrapper that
+flattens or selects dynamic inputs must adapt both derivative methods.
 
 ## Records by family
 

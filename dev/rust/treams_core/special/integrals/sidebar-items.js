@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["BROADCAST","COTANGENT","PARALLEL"],"fn":["incgamma","incgamma_array","intkambe","intkambe_array"],"mod":["double","gamma","kambe"],"struct":["IncgammaResidual","IntkambeResidual"]};
+window.SIDEBAR_ITEMS = {"constant":["BROADCAST","COTANGENT","PARALLEL"],"fn":["incgamma","incgamma_array","intkambe","intkambe_array","kambe_eta_derivative","kambe_z_derivative"],"mod":["double","gamma","kambe"],"struct":["IncgammaResidual","IntkambeResidual"]};

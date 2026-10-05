@@ -93,7 +93,7 @@
 <a href=#93 id=93 data-nosnippet>93</a>//!   pullback does not read the value. When the pullback reads it, the forward returns
 <a href=#94 id=94 data-nosnippet>94</a>//!   only the residual, which lends the value through an accessor such as `value()`:
 <a href=#95 id=95 data-nosnippet>95</a>//!   [`coeffs::mie`], [`smatrix::tr`] and [`linalg::solve`] work this way.
-<a href=#96 id=96 data-nosnippet>96</a>//!   `XResidual::pullback(self, cotangent)` returns an `XGradient` with one field per
+<a href=#96 id=96 data-nosnippet>96</a>//!   `XResidual::pullback(&amp;self, cotangent)` returns an `XGradient` with one field per
 <a href=#97 id=97 data-nosnippet>97</a>//!   differentiable input, or an array of gradients in argument order. The residual
 <a href=#98 id=98 data-nosnippet>98</a>//!   name drops the suffixes `_array`, `_matrix` and `_value`:
 <a href=#99 id=99 data-nosnippet>99</a>//!   `sw::polar_translation_array` returns a [`sw::PolarTranslationResidual`], and
@@ -196,15 +196,15 @@
 <a href=#196 id=196 data-nosnippet>196</a>//!
 <a href=#197 id=197 data-nosnippet>197</a>//! # Glossary
 <a href=#198 id=198 data-nosnippet>198</a>//!
-<a href=#199 id=199 data-nosnippet>199</a>//! A record is a function that returns a value and a context. The context stores what is needed to compute gradients later and can be used once: `context.pullback(g)` takes the gradient `g` of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.
+<a href=#199 id=199 data-nosnippet>199</a>//! A record is a function that returns a value and a reusable context. The context stores what is needed to compute derivatives later: `context.pullback(g)` takes the gradient `g` of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.
 <a href=#200 id=200 data-nosnippet>200</a>//!
-<a href=#201 id=201 data-nosnippet>201</a>//! In the Rust core, a function returns `(value, XResidual)`, and `XResidual::pullback(self, cotangent)` returns the input gradients as `XGradient`.
+<a href=#201 id=201 data-nosnippet>201</a>//! In the Rust core, a function returns `(value, XResidual)`, and `XResidual::pullback(&amp;self, cotangent)` returns the input gradients as `XGradient`.
 <a href=#202 id=202 data-nosnippet>202</a>//!
 <a href=#203 id=203 data-nosnippet>203</a>//! | Term | Meaning |
 <a href=#204 id=204 data-nosnippet>204</a>//! |---|---|
 <a href=#205 id=205 data-nosnippet>205</a>//! | forward | A function that computes a value. One that supports gradients returns a residual, beside the value or holding it. |
 <a href=#206 id=206 data-nosnippet>206</a>//! | residual | What a forward saves for its pullback: `XResidual` for the forward `X`. Not the `b - A x` of a linear system, which the GMRES solver of [`linalg`] calls the residual. |
-<a href=#207 id=207 data-nosnippet>207</a>//! | pullback | `XResidual::pullback`: turns the gradient with respect to the value into the gradients with respect to the inputs. It consumes the residual, so it runs once. |
+<a href=#207 id=207 data-nosnippet>207</a>//! | pullback | `XResidual::pullback`: turns the gradient with respect to the value into the gradients with respect to the inputs. It borrows the reusable residual. |
 <a href=#208 id=208 data-nosnippet>208</a>//! | cotangent | The gradient of a real-valued loss with respect to one value: the `g` of the definition above. |
 <a href=#209 id=209 data-nosnippet>209</a>//! | gradient | `XGradient`: the input gradients that a pullback returns, in the order of the forward's arguments. |
 <a href=#210 id=210 data-nosnippet>210</a>//! | record | The Python name of a forward with a residual: a function of `treams_rs.diff` that returns `(value, context)`. |
@@ -298,95 +298,96 @@
 <a href=#298 id=298 data-nosnippet>298</a></span><span class="kw">pub mod </span>cluster;
 <a href=#299 id=299 data-nosnippet>299</a><span class="kw">pub mod </span>coeffs;
 <a href=#300 id=300 data-nosnippet>300</a><span class="kw">pub mod </span>ebcm;
-<a href=#301 id=301 data-nosnippet>301</a><span class="kw">pub mod </span>tmatrix;
-<a href=#302 id=302 data-nosnippet>302</a>
-<a href=#303 id=303 data-nosnippet>303</a><span class="comment">// L5: planar and periodic S-matrices (treams SMatrices).
-<a href=#304 id=304 data-nosnippet>304</a></span><span class="kw">pub mod </span>smatrix;
-<a href=#305 id=305 data-nosnippet>305</a>
-<a href=#306 id=306 data-nosnippet>306</a><span class="doccomment">/// Property tests by domain. An inline `tests` module checks how one module computes;
-<a href=#307 id=307 data-nosnippet>307</a>/// a file here checks a physical, analytic or adjoint identity of a domain's public
-<a href=#308 id=308 data-nosnippet>308</a>/// operations.
-<a href=#309 id=309 data-nosnippet>309</a></span><span class="attr">#[cfg(test)]
-<a href=#310 id=310 data-nosnippet>310</a></span><span class="kw">mod </span>properties;
-<a href=#311 id=311 data-nosnippet>311</a><span class="doccomment">/// Case budgets, pairings, finite differences, strategies and fixtures that the tests
-<a href=#312 id=312 data-nosnippet>312</a>/// share.
-<a href=#313 id=313 data-nosnippet>313</a></span><span class="attr">#[cfg(test)]
-<a href=#314 id=314 data-nosnippet>314</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>test_support;
-<a href=#315 id=315 data-nosnippet>315</a>
-<a href=#316 id=316 data-nosnippet>316</a><span class="doccomment">/// Complex double precision used throughout the numerical core.
-<a href=#317 id=317 data-nosnippet>317</a></span><span class="kw">pub type </span>Complex = num_complex::Complex64;
-<a href=#318 id=318 data-nosnippet>318</a>
-<a href=#319 id=319 data-nosnippet>319</a><span class="doccomment">/// The largest multipole degree `l`, and the largest `|m|` of a cylindrical mode.
-<a href=#320 id=320 data-nosnippet>320</a>///
-<a href=#321 id=321 data-nosnippet>321</a>/// Translations couple degrees up to `2 MAX_DEGREE` (`special::MAX_ORDER`): the
-<a href=#322 id=322 data-nosnippet>322</a>/// log-factorial cache, the AMOS Bessel orders and the solid-harmonic tables cover that
-<a href=#323 id=323 data-nosnippet>323</a>/// range. treams has no such limit.
-<a href=#324 id=324 data-nosnippet>324</a>///
-<a href=#325 id=325 data-nosnippet>325</a>/// Error messages write the numbers out, with a comment naming the constant: the checks
-<a href=#326 id=326 data-nosnippet>326</a>/// run once per element, and a literal message keeps formatting code out of them.
-<a href=#327 id=327 data-nosnippet>327</a></span><span class="kw">pub const </span>MAX_DEGREE: i32 = <span class="number">128</span>;
-<a href=#328 id=328 data-nosnippet>328</a>
-<a href=#329 id=329 data-nosnippet>329</a><span class="doccomment">/// A numerical failure, invalid physical input or refused memory.
-<a href=#330 id=330 data-nosnippet>330</a>///
-<a href=#331 id=331 data-nosnippet>331</a>/// The Python bindings raise [`OutOfMemory`](Self::OutOfMemory) as `MemoryError` and
-<a href=#332 id=332 data-nosnippet>332</a>/// every other variant as `ValueError`, each with the displayed message.
-<a href=#333 id=333 data-nosnippet>333</a></span><span class="attr">#[derive(Debug, thiserror::Error)]
-<a href=#334 id=334 data-nosnippet>334</a></span><span class="kw">pub enum </span>Error {
-<a href=#335 id=335 data-nosnippet>335</a>    <span class="doccomment">/// The operation does not accept the input, for example a negative degree or a
-<a href=#336 id=336 data-nosnippet>336</a>    /// non-finite wavenumber.
-<a href=#337 id=337 data-nosnippet>337</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
-<a href=#338 id=338 data-nosnippet>338</a>    </span>InvalidInput(String),
-<a href=#339 id=339 data-nosnippet>339</a>    <span class="doccomment">/// An AMOS Bessel, Legendre, Ferrers, Wigner, incomplete gamma or Kambe evaluation
-<a href=#340 id=340 data-nosnippet>340</a>    /// failed.
-<a href=#341 id=341 data-nosnippet>341</a>    </span><span class="attr">#[error(<span class="string">"special-function evaluation failed: {0}"</span>)]
-<a href=#342 id=342 data-nosnippet>342</a>    </span>SpecialFunction(String),
-<a href=#343 id=343 data-nosnippet>343</a>    <span class="doccomment">/// A finite input produced a non-finite value, for example an overflowing phase.
-<a href=#344 id=344 data-nosnippet>344</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
-<a href=#345 id=345 data-nosnippet>345</a>    </span>NonFinite(String),
-<a href=#346 id=346 data-nosnippet>346</a>    <span class="doccomment">/// A sum, series, iteration or decomposition did not reach its tolerance, or
-<a href=#347 id=347 data-nosnippet>347</a>    /// cancellation lost the accuracy.
-<a href=#348 id=348 data-nosnippet>348</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
-<a href=#349 id=349 data-nosnippet>349</a>    </span>NotConverged(String),
-<a href=#350 id=350 data-nosnippet>350</a>    <span class="doccomment">/// A linear system (an LU solve, a 2 x 2 Mie inverse or an S-matrix solve) is
-<a href=#351 id=351 data-nosnippet>351</a>    /// singular at the supplied parameters.
-<a href=#352 id=352 data-nosnippet>352</a>    </span><span class="attr">#[error(<span class="string">"singular linear system"</span>)]
-<a href=#353 id=353 data-nosnippet>353</a>    </span>Singular,
-<a href=#354 id=354 data-nosnippet>354</a>    <span class="doccomment">/// The system refused memory for an output or workspace. The bindings raise it as
-<a href=#355 id=355 data-nosnippet>355</a>    /// `MemoryError`.
-<a href=#356 id=356 data-nosnippet>356</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
-<a href=#357 id=357 data-nosnippet>357</a>    </span>OutOfMemory(String),
-<a href=#358 id=358 data-nosnippet>358</a>}
-<a href=#359 id=359 data-nosnippet>359</a>
-<a href=#360 id=360 data-nosnippet>360</a><span class="kw">impl </span>Error {
-<a href=#361 id=361 data-nosnippet>361</a>    <span class="doccomment">/// [`OutOfMemory`](Self::OutOfMemory) for `count` elements of `element_bytes` bytes
-<a href=#362 id=362 data-nosnippet>362</a>    /// each: "cannot allocate 4096 bytes", or "cannot allocate more than
-<a href=#363 id=363 data-nosnippet>363</a>    /// 18446744073709551615 bytes" (`usize::MAX` on 64-bit targets) when the product
-<a href=#364 id=364 data-nosnippet>364</a>    /// overflows.
-<a href=#365 id=365 data-nosnippet>365</a>    </span><span class="attr">#[must_use]
-<a href=#366 id=366 data-nosnippet>366</a>    </span><span class="kw">pub fn </span>out_of_memory(count: usize, element_bytes: usize) -&gt; <span class="self">Self </span>{
-<a href=#367 id=367 data-nosnippet>367</a>        <span class="self">Self</span>::OutOfMemory(count.checked_mul(element_bytes).map_or_else(
-<a href=#368 id=368 data-nosnippet>368</a>            || <span class="macro">format!</span>(<span class="string">"cannot allocate more than {} bytes"</span>, usize::MAX),
-<a href=#369 id=369 data-nosnippet>369</a>            |bytes| <span class="macro">format!</span>(<span class="string">"cannot allocate {bytes} bytes"</span>),
-<a href=#370 id=370 data-nosnippet>370</a>        ))
-<a href=#371 id=371 data-nosnippet>371</a>    }
-<a href=#372 id=372 data-nosnippet>372</a>
-<a href=#373 id=373 data-nosnippet>373</a>    <span class="doccomment">/// Whether the evaluation failed numerically ([`SpecialFunction`], [`NonFinite`] or
-<a href=#374 id=374 data-nosnippet>374</a>    /// [`NotConverged`]) rather than on its input, a singular system or memory.
-<a href=#375 id=375 data-nosnippet>375</a>    ///
-<a href=#376 id=376 data-nosnippet>376</a>    /// Another method may succeed where one fails numerically: the one-dimensional
-<a href=#377 id=377 data-nosnippet>377</a>    /// spherical lattice sums then fall back to their spectral series.
-<a href=#378 id=378 data-nosnippet>378</a>    ///
-<a href=#379 id=379 data-nosnippet>379</a>    /// [`SpecialFunction`]: Self::SpecialFunction
-<a href=#380 id=380 data-nosnippet>380</a>    /// [`NonFinite`]: Self::NonFinite
-<a href=#381 id=381 data-nosnippet>381</a>    /// [`NotConverged`]: Self::NotConverged
-<a href=#382 id=382 data-nosnippet>382</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const fn </span>is_numerical(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#383 id=383 data-nosnippet>383</a>        <span class="macro">matches!</span>(
-<a href=#384 id=384 data-nosnippet>384</a>            <span class="self">self</span>,
-<a href=#385 id=385 data-nosnippet>385</a>            <span class="self">Self</span>::SpecialFunction(<span class="kw">_</span>) | <span class="self">Self</span>::NonFinite(<span class="kw">_</span>) | <span class="self">Self</span>::NotConverged(<span class="kw">_</span>)
-<a href=#386 id=386 data-nosnippet>386</a>        )
-<a href=#387 id=387 data-nosnippet>387</a>    }
-<a href=#388 id=388 data-nosnippet>388</a>}
-<a href=#389 id=389 data-nosnippet>389</a>
-<a href=#390 id=390 data-nosnippet>390</a><span class="doccomment">/// Numerical result with a typed error.
-<a href=#391 id=391 data-nosnippet>391</a></span><span class="kw">pub type </span><span class="prelude-ty">Result</span>&lt;T&gt; = std::result::Result&lt;T, Error&gt;;
+<a href=#301 id=301 data-nosnippet>301</a><span class="kw">pub mod </span>saved;
+<a href=#302 id=302 data-nosnippet>302</a><span class="kw">pub mod </span>tmatrix;
+<a href=#303 id=303 data-nosnippet>303</a>
+<a href=#304 id=304 data-nosnippet>304</a><span class="comment">// L5: planar and periodic S-matrices (treams SMatrices).
+<a href=#305 id=305 data-nosnippet>305</a></span><span class="kw">pub mod </span>smatrix;
+<a href=#306 id=306 data-nosnippet>306</a>
+<a href=#307 id=307 data-nosnippet>307</a><span class="doccomment">/// Property tests by domain. An inline `tests` module checks how one module computes;
+<a href=#308 id=308 data-nosnippet>308</a>/// a file here checks a physical, analytic or adjoint identity of a domain's public
+<a href=#309 id=309 data-nosnippet>309</a>/// operations.
+<a href=#310 id=310 data-nosnippet>310</a></span><span class="attr">#[cfg(test)]
+<a href=#311 id=311 data-nosnippet>311</a></span><span class="kw">mod </span>properties;
+<a href=#312 id=312 data-nosnippet>312</a><span class="doccomment">/// Case budgets, pairings, finite differences, strategies and fixtures that the tests
+<a href=#313 id=313 data-nosnippet>313</a>/// share.
+<a href=#314 id=314 data-nosnippet>314</a></span><span class="attr">#[cfg(test)]
+<a href=#315 id=315 data-nosnippet>315</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>test_support;
+<a href=#316 id=316 data-nosnippet>316</a>
+<a href=#317 id=317 data-nosnippet>317</a><span class="doccomment">/// Complex double precision used throughout the numerical core.
+<a href=#318 id=318 data-nosnippet>318</a></span><span class="kw">pub type </span>Complex = num_complex::Complex64;
+<a href=#319 id=319 data-nosnippet>319</a>
+<a href=#320 id=320 data-nosnippet>320</a><span class="doccomment">/// The largest multipole degree `l`, and the largest `|m|` of a cylindrical mode.
+<a href=#321 id=321 data-nosnippet>321</a>///
+<a href=#322 id=322 data-nosnippet>322</a>/// Translations couple degrees up to `2 MAX_DEGREE` (`special::MAX_ORDER`): the
+<a href=#323 id=323 data-nosnippet>323</a>/// log-factorial cache, the AMOS Bessel orders and the solid-harmonic tables cover that
+<a href=#324 id=324 data-nosnippet>324</a>/// range. treams has no such limit.
+<a href=#325 id=325 data-nosnippet>325</a>///
+<a href=#326 id=326 data-nosnippet>326</a>/// Error messages write the numbers out, with a comment naming the constant: the checks
+<a href=#327 id=327 data-nosnippet>327</a>/// run once per element, and a literal message keeps formatting code out of them.
+<a href=#328 id=328 data-nosnippet>328</a></span><span class="kw">pub const </span>MAX_DEGREE: i32 = <span class="number">128</span>;
+<a href=#329 id=329 data-nosnippet>329</a>
+<a href=#330 id=330 data-nosnippet>330</a><span class="doccomment">/// A numerical failure, invalid physical input or refused memory.
+<a href=#331 id=331 data-nosnippet>331</a>///
+<a href=#332 id=332 data-nosnippet>332</a>/// The Python bindings raise [`OutOfMemory`](Self::OutOfMemory) as `MemoryError` and
+<a href=#333 id=333 data-nosnippet>333</a>/// every other variant as `ValueError`, each with the displayed message.
+<a href=#334 id=334 data-nosnippet>334</a></span><span class="attr">#[derive(Clone, Debug, thiserror::Error)]
+<a href=#335 id=335 data-nosnippet>335</a></span><span class="kw">pub enum </span>Error {
+<a href=#336 id=336 data-nosnippet>336</a>    <span class="doccomment">/// The operation does not accept the input, for example a negative degree or a
+<a href=#337 id=337 data-nosnippet>337</a>    /// non-finite wavenumber.
+<a href=#338 id=338 data-nosnippet>338</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
+<a href=#339 id=339 data-nosnippet>339</a>    </span>InvalidInput(String),
+<a href=#340 id=340 data-nosnippet>340</a>    <span class="doccomment">/// An AMOS Bessel, Legendre, Ferrers, Wigner, incomplete gamma or Kambe evaluation
+<a href=#341 id=341 data-nosnippet>341</a>    /// failed.
+<a href=#342 id=342 data-nosnippet>342</a>    </span><span class="attr">#[error(<span class="string">"special-function evaluation failed: {0}"</span>)]
+<a href=#343 id=343 data-nosnippet>343</a>    </span>SpecialFunction(String),
+<a href=#344 id=344 data-nosnippet>344</a>    <span class="doccomment">/// A finite input produced a non-finite value, for example an overflowing phase.
+<a href=#345 id=345 data-nosnippet>345</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
+<a href=#346 id=346 data-nosnippet>346</a>    </span>NonFinite(String),
+<a href=#347 id=347 data-nosnippet>347</a>    <span class="doccomment">/// A sum, series, iteration or decomposition did not reach its tolerance, or
+<a href=#348 id=348 data-nosnippet>348</a>    /// cancellation lost the accuracy.
+<a href=#349 id=349 data-nosnippet>349</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
+<a href=#350 id=350 data-nosnippet>350</a>    </span>NotConverged(String),
+<a href=#351 id=351 data-nosnippet>351</a>    <span class="doccomment">/// A linear system (an LU solve, a 2 x 2 Mie inverse or an S-matrix solve) is
+<a href=#352 id=352 data-nosnippet>352</a>    /// singular at the supplied parameters.
+<a href=#353 id=353 data-nosnippet>353</a>    </span><span class="attr">#[error(<span class="string">"singular linear system"</span>)]
+<a href=#354 id=354 data-nosnippet>354</a>    </span>Singular,
+<a href=#355 id=355 data-nosnippet>355</a>    <span class="doccomment">/// The system refused memory for an output or workspace. The bindings raise it as
+<a href=#356 id=356 data-nosnippet>356</a>    /// `MemoryError`.
+<a href=#357 id=357 data-nosnippet>357</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
+<a href=#358 id=358 data-nosnippet>358</a>    </span>OutOfMemory(String),
+<a href=#359 id=359 data-nosnippet>359</a>}
+<a href=#360 id=360 data-nosnippet>360</a>
+<a href=#361 id=361 data-nosnippet>361</a><span class="kw">impl </span>Error {
+<a href=#362 id=362 data-nosnippet>362</a>    <span class="doccomment">/// [`OutOfMemory`](Self::OutOfMemory) for `count` elements of `element_bytes` bytes
+<a href=#363 id=363 data-nosnippet>363</a>    /// each: "cannot allocate 4096 bytes", or "cannot allocate more than
+<a href=#364 id=364 data-nosnippet>364</a>    /// 18446744073709551615 bytes" (`usize::MAX` on 64-bit targets) when the product
+<a href=#365 id=365 data-nosnippet>365</a>    /// overflows.
+<a href=#366 id=366 data-nosnippet>366</a>    </span><span class="attr">#[must_use]
+<a href=#367 id=367 data-nosnippet>367</a>    </span><span class="kw">pub fn </span>out_of_memory(count: usize, element_bytes: usize) -&gt; <span class="self">Self </span>{
+<a href=#368 id=368 data-nosnippet>368</a>        <span class="self">Self</span>::OutOfMemory(count.checked_mul(element_bytes).map_or_else(
+<a href=#369 id=369 data-nosnippet>369</a>            || <span class="macro">format!</span>(<span class="string">"cannot allocate more than {} bytes"</span>, usize::MAX),
+<a href=#370 id=370 data-nosnippet>370</a>            |bytes| <span class="macro">format!</span>(<span class="string">"cannot allocate {bytes} bytes"</span>),
+<a href=#371 id=371 data-nosnippet>371</a>        ))
+<a href=#372 id=372 data-nosnippet>372</a>    }
+<a href=#373 id=373 data-nosnippet>373</a>
+<a href=#374 id=374 data-nosnippet>374</a>    <span class="doccomment">/// Whether the evaluation failed numerically ([`SpecialFunction`], [`NonFinite`] or
+<a href=#375 id=375 data-nosnippet>375</a>    /// [`NotConverged`]) rather than on its input, a singular system or memory.
+<a href=#376 id=376 data-nosnippet>376</a>    ///
+<a href=#377 id=377 data-nosnippet>377</a>    /// Another method may succeed where one fails numerically: the one-dimensional
+<a href=#378 id=378 data-nosnippet>378</a>    /// spherical lattice sums then fall back to their spectral series.
+<a href=#379 id=379 data-nosnippet>379</a>    ///
+<a href=#380 id=380 data-nosnippet>380</a>    /// [`SpecialFunction`]: Self::SpecialFunction
+<a href=#381 id=381 data-nosnippet>381</a>    /// [`NonFinite`]: Self::NonFinite
+<a href=#382 id=382 data-nosnippet>382</a>    /// [`NotConverged`]: Self::NotConverged
+<a href=#383 id=383 data-nosnippet>383</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const fn </span>is_numerical(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#384 id=384 data-nosnippet>384</a>        <span class="macro">matches!</span>(
+<a href=#385 id=385 data-nosnippet>385</a>            <span class="self">self</span>,
+<a href=#386 id=386 data-nosnippet>386</a>            <span class="self">Self</span>::SpecialFunction(<span class="kw">_</span>) | <span class="self">Self</span>::NonFinite(<span class="kw">_</span>) | <span class="self">Self</span>::NotConverged(<span class="kw">_</span>)
+<a href=#387 id=387 data-nosnippet>387</a>        )
+<a href=#388 id=388 data-nosnippet>388</a>    }
+<a href=#389 id=389 data-nosnippet>389</a>}
+<a href=#390 id=390 data-nosnippet>390</a>
+<a href=#391 id=391 data-nosnippet>391</a><span class="doccomment">/// Numerical result with a typed error.
+<a href=#392 id=392 data-nosnippet>392</a></span><span class="kw">pub type </span><span class="prelude-ty">Result</span>&lt;T&gt; = std::result::Result&lt;T, Error&gt;;
 </code></pre></div></section></main></body></html>

@@ -970,6 +970,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1472,6 +1476,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/forward_field_sensitivity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across a field map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/reverse_cluster_gradient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scattering gradient
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1490,6 +1550,8 @@
       
         
           
+        
+      
         
       
         
@@ -1567,6 +1629,34 @@
     
   
     Framework adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../differentiation/choosing-a-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a differentiation mode
   
 
     
@@ -1766,7 +1856,7 @@
   <span class="md-ellipsis">
     
   
-    Analytic pullbacks
+    Analytic pushforwards and pullbacks
   
 
     
@@ -3538,9 +3628,9 @@ Rust paths start at the crate root, so <code>sw::Mode</code> is <code>treams_cor
 Python code never needs <code>_native</code>; its names appear in type annotations and
 error messages.</p>
 <h2 id="records-and-gradients">Records and gradients<a class="headerlink" href="#records-and-gradients" title="Permanent link">&para;</a></h2>
-<p>A record is a function that returns a value and a context. The context stores what is needed to compute gradients later and can be used once: <code>context.pullback(g)</code> takes the gradient <code>g</code> of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.</p>
+<p>A record is a function that returns a value and a reusable context. The context stores what is needed to compute derivatives later: <code>context.pullback(g)</code> takes the gradient <code>g</code> of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.</p>
 <p>In the Rust core, a function returns <code>(value, XResidual)</code>, and
-<code>XResidual::pullback(self, cotangent)</code> returns the input gradients as
+<code>XResidual::pullback(&amp;self, cotangent)</code> returns the input gradients as
 <code>XGradient</code>.</p>
 <table>
 <thead>
@@ -3556,7 +3646,7 @@ error messages.</p>
 </tr>
 <tr>
 <td>context</td>
-<td>the one-use object a record returns; <code>context.pullback(g)</code> computes the input gradients</td>
+<td>the reusable object a record returns; its pullback and pushforward share saved derivative data</td>
 </tr>
 <tr>
 <td>residual</td>

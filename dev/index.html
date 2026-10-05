@@ -1059,6 +1059,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1561,6 +1565,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="examples/forward_field_sensitivity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across a field map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="examples/reverse_cluster_gradient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scattering gradient
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1579,6 +1639,8 @@
       
         
           
+        
+      
         
       
         
@@ -1656,6 +1718,34 @@
     
   
     Framework adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="differentiation/choosing-a-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a differentiation mode
   
 
     
@@ -1855,7 +1945,7 @@
   <span class="md-ellipsis">
     
   
-    Analytic pullbacks
+    Analytic pushforwards and pullbacks
   
 
     
@@ -3572,8 +3662,8 @@ functions and objects.</p>
 <p><strong>Analytic gradients</strong></p>
 <p>Advect, JAX, PyTorch and HIPS Autograd differentiate calculations
 involving T-matrices, clusters, periodic arrays and S-matrices through the
-ordinary API. Rust computes each derivative analytically, without finite
-differences.</p>
+ordinary API in first-order forward and reverse mode. Rust computes each
+derivative analytically, without finite differences.</p>
 <p><a href="differentiation/">Differentiation →</a></p>
 </li>
 <li>
@@ -3603,8 +3693,8 @@ its gradient, within 48 MiB.</p>
 <h2 id="limits">Limits<a class="headerlink" href="#limits" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>CPU execution.</strong> Computations use CPU <a href="guide/threads/">threads</a>, not GPUs.</li>
-<li><strong>First-order gradients.</strong> Forward-mode differentiation and second derivatives
-  are unsupported.</li>
+<li><strong>First-order derivatives.</strong> Forward and reverse mode are supported; second
+  and higher derivatives are unsupported.</li>
 <li><strong>NumPy arithmetic.</strong> Operations on <code>.array</code> return ordinary arrays. The
   objects retain the basis, wavenumber and media. The treams <code>PhysicsArray</code> is
   available in <code>operators</code> for evaluating operators.</li>

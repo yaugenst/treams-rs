@@ -1,9 +1,16 @@
 # Differentiation
 
-treams-rs computes first-order gradients in Rust, analytically. Every
+treams-rs computes first-order forward and reverse derivatives in Rust,
+analytically. Every
 differentiable function is a record:
 
-> A record is a function that returns a value and a context. The context stores what is needed to compute gradients later and can be used once: `context.pullback(g)` takes the gradient `g` of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.
+> A record is a function that returns a value and a reusable context. The context stores what is needed to compute derivatives later: `context.pullback(g)` takes the gradient `g` of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.
+
+The same context also provides `context.pushforward(*input_tangents)`: a
+Jacobian–vector product (JVP), which maps an input perturbation to the resulting
+output perturbation. Pass one tangent per dynamic input, in pullback order.
+The output tangent has the primal output's shape and tuple structure. Both
+derivative directions can be called repeatedly on the same context.
 
 The pullback maps the gradient with respect to the output, called the
 cotangent, back to the inputs. The
@@ -13,7 +20,7 @@ context, pullback and cotangent for the whole project.
 ```python
 import numpy as np
 from treams_rs import diff
-from treams_rs.testing import check_pullback
+from treams_rs.testing import check_pullback, check_pushforward
 
 # One sphere of size parameter x = k0 r = 0.6, then the vacuum around it.
 x = np.array([0.6])
@@ -30,11 +37,23 @@ assert d_x.shape == x.shape and d_epsilon.shape == epsilon.shape
 
 # Compare the pullback with central differences. The degree 1 stays fixed.
 check_pullback(lambda *inputs: diff.mie(1, *inputs), x, epsilon, mu, kappa)
+
+# Sensitivity of every coefficient to the size parameter, with materials fixed.
+tangent = context.pushforward(
+    np.ones_like(x), np.zeros_like(epsilon), np.zeros_like(mu), np.zeros_like(kappa)
+)
+assert tangent.shape == coefficients.shape
+check_pushforward(lambda *inputs: diff.mie(1, *inputs), x, epsilon, mu, kappa)
 ```
 
 The [`diff` reference](../reference/python/diff.md) lists every record with the
-order of its gradients. [Gradient checks](gradient-checks.md) explains
-`check_pullback`.
+order of its dynamic inputs. [Gradient checks](gradient-checks.md) explains
+`check_pullback` and `check_pushforward`.
+
+Forward mode is useful for a few input directions and many outputs, such as an
+entire field map's sensitivity to radius or frequency. Reverse mode is useful
+for a few scalar objectives and many design parameters. Both compute first
+derivatives; combining them does not enable second derivatives of native calls.
 
 ## Rules
 
@@ -45,6 +64,9 @@ order of its gradients. [Gradient checks](gradient-checks.md) explains
   differentiable inputs in the order of the forward arguments:
   `diff.sphere_cluster(lmax, k0, radii, epsilon, positions)` returns the
   gradients `(k0, radii, epsilon, positions)`.
+- **Tangent order.** `context.pushforward(k0, radii, epsilon, positions)` takes
+  tangents in that same order. Each tangent has its input's original shape;
+  broadcasting follows the primal call. Real inputs require real tangents.
 - **Pairing.** The gradient `g` of a complex value `x` satisfies
   `dL = Re(sum(conj(g) * dx))`, in NumPy `np.vdot(g, dx).real`. Its real part is
   the derivative with respect to `Re x`, its imaginary part the derivative with
@@ -52,14 +74,14 @@ order of its gradients. [Gradient checks](gradient-checks.md) explains
 - **Fixed inputs.** Mode labels, cutoffs such as `lmax`, basis sizes, quadrature
   nodes, material topology and the order of eigenvalues have no gradient. A
   record takes them as integers or keywords, not as differentiable inputs.
-- **One use.** A pullback consumes its context. A second call raises
-  `ValueError`; record again for another gradient.
-- **Shape checks first.** A cotangent of the wrong shape raises `ValueError`
-  before the context is consumed, so the call can be retried.
+- **Reuse.** Pushforwards and pullbacks borrow the same immutable residual.
+  Call either method repeatedly for different directions or cotangents.
+- **Shape checks first.** A tangent or cotangent of the wrong shape, or with
+  non-finite entries, raises `ValueError` and leaves the context unchanged.
 - **Ownership.** The context owns copies of the data it needs. Changing the input
   arrays after the forward call leaves the gradients unchanged.
-- **First order on the CPU.** Pullbacks give first derivatives in reverse mode,
-  on the CPU only.
+- **First order on the CPU.** Pushforwards and pullbacks give first derivatives
+  on the CPU. Higher derivatives remain unsupported.
 
 ```python
 import numpy as np
@@ -72,9 +94,18 @@ solution, context = diff.solve(operator, np.ones((2, 1), complex))
 with pytest.raises(ValueError, match="shape"):
     context.pullback(np.ones((3, 1)))  # the context stays usable
 d_operator, d_rhs = context.pullback(np.ones_like(solution))
-with pytest.raises(ValueError, match="consumed"):
-    context.pullback(np.ones_like(solution))
+again_operator, again_rhs = context.pullback(np.ones_like(solution))
+np.testing.assert_allclose(again_operator, d_operator)
+np.testing.assert_allclose(again_rhs, d_rhs)
+tangent = context.pushforward(np.zeros_like(operator), np.ones_like(solution))
+np.testing.assert_allclose(tangent, np.linalg.solve(operator, np.ones_like(solution)))
 ```
+
+Cylindrical records expose `pushforward_axial`, appending the axial-wavenumber
+tangent just as `pullback_axial` appends its gradient. Factors built from
+particle blocks expose `pushforward_blocks`, whose first input is a sequence
+of block tangents. The corresponding ordinary methods cover fixed axial
+wavenumbers and dense local matrices.
 
 [Analytic pullbacks](../design/pullbacks.md) gives the reasons for these rules.
 
@@ -98,3 +129,6 @@ HIPS Autograd.
 - **Thresholds and degeneracies.** Exact diffraction thresholds, a change of the
   direct-shell grouping in a lattice sum and individual degenerate eigenmodes
   have no smooth derivative.
+- **Spectral outputs.** Full eigensystem JVPs require distinct eigenvalues and
+  unique phase pivots. Individual singular-value JVPs require distinct positive
+  values. Some smooth spectral sums still have pullbacks at degeneracies.

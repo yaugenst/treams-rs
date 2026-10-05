@@ -49,8 +49,8 @@ np.testing.assert_allclose(cross_sections.extinction, 0.6258290233441384, rtol=1
 
     Advect, JAX, PyTorch and HIPS Autograd differentiate calculations
     involving T-matrices, clusters, periodic arrays and S-matrices through the
-    ordinary API. Rust computes each derivative analytically, without finite
-    differences.
+    ordinary API in first-order forward and reverse mode. Rust computes each
+    derivative analytically, without finite differences.
 
     [Differentiation →](differentiation/index.md)
 
@@ -84,8 +84,8 @@ np.testing.assert_allclose(cross_sections.extinction, 0.6258290233441384, rtol=1
 ## Limits
 
 - **CPU execution.** Computations use CPU [threads](guide/threads.md), not GPUs.
-- **First-order gradients.** Forward-mode differentiation and second derivatives
-  are unsupported.
+- **First-order derivatives.** Forward and reverse mode are supported; second
+  and higher derivatives are unsupported.
 - **NumPy arithmetic.** Operations on `.array` return ordinary arrays. The
   objects retain the basis, wavenumber and media. The treams `PhysicsArray` is
   available in `operators` for evaluating operators.

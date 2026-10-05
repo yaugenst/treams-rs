@@ -970,6 +970,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1472,6 +1476,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/forward_field_sensitivity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across a field map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/reverse_cluster_gradient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scattering gradient
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1490,6 +1550,8 @@
       
         
           
+        
+      
         
       
         
@@ -1567,6 +1629,34 @@
     
   
     Framework adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../differentiation/choosing-a-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a differentiation mode
   
 
     
@@ -1766,7 +1856,7 @@
   <span class="md-ellipsis">
     
   
-    Analytic pullbacks
+    Analytic pushforwards and pullbacks
   
 
     
@@ -11102,12 +11192,14 @@ adapter automatically. With the <code>[advect]</code> extra installed:</p>
 values as framework arrays (<code>advect.numpy</code>); convert to float/NumPy only after
 differentiation. Rust computes analytic gradients with respect to continuous
 geometry, material and frequency; mode cutoffs, integer labels and topology stay
-fixed. Advect, JAX, PyTorch and HIPS Autograd support CPU, first-order reverse
-mode with their documented dtype and transform limits. Plain Python and NumPy
+fixed. Advect, JAX, PyTorch and HIPS Autograd support CPU, first-order forward
+and reverse mode with their documented dtype and transform limits. Higher
+derivatives are unsupported. Plain Python and NumPy
 inputs retain NumPy behavior, without loading optional frameworks. Explicit
 <code>advect</code>, <code>jax</code>, <code>torch</code> and <code>autograd</code> namespaces remain available for
 framework-specific record helpers. <code>diff</code> returns each value with a context
-whose <code>pullback</code> gives the input gradients.</p>
+whose <code>pullback</code> gives input gradients and whose <code>pushforward</code> maps input
+tangents to output tangents. Both actions can reuse the same context.</p>
 <p>Offline help: <code>python -m treams_rs</code> shows this quickstart;
 <code>python -m treams_rs sphere_tmatrix</code> or <code>python -m treams_rs advect</code> shows
 focused help; <code>python -m treams_rs --search cross</code> lists matching names.

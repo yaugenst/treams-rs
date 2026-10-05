@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["MultipoleBasis"],"fn":["add_pair_gradient","validate_wavenumbers"],"struct":["Basis","ExpansionGradient","LatticeExpansionGradient"],"trait":["ModeLabel"]};
+window.SIDEBAR_ITEMS = {"enum":["MultipoleBasis"],"fn":["add_pair_gradient","pair_tangent","validate_expansion_tangent","validate_wavenumbers"],"struct":["Basis","ExpansionGradient","LatticeExpansionGradient"],"trait":["ModeLabel"]};

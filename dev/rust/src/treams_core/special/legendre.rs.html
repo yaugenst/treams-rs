@@ -247,106 +247,123 @@
 <a href=#247 id=247 data-nosnippet>247</a>    }
 <a href=#248 id=248 data-nosnippet>248</a>}
 <a href=#249 id=249 data-nosnippet>249</a>
-<a href=#250 id=250 data-nosnippet>250</a><span class="doccomment">/// Borrowed angular values with scalar-or-equal-length broadcasting.
-<a href=#251 id=251 data-nosnippet>251</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>angular_values(
-<a href=#252 id=252 data-nosnippet>252</a>    degrees: <span class="kw-2">&amp;</span>[f64],
-<a href=#253 id=253 data-nosnippet>253</a>    orders: <span class="kw-2">&amp;</span>[f64],
-<a href=#254 id=254 data-nosnippet>254</a>    arguments: <span class="kw-2">&amp;</span>[Complex],
-<a href=#255 id=255 data-nosnippet>255</a>    kind: Angular,
-<a href=#256 id=256 data-nosnippet>256</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Complex&gt;&gt; {
-<a href=#257 id=257 data-nosnippet>257</a>    <span class="kw">let </span>size = broadcast::size(
-<a href=#258 id=258 data-nosnippet>258</a>        <span class="kw-2">&amp;</span>[degrees.len(), orders.len(), arguments.len()],
-<a href=#259 id=259 data-nosnippet>259</a>        <span class="string">"angular arrays must have equal lengths or scalar inputs"</span>,
-<a href=#260 id=260 data-nosnippet>260</a>    )<span class="question-mark">?</span>;
-<a href=#261 id=261 data-nosnippet>261</a>    broadcast::map(size, PARALLEL, |i| {
-<a href=#262 id=262 data-nosnippet>262</a>        angular_value(
-<a href=#263 id=263 data-nosnippet>263</a>            element(degrees, i),
-<a href=#264 id=264 data-nosnippet>264</a>            element(orders, i),
-<a href=#265 id=265 data-nosnippet>265</a>            element(arguments, i),
-<a href=#266 id=266 data-nosnippet>266</a>            kind,
-<a href=#267 id=267 data-nosnippet>267</a>        )
-<a href=#268 id=268 data-nosnippet>268</a>    })
-<a href=#269 id=269 data-nosnippet>269</a>}
-<a href=#270 id=270 data-nosnippet>270</a>
-<a href=#271 id=271 data-nosnippet>271</a><span class="doccomment">/// What [`angular_array`] saves for its pullback: the degrees, orders, arguments and
-<a href=#272 id=272 data-nosnippet>272</a>/// function. The pullback recomputes the local derivatives.
-<a href=#273 id=273 data-nosnippet>273</a></span><span class="attr">#[derive(Debug)]
-<a href=#274 id=274 data-nosnippet>274</a></span><span class="kw">pub struct </span>AngularResidual {
-<a href=#275 id=275 data-nosnippet>275</a>    degrees: Vec&lt;f64&gt;,
-<a href=#276 id=276 data-nosnippet>276</a>    orders: Vec&lt;f64&gt;,
-<a href=#277 id=277 data-nosnippet>277</a>    arguments: Vec&lt;Complex&gt;,
-<a href=#278 id=278 data-nosnippet>278</a>    kind: Angular,
-<a href=#279 id=279 data-nosnippet>279</a>    size: usize,
+<a href=#250 id=250 data-nosnippet>250</a><span class="doccomment">/// What [`angular_array`] saves for its pullback: the degrees, orders, arguments and
+<a href=#251 id=251 data-nosnippet>251</a>/// function. The pullback recomputes the local derivatives.
+<a href=#252 id=252 data-nosnippet>252</a></span><span class="attr">#[derive(Debug)]
+<a href=#253 id=253 data-nosnippet>253</a></span><span class="kw">pub struct </span>AngularResidual {
+<a href=#254 id=254 data-nosnippet>254</a>    degrees: Vec&lt;f64&gt;,
+<a href=#255 id=255 data-nosnippet>255</a>    orders: Vec&lt;f64&gt;,
+<a href=#256 id=256 data-nosnippet>256</a>    arguments: Vec&lt;Complex&gt;,
+<a href=#257 id=257 data-nosnippet>257</a>    kind: Angular,
+<a href=#258 id=258 data-nosnippet>258</a>    size: usize,
+<a href=#259 id=259 data-nosnippet>259</a>}
+<a href=#260 id=260 data-nosnippet>260</a>
+<a href=#261 id=261 data-nosnippet>261</a><span class="doccomment">/// Broadcast angular values and a complex-argument residual; labels stay fixed.
+<a href=#262 id=262 data-nosnippet>262</a>///
+<a href=#263 id=263 data-nosnippet>263</a>/// Upstream: the functions of [`angular_value`] over arrays.
+<a href=#264 id=264 data-nosnippet>264</a></span><span class="kw">pub fn </span>angular_array(
+<a href=#265 id=265 data-nosnippet>265</a>    degrees: Vec&lt;f64&gt;,
+<a href=#266 id=266 data-nosnippet>266</a>    orders: Vec&lt;f64&gt;,
+<a href=#267 id=267 data-nosnippet>267</a>    arguments: Vec&lt;Complex&gt;,
+<a href=#268 id=268 data-nosnippet>268</a>    kind: Angular,
+<a href=#269 id=269 data-nosnippet>269</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;Complex&gt;, AngularResidual)&gt; {
+<a href=#270 id=270 data-nosnippet>270</a>    <span class="kw">let </span>residual = AngularResidual::new(degrees, orders, arguments, kind)<span class="question-mark">?</span>;
+<a href=#271 id=271 data-nosnippet>271</a>    <span class="kw">let </span>values = broadcast::map(residual.size, PARALLEL, |i| {
+<a href=#272 id=272 data-nosnippet>272</a>        angular_value(
+<a href=#273 id=273 data-nosnippet>273</a>            element(<span class="kw-2">&amp;</span>residual.degrees, i),
+<a href=#274 id=274 data-nosnippet>274</a>            element(<span class="kw-2">&amp;</span>residual.orders, i),
+<a href=#275 id=275 data-nosnippet>275</a>            element(<span class="kw-2">&amp;</span>residual.arguments, i),
+<a href=#276 id=276 data-nosnippet>276</a>            kind,
+<a href=#277 id=277 data-nosnippet>277</a>        )
+<a href=#278 id=278 data-nosnippet>278</a>    })<span class="question-mark">?</span>;
+<a href=#279 id=279 data-nosnippet>279</a>    <span class="prelude-val">Ok</span>((values, residual))
 <a href=#280 id=280 data-nosnippet>280</a>}
 <a href=#281 id=281 data-nosnippet>281</a>
-<a href=#282 id=282 data-nosnippet>282</a><span class="doccomment">/// Broadcast angular values and a complex-argument residual; labels stay fixed.
-<a href=#283 id=283 data-nosnippet>283</a>///
-<a href=#284 id=284 data-nosnippet>284</a>/// Upstream: the functions of [`angular_value`] over arrays.
-<a href=#285 id=285 data-nosnippet>285</a></span><span class="kw">pub fn </span>angular_array(
-<a href=#286 id=286 data-nosnippet>286</a>    degrees: Vec&lt;f64&gt;,
-<a href=#287 id=287 data-nosnippet>287</a>    orders: Vec&lt;f64&gt;,
-<a href=#288 id=288 data-nosnippet>288</a>    arguments: Vec&lt;Complex&gt;,
-<a href=#289 id=289 data-nosnippet>289</a>    kind: Angular,
-<a href=#290 id=290 data-nosnippet>290</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;Complex&gt;, AngularResidual)&gt; {
-<a href=#291 id=291 data-nosnippet>291</a>    <span class="kw">let </span>values = angular_values(<span class="kw-2">&amp;</span>degrees, <span class="kw-2">&amp;</span>orders, <span class="kw-2">&amp;</span>arguments, kind)<span class="question-mark">?</span>;
-<a href=#292 id=292 data-nosnippet>292</a>    <span class="kw">let </span>size = values.len();
-<a href=#293 id=293 data-nosnippet>293</a>    <span class="prelude-val">Ok</span>((
-<a href=#294 id=294 data-nosnippet>294</a>        values,
-<a href=#295 id=295 data-nosnippet>295</a>        AngularResidual {
-<a href=#296 id=296 data-nosnippet>296</a>            degrees,
-<a href=#297 id=297 data-nosnippet>297</a>            orders,
-<a href=#298 id=298 data-nosnippet>298</a>            arguments,
-<a href=#299 id=299 data-nosnippet>299</a>            kind,
-<a href=#300 id=300 data-nosnippet>300</a>            size,
-<a href=#301 id=301 data-nosnippet>301</a>        },
-<a href=#302 id=302 data-nosnippet>302</a>    ))
-<a href=#303 id=303 data-nosnippet>303</a>}
-<a href=#304 id=304 data-nosnippet>304</a>
-<a href=#305 id=305 data-nosnippet>305</a><span class="kw">impl </span>AngularResidual {
-<a href=#306 id=306 data-nosnippet>306</a>    <span class="doccomment">/// The gradient with respect to the arguments, given the gradient `cotangent` with
-<a href=#307 id=307 data-nosnippet>307</a>    /// respect to the values. A zero cotangent skips derivatives that are singular at
-<a href=#308 id=308 data-nosnippet>308</a>    /// the poles.
-<a href=#309 id=309 data-nosnippet>309</a>    </span><span class="kw">pub fn </span>pullback(<span class="self">self</span>, cotangent: <span class="kw-2">&amp;</span>[Complex]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Complex&gt;&gt; {
-<a href=#310 id=310 data-nosnippet>310</a>        <span class="kw">let </span>[gradient] = broadcast::pullback(
-<a href=#311 id=311 data-nosnippet>311</a>            cotangent,
-<a href=#312 id=312 data-nosnippet>312</a>            <span class="self">self</span>.size,
-<a href=#313 id=313 data-nosnippet>313</a>            <span class="string">"angular cotangent must be finite and match output"</span>,
-<a href=#314 id=314 data-nosnippet>314</a>            [<span class="self">self</span>.arguments.len()],
-<a href=#315 id=315 data-nosnippet>315</a>            PARALLEL,
-<a href=#316 id=316 data-nosnippet>316</a>            |i, <span class="kw-2">&amp;</span>g| {
-<a href=#317 id=317 data-nosnippet>317</a>                <span class="kw">if </span>g == Complex::default() {
-<a href=#318 id=318 data-nosnippet>318</a>                    <span class="kw">return </span><span class="prelude-val">Ok</span>([g]);
-<a href=#319 id=319 data-nosnippet>319</a>                }
-<a href=#320 id=320 data-nosnippet>320</a>                <span class="kw">let </span>jet = angular_jet::&lt;<span class="number">1</span>&gt;(
-<a href=#321 id=321 data-nosnippet>321</a>                    element(<span class="kw-2">&amp;</span><span class="self">self</span>.degrees, i),
-<a href=#322 id=322 data-nosnippet>322</a>                    element(<span class="kw-2">&amp;</span><span class="self">self</span>.orders, i),
-<a href=#323 id=323 data-nosnippet>323</a>                    element(<span class="kw-2">&amp;</span><span class="self">self</span>.arguments, i),
-<a href=#324 id=324 data-nosnippet>324</a>                    <span class="self">self</span>.kind,
-<a href=#325 id=325 data-nosnippet>325</a>                )<span class="question-mark">?</span>;
-<a href=#326 id=326 data-nosnippet>326</a>                <span class="prelude-val">Ok</span>([g * jet.derivative.first().copied().unwrap_or_default().conj()])
-<a href=#327 id=327 data-nosnippet>327</a>            },
-<a href=#328 id=328 data-nosnippet>328</a>        )<span class="question-mark">?</span>;
-<a href=#329 id=329 data-nosnippet>329</a>        <span class="prelude-val">Ok</span>(gradient)
-<a href=#330 id=330 data-nosnippet>330</a>    }
-<a href=#331 id=331 data-nosnippet>331</a>}
-<a href=#332 id=332 data-nosnippet>332</a>
-<a href=#333 id=333 data-nosnippet>333</a><span class="doccomment">/// `[cos(theta), sin(theta)]` with their derivatives. The sine takes the principal
-<a href=#334 id=334 data-nosnippet>334</a>/// branch (nonnegative real part) and is exactly zero at the poles, where `theta` is a
-<a href=#335 id=335 data-nosnippet>335</a>/// floating-point multiple of `PI`.
-<a href=#336 id=336 data-nosnippet>336</a></span><span class="attr">#[allow(clippy::float_cmp)] </span><span class="comment">// Exact coordinate pole labels.
-<a href=#337 id=337 data-nosnippet>337</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>polar_trig&lt;<span class="kw">const </span>N: usize&gt;(theta: Jet&lt;N&gt;) -&gt; [Jet&lt;N&gt;; <span class="number">2</span>] {
-<a href=#338 id=338 data-nosnippet>338</a>    <span class="kw">let </span>cosine = theta.chain(theta.value.cos(), -theta.value.sin());
-<a href=#339 id=339 data-nosnippet>339</a>    <span class="kw">let </span><span class="kw-2">mut </span>sine = theta.chain(theta.value.sin(), theta.value.cos());
-<a href=#340 id=340 data-nosnippet>340</a>    <span class="comment">// Associated Legendre functions use the principal sine factor. Computing
-<a href=#341 id=341 data-nosnippet>341</a>    // its magnitude from sin(theta) preserves small angles lost in 1-cos²(theta).
-<a href=#342 id=342 data-nosnippet>342</a>    </span><span class="kw">if </span>sine.value.re &lt; <span class="number">0.0 </span>{
-<a href=#343 id=343 data-nosnippet>343</a>        sine = -sine;
-<a href=#344 id=344 data-nosnippet>344</a>    }
-<a href=#345 id=345 data-nosnippet>345</a>    <span class="comment">// Multipole translations amplify sin(PI)'s rounding residue. An exact
-<a href=#346 id=346 data-nosnippet>346</a>    // floating-point multiple of the PI constant denotes the coordinate pole.
-<a href=#347 id=347 data-nosnippet>347</a>    </span><span class="kw">if </span>theta.value.im == <span class="number">0.0 </span>&amp;&amp; theta.value.re % PI == <span class="number">0.0 </span>{
-<a href=#348 id=348 data-nosnippet>348</a>        sine.value = Complex::default();
-<a href=#349 id=349 data-nosnippet>349</a>    }
-<a href=#350 id=350 data-nosnippet>350</a>    [cosine, sine]
-<a href=#351 id=351 data-nosnippet>351</a>}
+<a href=#282 id=282 data-nosnippet>282</a><span class="kw">impl </span>AngularResidual {
+<a href=#283 id=283 data-nosnippet>283</a>    <span class="doccomment">/// Keep the broadcast inputs needed by derivatives without evaluating values.
+<a href=#284 id=284 data-nosnippet>284</a>    </span><span class="kw">pub fn </span>new(
+<a href=#285 id=285 data-nosnippet>285</a>        degrees: Vec&lt;f64&gt;,
+<a href=#286 id=286 data-nosnippet>286</a>        orders: Vec&lt;f64&gt;,
+<a href=#287 id=287 data-nosnippet>287</a>        arguments: Vec&lt;Complex&gt;,
+<a href=#288 id=288 data-nosnippet>288</a>        kind: Angular,
+<a href=#289 id=289 data-nosnippet>289</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
+<a href=#290 id=290 data-nosnippet>290</a>        <span class="kw">let </span>size = broadcast::size(
+<a href=#291 id=291 data-nosnippet>291</a>            <span class="kw-2">&amp;</span>[degrees.len(), orders.len(), arguments.len()],
+<a href=#292 id=292 data-nosnippet>292</a>            <span class="string">"angular arrays must have equal lengths or scalar inputs"</span>,
+<a href=#293 id=293 data-nosnippet>293</a>        )<span class="question-mark">?</span>;
+<a href=#294 id=294 data-nosnippet>294</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+<a href=#295 id=295 data-nosnippet>295</a>            degrees,
+<a href=#296 id=296 data-nosnippet>296</a>            orders,
+<a href=#297 id=297 data-nosnippet>297</a>            arguments,
+<a href=#298 id=298 data-nosnippet>298</a>            kind,
+<a href=#299 id=299 data-nosnippet>299</a>            size,
+<a href=#300 id=300 data-nosnippet>300</a>        })
+<a href=#301 id=301 data-nosnippet>301</a>    }
+<a href=#302 id=302 data-nosnippet>302</a>
+<a href=#303 id=303 data-nosnippet>303</a>    <span class="kw">fn </span>argument_derivative(<span class="kw-2">&amp;</span><span class="self">self</span>, i: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Complex&gt; {
+<a href=#304 id=304 data-nosnippet>304</a>        <span class="kw">let </span>jet = angular_jet::&lt;<span class="number">1</span>&gt;(
+<a href=#305 id=305 data-nosnippet>305</a>            element(<span class="kw-2">&amp;</span><span class="self">self</span>.degrees, i),
+<a href=#306 id=306 data-nosnippet>306</a>            element(<span class="kw-2">&amp;</span><span class="self">self</span>.orders, i),
+<a href=#307 id=307 data-nosnippet>307</a>            element(<span class="kw-2">&amp;</span><span class="self">self</span>.arguments, i),
+<a href=#308 id=308 data-nosnippet>308</a>            <span class="self">self</span>.kind,
+<a href=#309 id=309 data-nosnippet>309</a>        )<span class="question-mark">?</span>;
+<a href=#310 id=310 data-nosnippet>310</a>        <span class="prelude-val">Ok</span>(jet.derivative.first().copied().unwrap_or_default())
+<a href=#311 id=311 data-nosnippet>311</a>    }
+<a href=#312 id=312 data-nosnippet>312</a>
+<a href=#313 id=313 data-nosnippet>313</a>    <span class="doccomment">/// Directional derivative of every value with respect to its complex argument.
+<a href=#314 id=314 data-nosnippet>314</a>    </span><span class="kw">pub fn </span>pushforward(<span class="kw-2">&amp;</span><span class="self">self</span>, tangents: [<span class="kw-2">&amp;</span>[Complex]; <span class="number">1</span>]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Complex&gt;&gt; {
+<a href=#315 id=315 data-nosnippet>315</a>        broadcast::pushforward(
+<a href=#316 id=316 data-nosnippet>316</a>            tangents,
+<a href=#317 id=317 data-nosnippet>317</a>            <span class="self">self</span>.size,
+<a href=#318 id=318 data-nosnippet>318</a>            <span class="string">"angular tangent must be finite and broadcast to output"</span>,
+<a href=#319 id=319 data-nosnippet>319</a>            PARALLEL,
+<a href=#320 id=320 data-nosnippet>320</a>            |i, [tangent]| {
+<a href=#321 id=321 data-nosnippet>321</a>                <span class="kw">if </span>tangent == Complex::default() {
+<a href=#322 id=322 data-nosnippet>322</a>                    <span class="kw">return </span><span class="prelude-val">Ok</span>(tangent);
+<a href=#323 id=323 data-nosnippet>323</a>                }
+<a href=#324 id=324 data-nosnippet>324</a>                <span class="prelude-val">Ok</span>(tangent * <span class="self">self</span>.argument_derivative(i)<span class="question-mark">?</span>)
+<a href=#325 id=325 data-nosnippet>325</a>            },
+<a href=#326 id=326 data-nosnippet>326</a>        )
+<a href=#327 id=327 data-nosnippet>327</a>    }
+<a href=#328 id=328 data-nosnippet>328</a>
+<a href=#329 id=329 data-nosnippet>329</a>    <span class="doccomment">/// The gradient with respect to the arguments, given the gradient `cotangent` with
+<a href=#330 id=330 data-nosnippet>330</a>    /// respect to the values. A zero cotangent skips derivatives that are singular at
+<a href=#331 id=331 data-nosnippet>331</a>    /// the poles.
+<a href=#332 id=332 data-nosnippet>332</a>    </span><span class="kw">pub fn </span>pullback(<span class="kw-2">&amp;</span><span class="self">self</span>, cotangent: <span class="kw-2">&amp;</span>[Complex]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Complex&gt;&gt; {
+<a href=#333 id=333 data-nosnippet>333</a>        <span class="kw">let </span>[gradient] = broadcast::pullback(
+<a href=#334 id=334 data-nosnippet>334</a>            cotangent,
+<a href=#335 id=335 data-nosnippet>335</a>            <span class="self">self</span>.size,
+<a href=#336 id=336 data-nosnippet>336</a>            <span class="string">"angular cotangent must be finite and match output"</span>,
+<a href=#337 id=337 data-nosnippet>337</a>            [<span class="self">self</span>.arguments.len()],
+<a href=#338 id=338 data-nosnippet>338</a>            PARALLEL,
+<a href=#339 id=339 data-nosnippet>339</a>            |i, <span class="kw-2">&amp;</span>g| {
+<a href=#340 id=340 data-nosnippet>340</a>                <span class="kw">if </span>g == Complex::default() {
+<a href=#341 id=341 data-nosnippet>341</a>                    <span class="kw">return </span><span class="prelude-val">Ok</span>([g]);
+<a href=#342 id=342 data-nosnippet>342</a>                }
+<a href=#343 id=343 data-nosnippet>343</a>                <span class="prelude-val">Ok</span>([g * <span class="self">self</span>.argument_derivative(i)<span class="question-mark">?</span>.conj()])
+<a href=#344 id=344 data-nosnippet>344</a>            },
+<a href=#345 id=345 data-nosnippet>345</a>        )<span class="question-mark">?</span>;
+<a href=#346 id=346 data-nosnippet>346</a>        <span class="prelude-val">Ok</span>(gradient)
+<a href=#347 id=347 data-nosnippet>347</a>    }
+<a href=#348 id=348 data-nosnippet>348</a>}
+<a href=#349 id=349 data-nosnippet>349</a>
+<a href=#350 id=350 data-nosnippet>350</a><span class="doccomment">/// `[cos(theta), sin(theta)]` with their derivatives. The sine takes the principal
+<a href=#351 id=351 data-nosnippet>351</a>/// branch (nonnegative real part) and is exactly zero at the poles, where `theta` is a
+<a href=#352 id=352 data-nosnippet>352</a>/// floating-point multiple of `PI`.
+<a href=#353 id=353 data-nosnippet>353</a></span><span class="attr">#[allow(clippy::float_cmp)] </span><span class="comment">// Exact coordinate pole labels.
+<a href=#354 id=354 data-nosnippet>354</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>polar_trig&lt;<span class="kw">const </span>N: usize&gt;(theta: Jet&lt;N&gt;) -&gt; [Jet&lt;N&gt;; <span class="number">2</span>] {
+<a href=#355 id=355 data-nosnippet>355</a>    <span class="kw">let </span>cosine = theta.chain(theta.value.cos(), -theta.value.sin());
+<a href=#356 id=356 data-nosnippet>356</a>    <span class="kw">let </span><span class="kw-2">mut </span>sine = theta.chain(theta.value.sin(), theta.value.cos());
+<a href=#357 id=357 data-nosnippet>357</a>    <span class="comment">// Associated Legendre functions use the principal sine factor. Computing
+<a href=#358 id=358 data-nosnippet>358</a>    // its magnitude from sin(theta) preserves small angles lost in 1-cos²(theta).
+<a href=#359 id=359 data-nosnippet>359</a>    </span><span class="kw">if </span>sine.value.re &lt; <span class="number">0.0 </span>{
+<a href=#360 id=360 data-nosnippet>360</a>        sine = -sine;
+<a href=#361 id=361 data-nosnippet>361</a>    }
+<a href=#362 id=362 data-nosnippet>362</a>    <span class="comment">// Multipole translations amplify sin(PI)'s rounding residue. An exact
+<a href=#363 id=363 data-nosnippet>363</a>    // floating-point multiple of the PI constant denotes the coordinate pole.
+<a href=#364 id=364 data-nosnippet>364</a>    </span><span class="kw">if </span>theta.value.im == <span class="number">0.0 </span>&amp;&amp; theta.value.re % PI == <span class="number">0.0 </span>{
+<a href=#365 id=365 data-nosnippet>365</a>        sine.value = Complex::default();
+<a href=#366 id=366 data-nosnippet>366</a>    }
+<a href=#367 id=367 data-nosnippet>367</a>    [cosine, sine]
+<a href=#368 id=368 data-nosnippet>368</a>}
 </code></pre></div></section></main></body></html>

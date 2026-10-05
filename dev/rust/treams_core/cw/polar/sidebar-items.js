@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["cylindrical_jet","cylindrical_phase","polar_translation","polar_translation_array","polar_translation_pullback","tl_vcw","translate"],"struct":["PolarTranslationResidual"]};
+window.SIDEBAR_ITEMS = {"fn":["cylindrical_jet","cylindrical_phase","cylindrical_seeded","polar_translation","polar_translation_array","polar_translation_pullback","tl_vcw","translate"],"struct":["PolarTranslationResidual"]};

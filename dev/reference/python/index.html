@@ -970,6 +970,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1472,6 +1476,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/forward_field_sensitivity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across a field map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/reverse_cluster_gradient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scattering gradient
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1490,6 +1550,8 @@
       
         
           
+        
+      
         
       
         
@@ -1567,6 +1629,34 @@
     
   
     Framework adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../differentiation/choosing-a-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a differentiation mode
   
 
     
@@ -1766,7 +1856,7 @@
   <span class="md-ellipsis">
     
   
-    Analytic pullbacks
+    Analytic pushforwards and pullbacks
   
 
     
@@ -3544,23 +3634,23 @@ gradients with respect to the inputs (see the
 </tr>
 <tr>
 <td><a href="diff/"><code>treams_rs.diff</code></a></td>
-<td>Records: functions that return a value and a context for its gradients.</td>
+<td>Records: values with analytic first-order pushforward and pullback contexts.</td>
 </tr>
 <tr>
 <td><a href="testing/"><code>treams_rs.testing</code></a></td>
-<td>Finite-difference checks of first-order gradients and pullbacks.</td>
+<td>Finite-difference checks of first-order gradients, pullbacks and pushforwards.</td>
 </tr>
 <tr>
 <td><a href="advect/"><code>treams_rs.advect</code></a></td>
-<td>Advect adapter: physics objects and records differentiated by Advect, on the CPU and in first-order reverse mode only.</td>
+<td>Advect adapter: physics objects and records differentiated by Advect, on the CPU and in first-order forward and reverse mode.</td>
 </tr>
 <tr>
 <td><a href="jax/"><code>treams_rs.jax</code></a></td>
-<td>JAX adapter: physics objects and records as JAX operations on the CPU, in first-order reverse mode only, with jit and sequential vmap.</td>
+<td>JAX adapter: physics objects and records on the CPU with first-order forward and reverse mode, jit and sequential vmap.</td>
 </tr>
 <tr>
 <td><a href="torch/"><code>treams_rs.torch</code></a></td>
-<td>PyTorch adapter: physics objects and records as autograd operations on the CPU, in first-order reverse mode only.</td>
+<td>PyTorch adapter: physics objects and records as autograd operations on the CPU, in first-order forward and reverse mode.</td>
 </tr>
 <tr>
 <td><a href="autograd/"><code>treams_rs.autograd</code></a></td>
@@ -3576,7 +3666,7 @@ solvers return.</p>
 <li><strong>native_pairing</strong>: dL = Re(sum(conj(g) * dx))</li>
 <li><strong>derivative_order</strong>: 1</li>
 <li><strong>static_parameters</strong>: mode counts, integer labels, topology; see each operation's docstring</li>
-<li><strong>context_lifetime</strong>: Treat native recorded contexts as single-use; record again for another pullback.</li>
+<li><strong>context_lifetime</strong>: Native recorded contexts are reusable: pushforwards and pullbacks share immutable residuals.</li>
 <li><strong>python_execution</strong>: CPU</li>
 </ul>
 <p>Backend <code>cpu</code>: precision float64, complex128.</p>

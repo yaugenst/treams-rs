@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["coupled","cw_rotate","cw_rotation","sw_rotate","sw_rotation"],"struct":["RotationResidual","Spherical"]};
+window.SIDEBAR_ITEMS = {"fn":["bytes","check_state_layout","coupled","coupled_count","cw_keys","cw_rotate","cw_rotation","read_orders","state_size","sw_keys","sw_rotate","sw_rotation","table_dimension"],"struct":["RotationResidual","Spherical"]};

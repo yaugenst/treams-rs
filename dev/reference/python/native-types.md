@@ -8,6 +8,38 @@
 Private classes that public methods return, such as the solver of
 `TMatrix.interaction`.
 
+### `_IncidentSelection`
+
+The fixed matching of an incident wave to diffraction ports.
+
+#### `_IncidentSelection.pullback`
+
+```python
+_IncidentSelection.pullback(gradient: Any) -> tuple[Any, ...]
+```
+
+Map port gradients to incident coefficients; metadata gradients are zero.
+
+#### `_IncidentSelection.pushforward`
+
+```python
+_IncidentSelection.pushforward(tangent: Any, *metadata: Any) -> Any
+```
+
+Select incident tangents at ports; metadata does not affect the selection.
+
+#### `_IncidentSelection.selection`
+
+```python
+_IncidentSelection.selection: Any
+```
+
+#### `_IncidentSelection.metadata`
+
+```python
+_IncidentSelection.metadata: tuple[Any, ...]
+```
+
 ### `_InteractionFactor`
 
 Prepared coupling for differentiable incident-column solves.
@@ -43,6 +75,8 @@ Factor once for repeated incident-field solves without a full response matrix.
 
 The returned factor's solve/record methods accept complex128 arrays with
 one incident illumination per column.
+
+**Pullback** `InteractionFactor.pullback_incident(cotangent: ArrayLike) -> ComplexArray`
 
 #### `_Interaction.illuminate`
 
@@ -92,6 +126,8 @@ _PeriodicInteraction.factor(lattice: ArrayLike, kpar: ArrayLike, *, eta: complex
 
 Reusable periodic factor for requested incident channel coefficients.
 
+**Pullback** `InteractionFactor.pullback_incident(cotangent: ArrayLike) -> ComplexArray`
+
 #### `_PeriodicInteraction.illuminate`
 
 ```python
@@ -122,6 +158,12 @@ constructors belong to the private `treams_rs._native` module.
 
 Created by ``diff.solve``. ``pullback(cotangent) -> (operator, rhs)``.
 
+#### `SolveContext.pushforward`
+
+```python
+SolveContext.pushforward(operator: ArrayLike, rhs: ArrayLike) -> ComplexArray
+```
+
 #### `SolveContext.pullback`
 
 ```python
@@ -133,15 +175,53 @@ SolveContext.pullback(cotangent: ArrayLike) -> tuple[ComplexArray, ComplexArray]
 Created by ``diff.eig``. ``pullback(eigenvalues, eigenvectors) -> operator``, one
 cotangent for each output.
 
+``pushforward(operator)`` returns the eigenvalue and eigenvector tangents.
+It requires distinct eigenvalues and unique largest eigenvector components
+for the recorded phase convention.
+
+#### `EigContext.pushforward`
+
+```python
+EigContext.pushforward(operator: ArrayLike) -> tuple[ComplexArray, ComplexArray]
+```
+
 #### `EigContext.pullback`
 
 ```python
 EigContext.pullback(eigenvalues: ArrayLike, eigenvectors: ArrayLike) -> ComplexArray
 ```
 
+### `EigvalsContext`
+
+Created by ``diff.eigvals``. Derivatives of eigenvalues alone.
+
+Pushforwards require distinct real parts; eigenvector phase ties are valid.
+Pullbacks allow equal weights at real-part ties and repeated eigenvalues.
+
+#### `EigvalsContext.pushforward`
+
+```python
+EigvalsContext.pushforward(operator: ArrayLike) -> ComplexArray
+```
+
+#### `EigvalsContext.pullback`
+
+```python
+EigvalsContext.pullback(eigenvalues: ArrayLike) -> ComplexArray
+```
+
 ### `SvdvalsContext`
 
 Created by ``diff.svdvals``. ``pullback(cotangent) -> operator``.
+
+``pushforward(operator)`` requires distinct positive singular values.
+Smooth spectral sums can still have pullbacks at repeated or zero values.
+
+#### `SvdvalsContext.pushforward`
+
+```python
+SvdvalsContext.pushforward(operator: ArrayLike) -> RealArray
+```
 
 #### `SvdvalsContext.pullback`
 
@@ -153,6 +233,12 @@ SvdvalsContext.pullback(cotangent: ArrayLike) -> ComplexArray
 
 Created by ``diff.coordinates``. ``pullback(cotangent) -> points``.
 
+#### `CoordinatesContext.pushforward`
+
+```python
+CoordinatesContext.pushforward(points_tangent: ArrayLike) -> RealArray
+```
+
 #### `CoordinatesContext.pullback`
 
 ```python
@@ -162,6 +248,12 @@ CoordinatesContext.pullback(cotangent: RealArray) -> RealArray
 ### `VectorCoordinatesContext`
 
 Created by ``diff.vector_coordinates``. ``pullback(cotangent) -> (vectors, points)``.
+
+#### `VectorCoordinatesContext.pushforward`
+
+```python
+VectorCoordinatesContext.pushforward(vectors_tangent: ArrayLike, points_tangent: ArrayLike) -> ComplexArray
+```
 
 #### `VectorCoordinatesContext.pullback`
 
@@ -173,6 +265,12 @@ VectorCoordinatesContext.pullback(cotangent: ComplexArray) -> tuple[ComplexArray
 
 Created by ``diff.incgamma``. ``pullback(cotangent) -> z``.
 
+#### `IncgammaContext.pushforward`
+
+```python
+IncgammaContext.pushforward(*tangents: ArrayLike) -> ComplexArray
+```
+
 #### `IncgammaContext.pullback`
 
 ```python
@@ -182,6 +280,12 @@ IncgammaContext.pullback(cotangent: ComplexArray) -> ComplexArray
 ### `IntkambeContext`
 
 Created by ``diff.intkambe``. ``pullback(cotangent) -> (z, eta)``.
+
+#### `IntkambeContext.pushforward`
+
+```python
+IntkambeContext.pushforward(*tangents: ArrayLike) -> ComplexArray
+```
 
 #### `IntkambeContext.pullback`
 
@@ -193,6 +297,12 @@ IntkambeContext.pullback(cotangent: ComplexArray) -> tuple[ComplexArray, Complex
 
 Created by ``diff.bessel``. ``pullback(cotangent) -> z``.
 
+#### `BesselContext.pushforward`
+
+```python
+BesselContext.pushforward(*tangents: ArrayLike) -> ComplexArray
+```
+
 #### `BesselContext.pullback`
 
 ```python
@@ -202,6 +312,12 @@ BesselContext.pullback(cotangent: ComplexArray) -> ComplexArray
 ### `AngularContext`
 
 Created by ``diff.angular``. ``pullback(cotangent) -> z``.
+
+#### `AngularContext.pushforward`
+
+```python
+AngularContext.pushforward(*tangents: ArrayLike) -> ComplexArray
+```
 
 #### `AngularContext.pullback`
 
@@ -213,6 +329,12 @@ AngularContext.pullback(cotangent: ComplexArray) -> ComplexArray
 
 Created by ``diff.wignerd``. ``pullback(cotangent) -> (phi, theta, psi)``.
 
+#### `WignerdContext.pushforward`
+
+```python
+WignerdContext.pushforward(*tangents: ArrayLike) -> ComplexArray
+```
+
 #### `WignerdContext.pullback`
 
 ```python
@@ -222,6 +344,12 @@ WignerdContext.pullback(cotangent: ComplexArray) -> tuple[ComplexArray, ComplexA
 ### `LatticeSumContext`
 
 Created by ``diff.lattice_sum``. ``pullback(cotangent) -> (k, kpar, a, r, eta)``.
+
+#### `LatticeSumContext.pushforward`
+
+```python
+LatticeSumContext.pushforward(k: ArrayLike, kpar: ArrayLike, a: ArrayLike, r: ArrayLike, eta: ArrayLike) -> ComplexArray
+```
 
 #### `LatticeSumContext.pullback`
 
@@ -236,6 +364,18 @@ Created by ``diff.lattice_expansion``.
 ``pullback(cotangent) -> (destination_positions, source_positions, ks, kpar, a)``.
 For cylindrical bases, ``pullback_axial(cotangent)`` appends the gradient of
 kzs, the sorted distinct axial wavenumbers.
+
+#### `LatticeExpansionContext.pushforward`
+
+```python
+LatticeExpansionContext.pushforward(destination: ArrayLike, source: ArrayLike, ks: ArrayLike, kpar: ArrayLike, vectors: ArrayLike) -> ComplexArray
+```
+
+#### `LatticeExpansionContext.pushforward_axial`
+
+```python
+LatticeExpansionContext.pushforward_axial(destination: ArrayLike, source: ArrayLike, ks: ArrayLike, kpar: ArrayLike, vectors: ArrayLike, axial: ArrayLike) -> ComplexArray
+```
 
 #### `LatticeExpansionContext.pullback_axial`
 
@@ -254,6 +394,12 @@ LatticeExpansionContext.pullback(cotangent: ArrayLike) -> tuple[RealArray, RealA
 Created by ``diff.lattice_expansion_from_table``. ``pullback(cotangent) -> values``,
 the gradient of the lattice-sum table.
 
+#### `LatticeExpansionFromTableContext.pushforward`
+
+```python
+LatticeExpansionFromTableContext.pushforward(tangent: ArrayLike) -> ComplexArray
+```
+
 #### `LatticeExpansionFromTableContext.pullback`
 
 ```python
@@ -265,6 +411,12 @@ LatticeExpansionFromTableContext.pullback(cotangent: ArrayLike) -> ComplexArray
 Created by ``diff.spherical_channels``.
 ``pullback(cotangent) -> (positions, ks, q, area)``.
 
+#### `SphericalChannelsContext.pushforward`
+
+```python
+SphericalChannelsContext.pushforward(positions: ArrayLike, ks: ArrayLike, q: ArrayLike, measure: float) -> ComplexArray
+```
+
 #### `SphericalChannelsContext.pullback`
 
 ```python
@@ -275,6 +427,12 @@ SphericalChannelsContext.pullback(cotangent: ArrayLike) -> tuple[RealArray, Comp
 
 Created by ``diff.cylindrical_channels``.
 ``pullback(cotangent) -> (positions, ks, q, period)``.
+
+#### `CylindricalChannelsContext.pushforward`
+
+```python
+CylindricalChannelsContext.pushforward(positions: ArrayLike, ks: ArrayLike, q: ArrayLike, measure: float) -> ComplexArray
+```
 
 #### `CylindricalChannelsContext.pullback`
 
@@ -290,6 +448,18 @@ or ``cw_to_sw``).
 ``pullback(cotangent) -> (destination_positions, source_positions, ks)``. For two
 cylindrical bases, ``pullback_axial(cotangent)`` appends the gradient of kzs,
 the sorted distinct axial wavenumbers.
+
+#### `ExpansionContext.pushforward`
+
+```python
+ExpansionContext.pushforward(destination_positions: ArrayLike, source_positions: ArrayLike, ks: ArrayLike) -> ComplexArray
+```
+
+#### `ExpansionContext.pushforward_axial`
+
+```python
+ExpansionContext.pushforward_axial(destination_positions: ArrayLike, source_positions: ArrayLike, ks: ArrayLike, kz: ArrayLike) -> ComplexArray
+```
 
 #### `ExpansionContext.pullback_axial`
 
@@ -309,6 +479,12 @@ Created by ``diff.periodic_to_cw``.
 ``pullback(cotangent) -> (destination_positions, source_positions, ks, kz, period)``,
 with one kz per destination mode.
 
+#### `PeriodicToCwContext.pushforward`
+
+```python
+PeriodicToCwContext.pushforward(destination_positions: ArrayLike, source_positions: ArrayLike, ks: ArrayLike, kz: ArrayLike, period: float) -> ComplexArray
+```
+
 #### `PeriodicToCwContext.pullback`
 
 ```python
@@ -322,6 +498,18 @@ Created by ``diff.field`` (through ``field`` or ``cylindrical_field``).
 ``pullback(cotangent) -> (coefficients, points, positions, ks)``. For a
 cylindrical basis, ``pullback_axial(cotangent)`` appends the gradient of kz,
 one per mode.
+
+#### `FieldContext.pushforward`
+
+```python
+FieldContext.pushforward(coefficients: ArrayLike, points: ArrayLike, positions: ArrayLike, ks: ArrayLike) -> ComplexArray
+```
+
+#### `FieldContext.pushforward_axial`
+
+```python
+FieldContext.pushforward_axial(coefficients: ArrayLike, points: ArrayLike, positions: ArrayLike, ks: ArrayLike, kz: ArrayLike) -> ComplexArray
+```
 
 #### `FieldContext.pullback`
 
@@ -343,6 +531,18 @@ Created by ``diff.field_operator`` (through ``field_operator`` or
 ``pullback(cotangent) -> (points, positions, ks)``. For a cylindrical basis,
 ``pullback_axial(cotangent)`` appends the gradient of kz, one per mode.
 
+#### `FieldOperatorContext.pushforward`
+
+```python
+FieldOperatorContext.pushforward(points: ArrayLike, positions: ArrayLike, ks: ArrayLike) -> ComplexArray
+```
+
+#### `FieldOperatorContext.pushforward_axial`
+
+```python
+FieldOperatorContext.pushforward_axial(points: ArrayLike, positions: ArrayLike, ks: ArrayLike, kz: ArrayLike) -> ComplexArray
+```
+
 #### `FieldOperatorContext.pullback`
 
 ```python
@@ -359,6 +559,12 @@ FieldOperatorContext.pullback_axial(cotangent: ArrayLike) -> tuple[RealArray, Re
 
 Created by ``diff.plane_expansion``. ``pullback(cotangent) -> (positions, vectors)``.
 
+#### `PlaneExpansionContext.pushforward`
+
+```python
+PlaneExpansionContext.pushforward(positions: ArrayLike, vectors: ArrayLike) -> ComplexArray
+```
+
 #### `PlaneExpansionContext.pullback`
 
 ```python
@@ -371,6 +577,12 @@ Created by ``diff.plane_field``.
 ``pullback(cotangent) -> (coefficients, points, vectors)``; the coefficient
 gradient is empty for a field operator.
 
+#### `PlaneFieldContext.pushforward`
+
+```python
+PlaneFieldContext.pushforward(coefficients: ArrayLike, points: ArrayLike, vectors: ArrayLike) -> ComplexArray
+```
+
 #### `PlaneFieldContext.pullback`
 
 ```python
@@ -381,6 +593,12 @@ PlaneFieldContext.pullback(cotangent: ArrayLike) -> tuple[ComplexArray, RealArra
 
 Created by ``diff.plane_phases``. ``pullback(cotangent) -> (points, vectors)``.
 
+#### `PlanePhasesContext.pushforward`
+
+```python
+PlanePhasesContext.pushforward(points: ArrayLike, vectors: ArrayLike) -> ComplexArray
+```
+
 #### `PlanePhasesContext.pullback`
 
 ```python
@@ -390,6 +608,12 @@ PlanePhasesContext.pullback(cotangent: ArrayLike) -> tuple[RealArray, ComplexArr
 ### `PlanePermutationContext`
 
 Created by ``diff.plane_permutation``. ``pullback(cotangent) -> vectors``.
+
+#### `PlanePermutationContext.pushforward`
+
+```python
+PlanePermutationContext.pushforward(vectors: ArrayLike) -> ComplexArray
+```
 
 #### `PlanePermutationContext.pullback`
 
@@ -402,6 +626,12 @@ PlanePermutationContext.pullback(cotangent: ArrayLike) -> ComplexArray
 Created by ``diff.rotation``. ``pullback(cotangent) -> [phi, theta, psi]``, a list
 of three floats.
 
+#### `RotationContext.pushforward`
+
+```python
+RotationContext.pushforward(angles: ArrayLike) -> ComplexArray
+```
+
 #### `RotationContext.pullback`
 
 ```python
@@ -412,6 +642,12 @@ RotationContext.pullback(cotangent: ArrayLike) -> list[float]
 
 Created by ``diff.spherical_translation``.
 ``pullback(cotangent) -> (kr, theta, phi)``.
+
+#### `SphericalTranslationContext.pushforward`
+
+```python
+SphericalTranslationContext.pushforward(*tangents: ArrayLike) -> ComplexArray
+```
 
 #### `SphericalTranslationContext.pullback`
 
@@ -424,6 +660,12 @@ SphericalTranslationContext.pullback(cotangent: ComplexArray) -> tuple[ComplexAr
 Created by ``diff.cylindrical_translation``.
 ``pullback(cotangent) -> (krr, phi, z, kz)``.
 
+#### `CylindricalTranslationContext.pushforward`
+
+```python
+CylindricalTranslationContext.pushforward(*tangents: ArrayLike) -> ComplexArray
+```
+
 #### `CylindricalTranslationContext.pullback`
 
 ```python
@@ -434,6 +676,12 @@ CylindricalTranslationContext.pullback(cotangent: ComplexArray) -> tuple[Complex
 
 Created by ``diff.vector_wave`` and ``diff.sph_harm``.
 ``pullback(cotangent)`` returns one gradient per argument, in order.
+
+#### `VectorWaveContext.pushforward`
+
+```python
+VectorWaveContext.pushforward(*tangents: ArrayLike) -> ComplexArray
+```
 
 #### `VectorWaveContext.pullback`
 
@@ -446,6 +694,12 @@ VectorWaveContext.pullback(cotangent: ComplexArray) -> tuple[ComplexArray, ...]
 Created by ``diff.sphere_cluster``.
 ``pullback(cotangent) -> (k0, radii, epsilon, positions)``.
 
+#### `SphereClusterContext.pushforward`
+
+```python
+SphereClusterContext.pushforward(k0: ArrayLike, radii: ArrayLike, epsilon: ArrayLike, positions: ArrayLike) -> ComplexArray
+```
+
 #### `SphereClusterContext.pullback`
 
 ```python
@@ -455,6 +709,12 @@ SphereClusterContext.pullback(cotangent: ArrayLike) -> tuple[float, RealArray, C
 ### `InteractionContext`
 
 Created by ``diff.interaction``. ``pullback(cotangent) -> (local, coupling)``.
+
+#### `InteractionContext.pushforward`
+
+```python
+InteractionContext.pushforward(local: ArrayLike, coupling: ArrayLike) -> ComplexArray
+```
 
 #### `InteractionContext.pullback`
 
@@ -467,6 +727,12 @@ InteractionContext.pullback(cotangent: ArrayLike) -> tuple[ComplexArray, Complex
 Created by ``diff.particle_cluster``.
 ``pullback(cotangent) -> (local, positions, ks)``, where ``local`` is a list
 with one gradient per particle.
+
+#### `ParticleClusterContext.pushforward`
+
+```python
+ParticleClusterContext.pushforward(local: Sequence[ArrayLike], positions: ArrayLike, ks: ArrayLike) -> ComplexArray
+```
 
 #### `ParticleClusterContext.pullback`
 
@@ -496,6 +762,8 @@ InteractionFactor(local: ComplexArray, coupling: ComplexArray) -> None
 InteractionFactor.from_blocks(local: list[ComplexArray], coupling: ComplexArray) -> InteractionFactor
 ```
 
+**Pullback** `InteractionFactor.pullback_incident(cotangent: ArrayLike) -> ComplexArray`
+
 #### `InteractionFactor.dimension`
 
 ```python
@@ -506,6 +774,12 @@ InteractionFactor.dimension: int
 
 ```python
 InteractionFactor.solve(incident: ComplexArray) -> ComplexArray
+```
+
+#### `InteractionFactor.pullback_incident`
+
+```python
+InteractionFactor.pullback_incident(cotangent: ArrayLike) -> ComplexArray
 ```
 
 #### `InteractionFactor.record`
@@ -522,14 +796,30 @@ InteractionFactor.record(incident: ComplexArray) -> tuple[ComplexArray, Illumina
 
 Created by ``InteractionFactor.record``, which ``diff.illuminate`` calls.
 
-The factor decides the pullback method when it is built, and the other
-method raises ValueError:
+The factor decides the derivative method when it is built, and the other
+form raises ValueError:
 
 * dense T (``factor_interaction``, ``illuminate``):
   ``pullback(cotangent) -> (local, coupling, incident)``;
 * blocks (``factor_interaction_blocks``, ``sphere_cluster_factor``):
   ``pullback_blocks(cotangent) -> (local, coupling, incident)``, where
   ``local`` is a list with one gradient per block.
+
+``pushforward(local, coupling, incident)`` and ``pushforward_blocks`` take
+the corresponding dense or per-block tangents and return scattered-field
+tangents.
+
+#### `IlluminateContext.pushforward`
+
+```python
+IlluminateContext.pushforward(local: ArrayLike, coupling: ArrayLike, incident: ArrayLike) -> ComplexArray
+```
+
+#### `IlluminateContext.pushforward_blocks`
+
+```python
+IlluminateContext.pushforward_blocks(local: Sequence[ArrayLike], coupling: ArrayLike, incident: ArrayLike) -> ComplexArray
+```
 
 #### `IlluminateContext.pullback`
 
@@ -547,6 +837,12 @@ IlluminateContext.pullback_blocks(cotangent: ArrayLike) -> tuple[list[ComplexArr
 
 Created by ``diff.mie``. ``pullback(cotangent) -> (x, epsilon, mu, kappa)``.
 
+#### `MieContext.pushforward`
+
+```python
+MieContext.pushforward(sizes: ArrayLike, epsilon: ArrayLike, mu: ArrayLike, kappa: ArrayLike) -> ComplexArray
+```
+
 #### `MieContext.pullback`
 
 ```python
@@ -558,6 +854,12 @@ MieContext.pullback(cotangent: ArrayLike) -> tuple[RealArray, ComplexArray, Comp
 Created by ``diff.mie_cyl``.
 ``pullback(cotangent) -> (kz, k0, radii, epsilon, mu, kappa)``.
 
+#### `MieCylContext.pushforward`
+
+```python
+MieCylContext.pushforward(kz: ArrayLike, k0: ArrayLike, radii: ArrayLike, epsilon: ArrayLike, mu: ArrayLike, kappa: ArrayLike) -> ComplexArray
+```
+
 #### `MieCylContext.pullback`
 
 ```python
@@ -567,6 +869,12 @@ MieCylContext.pullback(cotangent: ArrayLike) -> tuple[float, float, RealArray, C
 ### `EbcmQmatContext`
 
 Created by ``diff.ebcm_qmat``. ``pullback(cotangent) -> (radii, slopes, ks, zs)``.
+
+#### `EbcmQmatContext.pushforward`
+
+```python
+EbcmQmatContext.pushforward(radii: ArrayLike, slopes: ArrayLike, ks: ArrayLike, zs: ArrayLike) -> ComplexArray
+```
 
 #### `EbcmQmatContext.pullback`
 
@@ -618,6 +926,15 @@ Created by ``IterativeSphereCluster.record``, which
 The last item is no gradient: it holds the GMRES convergence of each
 solve of the adjoint (conjugate-transposed) system.
 
+``pushforward(k0, radii, epsilon, positions, incident)`` returns the scattered
+coefficient tangent and convergence certificates for the tangent solves.
+
+#### `IterativeContext.pushforward`
+
+```python
+IterativeContext.pushforward(k0: float, radii: ArrayLike, epsilon: ArrayLike, positions: ArrayLike, incident: ArrayLike) -> tuple[ComplexArray, list[Convergence]]
+```
+
 #### `IterativeContext.pullback`
 
 ```python
@@ -627,6 +944,12 @@ IterativeContext.pullback(cotangent: ArrayLike) -> tuple[float, RealArray, Compl
 ### `SphereContext`
 
 Created by ``diff.sphere``. ``pullback(cotangent) -> (k0, radii, epsilon, mu, kappa)``.
+
+#### `SphereContext.pushforward`
+
+```python
+SphereContext.pushforward(k0: ArrayLike, radii: ArrayLike, epsilon: ArrayLike, mu: ArrayLike, kappa: ArrayLike) -> ComplexArray
+```
 
 #### `SphereContext.pullback`
 
@@ -639,6 +962,12 @@ SphereContext.pullback(cotangent: ArrayLike) -> tuple[float, RealArray, ComplexA
 Created by ``diff.cylinder``.
 ``pullback(cotangent) -> (kzs, k0, radii, epsilon, mu, kappa)``.
 
+#### `CylinderContext.pushforward`
+
+```python
+CylinderContext.pushforward(kzs: ArrayLike, k0: ArrayLike, radii: ArrayLike, epsilon: ArrayLike, mu: ArrayLike, kappa: ArrayLike) -> ComplexArray
+```
+
 #### `CylinderContext.pullback`
 
 ```python
@@ -650,6 +979,12 @@ CylinderContext.pullback(cotangent: ArrayLike) -> tuple[RealArray, float, RealAr
 Created by ``diff.tmatrix_metric``. ``pullback(cotangent) -> (operator, ks)`` for
 a float cotangent.
 
+#### `TMatrixMetricContext.pushforward`
+
+```python
+TMatrixMetricContext.pushforward(operator: ArrayLike, ks: ArrayLike) -> float
+```
+
 #### `TMatrixMetricContext.pullback`
 
 ```python
@@ -659,6 +994,12 @@ TMatrixMetricContext.pullback(cotangent: float) -> tuple[ComplexArray, RealArray
 ### `SMatrixAddContext`
 
 Created by ``diff.smatrix_add``. ``pullback(cotangent) -> (lower, upper)``.
+
+#### `SMatrixAddContext.pushforward`
+
+```python
+SMatrixAddContext.pushforward(lower: ArrayLike, upper: ArrayLike) -> ComplexArray
+```
 
 #### `SMatrixAddContext.pullback`
 
@@ -671,6 +1012,12 @@ SMatrixAddContext.pullback(cotangent: ArrayLike) -> tuple[ComplexArray, ComplexA
 Created by ``diff.smatrix_illuminate``.
 ``pullback(cotangent) -> (lower, upper, up, down)``.
 
+#### `SMatrixIlluminateContext.pushforward`
+
+```python
+SMatrixIlluminateContext.pushforward(lower: ArrayLike, upper: ArrayLike, up: ArrayLike, down: ArrayLike) -> ComplexArray
+```
+
 #### `SMatrixIlluminateContext.pullback`
 
 ```python
@@ -680,6 +1027,12 @@ SMatrixIlluminateContext.pullback(cotangent: ArrayLike) -> tuple[ComplexArray, C
 ### `SMatrixPeriodicContext`
 
 Created by ``diff.smatrix_periodic``. ``pullback(cotangent) -> smats``.
+
+#### `SMatrixPeriodicContext.pushforward`
+
+```python
+SMatrixPeriodicContext.pushforward(smats: ArrayLike) -> ComplexArray
+```
 
 #### `SMatrixPeriodicContext.pullback`
 
@@ -692,6 +1045,12 @@ SMatrixPeriodicContext.pullback(cotangent: ArrayLike) -> ComplexArray
 Created by ``diff.bands``. ``pullback(wavenumbers, eigenvectors) -> (smats, period)``,
 one cotangent for each output.
 
+#### `BandsContext.pushforward`
+
+```python
+BandsContext.pushforward(smats: ArrayLike, period: ArrayLike) -> tuple[ComplexArray, ComplexArray]
+```
+
 #### `BandsContext.pullback`
 
 ```python
@@ -702,6 +1061,12 @@ BandsContext.pullback(wavenumbers: ArrayLike, eigenvectors: ArrayLike) -> tuple[
 
 Created by ``diff.smatrix_from_array``.
 ``pullback(cotangent) -> (response, channels)``.
+
+#### `SMatrixFromArrayContext.pushforward`
+
+```python
+SMatrixFromArrayContext.pushforward(response: ArrayLike, channels: ArrayLike) -> ComplexArray
+```
 
 #### `SMatrixFromArrayContext.pullback`
 
@@ -714,6 +1079,12 @@ SMatrixFromArrayContext.pullback(cotangent: ArrayLike) -> tuple[ComplexArray, Co
 Created by ``diff.smatrix_tr``.
 ``pullback(cotangent) -> (matrices, incident, ks, zs, q)``.
 
+#### `SMatrixTrContext.pushforward`
+
+```python
+SMatrixTrContext.pushforward(matrices: ArrayLike, incident: ArrayLike, ks: ArrayLike, zs: ArrayLike, q: ArrayLike) -> RealArray
+```
+
 #### `SMatrixTrContext.pullback`
 
 ```python
@@ -724,6 +1095,12 @@ SMatrixTrContext.pullback(cotangent: ArrayLike) -> tuple[ComplexArray, ComplexAr
 
 Created by ``diff.fresnel``. ``pullback(cotangent) -> (ks, kzs, zs)``.
 
+#### `FresnelContext.pushforward`
+
+```python
+FresnelContext.pushforward(ks: ArrayLike, kzs: ArrayLike, zs: ArrayLike) -> ComplexArray
+```
+
 #### `FresnelContext.pullback`
 
 ```python
@@ -733,6 +1110,12 @@ FresnelContext.pullback(cotangent: ArrayLike) -> tuple[ComplexArray, ComplexArra
 ### `InterfaceCoefficientsContext`
 
 Created by ``diff.interface_coefficients``. ``pullback(cotangent) -> (ks, zs, q)``.
+
+#### `InterfaceCoefficientsContext.pushforward`
+
+```python
+InterfaceCoefficientsContext.pushforward(ks: ArrayLike, zs: ArrayLike, q: ArrayLike) -> ComplexArray
+```
 
 #### `InterfaceCoefficientsContext.pullback`
 
@@ -745,6 +1128,12 @@ InterfaceCoefficientsContext.pullback(cotangent: ArrayLike) -> tuple[ComplexArra
 Created by ``diff.propagation_matrix``.
 ``pullback(cotangent) -> (vectors, distance)``.
 
+#### `PropagationMatrixContext.pushforward`
+
+```python
+PropagationMatrixContext.pushforward(vectors: ArrayLike, distance: ArrayLike) -> ComplexArray
+```
+
 #### `PropagationMatrixContext.pullback`
 
 ```python
@@ -754,6 +1143,12 @@ PropagationMatrixContext.pullback(cotangent: ArrayLike) -> tuple[ComplexArray, R
 ### `LayerStackContext`
 
 Created by ``diff.layer_stack``. ``pullback(cotangent) -> (ks, zs, q, thickness)``.
+
+#### `LayerStackContext.pushforward`
+
+```python
+LayerStackContext.pushforward(ks: ArrayLike, zs: ArrayLike, q: ArrayLike, thickness: ArrayLike) -> ComplexArray
+```
 
 #### `LayerStackContext.pullback`
 
@@ -765,6 +1160,12 @@ LayerStackContext.pullback(cotangent: ArrayLike) -> tuple[ComplexArray, ComplexA
 
 Created by ``diff.chirality_density``. ``pullback(cotangent) -> (ks, normal, z)``.
 
+#### `ChiralityDensityContext.pushforward`
+
+```python
+ChiralityDensityContext.pushforward(ks: ArrayLike, normal: ArrayLike, interval: ArrayLike) -> ComplexArray
+```
+
 #### `ChiralityDensityContext.pullback`
 
 ```python
@@ -775,6 +1176,12 @@ ChiralityDensityContext.pullback(cotangent: ArrayLike) -> tuple[ComplexArray, Co
 
 Created by ``diff.oriented_chirality``.
 ``pullback(cotangent) -> (transverse, normal, z)``.
+
+#### `OrientedChiralityContext.pushforward`
+
+```python
+OrientedChiralityContext.pushforward(transverse: ArrayLike, normal: ArrayLike, interval: ArrayLike) -> ComplexArray
+```
 
 #### `OrientedChiralityContext.pullback`
 

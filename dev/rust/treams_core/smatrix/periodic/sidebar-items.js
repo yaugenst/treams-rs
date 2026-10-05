@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["bands","periodic"],"struct":["BandsGradient","BandsResidual","PeriodicResidual"]};
+window.SIDEBAR_ITEMS = {"fn":["bands","periodic"],"mod":["saved"],"struct":["BandsGradient","BandsResidual","PeriodicResidual"]};

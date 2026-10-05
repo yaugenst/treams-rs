@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Analytic first derivatives, one-use gradient contexts and the complex-gradient convention.">
+        <meta name="description" content="Analytic first-order pushforwards and pullbacks, shared residuals and the complex-gradient convention.">
       
       
       
@@ -27,7 +27,7 @@
     
     
       
-        <title>Analytic pullbacks - treams-rs</title>
+        <title>Analytic pushforwards and pullbacks - treams-rs</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#analytic-pullbacks" class="md-skip">
+        <a href="#analytic-pushforwards-and-pullbacks" class="md-skip">
           Skip to content
         </a>
       
@@ -119,7 +119,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Analytic pullbacks
+              Analytic pushforwards and pullbacks
             
           </span>
         </div>
@@ -970,6 +970,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1472,6 +1476,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/forward_field_sensitivity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across a field map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/reverse_cluster_gradient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scattering gradient
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1490,6 +1550,8 @@
       
         
           
+        
+      
         
       
         
@@ -1567,6 +1629,34 @@
     
   
     Framework adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../differentiation/choosing-a-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a differentiation mode
   
 
     
@@ -1777,7 +1867,7 @@
   <span class="md-ellipsis">
     
   
-    Analytic pullbacks
+    Analytic pushforwards and pullbacks
   
 
     
@@ -1795,7 +1885,7 @@
   <span class="md-ellipsis">
     
   
-    Analytic pullbacks
+    Analytic pushforwards and pullbacks
   
 
     
@@ -1832,10 +1922,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-a-value-and-a-one-use-context" class="md-nav__link">
+  <a href="#why-a-value-and-a-reusable-context" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why a value and a one-use context
+        Why a value and a reusable context
       
     </span>
   </a>
@@ -3486,10 +3576,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-a-value-and-a-one-use-context" class="md-nav__link">
+  <a href="#why-a-value-and-a-reusable-context" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why a value and a one-use context
+        Why a value and a reusable context
       
     </span>
   </a>
@@ -3597,53 +3687,62 @@
   
 
 
-<h1 id="analytic-pullbacks">Analytic pullbacks<a class="headerlink" href="#analytic-pullbacks" title="Permanent link">&para;</a></h1>
+<h1 id="analytic-pushforwards-and-pullbacks">Analytic pushforwards and pullbacks<a class="headerlink" href="#analytic-pushforwards-and-pullbacks" title="Permanent link">&para;</a></h1>
 <p>Every differentiable operation of treams-rs has a record:</p>
 <blockquote>
-<p>A record is a function that returns a value and a context. The context stores what is needed to compute gradients later and can be used once: <code>context.pullback(g)</code> takes the gradient <code>g</code> of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.</p>
+<p>A record is a function that returns a value and a reusable context. The context stores what is needed to compute derivatives later: <code>context.pullback(g)</code> takes the gradient <code>g</code> of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.</p>
 </blockquote>
+<p>The same residual supports a pushforward, <code>context.pushforward(*tangents)</code>,
+which maps input directions to output directions. Both actions can reuse the
+context. Forward and reverse mode share local analytic derivatives, numerical
+factors and physical conventions; they do not share a materialized Jacobian.</p>
 <p><a href="../../differentiation/">Differentiation</a> shows how to use records; the
 <a href="../../reference/glossary/">glossary</a> defines pullback, context and cotangent (the
 gradient with respect to an output).</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">treams_rs</span><span class="w"> </span><span class="kn">import</span> <span class="n">diff</span>
 
 <span class="n">operator</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">2.0</span> <span class="o">+</span> <span class="mf">0.1</span><span class="n">j</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.1</span><span class="n">j</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">]])</span>
 <span class="n">x</span><span class="p">,</span> <span class="n">context</span> <span class="o">=</span> <span class="n">diff</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="nb">complex</span><span class="p">))</span>
 <span class="n">d_operator</span><span class="p">,</span> <span class="n">d_rhs</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">pullback</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>  <span class="c1"># forward order</span>
-<span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"consumed"</span><span class="p">):</span>
-    <span class="n">context</span><span class="o">.</span><span class="n">pullback</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+<span class="n">dx</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">pushforward</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">operator</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">dx</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">x</span><span class="p">)))</span>
+<span class="n">again_operator</span><span class="p">,</span> <span class="n">again_rhs</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">pullback</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">again_operator</span><span class="p">,</span> <span class="n">d_operator</span><span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">again_rhs</span><span class="p">,</span> <span class="n">d_rhs</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="why-analytic">Why analytic<a class="headerlink" href="#why-analytic" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Accuracy.</strong> Analytic pullbacks avoid the step-size choice and subtraction
+<li><strong>Accuracy.</strong> Analytic derivatives avoid the step-size choice and subtraction
   error of finite differences. Their accuracy still depends on the conditioning
   of the forward and adjoint problems and on floating-point rounding.</li>
-<li><strong>Cost.</strong> A pullback costs about one forward call, whatever the number of
-  inputs. A central difference costs two forward calls per real input: 2 × 3N for
-  the positions of N spheres.</li>
-<li><strong>Reuse.</strong> A pullback reuses work from the forward call. The pullback of
-  <code>diff.solve</code> solves the adjoint system with the LU factors of the forward
-  solve. The requested-illumination records of one cluster share one factor of
-  <code>I - T C</code>.</li>
+<li><strong>Cost.</strong> A pushforward computes one input direction, and a pullback computes
+  one objective cotangent. Their work depends on the numerical operation,
+  without multiplying by the number of design parameters. Computing a full
+  Jacobian still requires many directions. Framework callbacks can add extra
+  forward evaluations; the <a href="../adapters/#how-long-a-context-lives">adapter contracts</a>
+  make that cost explicit.</li>
+<li><strong>Reuse.</strong> Both derivative directions reuse work from the primal call. For
+  <code>A X = B</code>, the pushforward solves <code>A dX = dB - dA X</code>, and the pullback solves
+  the adjoint system. Both use the recorded LU factors. Requested-illumination
+  records use the factor of <code>I - T C</code> in the same way. The derivative does not
+  differentiate the factorization algorithm.</li>
 </ul>
-<h2 id="why-a-value-and-a-one-use-context">Why a value and a one-use context<a class="headerlink" href="#why-a-value-and-a-one-use-context" title="Permanent link">&para;</a></h2>
+<h2 id="why-a-value-and-a-reusable-context">Why a value and a reusable context<a class="headerlink" href="#why-a-value-and-a-reusable-context" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Ownership.</strong> The context owns copies of what its pullback needs. Changing the
+<li><strong>Ownership.</strong> The context owns copies of what its derivatives need. Changing the
   input arrays after the forward call does not change the gradients.</li>
 <li><strong>No global registry.</strong> Nothing outside the context remembers a forward call.
   Python, or the framework that holds the context, decides how long it lives, and
   nothing leaks when a context is dropped unused.</li>
-<li><strong>Memory.</strong> The pullback consumes the context and frees its data, such as a
-  dense LU factor. In Rust, <code>pullback(self, ...)</code> takes the residual (the Rust
-  form of the context) by value, so the compiler rules out a second use. In
-  Python, a second call raises
-  <code>ValueError</code>. A cotangent of the wrong shape raises before the context is
-  consumed, so the call can be retried.</li>
+<li><strong>Memory.</strong> The context keeps its immutable residual, such as a dense LU
+  factor, for its lifetime. Rust derivative methods borrow it, allowing repeated
+  directions and cotangents without another factorization. Dropping the context
+  releases that data. Invalid tangent or cotangent shapes and non-finite entries
+  raise without changing the residual.</li>
 </ul>
-<p>A framework that needs a second reverse pass records the forward again (see
-<a href="../adapters/">framework adapters</a>).</p>
+<p>Frameworks control the lifetime of their saved context; their transform and
+recomputation behavior is described in <a href="../adapters/">framework adapters</a>.</p>
 <h2 id="why-the-real-pairing">Why the real pairing<a class="headerlink" href="#why-the-real-pairing" title="Permanent link">&para;</a></h2>
 <p>The loss is real and most inputs are complex. With the pairing defined above,
 the gradient of a complex input <code>x</code> is one complex number: its real part is the
@@ -3651,30 +3750,40 @@ derivative with respect to <code>Re x</code> and its imaginary part the derivati
 respect to <code>Im x</code>. For a real input it is the ordinary real gradient. Advect and
 PyTorch use the same rule. JAX and HIPS Autograd pair complex numbers without the
 conjugate, so their adapters conjugate the cotangent and the gradients around
-every pullback.</p>
+every pullback. Input tangents are ordinary increments <code>dx</code>, so pushforwards
+need no convention conversion in any framework. A real input has a real tangent.</p>
 <h2 id="inputs-labels-and-order">Inputs, labels and order<a class="headerlink" href="#inputs-labels-and-order" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Forward order.</strong> A pullback returns one gradient per differentiable input, in
-  the order of the forward's arguments. A docstring states any other order.</li>
+  the order of the forward's arguments; a pushforward takes tangents in that
+  same order. A docstring states any other order. Input tangents have their
+  original shapes, and the output tangent follows the primal shape and tuple
+  structure. Broadcasting remains the native record's responsibility.</li>
 <li><strong>Static labels.</strong> Degrees, orders, polarization indices, <code>lmax</code>, basis sizes,
   quadrature nodes and lattice dimensions are integers or fixed choices. They have
   no gradient and stay outside the record's inputs. Continuous values that the
   numerical method chooses, such as the Ewald split parameter, are held fixed
   too.</li>
-<li><strong>No dense Jacobians.</strong> A pullback maps one cotangent to the input gradients
-  directly. The Jacobian of an M × M interaction matrix with respect to 3N
+<li><strong>No dense Jacobians.</strong> A pushforward contracts a direction with local
+  derivatives; a pullback contracts a cotangent with their real adjoint.
+  The Jacobian of an M × M interaction matrix with respect to 3N
   positions has 3N M² entries: 1.7e11 complex numbers, or 2.8 TB, for 100 spheres
   at <code>lmax = 10</code>. No record forms it.</li>
 </ul>
 <h2 id="what-treams-rs-does-not-do">What treams-rs does not do<a class="headerlink" href="#what-treams-rs-does-not-do" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>No finite-difference fallback.</strong> An operation without an analytic pullback
-  has no record. Finite differences appear only in tests, as an independent check
+<li><strong>No finite-difference fallback.</strong> Missing derivative methods are unsupported;
+  adapters never approximate them or reconstruct a full Jacobian from another
+  derivative direction. Finite differences appear only in tests, as an independent check
   (see <a href="../../differentiation/gradient-checks/">gradient checks</a>).</li>
-<li><strong>First order only.</strong> Pullbacks give first derivatives in reverse mode. Forward
-  mode and second derivatives are not available. Inside the Rust core, fixed-size
-  forward-mode jets (<code>numerics::Jet</code>) give some kernels their local first
-  derivatives; they never reach Python.</li>
+<li><strong>First order only.</strong> Pushforwards and pullbacks give first derivatives.
+  Differentiating either again, including forward-over-reverse Hessian products,
+  remains unsupported. Fixed-size jets (<code>numerics::Jet</code>) provide local first
+  derivatives inside Rust; adapters expose analytic directional contractions.</li>
+<li><strong>No derivative across singularities.</strong> Full eigenpair pushforwards require
+  distinct eigenvalues and unique phase pivots; singular-value pushforwards
+  require distinct positive values. Smooth spectral sums can have pullbacks
+  where those individual output derivatives do not exist.</li>
 </ul>
 
 

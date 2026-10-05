@@ -970,6 +970,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1472,6 +1476,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/forward_field_sensitivity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across a field map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/reverse_cluster_gradient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scattering gradient
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1490,6 +1550,8 @@
       
         
           
+        
+      
         
       
         
@@ -1567,6 +1629,34 @@
     
   
     Framework adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../differentiation/choosing-a-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a differentiation mode
   
 
     
@@ -1768,7 +1858,7 @@
   <span class="md-ellipsis">
     
   
-    Analytic pullbacks
+    Analytic pushforwards and pullbacks
   
 
     
@@ -3691,7 +3781,7 @@ marks a module without a counterpart.</p>
 <li><strong>Bindings:</strong> conversion between NumPy arrays and Rust types, releasing the GIL
   during numerical work, the floating-point guard of every entry point (see
   <a href="floating-point/">floating-point environment</a>) and the context objects that hold
-  one-use pullback data. A Rust error becomes a <code>ValueError</code>, except
+  reusable derivative data. A Rust error becomes a <code>ValueError</code>, except
   <code>Error::OutOfMemory</code>, which becomes a <code>MemoryError</code>. Some allocation paths
   still abort on failure (<a href="parallelism/#audit-and-open-work">memory limits</a>).</li>
 <li><strong>Python package:</strong> bases, <code>k0</code>, media, polarization conventions, lattices,

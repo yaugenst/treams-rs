@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["CHIRALITY_BLOCKS"],"enum":["Metric"],"fn":["chirality","chirality_gradient","circular_dichroism","duality_breaking","metric"],"struct":["HelicityBlock","MetricGradient","MetricResidual"]};
+window.SIDEBAR_ITEMS = {"constant":["CHIRALITY_BLOCKS"],"enum":["Metric"],"fn":["chirality","chirality_gradient","circular_dichroism","duality_breaking","metric"],"mod":["saved"],"struct":["HelicityBlock","MetricGradient","MetricResidual"]};

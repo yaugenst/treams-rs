@@ -970,6 +970,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1472,6 +1476,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/forward_field_sensitivity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across a field map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/reverse_cluster_gradient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scattering gradient
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1490,6 +1550,8 @@
       
         
           
+        
+      
         
       
         
@@ -1567,6 +1629,34 @@
     
   
     Framework adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../differentiation/choosing-a-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a differentiation mode
   
 
     
@@ -1768,7 +1858,7 @@
   <span class="md-ellipsis">
     
   
-    Analytic pullbacks
+    Analytic pushforwards and pullbacks
   
 
     
@@ -1886,6 +1976,17 @@
     <span class="md-ellipsis">
       
         How long a context lives
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#costs-of-reusable-contexts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Costs of reusable contexts
       
     </span>
   </a>
@@ -3519,6 +3620,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#costs-of-reusable-contexts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Costs of reusable contexts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#static-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3627,7 +3739,8 @@ in shared <code>_framework*.py</code> code; each adapter implements one record b
 <p>The physics objects make every native call through <code>Backend.apply(record,
 shape, *values, real=...)</code>. It runs <code>record(*values)</code>, which returns the output
 and a context, and checks the declared output shape and dtype. Its pullback
-returns one gradient per value, in order. Bases, mode labels and conventions
+returns one gradient per value, in order. Its pushforward takes one tangent
+per value in that same order and returns the output tangent. Bases, mode labels and conventions
 never appear in <code>values</code>: the record captures them.</p>
 <p>Each adapter module supplies:</p>
 <ul>
@@ -3643,57 +3756,123 @@ the shared expert operations, <code>_framework.Operations</code>: <code>solve</c
 functions call <code>_operation</code> directly, without the check of <code>Backend.apply</code>. Each
 expert operation declares its output shape, which JAX needs to build its
 callback; Advect, PyTorch and HIPS Autograd read the output from the native forward.</p>
-<p><code>_records.py</code> owns output and gradient normalization: outputs are a scalar,
+<p><code>_records.py</code> owns output and derivative normalization: outputs are a scalar,
 array or flat tuple; a pullback returns one gradient per dynamic input, with
 its shape and dtype. Real inputs receive real gradients. Native gradients use
 <code>dL = Re(sum(conj(g) * dx))</code>; JAX and HIPS Autograd conjugate around the native
 pullback to match their own complex pairing. Advect and PyTorch use the native
-pairing directly.</p>
+pairing directly. Pushforwards use input increments without conjugation. The
+shared contract validates tangent shapes and real/complex domains and supplies
+zeros for inactive dynamic inputs. Python records that select or reshape inputs
+must carry both derivative methods; a custom pullback closure remains reverse-only.</p>
+<p>The native residual is the source of both derivative directions. Adapters only
+handle framework tracing, conversion and residual lifetime. Neither the shared
+contract nor a framework bridge computes numerical derivatives or reconstructs
+a Jacobian from repeated pullbacks.</p>
 <h2 id="guard-records">Guard records<a class="headerlink" href="#guard-records" title="Permanent link">&para;</a></h2>
 <p>Some checks compare metadata of two objects, such as the <code>k0</code> and medium of a
 T-matrix and its illumination. Under <code>jax.jit</code> these values are traced, and their
 numbers are available only inside the native callback. The check runs inside
 a record, <code>Backend.guard</code>: it passes the value through, raises on a mismatch
-and gives the compared metadata zero gradients. The <code>Backend.apply</code> docstring
+and gives the compared metadata zero gradients. Its JVP passes through the
+value's tangent, with no contribution from the checked metadata. The <code>Backend.apply</code> docstring
 lists every guard.</p>
 <h2 id="how-long-a-context-lives">How long a context lives<a class="headerlink" href="#how-long-a-context-lives" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>Framework</th>
-<th>Forward</th>
-<th>Reverse pass</th>
+<th>Primal and reverse mode</th>
+<th>Forward mode</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Advect</td>
-<td>Records once and keeps the context</td>
-<td>Consumes the context; another reverse pass needs another forward</td>
+<td>The tape owns the invocation's native context</td>
+<td>Each tangent direction reuses that context</td>
 </tr>
 <tr>
 <td>JAX</td>
-<td>Records inside <code>jax.pure_callback</code> and keeps only the inputs</td>
-<td>Records again and consumes that context at once</td>
+<td>Built-ins retain numerical state or inputs under JAX ownership; unannotated custom records repeat the forward</td>
+<td>Built-ins reuse computed state or reconstruct input-only contexts without reevaluating values</td>
 </tr>
 <tr>
 <td>PyTorch</td>
-<td>Records once, keeps the context and snapshots of the inputs</td>
-<td>The first backward consumes the context; a repeated backward records again from the snapshots</td>
+<td>Keeps the context through the first backward and input snapshots for subsequent replay</td>
+<td><code>torch.func.jvp</code> and <code>forward_ad</code> borrow the context of the forward call</td>
 </tr>
 <tr>
 <td>HIPS Autograd</td>
-<td>Records once and keeps the context and inputs</td>
-<td>The first reverse pass consumes the context; a repeated VJP records again</td>
+<td>Keeps and reuses the invocation's native context</td>
+<td><code>make_jvp</code> uses the context of the forward call</td>
 </tr>
 </tbody>
 </table>
-<p>JAX may skip or repeat a <code>pure_callback</code>, and the values it saves for the reverse
-pass must be arrays. A native context cannot meet these requirements, so the JAX
-adapter saves the inputs and repeats the native forward call for each reverse
-pass. PyTorch keeps the context because a single backward is the common case;
-the snapshots make <code>retain_graph=True</code> work without a context that can be used
-twice.</p>
+<p>JAX may skip or repeat a <code>pure_callback</code>, and its residuals must be arrays.
+Built-in records retain numerical state or original inputs as arrays held by
+JAX. Derivative callbacks reconstruct their context without repeating the
+numerical forward. There is no global native-context registry.
+Records without this support, including unannotated custom records, keep inputs
+and repeat the native forward for every derivative application, including a
+direct JVP.</p>
+<p>The internal <code>SavedRecord</code> contract in <code>_saved.py</code> has one evaluation function
+and three hooks: describe the state arrays from input shapes and fixed options,
+save a context, and restore a context. <code>native_state</code> attaches this contract to
+physics records; <code>native_record</code> and <code>primal_record</code> bind it to public <code>diff</code>
+signatures, including <code>functools.partial</code>. Metadata belongs to the exact callable, so a wrapper that
+changes its behavior cannot accidentally inherit the original derivative rules.
+Records whose restore needs only saved state set <code>needs_primals=False</code>; JAX then
+keeps input shapes and dtypes without retaining another copy of the inputs.
+Shared output checks preserve this metadata lazily, so the other adapters do
+not pay for resolving or copying a saved-state contract they do not use.</p>
+<p>Contexts containing only inputs, such as Bessel functions, coordinates, lattice
+sums and individual wave coefficients, retain those inputs and rebuild the derivative context without
+evaluating the values again. Their ordinary forward and restoration paths share
+the same argument preparation and native constructor.</p>
+<p>Contexts containing computed numerical state implement the Rust <code>SavedState</code>
+trait. Their byte layout is derived from dimensions and fixed options, with runtime branches normalized to
+the same layout. The layout carries numerical data, never pointers or registry
+handles. It is an internal transport format for one invocation, not a persistent
+file format. Each record declares its restoration next to its definition:
+either a context constructor for retained inputs, or a state codec and shape
+rule for saved numerical work. Both share the same framework dispatch.</p>
+<p>JAX's tangent boundary has an explicit transpose that calls the native VJP.
+This preserves reverse mode without asking JAX to differentiate opaque host
+callbacks. <code>jacfwd</code> evaluates tangent seeds sequentially; saved-state records
+reuse one linearization across those seeds. <code>checkpoint</code> may deliberately
+recompute it according to JAX's rematerialization policy.</p>
+<p>PyTorch's JVP borrows its saved native context, so a backward through the
+returned primal can reuse it. The first backward releases the context;
+input snapshots let later backwards replay the record. HIPS Autograd keeps the
+reusable context with the invocation. Advect's tape owns and releases its native
+contexts. Advect supplies the same context to each JVP, so a direct JVP needs
+one native forward and subsequent directions reuse it. The adapter requires
+Advect 0.3.1 or later for this residual-aware JVP API.</p>
+<p>These are first-order contracts. Differentiating a native tangent or adjoint
+with respect to the original model inputs is unsupported. JAX can transpose a
+linearization at fixed inputs; the <a href="../../differentiation/frameworks/#use-both-modes-together">framework examples</a>
+show how to combine both directions without taking second derivatives.
+PyTorch supports <code>torch.func.jvp</code>; other <code>torch.func</code> transforms and
+<code>torch.compile</code> remain unsupported.</p>
+<h2 id="costs-of-reusable-contexts">Costs of reusable contexts<a class="headerlink" href="#costs-of-reusable-contexts" title="Permanent link">&para;</a></h2>
+<p>Saved work still has a cost. JAX copies numerical state into arrays and decodes
+it for each derivative callback. This saves expensive factorizations, but a tiny
+operation can spend more time passing that state than recomputing it.</p>
+<p>For example, a compiled gradient of a linear sum of a 2-by-2 solve takes two
+callbacks here. The previous reverse-only bridge could discard its unused value
+callback and perform the solve and pullback together in one callback. Asking for
+the value too, or using a squared-output loss, keeps two callbacks in both
+versions; the current bridge then performs one native solve instead of two.
+These callback counts explain the tradeoff, not a universal timing prediction.
+The <a href="https://github.com/yaugenst/treams-rs/blob/de582b9ab44368cb363a2e3fa85f1fdcccd5242e/benchmarks/forward-autodiff-final-20261005.json">final regression measurements</a>
+retain the small-operation slowdowns alongside the complete physics workflows.</p>
+<p>Reusable contexts also keep their recorded matrices intact. Pullbacks allocate
+gradient workspaces instead of overwriting those matrices. Thin cluster
+illumination saves its useful response in place of the incident array, with no
+increase in stored matrix count. S-matrix derivative solves that fall back from
+iteration to a dense solve still refactor on each such call; that fallback is
+not a cached-factor path.</p>
 <h2 id="static-configuration">Static configuration<a class="headerlink" href="#static-configuration" title="Permanent link">&para;</a></h2>
 <p>Bases, mode labels, polarization conventions and lattice
 dimensions are Python values, not framework arrays. They decide array shapes, so
@@ -3742,7 +3921,7 @@ Bloch vector and carry gradients.</p>
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../pullbacks/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Analytic pullbacks">
+          <a href="../pullbacks/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Analytic pushforwards and pullbacks">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -3752,7 +3931,7 @@ Bloch vector and carry gradients.</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                Analytic pullbacks
+                Analytic pushforwards and pullbacks
               </div>
             </div>
           </a>

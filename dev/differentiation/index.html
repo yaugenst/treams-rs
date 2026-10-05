@@ -6,14 +6,14 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="How a record returns a value and a context, and how context.pullback returns the input gradients in argument order.">
+        <meta name="description" content="First-order forward and reverse differentiation with analytic Rust pushforwards and pullbacks.">
       
       
       
         <link rel="canonical" href="https://yaugenst.github.io/treams-rs/dev/differentiation/">
       
       
-        <link rel="prev" href="../examples/array_transmission_gradient/">
+        <link rel="prev" href="../examples/reverse_cluster_gradient/">
       
       
         <link rel="next" href="frameworks/">
@@ -970,6 +970,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1472,6 +1476,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/forward_field_sensitivity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across a field map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/reverse_cluster_gradient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scattering gradient
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1492,6 +1552,8 @@
       
         
           
+        
+      
         
       
         
@@ -1569,6 +1631,34 @@
     
   
     Framework adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="choosing-a-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a differentiation mode
   
 
     
@@ -1768,7 +1858,7 @@
   <span class="md-ellipsis">
     
   
-    Analytic pullbacks
+    Analytic pushforwards and pullbacks
   
 
     
@@ -3474,18 +3564,24 @@
 
 
 <h1 id="differentiation">Differentiation<a class="headerlink" href="#differentiation" title="Permanent link">&para;</a></h1>
-<p>treams-rs computes first-order gradients in Rust, analytically. Every
+<p>treams-rs computes first-order forward and reverse derivatives in Rust,
+analytically. Every
 differentiable function is a record:</p>
 <blockquote>
-<p>A record is a function that returns a value and a context. The context stores what is needed to compute gradients later and can be used once: <code>context.pullback(g)</code> takes the gradient <code>g</code> of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.</p>
+<p>A record is a function that returns a value and a reusable context. The context stores what is needed to compute derivatives later: <code>context.pullback(g)</code> takes the gradient <code>g</code> of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.</p>
 </blockquote>
+<p>The same context also provides <code>context.pushforward(*input_tangents)</code>: a
+Jacobian–vector product (JVP), which maps an input perturbation to the resulting
+output perturbation. Pass one tangent per dynamic input, in pullback order.
+The output tangent has the primal output's shape and tuple structure. Both
+derivative directions can be called repeatedly on the same context.</p>
 <p>The pullback maps the gradient with respect to the output, called the
 cotangent, back to the inputs. The
 <a href="../reference/glossary/#records-and-gradients">glossary</a> defines record,
 context, pullback and cotangent for the whole project.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">treams_rs</span><span class="w"> </span><span class="kn">import</span> <span class="n">diff</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">treams_rs.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_pullback</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">treams_rs.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_pullback</span><span class="p">,</span> <span class="n">check_pushforward</span>
 
 <span class="c1"># One sphere of size parameter x = k0 r = 0.6, then the vacuum around it.</span>
 <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.6</span><span class="p">])</span>
@@ -3502,10 +3598,21 @@ context, pullback and cotangent for the whole project.</p>
 
 <span class="c1"># Compare the pullback with central differences. The degree 1 stays fixed.</span>
 <span class="n">check_pullback</span><span class="p">(</span><span class="k">lambda</span> <span class="o">*</span><span class="n">inputs</span><span class="p">:</span> <span class="n">diff</span><span class="o">.</span><span class="n">mie</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">*</span><span class="n">inputs</span><span class="p">),</span> <span class="n">x</span><span class="p">,</span> <span class="n">epsilon</span><span class="p">,</span> <span class="n">mu</span><span class="p">,</span> <span class="n">kappa</span><span class="p">)</span>
+
+<span class="c1"># Sensitivity of every coefficient to the size parameter, with materials fixed.</span>
+<span class="n">tangent</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">pushforward</span><span class="p">(</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">epsilon</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">mu</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">kappa</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="k">assert</span> <span class="n">tangent</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">coefficients</span><span class="o">.</span><span class="n">shape</span>
+<span class="n">check_pushforward</span><span class="p">(</span><span class="k">lambda</span> <span class="o">*</span><span class="n">inputs</span><span class="p">:</span> <span class="n">diff</span><span class="o">.</span><span class="n">mie</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">*</span><span class="n">inputs</span><span class="p">),</span> <span class="n">x</span><span class="p">,</span> <span class="n">epsilon</span><span class="p">,</span> <span class="n">mu</span><span class="p">,</span> <span class="n">kappa</span><span class="p">)</span>
 </code></pre></div>
 <p>The <a href="../reference/python/diff/"><code>diff</code> reference</a> lists every record with the
-order of its gradients. <a href="gradient-checks/">Gradient checks</a> explains
-<code>check_pullback</code>.</p>
+order of its dynamic inputs. <a href="gradient-checks/">Gradient checks</a> explains
+<code>check_pullback</code> and <code>check_pushforward</code>.</p>
+<p>Forward mode is useful for a few input directions and many outputs, such as an
+entire field map's sensitivity to radius or frequency. Reverse mode is useful
+for a few scalar objectives and many design parameters. Both compute first
+derivatives; combining them does not enable second derivatives of native calls.</p>
 <h2 id="rules">Rules<a class="headerlink" href="#rules" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Records.</strong> A record returns <code>(value, context)</code>. Module-level records live
@@ -3515,6 +3622,9 @@ order of its gradients. <a href="gradient-checks/">Gradient checks</a> explains
   differentiable inputs in the order of the forward arguments:
   <code>diff.sphere_cluster(lmax, k0, radii, epsilon, positions)</code> returns the
   gradients <code>(k0, radii, epsilon, positions)</code>.</li>
+<li><strong>Tangent order.</strong> <code>context.pushforward(k0, radii, epsilon, positions)</code> takes
+  tangents in that same order. Each tangent has its input's original shape;
+  broadcasting follows the primal call. Real inputs require real tangents.</li>
 <li><strong>Pairing.</strong> The gradient <code>g</code> of a complex value <code>x</code> satisfies
   <code>dL = Re(sum(conj(g) * dx))</code>, in NumPy <code>np.vdot(g, dx).real</code>. Its real part is
   the derivative with respect to <code>Re x</code>, its imaginary part the derivative with
@@ -3522,14 +3632,14 @@ order of its gradients. <a href="gradient-checks/">Gradient checks</a> explains
 <li><strong>Fixed inputs.</strong> Mode labels, cutoffs such as <code>lmax</code>, basis sizes, quadrature
   nodes, material topology and the order of eigenvalues have no gradient. A
   record takes them as integers or keywords, not as differentiable inputs.</li>
-<li><strong>One use.</strong> A pullback consumes its context. A second call raises
-  <code>ValueError</code>; record again for another gradient.</li>
-<li><strong>Shape checks first.</strong> A cotangent of the wrong shape raises <code>ValueError</code>
-  before the context is consumed, so the call can be retried.</li>
+<li><strong>Reuse.</strong> Pushforwards and pullbacks borrow the same immutable residual.
+  Call either method repeatedly for different directions or cotangents.</li>
+<li><strong>Shape checks first.</strong> A tangent or cotangent of the wrong shape, or with
+  non-finite entries, raises <code>ValueError</code> and leaves the context unchanged.</li>
 <li><strong>Ownership.</strong> The context owns copies of the data it needs. Changing the input
   arrays after the forward call leaves the gradients unchanged.</li>
-<li><strong>First order on the CPU.</strong> Pullbacks give first derivatives in reverse mode,
-  on the CPU only.</li>
+<li><strong>First order on the CPU.</strong> Pushforwards and pullbacks give first derivatives
+  on the CPU. Higher derivatives remain unsupported.</li>
 </ul>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
@@ -3541,9 +3651,17 @@ order of its gradients. <a href="gradient-checks/">Gradient checks</a> explains
 <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"shape"</span><span class="p">):</span>
     <span class="n">context</span><span class="o">.</span><span class="n">pullback</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">)))</span>  <span class="c1"># the context stays usable</span>
 <span class="n">d_operator</span><span class="p">,</span> <span class="n">d_rhs</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">pullback</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">solution</span><span class="p">))</span>
-<span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">"consumed"</span><span class="p">):</span>
-    <span class="n">context</span><span class="o">.</span><span class="n">pullback</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">solution</span><span class="p">))</span>
+<span class="n">again_operator</span><span class="p">,</span> <span class="n">again_rhs</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">pullback</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">solution</span><span class="p">))</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">again_operator</span><span class="p">,</span> <span class="n">d_operator</span><span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">again_rhs</span><span class="p">,</span> <span class="n">d_rhs</span><span class="p">)</span>
+<span class="n">tangent</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">pushforward</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">operator</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">solution</span><span class="p">))</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">tangent</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">solution</span><span class="p">)))</span>
 </code></pre></div>
+<p>Cylindrical records expose <code>pushforward_axial</code>, appending the axial-wavenumber
+tangent just as <code>pullback_axial</code> appends its gradient. Factors built from
+particle blocks expose <code>pushforward_blocks</code>, whose first input is a sequence
+of block tangents. The corresponding ordinary methods cover fixed axial
+wavenumbers and dense local matrices.</p>
 <p><a href="../design/pullbacks/">Analytic pullbacks</a> gives the reasons for these rules.</p>
 <h2 id="frameworks">Frameworks<a class="headerlink" href="#frameworks" title="Permanent link">&para;</a></h2>
 <p>Advect, JAX, PyTorch and HIPS Autograd differentiate whole objectives built
@@ -3563,6 +3681,9 @@ HIPS Autograd.</p>
 <li><strong>Thresholds and degeneracies.</strong> Exact diffraction thresholds, a change of the
   direct-shell grouping in a lattice sum and individual degenerate eigenmodes
   have no smooth derivative.</li>
+<li><strong>Spectral outputs.</strong> Full eigensystem JVPs require distinct eigenvalues and
+  unique phase pivots. Individual singular-value JVPs require distinct positive
+  values. Some smooth spectral sums still have pullbacks at degeneracies.</li>
 </ul>
 
 
@@ -3604,7 +3725,7 @@ HIPS Autograd.</p>
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../examples/array_transmission_gradient/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Array transmission gradient">
+          <a href="../examples/reverse_cluster_gradient/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Cluster scattering gradient">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -3614,7 +3735,7 @@ HIPS Autograd.</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                Array transmission gradient
+                Cluster scattering gradient
               </div>
             </div>
           </a>

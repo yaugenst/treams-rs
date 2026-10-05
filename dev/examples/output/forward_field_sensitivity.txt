@@ -1,0 +1,8 @@
+Three spheres: radius 80 nm, wavelength 650 nm
+Field map: 5 x 5 points, three complex components
+At the middle grid point, scattered electric field and changes per nm
+  E      field (real, imag)          d/d wavelength              d/d radius
+  x     0.05511    0.09236j   0.0003481 -0.0006258j    0.001661   0.003903j
+  y    -0.09403    0.05506j   0.0006362  0.0003554j   -0.003981   0.001681j
+  z    0.002894   0.002279j   1.165e-06 -2.637e-05j   0.0001102  9.908e-05j
+Both complete derivative maps agree with central differences.

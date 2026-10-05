@@ -1,8 +1,9 @@
 # Gradient checks
 
 `treams_rs.testing` compares first-order derivatives with central finite
-differences, using NumPy only. `check_pullback` checks a record and
-`check_gradient` a scalar objective. Both return `None` on success and raise an
+differences, using NumPy only. `check_pullback` checks a record's reverse mode,
+`check_pushforward` checks its forward mode and adjoint pairing, and
+`check_gradient` checks a scalar objective. All return `None` on success and raise an
 error that names the input on disagreement. Finite differences serve only as
 this check; every record computes its gradients analytically in Rust.
 
@@ -33,8 +34,35 @@ check_pullback(lambda z: diff.bessel([0, 1, 2], z), np.asarray(0.8 + 0.3j))
 from `seed=0`. Each input is checked separately, so errors in different
 inputs cannot cancel. Repeat with other seeds to probe other directions. The
 record runs once at the given inputs and twice per input for the central
-differences. Only the first context's pullback is called, exactly once, because
-a pullback consumes its context.
+differences. The first context's pullback is called once with the selected
+output cotangent.
+
+## Forward mode
+
+`check_pushforward` moves all dynamic inputs together along one direction and
+compares every output tangent with a central difference. A fresh context then
+checks the real adjoint identity between the JVP and VJP:
+`Re(vdot(cotangent, JVP)) = Re(vdot(VJP, direction))`, summed across inputs and
+outputs. This checks the complex pairing as well as the derivative values.
+
+```python
+import numpy as np
+from treams_rs import diff
+from treams_rs.testing import check_pushforward
+
+matrix = np.array([[2.0, 0.2], [0.1, 1.5]], dtype=complex)
+incident = np.array([[0.3], [0.7]], dtype=complex)
+d_matrix = np.array([[0.1j, 0.2], [-0.1, 0.05j]])
+d_incident = np.array([[0.2], [-0.1j]])
+check_pushforward(diff.solve, matrix, incident, directions=(d_matrix, d_incident))
+```
+
+The record must provide both `pushforward` and `pullback`. The check makes
+four record calls: the JVP, two perturbed values and a fresh VJP. Each derivative
+context is called once. Omit `directions` and `cotangents` for probes drawn
+from `seed=0`; at least one direction must be nonzero. Repeat across directions
+and points that stay inside the differentiable physical domain. No full
+Jacobian is built.
 
 ## Scalar objectives
 

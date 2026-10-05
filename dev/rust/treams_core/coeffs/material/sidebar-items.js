@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["add_entries","real_refractive_indices","validate_layers"],"struct":["LayerGradient","Material","MaterialTangent"]};
+window.SIDEBAR_ITEMS = {"fn":["add_entries","real_refractive_indices","validate_layer_tangents","validate_layers"],"struct":["LayerGradient","Material","MaterialTangent"]};

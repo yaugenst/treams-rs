@@ -970,6 +970,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1472,6 +1476,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/forward_field_sensitivity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across a field map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/reverse_cluster_gradient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scattering gradient
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1490,6 +1550,8 @@
       
         
           
+        
+      
         
       
         
@@ -1567,6 +1629,34 @@
     
   
     Framework adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../differentiation/choosing-a-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a differentiation mode
   
 
     
@@ -1766,7 +1856,7 @@
   <span class="md-ellipsis">
     
   
-    Analytic pullbacks
+    Analytic pushforwards and pullbacks
   
 
     
@@ -3041,6 +3131,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#iterativecontextpushforward" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IterativeContext.pushforward
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#iterativecontextpullback" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3988,6 +4089,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#iterativecontextpushforward" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IterativeContext.pushforward
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#iterativecontextpullback" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4257,9 +4369,15 @@ reuses them for every solve and gradient.</p>
 <p><code>SphereCluster.record</code> returns the solution and an <code>IterativeContext</code>. A
 record is a function that returns a value and a context; <code>context.pullback(g)</code>
 takes the gradient <code>g</code> of a real loss with respect to the value and returns
-the gradients with respect to the inputs. The pullback runs only once. For a
+the gradients with respect to the inputs. The context supports repeated
+pushforwards and pullbacks using the saved forward solution. For a
 few spheres, the dense <code>treams_rs.Cluster</code> and <code>diff.sphere_cluster</code> build
 the full T-matrix.</p>
+<p>Derivative solves use only <code>rtol</code> so small directions and loss gradients keep
+their relative accuracy. If the primal solve used <code>rtol=0</code>, derivatives use
+the default <code>1e-10</code> instead. <code>atol</code> applies only to primal solves; restart
+and iteration limits apply to both. Derivatives are approximate to the solver
+accuracy, so tighten <code>rtol</code> when needed.</p>
 <h2 id="convergence"><code>Convergence</code><a class="headerlink" href="#convergence" title="Permanent link">&para;</a></h2>
 <p>GMRES result of one column of a solve or of a pullback.</p>
 <p><code>residual_norm</code> is the true residual norm at the end, recomputed from the
@@ -4322,20 +4440,30 @@ follow dL = Re sum(conj(g) dx).</p>
 </code></pre></div>
 <p>One report per column of the conjugate-transposed solve.</p>
 <h2 id="iterativecontext"><code>IterativeContext</code><a class="headerlink" href="#iterativecontext" title="Permanent link">&para;</a></h2>
-<p>Context of <code>SphereCluster.record</code>; its <code>pullback</code> runs once.</p>
+<p>Reusable derivative context of <code>SphereCluster.record</code>.</p>
 <p>It holds copies of every input, so later changes to your arrays leave the
 gradients unchanged.</p>
 <h3 id="iterativecontext__init__"><code>IterativeContext.__init__</code><a class="headerlink" href="#iterativecontext__init__" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><span class="n">IterativeContext</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">_native</span><span class="o">.</span><span class="n">IterativeContext</span><span class="p">,</span> <span class="n">vector</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
+<h3 id="iterativecontextpushforward"><code>IterativeContext.pushforward</code><a class="headerlink" href="#iterativecontextpushforward" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="n">IterativeContext</span><span class="o">.</span><span class="n">pushforward</span><span class="p">(</span><span class="n">k0</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">radii</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">epsilon</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">positions</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">incident</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Solution</span>
+</code></pre></div>
+<p>Directional derivative of the converged scattered coefficients.</p>
+<p>Pass one direction for each continuous input, in constructor order
+followed by the incident coefficients. The tangent solves the
+linearized scattering equation using only the forward solver's
+<code>rtol</code> (or <code>1e-10</code> when it was zero), ignoring <code>atol</code>.
+Its convergence reports certify that tangent solve; GMRES iterations
+are not differentiated.</p>
 <h3 id="iterativecontextpullback"><code>IterativeContext.pullback</code><a class="headerlink" href="#iterativecontextpullback" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><span class="n">IterativeContext</span><span class="o">.</span><span class="n">pullback</span><span class="p">(</span><span class="n">cotangent</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Gradient</span>
 </code></pre></div>
 <p>Gradients of a real loss with respect to the inputs of <code>record</code>.</p>
 <p>The pullback differentiates the converged solution, not the GMRES
-iterations: it solves the conjugate-transposed system with the
-tolerances of the forward solve and checks its true residual. A failed
-solve raises ValueError and returns no gradient.</p>
+iterations: it solves the conjugate-transposed system using the same
+relative-only tolerance as <code>pushforward</code> and checks its true
+residual. A failed solve raises ValueError and returns no gradient.</p>
 <p><strong>Args</strong></p>
 <ul>
 <li><code>cotangent</code>: Gradient of the loss with respect to <code>Solution.coefficients</code>, with the same shape.</li>
@@ -4419,9 +4547,9 @@ iterations. The arguments are those of <code>solve</code>.</p>
 <p><strong>Pullback</strong> <code>IterativeContext.pullback(cotangent: ArrayLike) -&gt; Gradient</code></p>
 <p>Gradients of a real loss with respect to the inputs of <code>record</code>.</p>
 <p>The pullback differentiates the converged solution, not the GMRES
-iterations: it solves the conjugate-transposed system with the
-tolerances of the forward solve and checks its true residual. A failed
-solve raises ValueError and returns no gradient.</p>
+iterations: it solves the conjugate-transposed system using the same
+relative-only tolerance as <code>pushforward</code> and checks its true
+residual. A failed solve raises ValueError and returns no gradient.</p>
 <p><strong>Args</strong></p>
 <ul>
 <li><code>cotangent</code>: Gradient of the loss with respect to <code>Solution.coefficients</code>, with the same shape.</li>

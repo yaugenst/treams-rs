@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["cluster_parts","sphere_cluster","sphere_cluster_factor","vacuum_sphere","validate_spheres"],"struct":["ClusterParts","SphereClusterGradient","SphereClusterResidual"]};
+window.SIDEBAR_ITEMS = {"fn":["cluster_parts","coupling_matrix","invalid_state","sphere_cluster","sphere_cluster_factor","vacuum_sphere","validate_spheres"],"struct":["ClusterParts","SphereClusterGradient","SphereClusterResidual"]};

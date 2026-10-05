@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["layer_stack","propagate","propagate_pullback"],"struct":["Channel","LayerStackGradient","LayerStackResidual","Step"]};
+window.SIDEBAR_ITEMS = {"fn":["layer_stack","propagate","propagate_pullback"],"mod":["saved"],"struct":["Channel","LayerStackGradient","LayerStackResidual","Step"]};

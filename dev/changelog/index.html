@@ -968,6 +968,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1470,6 +1474,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/forward_field_sensitivity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across a field map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/reverse_cluster_gradient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scattering gradient
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1488,6 +1548,8 @@
       
         
           
+        
+      
         
       
         
@@ -1565,6 +1627,34 @@
     
   
     Framework adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../differentiation/choosing-a-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a differentiation mode
   
 
     
@@ -1764,7 +1854,7 @@
   <span class="md-ellipsis">
     
   
-    Analytic pullbacks
+    Analytic pushforwards and pullbacks
   
 
     
@@ -3614,6 +3704,40 @@
 <h1 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Permanent link">&para;</a></h1>
 <h2 id="unreleased">Unreleased<a class="headerlink" href="#unreleased" title="Permanent link">&para;</a></h2>
 <ul>
+<li>Check analytic adjoint identities independently of finite-difference error,
+  cover saved-state dimensions and multilayer pushforwards, and record final
+  release-build comparisons with their remaining small-operation slowdowns.</li>
+<li>Remove redundant coordinate and lattice-sum state serialization. Avoid
+  retaining unused JAX inputs and reuse the saved illumination response across
+  derivative directions without increasing its stored matrix count.</li>
+<li>Preserve exact scalar gradient shapes, reject inconsistent cascade port
+  definitions, and validate restored context dimensions and Ewald split ranges
+  before native numerical work.</li>
+<li>Keep iterative derivatives accurate for small directions when the value
+  solve uses an absolute tolerance. Add eigenvalue-only <code>diff.eigvals</code> and
+  <code>advect.eigvals</code>, and clarify numerical and ordering limits of spectral
+  derivatives.</li>
+<li>Reuse JAX callback identities across eager calls and allow transposing a
+  linearization at fixed inputs. Add JAX and PyTorch examples that combine
+  forward and reverse mode without taking second derivatives.</li>
+<li>Add analytic first-order pushforwards throughout the Rust numerical core.
+  Reusable residuals share saved numerical work between input directions
+  and reverse gradients; dense solves reuse their recorded factors.
+  Spectral derivatives require differentiable, nondegenerate outputs.
+  Higher derivatives remain unsupported.</li>
+<li>Expose reusable native <code>pushforward</code> and <code>pullback</code> contexts in Python,
+  with owned inputs and array-based transport for saved numerical state.</li>
+<li>Add first-order forward mode to physics workflows and the Advect, JAX,
+  PyTorch and HIPS Autograd adapters. Add <code>testing.check_pushforward</code> for
+  finite-difference and adjoint-identity checks.</li>
+<li>JAX retains computed derivative state or reconstructs input-only contexts
+  from saved inputs, avoiding another value calculation for built-in JVPs,
+  VJPs and Jacobian directions. Custom records can declare saved state or
+  use the documented recomputation path. Advect and HIPS Autograd reuse
+  the original context. Require Advect 0.3.1 or later for residual-aware
+  JVPs, and JAX 0.10 or later for batched reverse transforms.</li>
+<li>Add field-map sensitivity and cluster-gradient examples, plus a reproducible
+  forward/reverse timing comparison that checks equal derivative results.</li>
 <li>Preserve Clippy's default correctness errors and enable every Hypothesis
   health check on CI. Let Maturin configure Python extension linking and build
   source-distribution verification wheels through uv's default sdist rebuild.</li>

@@ -6,14 +6,14 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Wrap a diff record for JAX, PyTorch or HIPS Autograd, and find the record and physics object for each family.">
+        <meta name="description" content="Wrap records with analytic pushforwards and pullbacks for JAX, PyTorch or HIPS Autograd.">
       
       
       
         <link rel="canonical" href="https://yaugenst.github.io/treams-rs/dev/differentiation/custom-records/">
       
       
-        <link rel="prev" href="../frameworks/">
+        <link rel="prev" href="../choosing-a-mode/">
       
       
         <link rel="next" href="../gradient-checks/">
@@ -970,6 +970,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1472,6 +1476,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/forward_field_sensitivity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across a field map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/reverse_cluster_gradient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster scattering gradient
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1492,6 +1552,8 @@
       
         
           
+        
+      
         
       
         
@@ -1586,6 +1648,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../choosing-a-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a differentiation mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -1660,10 +1750,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#fixed-configuration-in-closures" class="md-nav__link">
+  <a href="#fixed-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Fixed configuration in closures
+        Fixed configuration
       
     </span>
   </a>
@@ -1859,7 +1949,7 @@
   <span class="md-ellipsis">
     
   
-    Analytic pullbacks
+    Analytic pushforwards and pullbacks
   
 
     
@@ -3475,10 +3565,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#fixed-configuration-in-closures" class="md-nav__link">
+  <a href="#fixed-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Fixed configuration in closures
+        Fixed configuration
       
     </span>
   </a>
@@ -3577,7 +3667,9 @@
 
 <h1 id="custom-records">Custom records<a class="headerlink" href="#custom-records" title="Permanent link">&para;</a></h1>
 <p><code>treams_rs.jax.wrap</code>, <code>treams_rs.torch.wrap</code> and <code>treams_rs.autograd.wrap</code> turn
-any record into a function that the framework differentiates. Use them for the <code>diff</code> records that the
+any record into a function that the framework differentiates. A context with
+both derivative methods supports forward and reverse mode; a pullback closure
+supports reverse mode. Use them for the <code>diff</code> records that the
 physics objects do not call, or to combine several records into one operation.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
@@ -3598,6 +3690,9 @@ physics objects do not call, or to combine several records into one operation.</
 
 <span class="n">values</span><span class="p">,</span> <span class="n">vectors</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">(</span><span class="n">eigensystem</span><span class="p">)(</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">matrix</span><span class="p">))</span>
 <span class="n">gradient</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">grad</span><span class="p">(</span><span class="n">spread</span><span class="p">)(</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">matrix</span><span class="p">))</span>
+<span class="n">values_and_vectors</span><span class="p">,</span> <span class="n">tangents</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">jvp</span><span class="p">(</span>
+    <span class="n">eigensystem</span><span class="p">,</span> <span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">matrix</span><span class="p">),),</span> <span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">matrix</span><span class="p">)),)</span>
+<span class="p">)</span>
 </code></pre></div>
 <p>Advect has no public <code>wrap</code>. <code>treams_rs.advect</code> offers an array function for
 every <code>diff</code> record except the reusable factors; the
@@ -3613,8 +3708,18 @@ every <code>diff</code> record except the reusable factors; the
   inputs: a tuple for several inputs, an array for one. The
   <a href="../../reference/glossary/#records-and-gradients">glossary</a> defines both
   terms.</li>
-<li>Each gradient has the shape of its input. The adapter keeps the real part of
-  the gradient of a real input.</li>
+<li>Each gradient has the shape of its input. A native gradient of shape <code>(1,)</code>
+  is also accepted for a scalar input and converted to shape <code>()</code>.
+  The adapter keeps the real part of the gradient of a real input.</li>
+<li>Forward mode requires <code>context.pushforward(*tangents)</code>: one tangent per
+  dynamic input, in the same order as the pullback's results. Each tangent has
+  the input's shape and real or complex domain. The returned tangent has the
+  primal output's shape and tuple structure. There is no conjugation of JVP
+  inputs or outputs, in any framework.</li>
+<li>A native context is reusable. Its saved residual must correspond to the
+  current record inputs; a context from different inputs gives incorrect
+  derivatives. A pullback-only closure remains supported for reverse mode,
+  but a JVP through it raises <code>NotImplementedError</code>.</li>
 <li>Gradients follow the <a href="../#rules">pairing</a> of the <code>diff</code> records. JAX and
   HIPS Autograd pair complex numbers without the conjugate, so their adapters conjugate the
   cotangents and the gradients around the pullback; a record never converts.</li>
@@ -3624,21 +3729,25 @@ every <code>diff</code> record except the reusable factors; the
 <p>The JAX <code>wrap(record, *examples)</code> runs the record once on the examples to learn
 the output shapes and dtypes. Later calls must use the same input shapes and
 dtypes, and the examples must be valid physical inputs. The PyTorch and HIPS Autograd
-<code>wrap(record)</code> needs no examples: it learns the outputs on each call.</p>
-<h2 id="fixed-configuration-in-closures">Fixed configuration in closures<a class="headerlink" href="#fixed-configuration-in-closures" title="Permanent link">&para;</a></h2>
-<p>The inputs of a record are its differentiable arrays. Everything else, such as
-<code>lmax</code>, bases, labels and keywords, belongs in the record's closure:</p>
+<code>wrap(record)</code> needs no examples: it learns the outputs on each call.
+Built-in records expose numerical saved state to JAX. A custom record without
+that metadata runs again for every derivative application, including a direct
+JVP; keep the record deterministic and account for this extra primal work.</p>
+<h2 id="fixed-configuration">Fixed configuration<a class="headerlink" href="#fixed-configuration" title="Permanent link">&para;</a></h2>
+<p>The inputs of a record are its differentiable arrays. Bind fixed choices such
+as <code>lmax</code>, bases, labels and keywords with <code>functools.partial</code>. This also keeps
+a built-in record's saved-state support, so JAX can reuse its numerical work:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">treams_rs</span><span class="w"> </span><span class="kn">import</span> <span class="n">diff</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">treams_rs</span><span class="w"> </span><span class="kn">import</span> <span class="n">jax</span> <span class="k">as</span> <span class="n">tr</span>
 
 <span class="n">jax</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s2">"jax_enable_x64"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">record_cluster</span><span class="p">(</span><span class="n">k0</span><span class="p">,</span> <span class="n">radii</span><span class="p">,</span> <span class="n">epsilon</span><span class="p">,</span> <span class="n">positions</span><span class="p">):</span>
-    <span class="k">return</span> <span class="n">diff</span><span class="o">.</span><span class="n">sphere_cluster</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">k0</span><span class="p">),</span> <span class="n">radii</span><span class="p">,</span> <span class="n">epsilon</span><span class="p">,</span> <span class="n">positions</span><span class="p">)</span>  <span class="c1"># lmax = 1</span>
+<span class="n">record_cluster</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">diff</span><span class="o">.</span><span class="n">sphere_cluster</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>  <span class="c1"># lmax = 1</span>
 
 
 <span class="n">k0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
@@ -3658,13 +3767,18 @@ dtypes, and the examples must be valid physical inputs. The PyTorch and HIPS Aut
 <span class="p">)</span>
 </code></pre></div>
 <p><code>diff.sphere_cluster</code> returns its gradients in the order of its arguments,
-<code>(k0, radii, epsilon, positions)</code>, so the record passes them on unchanged.</p>
+<code>(k0, radii, epsilon, positions)</code>, so the record passes them on unchanged.
+A Python closure also works, but JAX treats it as a custom record and repeats
+its forward calculation when applying a derivative.</p>
 <h2 id="choosing-the-gradients">Choosing the gradients<a class="headerlink" href="#choosing-the-gradients" title="Permanent link">&para;</a></h2>
 <p>A record differentiates every input it takes. Some contexts return gradients for
 more inputs than an objective needs. The context of <code>diff.sphere</code> always returns
 five gradients, <code>(k0, radii, epsilon, mu, kappa)</code>, even when <code>mu</code> and <code>kappa</code>
-take their defaults. A small pullback closure selects and orders the gradients:</p>
+take their defaults. Select the pullback results and insert zero tangents for
+fixed inputs in the pushforward:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">types</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimpleNamespace</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">treams_rs</span><span class="w"> </span><span class="kn">import</span> <span class="n">diff</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">treams_rs</span><span class="w"> </span><span class="kn">import</span> <span class="n">torch</span> <span class="k">as</span> <span class="n">tr</span>
 
@@ -3676,14 +3790,27 @@ take their defaults. A small pullback closure selects and orders the gradients:<
         <span class="n">_</span><span class="p">,</span> <span class="n">d_radii</span><span class="p">,</span> <span class="n">d_epsilon</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">pullback</span><span class="p">(</span><span class="n">cotangent</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">d_radii</span><span class="p">,</span> <span class="n">d_epsilon</span>
 
-    <span class="k">return</span> <span class="n">matrix</span><span class="p">,</span> <span class="n">pullback</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">pushforward</span><span class="p">(</span><span class="n">d_radii</span><span class="p">,</span> <span class="n">d_epsilon</span><span class="p">):</span>
+        <span class="n">fixed_material</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">epsilon</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">context</span><span class="o">.</span><span class="n">pushforward</span><span class="p">(</span>
+            <span class="mf">0.0</span><span class="p">,</span> <span class="n">d_radii</span><span class="p">,</span> <span class="n">d_epsilon</span><span class="p">,</span> <span class="n">fixed_material</span><span class="p">,</span> <span class="n">fixed_material</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">matrix</span><span class="p">,</span> <span class="n">SimpleNamespace</span><span class="p">(</span><span class="n">pullback</span><span class="o">=</span><span class="n">pullback</span><span class="p">,</span> <span class="n">pushforward</span><span class="o">=</span><span class="n">pushforward</span><span class="p">)</span>
 
 
 <span class="n">sphere</span> <span class="o">=</span> <span class="n">tr</span><span class="o">.</span><span class="n">wrap</span><span class="p">(</span><span class="n">record_sphere</span><span class="p">)</span>
 <span class="n">radii</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">0.3</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">,</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="n">epsilon</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">3.0</span> <span class="o">+</span> <span class="mf">0.1</span><span class="n">j</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">complex128</span><span class="p">,</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="n">sphere</span><span class="p">(</span><span class="n">radii</span><span class="p">,</span> <span class="n">epsilon</span><span class="p">)</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">square</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+<span class="n">value</span><span class="p">,</span> <span class="n">tangent</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">jvp</span><span class="p">(</span>
+    <span class="n">sphere</span><span class="p">,</span> <span class="p">(</span><span class="n">radii</span><span class="p">,</span> <span class="n">epsilon</span><span class="p">),</span> <span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">radii</span><span class="p">),</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">epsilon</span><span class="p">))</span>
+<span class="p">)</span>
+<span class="k">assert</span> <span class="n">tangent</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">value</span><span class="o">.</span><span class="n">shape</span>
 </code></pre></div>
+<p>Returning only <code>matrix, pullback</code> from this example preserves reverse-mode
+behavior, but removes forward-mode support: the adapter does not infer a JVP
+from a pullback or construct a dense Jacobian.</p>
 <p>The same pattern selects the axial gradients of cylindrical records.
 <code>context.pullback_axial</code> appends them to the other gradients:</p>
 <ul>
@@ -3695,6 +3822,10 @@ take their defaults. A small pullback closure selects and orders the gradients:<
 </ul>
 <p>The docstring of each <code>diff</code> record states its gradients. The adapter never
 guesses which inputs are differentiable.</p>
+<p>The matching <code>pushforward_axial</code> takes those axial tangents last. For factors
+built from particle blocks, <code>pushforward_blocks</code> takes a sequence of local block
+tangents, followed by coupling and incident-field tangents. A wrapper that
+flattens or selects dynamic inputs must adapt both derivative methods.</p>
 <h2 id="records-by-family">Records by family<a class="headerlink" href="#records-by-family" title="Permanent link">&para;</a></h2>
 <p>Every <code>diff</code> record has the same name in <code>treams_rs.advect</code>, except the reusable
 factors. JAX, PyTorch and HIPS Autograd offer five records directly: <code>solve</code>, <code>interaction</code>,
@@ -3925,7 +4056,7 @@ coefficient arrays; <code>interface</code> and <code>propagation</code> build ph
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../frameworks/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Framework adapters">
+          <a href="../choosing-a-mode/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Choosing a differentiation mode">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -3935,7 +4066,7 @@ coefficient arrays; <code>interface</code> and <code>propagation</code> build ph
                 Previous
               </span>
               <div class="md-ellipsis">
-                Framework adapters
+                Choosing a differentiation mode
               </div>
             </div>
           </a>

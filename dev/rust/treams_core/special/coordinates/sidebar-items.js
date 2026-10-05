@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Transform"],"fn":["apply","cartesian_from_cylindrical","cylindrical_from_cartesian","cylindrical_from_spherical","frame","point","point_pullback","radius","spherical_from_cylindrical","transpose","validate","vector","vector_pullback"]};
+window.SIDEBAR_ITEMS = {"enum":["Transform"],"fn":["apply","cartesian_from_cylindrical","cylindrical_from_cartesian","cylindrical_from_spherical","frame","point","point_pullback","point_pushforward","radius","spherical_from_cylindrical","transpose","validate","vector","vector_pullback","vector_pushforward"]};
