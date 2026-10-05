@@ -1,0 +1,22 @@
+{"lines":[
+[0,"ran","git status --short && git rev-parse HEAD && sed -n '1,220p' docs/development/releasing.md"],
+[0,"ran","rg -n 'version|0\\.1\\.1|2026-10-04' Cargo.toml CITATION.cff CHANGELOG.md pyproject.toml .github/work…"],
+[13,"ran","rg -n 'site_url|rustdoc|treams_core|treams-core|latest|mike' mkdocs.yml .github/workflows/docs.yml …"],
+[13,"ran","sed -n '1,100p' CHANGELOG.md && cat .github/scripts/verify-release-state.sh && sed -n '30,190p' .gi…"],
+[32,"ran","sed -n '70,150p' .github/workflows/docs.yml && rg -n '^name = \"treams|^version = \"0.1.1\"' Cargo.loc…"],
+[32,"ran","python - <<'PY'"],
+[48,"ran","rg -n 'docs-rust|rust/' justfile mkdocs.yml crates/treams-py/Cargo.toml && sed -n '1,25p' crates/tr…"],
+[48,"ran","python - <<'PY'"],
+[0,"ran","gh run view 37170556404 --json status,conclusion,jobs --jq '{status,conclusion,jobs:[.jobs[]|select…"],
+[8,"ran","rg -n 'DOCS_SOURCE|source_revision|SOURCE_REVISION|repo_url|edit_uri|git_revision|revision|commit' …"],
+[16,"ran","rg -n 'TREAMS_RS_DOCS_SOURCE_REF|source_ref' docs scripts mkdocs.yml && sed -n '1,70p' .github/work…"],
+[82,"ran","gh run view 37170556404 --json status,conclusion,jobs --jq '{status,conclusion,jobs:[.jobs[]|select…"],
+[95,"ran","sed -n '70,110p' docs/_hooks/site.py && sed -n '135,170p' docs/_hooks/site.py && rg -n 'twelve|12|C…"],
+[158,"ran","gh run view 37170556404 --json status,conclusion,jobs --jq '{status,conclusion,jobs:[.jobs[]|select…"],
+[166,"ran","gh run view 37170556404 --json jobs --jq '[.jobs[]|select(.name==\"Publish versioned documentation /…"],
+[227,"ran","gh run view 37170556404 --json status,conclusion,jobs --jq '{status,conclusion,jobs:[.jobs[]|select…"],
+[289,"ran","gh run view 37170556404 --json status,conclusion,jobs --jq '{status,conclusion,jobs:[.jobs[]|select…"],
+[355,"ran","gh run view 37170556404 --json status,conclusion,jobs --jq '{status,conclusion,jobs:[.jobs[]|select…"],
+[427,"ran","python - <<'PY'"],
+[428,"ran","gh run view 37170556404 --json status,conclusion,jobs --jq '{status,conclusion,jobs:[.jobs[]|select…"]
+]}

@@ -1,0 +1,22 @@
+{"lines":[
+[0,"ran","sed -n '1,260p' crates/treams-core/src/linalg.rs"],
+[8,"opened","https://www.netlib.org/lapack/explore-html/d4/dc6/group__geequ_ga72349c39207f6e99c7cd0ec4823acb38.h…"],
+[14,"searched","site.netlib.org LAPACK zgeequ rcond ccond equilibrate row column scaling ..."],
+[39,"sent","1 message to Pasteur"],
+[60,"ran","rg -n \"Lu::new|solve_adjoint_in_place|solve_in_place\" crates/treams-core/src"],
+[74,"sent","1 message to Pasteur"],
+[0,"ran","sed -n '1,280p' crates/treams-core/src/linalg.rs"],
+[21,"ran","sed -n '1,240p' tests/test_conditioning.py; rg -n 'equilibrat|scaled' crates/treams-core/tests/prop…"],
+[44,"sent","1 message to Pasteur"],
+[67,"ran","python3 - <<'PY'"],
+[93,"ran","nl -ba crates/treams-core/src/linalg.rs | sed -n '84,118p;158,212p'"],
+[103,"sent","1 message to Pasteur"],
+[0,"ran","sed -n '1,300p' crates/treams-core/src/linalg.rs; rg -n 'get_global_parallelism|Parallelism|Par::|P…"],
+[7,"ran","rg --files installed tools: src | rg '/faer-[^/]+/src/(lib|utils|linalg/lu/partial_pivoting/(factor…"],
+[17,"ran","rg -n 'pub enum Par|impl Par|pub fn degree|fn degree|pub fn rayon|GLOBAL_PARALLELISM|set_global_par…"],
+[31,"ran","sed -n '918,980p' installed tools: lib.rs; rg -n 'set_global_parallelism|build_global|ThreadPoolBui…"],
+[46,"ran","rg -n 'pub fn current_num_threads|fn global_registry|pub fn global_registry' installed tools: rayon…"],
+[67,"ran","sed -n '122,144p' installed tools: lib.rs; sed -n '150,180p' installed tools: registry.rs; rg -n 'p…"],
+[73,"left","Left out: 1 command whose search terms named private details."],
+[83,"sent","1 message to Pasteur"]
+]}

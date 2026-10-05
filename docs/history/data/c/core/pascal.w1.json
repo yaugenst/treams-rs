@@ -1,0 +1,22 @@
+{"lines":[
+[0,"left","Left out: 1 command that read the agent's own settings."],
+[7,"ran","git diff --stat 2843a70c8dae1a204d31eb672441900d30d160bb 357153477cabe98cae9382b1441663dd5eab9814 -…"],
+[11,"ran","git show 3571534:python/treams_rs/_physics.py"],
+[17,"ran","git show 3571534:python/treams_rs/_framework.py | nl -ba | sed -n '470,1000p'"],
+[27,"ran","git show 3571534:python/treams_rs/_framework.py | nl -ba | sed -n '1000,1515p'; git diff 2843a70 35…"],
+[36,"ran","rg -n 'kz=|kz:|def cylinder_tmatrix|_physics|Backend\\(' python/treams_rs/{advect,jax,torch}.py; git…"],
+[52,"ran","git show 3571534:python/treams_rs/jax.py | nl -ba | sed -n '255,410p'; git show 3571534:python/trea…"],
+[60,"ran","rg -n 'class _WaveFields|def _field_samples|def gfield|def ffield|GField|def changepoltype|def expa…"],
+[65,"ran","sed -n '957,1140p' python/treams_rs/_operators.py; sed -n '1,370p' tests/test_framework_physics.py"],
+[76,"ran","git show 3571534:python/treams_rs/diff.py | sed -n '1730,1890p'; rg -n 'def spherical_channels|def …"],
+[96,"ran","git show 3571534:python/treams_rs/diff.py | sed -n '940,1065p'; rg -n 'fixed_q|axis|normal.incidenc…"],
+[102,"ran","git show 3571534:docs/status.md | sed -n '104,136p'; git show 3571534:python/treams_rs/diff.py | se…"],
+[113,"ran","git show 3571534:python/treams_rs/_operators.py | sed -n '414,457p'; git show 3571534:python/treams…"],
+[124,"ran","git show 3571534:python/treams_rs/_operators.py | sed -n '540,690p'; git show 3571534:python/treams…"],
+[147,"ran","git show 3571534:crates/treams-core/src/plane.rs | sed -n '1,180p'; git show 3571534:crates/treams-…"],
+[156,"ran","rg -n 'fn complex_sqrt|fn refractive_indices' crates/treams-core/src; git show 3571534:crates/tream…"],
+[162,"ran","git show 3571534:crates/treams-core/src/lib.rs | sed -n '25,57p'; git show 3571534:docs/adapters.md…"],
+[196,"ran","git show 3571534:python/treams_rs/_operators.py | sed -n '28,73p'; git show 3571534:python/treams_r…"],
+[0,"ran","git diff -- python/treams_rs/_framework.py tests/test_framework_physics.py docs/adapters.md docs/ap…"],
+[13,"ran","git diff -- python/treams_rs/_operators.py python/treams_rs/advect.py python/treams_rs/jax.py pytho…"]
+]}

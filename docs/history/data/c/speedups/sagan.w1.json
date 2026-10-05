@@ -1,0 +1,8 @@
+{"lines":[
+[0,"ran","cat AGENTS.md crates/AGENTS.md && git diff 8bbcb87aaeaccd9293fc8c09eecb8727c37c4970 -- crates/tream…"],
+[7,"ran","sed -n '1,258p' crates/treams-core/src/lattice/ewald.rs && sed -n '330,410p' crates/treams-core/src…"],
+[20,"ran","sed -n '160,235p' crates/treams-core/src/lattice/real.rs && sed -n '280,350p' crates/treams-core/sr…"],
+[39,"ran","git diff 8bbcb87aaeaccd9293fc8c09eecb8727c37c4970 -- crates/treams-core/src/sw/expansion.rs && sed …"],
+[55,"ran","sed -n '1,170p' docs/development/architecture.md && sed -n '1,145p' crates/treams-core/src/sw/plan.…"],
+[63,"sent","1 message to Leibniz"]
+]}

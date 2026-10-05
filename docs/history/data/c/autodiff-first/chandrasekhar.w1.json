@@ -1,0 +1,16 @@
+{"lines":[
+[0,"left","Left out: 1 command that read the agent's own notes."],
+[10,"ran","rg --files python/treams_rs | head -80 && sed -n '1,180p' python/treams_rs/__init__.py"],
+[10,"ran","cat python/AGENTS.md && sed -n '1,200p' docs/development/architecture.md && rg -n 'name =|module-na…"],
+[24,"ran","nl -ba python/treams_rs/_tmatrix.py | sed -n '1,220p'; nl -ba python/treams_rs/_tmatrix.py | sed -n…"],
+[24,"ran","nl -ba python/treams_rs/coeffs.py | sed -n '1,240p'; nl -ba python/treams_rs/_array.py | sed -n '1,…"],
+[24,"ran","nl -ba python/treams_rs/_material.py | sed -n '1,220p'; nl -ba python/treams_rs/special.py | sed -n…"],
+[40,"ran","nl -ba python/treams_rs/_material.py | sed -n '1,170p'; nl -ba python/treams_rs/_tmatrix.py | sed -…"],
+[40,"ran","rg -n '^def |np.asarray|np.array|np.atleast|float\\(|complex\\(|_native|from .* import' python/treams…"],
+[67,"ran","nl -ba python/treams_rs/_tmatrix.py | sed -n '340,385p'; nl -ba python/treams_rs/_tmatrix.py | sed …"],
+[67,"ran","nl -ba python/treams_rs/_framework_tmatrix.py | sed -n '1,190p'; rg -n 'def sphere|def sphere_tmatr…"],
+[87,"ran","nl -ba python/treams_rs/_framework_backend.py | sed -n '30,100p'; nl -ba python/treams_rs/_framewor…"],
+[87,"ran","nl -ba python/treams_rs/diff.py | sed -n '1100,1201p'; nl -ba python/treams_rs/_tmatrix.py | sed -n…"],
+[120,"ran","rg -n '^class PlaneWave|^class Wave|^ def in_basis|^ def __init__|^def plane_wave|direction|coeffic…"],
+[120,"ran","rg -n '^def slab|^def plane_wave|def power|def _incident' python/treams_rs/{_smatrix,_waves,_framew…"]
+]}

@@ -1,0 +1,5 @@
+{"id":"release/euclid","helpers":[],"groups":[],"items":[
+{"t":"note","at":1949109,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1949116,"to":1949198,"commands":8,"files":3,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,11]]},
+{"t":"relay","at":1949206,"how":"report","from":null,"html":"<p>Implemented only:</p>\n<ul>\n<li><code>python/treams_rs/__init__.py</code>: metadata-backed <code>__version__</code>.</li>\n<li><code>python/treams_rs/__main__.py</code>: explicit <code>prog=\"python -m treams_rs\"</code>.</li>\n<li><code>tests/api/test_distribution.py</code>: version agreement and actual subprocess CLI help checks, marked <code>interface</code>.</li>\n</ul>\n<p>Ruff lint, format, and <code>git diff --check</code> pass. Runtime tests await the packaging environment: <code>uv run --no-sync pytest tests/api/test_distribution.py -q</code>.</p>\n<p>No builds, commits, remote writes, or other files changed.</p>"}
+]}

@@ -1,0 +1,16 @@
+{"lines":[
+[0,"ran","git diff --stat && sed -n '1,220p' AGENTS.md && sed -n '1,220p' crates/AGENTS.md && sed -n '1,240p'…"],
+[4,"ran","git diff -- crates/treams-core/src/fields.rs crates/treams-core/src/linalg/gmres.rs"],
+[10,"ran","git diff -- crates/treams-core/src/lattice/ewald.rs crates/treams-core/src/lattice/mod.rs crates/tr…"],
+[16,"ran","git diff -- crates/treams-core/src/sw/plan.rs crates/treams-core/src/cluster/iterative.rs crates/tr…"],
+[22,"helper","speedups/copernicus"],
+[25,"ran","sed -n '1,440p' crates/treams-core/src/sw/plan.rs && sed -n '120,240p' crates/treams-core/src/sw/ex…"],
+[35,"ran","rg -n 'impl.*Mode|fn validate|WaveSet::new|radial_table_len|REVERSE|budget|32 \\*|block.*workers' cr…"],
+[52,"ran","git diff -- scripts/compare_builds.py tests/scripts/test_compare_builds.py benchmarks/README.md && …"],
+[65,"ran","sed -n '650,780p' crates/treams-core/src/special/bessel.rs && git diff -- crates/treams-core/src/pr…"],
+[85,"ran","nl -ba crates/treams-core/src/sw/plan.rs | sed -n '338,440p' && nl -ba crates/treams-core/src/speci…"],
+[85,"reported","speedups/copernicus"],
+[95,"ran","sed -n '1,230p' crates/treams-core/src/numerics/parallel.rs && sed -n '540,564p' scripts/generate_r…"],
+[124,"ran","rg -n 'try_fold_ordered|try_map\\(' crates/treams-core/src/sw/plan.rs && sed -n '433,470p' crates/tr…"],
+[144,"ran","sed -n '1,165p' crates/treams-core/src/lattice/real.rs && nl -ba crates/treams-core/src/lattice/ewa…"]
+]}

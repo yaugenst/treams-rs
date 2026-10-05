@@ -1,0 +1,15 @@
+{"lines":[
+[0,"ran","sed -n '1,180p' docs/upstream.md"],
+[4,"ran","mktemp -d treams-upstream-loc.XXXXXX"],
+[4,"ran","installed tools: tokei --help"],
+[12,"ran","curl -fsSL https://codeload.github.com/tfp-photonics/treams/tar.gz/1f5d0d6ebb007288f28bc9e16f6d266e…"],
+[12,"ran","installed tools: tokei -l | rg -i 'python|cython'"],
+[23,"ran","installed tools: tokei treams-1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39/src/treams -t Python,Cython …"],
+[23,"ran","python3 - <<'PY'"],
+[31,"ran","scc --help"],
+[32,"ran","rg -n 'treat_doc_strings_as_comments' installed tools: src -g '*.rs' -g '*.toml'"],
+[40,"ran","strings installed tools: tokei | rg 'treat_doc|Config|tokei.toml'"],
+[40,"ran","scc --no-config --no-gitignore --no-ignore --no-scc-ignore --no-complexity --no-cocomo --include-ex…"],
+[51,"ran","python3 - <<'PY'"],
+[73,"ran","scc --no-config --no-gitignore --no-ignore --no-scc-ignore --no-complexity --no-cocomo --include-ex…"]
+]}

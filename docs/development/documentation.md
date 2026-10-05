@@ -106,6 +106,10 @@ as mkdocstrings. One source then serves the site, `llms.txt` and
 package, so it includes native ufuncs, whose signatures exist only at run time,
 and the adapter modules without their optional frameworks installed.
 
+`docs/history/` is written by a private history build from the archived
+conversation records. Do not edit it by hand; it has a typos exclusion for its
+data and keeps every file under the 1,000 KB limit.
+
 ## Examples gallery
 
 The gallery in `docs/examples/` repeats the examples of the treams

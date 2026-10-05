@@ -1,0 +1,8 @@
+{"lines":[
+[0,"ran","git diff -- crates/treams-core/src/smatrix/solve.rs crates/treams-core/src/smatrix/compose.rs crate…"],
+[4,"ran","nl -ba crates/treams-core/src/smatrix/solve.rs"],
+[13,"ran","sed -n '1,210p' crates/treams-core/src/smatrix/compose.rs; rg -n 'gmres\\(|pub.*fn gmres|non.finite|…"],
+[13,"ran","sed -n '1,260p' crates/treams-core/src/smatrix/illuminate.rs"],
+[33,"ran","git diff -- crates/treams-core/src/properties/smatrix.rs; rg -n 'illumination|internal.*contraction…"],
+[43,"sent","1 message to Carson"]
+]}

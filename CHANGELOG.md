@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a "How it was built" section to the documentation: the story, messages
+  and conversations of the AI coding agents that wrote treams-rs.
 - Check analytic adjoint identities independently of finite-difference error,
   cover saved-state dimensions and multilayer pushforwards, and record final
   release-build comparisons with their remaining small-operation slowdowns.

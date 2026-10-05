@@ -1,0 +1,8 @@
+{"lines":[
+[0,"left","Left out: 1 command that read the agent's own settings."],
+[4,"ran","git diff f9b43088a34912002041901f4c606d2fcca5e051..86c4b2d498c3319ab466654b901cee0e8ee16f73 -- pyth…"],
+[15,"ran","sed -n '900,1080p' python/treams_rs/lattice.py; sed -n '1,160p' .github/workflows/release-candidate…"],
+[15,"ran","rg -n 'is_complex|real points|iscomplex|complex.*dtype|dtype.*complex' python/treams_rs/_framework_…"],
+[25,"ran","rg -n 'def (lsumsw|lsumcw|_sum|_geometry)|sum_cell|shape == \\(1, 1\\)|shape == \\(1,\\)' python/treams…"],
+[51,"ran","nl -ba tests/bindings/test_memory_errors.py | sed -n '15,80p'; nl -ba crates/treams-core/src/lattic…"]
+]}

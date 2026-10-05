@@ -197,7 +197,7 @@ def _link_resolves(path, target):
         return _site_page_exists(page or "index")
     if re.match(r"[a-z][a-z0-9+.-]*:|#", target):
         return True
-    return (path.parent / target.partition("#")[0]).exists()
+    return (path.parent / re.split(r"[?#]", target)[0]).exists()
 
 
 @pytest.mark.interface

@@ -1,0 +1,13 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g AGENTS.md -g __init__.py -g __main__.py -g '*distribution*' -g 'test*cli*' -g …"],
+[19,"ran","cat AGENTS.md python/AGENTS.md python/treams_rs/__init__.py python/treams_rs/__main__.py"],
+[19,"left","Left out: 1 command that read the agent's own settings."],
+[19,"ran","rg -n '__version__|importlib.metadata|python -m treams_rs|ArgumentParser|category' tests/api tests/…"],
+[33,"ran","cat CONTRIBUTING.md docs/development/index.md docs/development/architecture.md docs/development/tes…"],
+[33,"ran","sed -n '1,100p' tests/api/test_namespaces.py && sed -n '300,380p' tests/api/test_support_catalog.py…"],
+[39,"sent","1 message to Einstein"],
+[59,"changed","python/treams_rs/__init__.py, python/treams_rs/__main__.py, tests/api/test_distribution.py"],
+[74,"ran","git diff --check && git diff -- python/treams_rs/__init__.py python/treams_rs/__main__.py && find r…"],
+[74,"ran","uv run --no-project --with ruff ruff check python/treams_rs/__init__.py python/treams_rs/__main__.p…"],
+[82,"sent","1 message to Einstein"]
+]}

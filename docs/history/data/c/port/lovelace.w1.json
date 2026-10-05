@@ -1,0 +1,10 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g AGENTS.md -g 'benchmarks/**' -g '*sha*' -g '*manifest*' | head -100"],
+[6,"left","Left out: 1 command that named private computers or addresses."],
+[37,"ran","python3 - <<'PY'"],
+[54,"ran","rg -n 'SHA256|sha256|manifest' scripts docs benchmarks --glob '!results/**' --glob '!*.svg' --glob …"],
+[67,"ran","python3 - <<'PY'"],
+[78,"ran","sed -n '1,85p' benchmarks/gpu-fields-qualification.json && sed -n '230,300p' benchmarks/gpu-fields-…"],
+[89,"sent","1 message to Arendt"],
+[101,"ran","python3 - <<'PY'"]
+]}

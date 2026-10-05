@@ -108,6 +108,11 @@ nav:
       - development/documentation.md
       - development/benchmarks.md
       - development/releasing.md
+  - How it was built:
+      - history/index.md
+      - history/messages.md
+      - history/conversations.md
+      - history/about.md
   - Changelog: changelog.md
 
 theme:
@@ -156,6 +161,10 @@ theme:
 
 extra_css:
   - stylesheets/extra.css
+  - history/history.css
+
+extra_javascript:
+  - history/history.js
 
 extra:
   version:

@@ -1,0 +1,14 @@
+{"lines":[
+[0,"ran","git status --short && git diff --stat 8bbcb87aaeaccd9293fc8c09eecb8727c37c4970 && rg --files -g 'RE…"],
+[7,"ran","cat AGENTS.md crates/AGENTS.md python/AGENTS.md && git diff 8bbcb87 -- CHANGELOG.md README.md docs …"],
+[14,"ran","git diff 8bbcb87 -- crates/treams-core/src/threads.rs crates/treams-core/src/linalg/gmres.rs crates…"],
+[22,"ran","git diff 8bbcb87 -- crates/treams-core/src/fields.rs crates/treams-core/src/lattice/ewald.rs crates…"],
+[28,"ran","sed -n '240,520p' crates/treams-core/src/lattice/ewald.rs && git diff 8bbcb87 -- crates/treams-core…"],
+[39,"ran","sed -n '1,270p' crates/treams-core/src/smatrix/solve.rs && sed -n '110,340p' crates/treams-core/src…"],
+[49,"ran","git diff 8bbcb87 -- scripts/compare_builds.py && cat benchmarks/cpu-speedups-20261004.json && rg -n…"],
+[59,"ran","tar -tzf benchmarks/results/cpu-speedups-20261004.tar.gz && tar -xOf benchmarks/results/cpu-speedup…"],
+[81,"ran","rg -n 'real_hankel_sequences_match_high_precision|spherical_hankel\\.txt|spherical_hankels|qualified…"],
+[118,"ran","sed -n '430,530p' crates/treams-core/src/special/bessel.rs && sed -n '1,100p' benchmarks/README.md …"],
+[0,"ran","git show --no-patch --format='%H %s' aba7b877fcb5aea8439e77ace8f92e5b250f2bae && git diff --stat 8b…"],
+[18,"ran","git show aba7b877fcb5aea8439e77ace8f92e5b250f2bae:crates/treams-core/src/special/bessel.rs | sed -n…"]
+]}

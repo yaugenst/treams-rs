@@ -1,0 +1,18 @@
+{"lines":[
+[0,"ran","cat AGENTS.md crates/AGENTS.md docs/development/architecture.md docs/development/testing.md"],
+[7,"helper","speedups/sagan"],
+[15,"helper","speedups/hegel"],
+[21,"ran","git diff --stat 8bbcb87aaeaccd9293fc8c09eecb8727c37c4970 && git diff 8bbcb87aaeaccd9293fc8c09eecb87…"],
+[27,"ran","sed -n '1,115p' crates/treams-core/src/linalg/gmres.rs && sed -n '1,450p' crates/treams-core/src/sm…"],
+[45,"ran","git diff 8bbcb87 -- crates/treams-core/src/smatrix/solve.rs && sed -n '1,255p' crates/treams-core/s…"],
+[57,"ran","rg -n 'fn modes|validate_spheres|lmax == 0|lmax' crates/treams-core/src/sw/mod.rs crates/treams-cor…"],
+[66,"ran","git diff 8bbcb87 -- crates/treams-core/src/properties/special.rs crates/treams-core/src/properties/…"],
+[83,"ran","git diff 8bbcb87 -- tests/tmatrix/test_iterative.py && sed -n '230,440p' crates/treams-core/src/clu…"],
+[89,"reported","speedups/sagan"],
+[95,"ran","git diff 8bbcb87 -- crates/treams-core/src/sw/plan.rs | sed -n '1,300p'"],
+[105,"ran","sed -n '20,185p' crates/treams-core/src/sw/plan.rs && git diff 8bbcb87 -- crates/treams-core/src/sw…"],
+[113,"reported","speedups/hegel"],
+[0,"ran","git rev-parse HEAD && git status --short && git diff 8bbcb87aaeaccd9293fc8c09eecb8727c37c4970 aba7b…"],
+[5,"ran","git show aba7b877fcb5aea8439e77ace8f92e5b250f2bae:crates/treams-core/src/special/bessel.rs | sed -n…"],
+[0,"ran","git show --format=fuller --stat e9e482fdf762881de6f03b02024e39d3ef6bbe1c && git diff e9e482fdf76288…"]
+]}
