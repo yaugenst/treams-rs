@@ -189,12 +189,13 @@ addopts = "--strict-config --strict-markers -ra"
 # The pinned upstream oracle uses these NumPy/SciPy APIs. Its Cython wrapper
 # attributes the SciPy warning to the caller, so match that exact API message.
 # PyTorch initializes its forward AD rules through its deprecated JIT helper.
-# Only that upstream initialization warning is ignored; other warnings are errors.
+# Only its two upstream initialization warnings are ignored; others are errors.
 filterwarnings = [
   "error",
   "ignore:'where' used without 'out':UserWarning:treams\\._operators",
   "ignore:`scipy\\.special\\.sph_harm` is deprecated as of SciPy 1\\.15\\.0 and will be removed in SciPy 1\\.17\\.0\\.:DeprecationWarning",
   'ignore:^`torch\.jit\.script` is deprecated\. Please switch to `torch\.compile` or `torch\.export`\.$:FutureWarning:^torch\.jit\._script$',
+  'ignore:^`torch\.jit\.script` is not supported in Python 3\.14\+ and may break\. Please switch to `torch\.compile` or `torch\.export`\.$:FutureWarning:^torch\.jit\._script$',
 ]
 xfail_strict = true
 # Markers: tests/conftest.py registers the test categories (CATEGORIES).
