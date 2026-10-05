@@ -51,6 +51,9 @@ as-run build fingerprint.
 | [`accuracy-plan.json`](accuracy-plan.json) | plan | Untimed accuracy evidence on both platforms: every upstream reference comparison of the grid plus independent physical, convergence and high-precision checks. |
 | [`accuracy-boolean-correction-plan.json`](accuracy-boolean-correction-plan.json) | plan | Untimed replay of three Linux mode-selection checks with the corrected residual collector, kept apart from the timing evidence. |
 | [`linux-core-qualification.md`](linux-core-qualification.md) | prose summary | The two Linux core records in prose, with the archive extraction and audit commands. |
+| [`forward-reverse-20261004.json`](forward-reverse-20261004.json) | timing evidence | Two repeated JAX runs comparing equal complete derivatives for the field-map and cluster-gradient examples, with raw samples, compilation times, accuracy checks and source fingerprints. See [choosing a differentiation mode](../docs/differentiation/choosing-a-mode.md). |
+| [`forward-autodiff-regression-20261004.json`](forward-autodiff-regression-20261004.json) | regression evidence | 25 Linux CPU cases against the pre-forward-mode build, retaining the broad run and the final three-case Torch rerun with their source fingerprints and raw samples. |
+| [`forward-autodiff-simplification-20261005.json`](forward-autodiff-simplification-20261005.json) | regression evidence | Three paired comparisons against the pre-simplification implementation, with all raw samples, source fingerprints and the diagnostic driver. The 15 physics cases passed; the final Wigner value-and-JVP microbenchmark remains 11.3% slower and fails its 10% allowance. These runs cover successive source snapshots, not a complete final-head qualification. |
 
 Run the cases of one plan from the repository root with
 

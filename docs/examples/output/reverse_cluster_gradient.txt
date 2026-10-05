@@ -1,0 +1,14 @@
+Scattering cross section: 4615.81617506 nm^2
+One reverse pass: 32 radius and position derivatives
+Gradient in nm (cross section in nm^2, parameters in nm)
+ sphere       radius            x            y            z
+      0    55.551000     2.293551     2.564654     0.525056
+      1    67.072027    -2.570098     3.713243     0.107474
+      2    80.717968     3.700719    -2.462213     1.821015
+      3    96.960034    -3.953498    -3.376162     1.053288
+      4    51.931349     2.326181     2.315960    -0.445444
+      5    65.804871    -2.177511     3.052389    -1.003933
+      6    75.430202     3.981540    -2.905870    -0.225639
+      7    88.221359    -3.600884    -2.902002    -1.831817
+Joint directional derivative: -4.28130461 nm
+Central difference:           -4.28130461 nm

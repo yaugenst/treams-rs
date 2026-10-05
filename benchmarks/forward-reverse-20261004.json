@@ -1,0 +1,610 @@
+{
+  "schema_version": 1,
+  "kind": "First-order forward and reverse mode on equal complete derivative requests",
+  "scope": "Two JAX CPU workflows from the examples gallery; release native extension; no cross-framework or physical-convergence claim",
+  "source": "Uncommitted feat/forward-autodiff checkout; per-case hashes identify the exact numerical sources, Python package, example and benchmark script",
+  "command": "taskset -c 8-11 uv run --script scripts/benchmark_forward_reverse.py",
+  "guide": "docs/differentiation/choosing-a-mode.md",
+  "runs": [
+    {
+      "started_utc": "20261004T192839Z",
+      "threads": 4,
+      "samples": 7,
+      "minimum_sample_seconds": 0.04,
+      "notes": [
+        "Each mode computes the same complete derivative array for the same inputs; neither comparison substitutes a directional derivative for a full Jacobian or gradient.",
+        "The field comparison represents each complex component by its real and imaginary parts. It preserves all field information.",
+        "Preparation includes JAX tracing and compilation. Warm measurements recompute the whole differentiated scattering calculation at the fixed chosen parameter values; no result arrays are reused across calls.",
+        "Preparation is measured once per mode in forward-then-reverse order within each worker; framework caches can influence these setup times.",
+        "Every timed result is synchronized; modes alternate within each case. Case workers run sequentially with the same thread caps and inherited CPU affinity.",
+        "These times describe the complete JAX workflows, including framework and callback overhead, at the selected problem sizes.",
+        "The field wavelength sensitivity holds material permittivity fixed; material dispersion is excluded.",
+        "These are first derivatives at the fixed mode cutoff and grid. Agreement is not a mode-cutoff convergence study."
+      ],
+      "cases": [
+        {
+          "case": "field-map",
+          "description": "Changes in the entire complex scattered field map for k0 and common sphere radius.",
+          "input_real_parameters": 2,
+          "output_real_values": 150,
+          "parameter_shape": [
+            2
+          ],
+          "derivative_shape": [
+            5,
+            5,
+            3,
+            2,
+            2
+          ],
+          "validation": {
+            "forward_reverse_relative_error": 4.915470953410938e-16,
+            "finite_difference_relative_error": 2.1083107957412639e-10,
+            "finite_difference_step": 0.0001
+          },
+          "timings": {
+            "forward": {
+              "derivative_transform": "jax.jacfwd",
+              "trace_and_compile_seconds": 0.1754813750158064,
+              "median_seconds": 0.003766398935113102,
+              "samples": [
+                {
+                  "seconds_per_call": 0.0038571082477574237,
+                  "elapsed_seconds": 0.06171373196411878,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.0037693734375352506,
+                  "elapsed_seconds": 0.06030997500056401,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.003808337562077213,
+                  "elapsed_seconds": 0.06093340099323541,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.0037633388747053687,
+                  "elapsed_seconds": 0.0602134219952859,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.0036976733135816175,
+                  "elapsed_seconds": 0.05916277301730588,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.003766398935113102,
+                  "elapsed_seconds": 0.060262382961809635,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.003726458438904956,
+                  "elapsed_seconds": 0.059623335022479296,
+                  "calls": 16
+                }
+              ]
+            },
+            "reverse": {
+              "derivative_transform": "jax.jacrev",
+              "trace_and_compile_seconds": 0.19014141196385026,
+              "median_seconds": 0.13857761397957802,
+              "samples": [
+                {
+                  "seconds_per_call": 0.1372735999757424,
+                  "elapsed_seconds": 0.1372735999757424,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.1389902459923178,
+                  "elapsed_seconds": 0.1389902459923178,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.14048301702132449,
+                  "elapsed_seconds": 0.14048301702132449,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.1380356900044717,
+                  "elapsed_seconds": 0.1380356900044717,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.1381630539544858,
+                  "elapsed_seconds": 0.1381630539544858,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.14028958196286112,
+                  "elapsed_seconds": 0.14028958196286112,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.13857761397957802,
+                  "elapsed_seconds": 0.13857761397957802,
+                  "calls": 1
+                }
+              ]
+            }
+          },
+          "provenance": {
+            "python": "3.13.1 (main, Dec 19 2024, 14:32:25) [Clang 18.1.8 ]",
+            "versions": {
+              "numpy": "2.5.3",
+              "jax": "0.11.2",
+              "jaxlib": "0.11.2",
+              "treams-rs": "0.1.1"
+            },
+            "cpu_model": "AMD Ryzen 9 9950X 16-Core Processor",
+            "cpu_affinity": [
+              8,
+              9,
+              10,
+              11
+            ],
+            "thread_environment": {
+              "TREAMS_RS_NUM_THREADS": "4",
+              "RAYON_NUM_THREADS": "4",
+              "OMP_NUM_THREADS": "4",
+              "OPENBLAS_NUM_THREADS": "4",
+              "MKL_NUM_THREADS": "4",
+              "BLIS_NUM_THREADS": "4",
+              "JAX_PLATFORMS": "cpu",
+              "XLA_FLAGS": "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=4"
+            },
+            "hashes": {
+              "script": "275ded7c28c182a0e843f68cf5c0159ba73773d806fcb4ee0ad06bb62a790e56",
+              "example": "99aeb4ce7dc1266b5797bfa66ce7e584e533c97721e475fbc70541293ac1fa4e",
+              "native_library": "befb0a653583295ccb9ba3c9c5fef3d05e574dc3cb736bddba5ee9d726fcf8a0",
+              "python_package": "bf8e93c175d57d04960b4f9321a63483a0aabad54ccb2912835db104b4dd538a",
+              "rust_sources": "d4df30f6c0343402f8dd74e660caad68281e452e554b2b3b450c79bca23b6bcd",
+              "cargo_lock": "7fe7d7eba165e4c05b5d135f34718bd87719e13fb771ac38f699c9bef7784b4c"
+            },
+            "git_head": "1340631c5fe75108443b5c2defccf40e4aaaecde"
+          }
+        },
+        {
+          "case": "cluster",
+          "description": "Changes in one scattering cross section for every sphere radius and center coordinate.",
+          "input_real_parameters": 32,
+          "output_real_values": 1,
+          "parameter_shape": [
+            8,
+            4
+          ],
+          "derivative_shape": [
+            8,
+            4
+          ],
+          "validation": {
+            "forward_reverse_relative_error": 2.634452924680258e-16,
+            "finite_difference_relative_error": 2.9739224673868564e-11,
+            "finite_difference_step": 0.0001
+          },
+          "timings": {
+            "forward": {
+              "derivative_transform": "jax.jacfwd",
+              "trace_and_compile_seconds": 0.22129895695252344,
+              "median_seconds": 0.07737968699075282,
+              "samples": [
+                {
+                  "seconds_per_call": 0.07773068599635735,
+                  "elapsed_seconds": 0.07773068599635735,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.07708398799877614,
+                  "elapsed_seconds": 0.07708398799877614,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.07738941704155877,
+                  "elapsed_seconds": 0.07738941704155877,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.07717555202543736,
+                  "elapsed_seconds": 0.07717555202543736,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.07646315201418474,
+                  "elapsed_seconds": 0.07646315201418474,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.07870285300305113,
+                  "elapsed_seconds": 0.07870285300305113,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.07737968699075282,
+                  "elapsed_seconds": 0.07737968699075282,
+                  "calls": 1
+                }
+              ]
+            },
+            "reverse": {
+              "derivative_transform": "jax.grad",
+              "trace_and_compile_seconds": 0.11979364603757858,
+              "median_seconds": 0.00447166306184954,
+              "samples": [
+                {
+                  "seconds_per_call": 0.004457318314962322,
+                  "elapsed_seconds": 0.07131709303939715,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.0044789769999624696,
+                  "elapsed_seconds": 0.07166363199939951,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.00447166306184954,
+                  "elapsed_seconds": 0.07154660898959264,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.004430549997778144,
+                  "elapsed_seconds": 0.0708887999644503,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.004496425564866513,
+                  "elapsed_seconds": 0.07194280903786421,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.004462035936739994,
+                  "elapsed_seconds": 0.07139257498783991,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.0045215562531666365,
+                  "elapsed_seconds": 0.07234490005066618,
+                  "calls": 16
+                }
+              ]
+            }
+          },
+          "provenance": {
+            "python": "3.13.1 (main, Dec 19 2024, 14:32:25) [Clang 18.1.8 ]",
+            "versions": {
+              "numpy": "2.5.3",
+              "jax": "0.11.2",
+              "jaxlib": "0.11.2",
+              "treams-rs": "0.1.1"
+            },
+            "cpu_model": "AMD Ryzen 9 9950X 16-Core Processor",
+            "cpu_affinity": [
+              8,
+              9,
+              10,
+              11
+            ],
+            "thread_environment": {
+              "TREAMS_RS_NUM_THREADS": "4",
+              "RAYON_NUM_THREADS": "4",
+              "OMP_NUM_THREADS": "4",
+              "OPENBLAS_NUM_THREADS": "4",
+              "MKL_NUM_THREADS": "4",
+              "BLIS_NUM_THREADS": "4",
+              "JAX_PLATFORMS": "cpu",
+              "XLA_FLAGS": "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=4"
+            },
+            "hashes": {
+              "script": "275ded7c28c182a0e843f68cf5c0159ba73773d806fcb4ee0ad06bb62a790e56",
+              "example": "23b529168f96e678a9acedc478c4bcb512bca0124c05ea3ca15ae23b198ceb85",
+              "native_library": "befb0a653583295ccb9ba3c9c5fef3d05e574dc3cb736bddba5ee9d726fcf8a0",
+              "python_package": "bf8e93c175d57d04960b4f9321a63483a0aabad54ccb2912835db104b4dd538a",
+              "rust_sources": "d4df30f6c0343402f8dd74e660caad68281e452e554b2b3b450c79bca23b6bcd",
+              "cargo_lock": "7fe7d7eba165e4c05b5d135f34718bd87719e13fb771ac38f699c9bef7784b4c"
+            },
+            "git_head": "1340631c5fe75108443b5c2defccf40e4aaaecde"
+          }
+        }
+      ]
+    },
+    {
+      "started_utc": "20261004T192845Z",
+      "threads": 4,
+      "samples": 7,
+      "minimum_sample_seconds": 0.04,
+      "notes": [
+        "Each mode computes the same complete derivative array for the same inputs; neither comparison substitutes a directional derivative for a full Jacobian or gradient.",
+        "The field comparison represents each complex component by its real and imaginary parts. It preserves all field information.",
+        "Preparation includes JAX tracing and compilation. Warm measurements recompute the whole differentiated scattering calculation at the fixed chosen parameter values; no result arrays are reused across calls.",
+        "Preparation is measured once per mode in forward-then-reverse order within each worker; framework caches can influence these setup times.",
+        "Every timed result is synchronized; modes alternate within each case. Case workers run sequentially with the same thread caps and inherited CPU affinity.",
+        "These times describe the complete JAX workflows, including framework and callback overhead, at the selected problem sizes.",
+        "The field wavelength sensitivity holds material permittivity fixed; material dispersion is excluded.",
+        "These are first derivatives at the fixed mode cutoff and grid. Agreement is not a mode-cutoff convergence study."
+      ],
+      "cases": [
+        {
+          "case": "field-map",
+          "description": "Changes in the entire complex scattered field map for k0 and common sphere radius.",
+          "input_real_parameters": 2,
+          "output_real_values": 150,
+          "parameter_shape": [
+            2
+          ],
+          "derivative_shape": [
+            5,
+            5,
+            3,
+            2,
+            2
+          ],
+          "validation": {
+            "forward_reverse_relative_error": 4.915470953410938e-16,
+            "finite_difference_relative_error": 2.1083107957412639e-10,
+            "finite_difference_step": 0.0001
+          },
+          "timings": {
+            "forward": {
+              "derivative_transform": "jax.jacfwd",
+              "trace_and_compile_seconds": 0.17015526094473898,
+              "median_seconds": 0.003776489811571082,
+              "samples": [
+                {
+                  "seconds_per_call": 0.003695227685966529,
+                  "elapsed_seconds": 0.05912364297546446,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.003791955874476116,
+                  "elapsed_seconds": 0.06067129399161786,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.0037771261268062517,
+                  "elapsed_seconds": 0.06043401802890003,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.003776489811571082,
+                  "elapsed_seconds": 0.060423836985137314,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.003695687624713173,
+                  "elapsed_seconds": 0.05913100199541077,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.003767901438550325,
+                  "elapsed_seconds": 0.0602864230168052,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.00397369699931005,
+                  "elapsed_seconds": 0.0635791519889608,
+                  "calls": 16
+                }
+              ]
+            },
+            "reverse": {
+              "derivative_transform": "jax.jacrev",
+              "trace_and_compile_seconds": 0.19086120201973245,
+              "median_seconds": 0.13837707898346707,
+              "samples": [
+                {
+                  "seconds_per_call": 0.13837707898346707,
+                  "elapsed_seconds": 0.13837707898346707,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.13852960400981829,
+                  "elapsed_seconds": 0.13852960400981829,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.1389237240073271,
+                  "elapsed_seconds": 0.1389237240073271,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.13846945198019966,
+                  "elapsed_seconds": 0.13846945198019966,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.1291266590123996,
+                  "elapsed_seconds": 0.1291266590123996,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.13823249598499388,
+                  "elapsed_seconds": 0.13823249598499388,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.13724901899695396,
+                  "elapsed_seconds": 0.13724901899695396,
+                  "calls": 1
+                }
+              ]
+            }
+          },
+          "provenance": {
+            "python": "3.13.1 (main, Dec 19 2024, 14:32:25) [Clang 18.1.8 ]",
+            "versions": {
+              "numpy": "2.5.3",
+              "jax": "0.11.2",
+              "jaxlib": "0.11.2",
+              "treams-rs": "0.1.1"
+            },
+            "cpu_model": "AMD Ryzen 9 9950X 16-Core Processor",
+            "cpu_affinity": [
+              8,
+              9,
+              10,
+              11
+            ],
+            "thread_environment": {
+              "TREAMS_RS_NUM_THREADS": "4",
+              "RAYON_NUM_THREADS": "4",
+              "OMP_NUM_THREADS": "4",
+              "OPENBLAS_NUM_THREADS": "4",
+              "MKL_NUM_THREADS": "4",
+              "BLIS_NUM_THREADS": "4",
+              "JAX_PLATFORMS": "cpu",
+              "XLA_FLAGS": "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=4"
+            },
+            "hashes": {
+              "script": "275ded7c28c182a0e843f68cf5c0159ba73773d806fcb4ee0ad06bb62a790e56",
+              "example": "99aeb4ce7dc1266b5797bfa66ce7e584e533c97721e475fbc70541293ac1fa4e",
+              "native_library": "befb0a653583295ccb9ba3c9c5fef3d05e574dc3cb736bddba5ee9d726fcf8a0",
+              "python_package": "bf8e93c175d57d04960b4f9321a63483a0aabad54ccb2912835db104b4dd538a",
+              "rust_sources": "d4df30f6c0343402f8dd74e660caad68281e452e554b2b3b450c79bca23b6bcd",
+              "cargo_lock": "7fe7d7eba165e4c05b5d135f34718bd87719e13fb771ac38f699c9bef7784b4c"
+            },
+            "git_head": "1340631c5fe75108443b5c2defccf40e4aaaecde"
+          }
+        },
+        {
+          "case": "cluster",
+          "description": "Changes in one scattering cross section for every sphere radius and center coordinate.",
+          "input_real_parameters": 32,
+          "output_real_values": 1,
+          "parameter_shape": [
+            8,
+            4
+          ],
+          "derivative_shape": [
+            8,
+            4
+          ],
+          "validation": {
+            "forward_reverse_relative_error": 2.634452924680258e-16,
+            "finite_difference_relative_error": 2.9739224673868564e-11,
+            "finite_difference_step": 0.0001
+          },
+          "timings": {
+            "forward": {
+              "derivative_transform": "jax.jacfwd",
+              "trace_and_compile_seconds": 0.21750623401021585,
+              "median_seconds": 0.07690936396829784,
+              "samples": [
+                {
+                  "seconds_per_call": 0.07757935201516375,
+                  "elapsed_seconds": 0.07757935201516375,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.07639234000816941,
+                  "elapsed_seconds": 0.07639234000816941,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.0766076659783721,
+                  "elapsed_seconds": 0.0766076659783721,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.07756706199143082,
+                  "elapsed_seconds": 0.07756706199143082,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.07690936396829784,
+                  "elapsed_seconds": 0.07690936396829784,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.07725752395344898,
+                  "elapsed_seconds": 0.07725752395344898,
+                  "calls": 1
+                },
+                {
+                  "seconds_per_call": 0.07688480394426733,
+                  "elapsed_seconds": 0.07688480394426733,
+                  "calls": 1
+                }
+              ]
+            },
+            "reverse": {
+              "derivative_transform": "jax.grad",
+              "trace_and_compile_seconds": 0.12014467600965872,
+              "median_seconds": 0.004431909437698778,
+              "samples": [
+                {
+                  "seconds_per_call": 0.004594022000674158,
+                  "elapsed_seconds": 0.07350435201078653,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.004407229436765192,
+                  "elapsed_seconds": 0.07051567098824307,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.004480461375351297,
+                  "elapsed_seconds": 0.07168738200562075,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.004416374686115887,
+                  "elapsed_seconds": 0.07066199497785419,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.004467209811991779,
+                  "elapsed_seconds": 0.07147535699186847,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.0044040380635124166,
+                  "elapsed_seconds": 0.07046460901619866,
+                  "calls": 16
+                },
+                {
+                  "seconds_per_call": 0.004431909437698778,
+                  "elapsed_seconds": 0.07091055100318044,
+                  "calls": 16
+                }
+              ]
+            }
+          },
+          "provenance": {
+            "python": "3.13.1 (main, Dec 19 2024, 14:32:25) [Clang 18.1.8 ]",
+            "versions": {
+              "numpy": "2.5.3",
+              "jax": "0.11.2",
+              "jaxlib": "0.11.2",
+              "treams-rs": "0.1.1"
+            },
+            "cpu_model": "AMD Ryzen 9 9950X 16-Core Processor",
+            "cpu_affinity": [
+              8,
+              9,
+              10,
+              11
+            ],
+            "thread_environment": {
+              "TREAMS_RS_NUM_THREADS": "4",
+              "RAYON_NUM_THREADS": "4",
+              "OMP_NUM_THREADS": "4",
+              "OPENBLAS_NUM_THREADS": "4",
+              "MKL_NUM_THREADS": "4",
+              "BLIS_NUM_THREADS": "4",
+              "JAX_PLATFORMS": "cpu",
+              "XLA_FLAGS": "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=4"
+            },
+            "hashes": {
+              "script": "275ded7c28c182a0e843f68cf5c0159ba73773d806fcb4ee0ad06bb62a790e56",
+              "example": "23b529168f96e678a9acedc478c4bcb512bca0124c05ea3ca15ae23b198ceb85",
+              "native_library": "befb0a653583295ccb9ba3c9c5fef3d05e574dc3cb736bddba5ee9d726fcf8a0",
+              "python_package": "bf8e93c175d57d04960b4f9321a63483a0aabad54ccb2912835db104b4dd538a",
+              "rust_sources": "d4df30f6c0343402f8dd74e660caad68281e452e554b2b3b450c79bca23b6bcd",
+              "cargo_lock": "7fe7d7eba165e4c05b5d135f34718bd87719e13fb771ac38f699c9bef7784b4c"
+            },
+            "git_head": "1340631c5fe75108443b5c2defccf40e4aaaecde"
+          }
+        }
+      ]
+    }
+  ]
+}
