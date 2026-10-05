@@ -177,7 +177,7 @@ pub(crate) fn matrix_tangent(
 ) -> PyResult<DMatrix<Complex>> {
     Ok(matrix_from_view(finite_tangent(
         tangent,
-        &[shape.0, shape.1],
+        &<[usize; 2]>::from(shape),
     )?))
 }
 
