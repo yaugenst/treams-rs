@@ -230,6 +230,8 @@ def check_pushforward(
     step: float = 1e-6,
     rtol: float = 1e-5,
     atol: float = 1e-7,
+    adjoint_rtol: float = 1e-12,
+    adjoint_atol: float = 1e-12,
     seed: int = 0,
 ) -> None:
     """Check a record's analytic JVP against differences and its adjoint.
@@ -253,8 +255,10 @@ def check_pushforward(
             tuple structure as the output. Default: random probes from ``seed``.
         step: positive finite difference step. Both shifted points must remain
             in the physical domain.
-        rtol: relative tolerance for each output entry and the adjoint pairing.
-        atol: absolute tolerance for each output entry and the adjoint pairing.
+        rtol: relative tolerance for each finite-difference output entry.
+        atol: absolute tolerance for each finite-difference output entry.
+        adjoint_rtol: relative tolerance for the analytic adjoint identity.
+        adjoint_atol: absolute tolerance for the analytic adjoint identity.
         seed: random seed, as in ``check_pullback``.
 
     Returns:
@@ -268,6 +272,8 @@ def check_pushforward(
     """
     if not parameters:
         raise ValueError("check_pushforward requires at least one dynamic parameter")
+    if not all(np.isfinite(x) and x >= 0 for x in (adjoint_rtol, adjoint_atol)):
+        raise ValueError("adjoint tolerances must be finite and nonnegative")
     primals, probes, rng = _check_inputs(parameters, directions, step, rtol, atol, seed)
     if not any(np.any(direction) for direction in probes):
         raise ValueError("directions must not all be zero")
@@ -315,8 +321,8 @@ def check_pushforward(
     np.testing.assert_allclose(
         forward_pairing,
         reverse_pairing,
-        rtol=rtol,
-        atol=atol,
+        rtol=adjoint_rtol,
+        atol=adjoint_atol,
         err_msg="pushforward/pullback adjoint identity disagrees; "
         "check the Re(vdot) complex convention",
     )

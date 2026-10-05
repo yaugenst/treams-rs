@@ -195,6 +195,25 @@ EigContext.pushforward(operator: ArrayLike) -> tuple[ComplexArray, ComplexArray]
 EigContext.pullback(eigenvalues: ArrayLike, eigenvectors: ArrayLike) -> ComplexArray
 ```
 
+### `EigvalsContext`
+
+Created by ``diff.eigvals``. Derivatives of eigenvalues alone.
+
+Pushforwards require distinct real parts; eigenvector phase ties are valid.
+Pullbacks allow equal weights at real-part ties and repeated eigenvalues.
+
+#### `EigvalsContext.pushforward`
+
+```python
+EigvalsContext.pushforward(operator: ArrayLike) -> ComplexArray
+```
+
+#### `EigvalsContext.pullback`
+
+```python
+EigvalsContext.pullback(eigenvalues: ArrayLike) -> ComplexArray
+```
+
 ### `SvdvalsContext`
 
 Created by ``diff.svdvals``. ``pullback(cotangent) -> operator``.

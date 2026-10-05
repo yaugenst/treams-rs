@@ -196,7 +196,6 @@ jobs:
           fail_ci_if_error: false
           files: coverage/coverage.xml
           use_oidc: true
-          use_pypi: true
 
   # The checks of `just check` that need no built extension, beside the tests.
   checks:

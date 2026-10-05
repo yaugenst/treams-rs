@@ -28,6 +28,12 @@ pushforwards and pullbacks using the saved forward solution. For a
 few spheres, the dense ``treams_rs.Cluster`` and ``diff.sphere_cluster`` build
 the full T-matrix.
 
+Derivative solves use only ``rtol`` so small directions and loss gradients keep
+their relative accuracy. If the primal solve used ``rtol=0``, derivatives use
+the default ``1e-10`` instead. ``atol`` applies only to primal solves; restart
+and iteration limits apply to both. Derivatives are approximate to the solver
+accuracy, so tighten ``rtol`` when needed.
+
 ## `Convergence`
 
 GMRES result of one column of a solve or of a pullback.
@@ -170,7 +176,8 @@ Directional derivative of the converged scattered coefficients.
 
 Pass one direction for each continuous input, in constructor order
 followed by the incident coefficients. The tangent solves the
-linearized scattering equation with the forward solver's tolerances.
+linearized scattering equation using only the forward solver's
+``rtol`` (or ``1e-10`` when it was zero), ignoring ``atol``.
 Its convergence reports certify that tangent solve; GMRES iterations
 are not differentiated.
 
@@ -183,9 +190,9 @@ IterativeContext.pullback(cotangent: ArrayLike) -> Gradient
 Gradients of a real loss with respect to the inputs of ``record``.
 
 The pullback differentiates the converged solution, not the GMRES
-iterations: it solves the conjugate-transposed system with the
-tolerances of the forward solve and checks its true residual. A failed
-solve raises ValueError and returns no gradient.
+iterations: it solves the conjugate-transposed system using the same
+relative-only tolerance as ``pushforward`` and checks its true
+residual. A failed solve raises ValueError and returns no gradient.
 
 **Args**
 
@@ -319,9 +326,9 @@ iterations. The arguments are those of ``solve``.
 Gradients of a real loss with respect to the inputs of ``record``.
 
 The pullback differentiates the converged solution, not the GMRES
-iterations: it solves the conjugate-transposed system with the
-tolerances of the forward solve and checks its true residual. A failed
-solve raises ValueError and returns no gradient.
+iterations: it solves the conjugate-transposed system using the same
+relative-only tolerance as ``pushforward`` and checks its true
+residual. A failed solve raises ValueError and returns no gradient.
 
 **Args**
 

@@ -167,6 +167,26 @@
           "Private benchmark host label"
         ]
       }
+    },
+    {
+      "path": "benchmarks/forward-autodiff-final-20261005.json",
+      "original_archive": "benchmarks/results/local/forward-autodiff-final-20261005-publication-original.json",
+      "original_sha256": "1f64bc9ce9945928462444ff7cfeb559d175111992dc94d0208c1106727f64f8",
+      "sanitized_sha256": "aa6d231ca156e8c3a717d65958823f1f80e3bafc62cb3e6c799bffe987ffe8b8",
+      "operation": "Publish final runtime-source regression reports and diagnostic drivers. Original distribution revision above does not apply to this new artifact.",
+      "measurements_rerun": false,
+      "verification": {
+        "json_non_string_primitives_checked": 1064,
+        "reports": 2,
+        "all_other_report_fields_unchanged": true,
+        "as_run_fingerprints_preserved": true,
+        "failure_flags_preserved": true,
+        "removed": [
+          "Private benchmark host label",
+          "Incidental repository absolute path in archived diagnostic source"
+        ]
+      },
+      "metadata_correction": "Concurrency metadata corrected before publication to disclose the short JAX diagnostics on CPU 12. Numerical reports, timing samples, verdicts and as-run source fingerprints are unchanged."
     }
   ],
   "history_mapping": "benchmarks/history-provenance.json"
