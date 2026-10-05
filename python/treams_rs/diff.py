@@ -2133,7 +2133,8 @@ def layer_stack(
             side, pol 0 then 1.
         zs: impedances, shape (media,).
         q: transverse wavevector of each channel, shape (channels, 2).
-        thickness: one thickness per interior medium, shape (media - 2,).
+        thickness: one thickness per interior medium, shape (media - 2,);
+            a scalar is also accepted for a single interior medium.
 
     Static configuration:
         alignment: "xy", "yz" or "zx", the transverse axes.
@@ -2145,7 +2146,7 @@ def layer_stack(
         np.asarray(ks, dtype=np.complex128).tolist(),
         np.asarray(zs, dtype=np.complex128).tolist(),
         np.asarray(q, dtype=np.float64).tolist(),
-        np.atleast_1d(np.asarray(thickness, dtype=np.float64)).tolist(),
+        np.asarray(thickness, dtype=np.float64),
         ALIGNMENT_AXIS[alignment],
         fixed_q,
     )

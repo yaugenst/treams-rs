@@ -19,7 +19,7 @@ use treams_core::{Error, special::Radial};
 macro_rules! context {
     ($(#[$doc:meta])* $name:ident($residual:ty $(, $(#[$meta:meta])* $field:ident: $type:ty)* $(,)?)) => {
         $(#[$doc])*
-        #[pyclass(module = "treams_rs._native")]
+        #[pyclass(frozen, module = "treams_rs._native")]
         #[derive(Debug)]
         pub(crate) struct $name {
             residual: $residual,

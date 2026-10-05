@@ -2,7 +2,7 @@
 //! the translation coefficient of one mode pair
 //! (`treams_core::sw::polar_translation_array`, `cw::polar_translation_array`).
 use crate::{
-    broadcast::{Recorded, broadcast_context, context, record},
+    broadcast::{Recorded, broadcast_context, check_flat_shape, context, record},
     context::radial,
 };
 use numpy::PyReadonlyArray1;
@@ -70,6 +70,8 @@ pub(crate) fn spherical_translation_context(
     argument_shapes: [Vec<usize>; 3],
 ) -> PyResult<SphericalTranslationContext> {
     ieee(|| {
+        let [a, b, c] = arguments.each_ref().map(|a| a.as_array().len());
+        check_flat_shape(&shape, &[modes.len(), a, b, c])?;
         let modes = modes
             .into_iter()
             .map(|pair| pair.map(|(l, m, pol)| Mode { l, m, pol }))
@@ -92,6 +94,8 @@ pub(crate) fn cylindrical_translation_context(
     argument_shapes: [Vec<usize>; 4],
 ) -> PyResult<CylindricalTranslationContext> {
     ieee(|| {
+        let [a, b, c, d] = arguments.each_ref().map(|a| a.as_array().len());
+        check_flat_shape(&shape, &[orders.len(), a, b, c, d])?;
         let arguments = arguments.map(|a| a.as_array().to_vec());
         let residual = cw::PolarTranslationResidual::new(orders, arguments, radial(singular))
             .map_err(crate::context::error)?;

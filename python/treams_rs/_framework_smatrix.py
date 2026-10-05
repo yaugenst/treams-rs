@@ -312,8 +312,18 @@ class SMatrix(HasPorts):
         return PowerBalance(b.xp.squeeze(power[0]), b.xp.squeeze(power[1]))
 
     def cascade(self, next_layer: SMatrix) -> SMatrix:
-        """Compose this lower system with the adjacent upper system."""
+        """Compose adjacent systems whose port wavevectors have the same dependence.
+
+        Fixed basis ports cannot be mixed with diffraction-order ports: matching
+        their current wavevectors does not match their derivatives. Use a fixed
+        basis for both systems, or diffraction orders for both.
+        """
         upper = promote(next_layer, self._backend)
+        if self.ports.fixed_q != upper.ports.fixed_q:
+            raise ValueError(
+                "stacked systems cannot mix fixed and diffraction-order ports; "
+                "use the same port definition for both systems"
+            )
         if (
             self.ports.modes != upper.ports.modes
             or self.ports.alignment != upper.ports.alignment

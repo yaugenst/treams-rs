@@ -15,6 +15,10 @@ use crate::{
 
 /// Require every argument shape to broadcast to the output `shape`.
 pub(crate) fn check_broadcast<S: AsRef<[usize]>>(shape: &[usize], arguments: &[S]) -> PyResult<()> {
+    shape_size(shape).map_err(error)?;
+    for argument in arguments {
+        shape_size(argument.as_ref()).map_err(error)?;
+    }
     let broadcasts = |argument: &[usize]| {
         argument.len() <= shape.len()
             && (argument.iter().rev())
@@ -31,6 +35,21 @@ pub(crate) fn check_broadcast<S: AsRef<[usize]>>(shape: &[usize], arguments: &[S
             "argument shapes must broadcast to output",
         ))
     }
+}
+
+/// Check the declared output shape against the retained scalar-or-array inputs.
+pub(crate) fn check_flat_shape(shape: &[usize], lengths: &[usize]) -> PyResult<()> {
+    let actual = if lengths.contains(&0) {
+        0
+    } else {
+        lengths.iter().copied().max().unwrap_or_default()
+    };
+    if shape_size(shape).map_err(error)? != actual {
+        return Err(PyValueError::new_err(
+            "output shape must match broadcast inputs",
+        ));
+    }
+    Ok(())
 }
 
 /// Row-major values as an array of `shape`.

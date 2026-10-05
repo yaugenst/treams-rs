@@ -1488,7 +1488,7 @@ def layer_stack(
     ks: list[list[complex]],
     zs: list[complex],
     q: list[list[float]],
-    thickness: list[float],
+    thickness: ArrayLike,
     axis: int,
     fixed_q: bool,
 ) -> tuple[ComplexArray, LayerStackContext]: ...

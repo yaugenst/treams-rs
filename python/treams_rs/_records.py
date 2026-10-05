@@ -261,9 +261,7 @@ def apply_pullback(
     for index, (value, primal) in enumerate(zip(values, primals, strict=True)):
         array = np.asarray(value)
         if array.shape != primal.shape:
-            if (reshape and array.size == prod(primal.shape)) or (
-                primal.shape == () and array.shape == (1,)
-            ):
+            if reshape and array.size == prod(primal.shape):
                 array = array.reshape(primal.shape)
             else:
                 raise ValueError(
