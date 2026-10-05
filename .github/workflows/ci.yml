@@ -108,19 +108,27 @@ jobs:
           name: python-coverage
           path: coverage.xml
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 90
 
   coverage:
     name: Coverage
     needs: python
     runs-on: ubuntu-latest
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
     permissions:
       contents: read
+      actions: read # Read the base commit's existing coverage artifact.
       id-token: write # Codecov exchanges GitHub's short-lived OIDC identity
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version-file: pyproject.toml
 
       # A download by name extracts into `path` itself, without a per-artifact
       # directory.
@@ -129,11 +137,48 @@ jobs:
           name: python-coverage
           path: coverage
 
-      - name: Upload coverage to Codecov
+      - name: Restore cached base coverage
+        id: base-coverage
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: coverage/base
+          key: python-coverage-base-${{ env.BASE_SHA }}
+
+      - name: Download the base commit's saved coverage
+        if: steps.base-coverage.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          run_id="$(gh run list --workflow ci.yml --event push --branch main \
+            --commit "$BASE_SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+          if [[ -z "$run_id" ]] || ! gh run download "$run_id" \
+            --name python-coverage --dir coverage/base; then
+            echo "::error::No saved coverage report is available for base commit $BASE_SHA. Tests are not rerun automatically."
+            exit 1
+          fi
+
+      - name: Cache the base report before enforcing thresholds
+        if: steps.base-coverage.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: coverage/base
+          key: ${{ steps.base-coverage.outputs.cache-primary-key }}
+
+      - name: Enforce coverage thresholds
+        run: >-
+          uv run --script scripts/check_coverage.py
+          coverage/coverage.xml coverage/base/coverage.xml
+          --compare-branch "$BASE_SHA"
+
+      - name: Update the Codecov badge
+        if: github.event_name == 'push'
+        continue-on-error: true
+        timeout-minutes: 2
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           disable_search: true
-          fail_ci_if_error: true
+          fail_ci_if_error: false
           files: coverage/coverage.xml
           use_oidc: true
           use_pypi: true

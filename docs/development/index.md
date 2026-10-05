@@ -114,8 +114,26 @@ exact source revision, as described in [releasing](releasing.md).
 CI runs the complete reference suite on Python 3.12 and 3.13 and the available
 tests on 3.14 and 3.15. Separate jobs cover NumPy 2.1–2.5, all declared
 dependency floors together on 3.12, and current framework releases on 3.13
-and 3.14. Rust checks cover 1.94.0 and stable. The coverage upload and these
-required jobs must pass for `CI Success`, which is required for release.
+and 3.14. Rust checks cover 1.94.0 and stable. These checks, including the
+coverage thresholds below, must pass for `CI Success`, which is required for
+release.
+
+The Coverage job checks the Python 3.12 report directly. Overall line coverage
+may drop by at most **0.1 percentage points** from the exact base commit, and
+at least **90% of changed executable lines** must be covered. The base is the
+pull request's base SHA, or the previous `main` SHA for a push. CI reuses that
+commit's saved report and caches it for later checks; it never reruns the tests
+to get a baseline. Reports are retained for 90 days. A missing baseline fails
+with an explicit error instead of skipping the comparison.
+
+To check two downloaded reports locally, run from the repository root:
+
+```sh
+uv run --script scripts/check_coverage.py coverage.xml base-coverage.xml --compare-branch BASE_SHA
+```
+
+Codecov receives a best-effort upload on `main` for the badge. Its PR comments
+and status checks are disabled, and an upload failure cannot fail `CI Success`.
 
 When a dependency range changes, update its CI job too. A change to a
 Rust dependency linked into wheels also needs `just licenses` to refresh the
