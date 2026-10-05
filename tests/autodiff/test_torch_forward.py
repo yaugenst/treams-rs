@@ -184,3 +184,23 @@ def test_derivative_of_forward_tangent_is_explicitly_unsupported():
     )
     with pytest.raises(NotImplementedError, match="first-order"):
         torch.autograd.grad(tangent.real.sum(), rhs)
+
+
+@pytest.mark.parametrize("interface", ["func", "dual"])
+def test_gauss_newton_product_shares_one_native_forward(interface):
+    calls = []
+
+    def record(x):
+        calls.append(1)
+        return diff.bessel(2, x, spherical=True)
+
+    function = ad.wrap(record)
+    point = torch.tensor([0.4, 0.7], dtype=torch.float64, requires_grad=True)
+    direction = torch.tensor([0.2, -0.3], dtype=torch.float64)
+    value, tangent = _jvp(lambda x: function(x).real, (point,), (direction,), interface)
+    (actual,) = torch.autograd.grad(value, point, tangent.detach())
+    assert calls == [1]
+    derivative = tr.special.spherical_jn(
+        2, point.detach().numpy(), derivative=True
+    ).real
+    assert_allclose(actual.numpy(), derivative**2 * direction.numpy(), atol=1e-14)

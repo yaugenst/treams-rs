@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Reuse JAX callback identities across eager calls and allow transposing a
+  linearization at fixed inputs. Add JAX and PyTorch examples that combine
+  forward and reverse mode without taking second derivatives.
 - Add analytic first-order pushforwards throughout the Rust numerical core.
   Reusable residuals share saved numerical work between input directions
   and reverse gradients; dense solves reuse their recorded factors.
