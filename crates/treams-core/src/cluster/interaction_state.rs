@@ -150,7 +150,7 @@ impl SavedState for InteractionResidual {
 }
 
 impl IlluminateResidual {
-    /// Bytes needed to save local blocks, coupling, LU, incident and scattered fields.
+    /// Bytes needed to save local blocks, coupling, LU, response and scattered fields.
     pub fn state_size(local_sizes: &[usize], columns: usize) -> Result<usize> {
         if columns == 0 {
             return Err(invalid());
@@ -169,7 +169,7 @@ impl SavedState for IlluminateResidual {
         let mut writer = Writer::new(Self::state_size(&sizes, self.value.ncols())?);
         writer.usize(self.value.ncols());
         self.factor.write_state(&mut writer);
-        write_matrix(&mut writer, &self.incident);
+        write_matrix(&mut writer, &self.response);
         write_matrix(&mut writer, &self.value);
         Ok(writer.finish())
     }
@@ -187,12 +187,12 @@ impl SavedState for IlluminateResidual {
             &sizes,
             dimension,
         )?);
-        let incident = read_matrix(&mut reader, dimension, columns)?;
+        let response = read_matrix(&mut reader, dimension, columns)?;
         let value = read_matrix(&mut reader, dimension, columns)?;
         reader.finish()?;
         Ok(Self {
             factor,
-            incident,
+            response,
             value,
         })
     }

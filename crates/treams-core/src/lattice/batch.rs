@@ -11,9 +11,6 @@ use crate::{
     numerics::{broadcast, finite, parallel::Parallel},
 };
 
-#[path = "saved_batch.rs"]
-mod saved;
-
 /// Batched sums split adaptively across the rayon pool from this many outputs.
 const PARALLEL: Parallel = Parallel::AtLeast(8);
 
@@ -32,47 +29,12 @@ pub fn sum_array(
     etas: Vec<Complex>,
     parts: Vec<SumPart>,
 ) -> Result<(Vec<Complex>, SumResidual)> {
-    let size = broadcast::size(
-        &[
-            waves.len(),
-            wavenumbers.len(),
-            lattices.len(),
-            shifts.len(),
-            etas.len(),
-            parts.len(),
-        ],
-        "arrays must have equal lengths or scalar inputs",
-    )?;
-    if parts
-        .iter()
-        .any(|p| matches!(p, SumPart::Real | SumPart::Reciprocal))
-        && etas.contains(&Complex::default())
-    {
-        return Err(Error::InvalidInput(
-            "component adjoints require an explicit nonzero Ewald split".into(),
-        ));
-    }
-    let residual = SumResidual {
-        waves,
-        wavenumbers,
-        lattices,
-        shifts,
-        etas,
-        parts,
-        size,
-    };
-    let values = broadcast::map(size, PARALLEL, |i| {
-        let (wave, k, lattice, r, eta, part) = residual.element(i);
-        sum_part(wave, k, lattice, r, eta, part)
-    })?;
-    Ok((values, residual))
+    let residual = SumResidual::new(waves, wavenumbers, lattices, shifts, etas, parts)?;
+    Ok((residual.values()?, residual))
 }
 
-/// What [`sum_array`] saves for the pullback of a batch of lattice sums: the inputs,
-/// each one value for all outputs or one per output.
-///
-/// The pullback computes the gradient of every output on its own, so its result does
-/// not depend on the thread count.
+/// What [`sum_array`] saves for a batch of lattice sums: the original inputs.
+/// Every input holds one shared value or one value per output.
 #[derive(Debug)]
 pub struct SumResidual {
     waves: Vec<Family>,
@@ -85,6 +47,53 @@ pub struct SumResidual {
 }
 
 impl SumResidual {
+    /// Retain a batch's inputs without evaluating any lattice sums.
+    pub fn new(
+        waves: Vec<Family>,
+        wavenumbers: Vec<Complex>,
+        lattices: Vec<BlochLattice>,
+        shifts: Vec<[f64; 3]>,
+        etas: Vec<Complex>,
+        parts: Vec<SumPart>,
+    ) -> Result<Self> {
+        let size = broadcast::size(
+            &[
+                waves.len(),
+                wavenumbers.len(),
+                lattices.len(),
+                shifts.len(),
+                etas.len(),
+                parts.len(),
+            ],
+            "arrays must have equal lengths or scalar inputs",
+        )?;
+        if parts
+            .iter()
+            .any(|p| matches!(p, SumPart::Real | SumPart::Reciprocal))
+            && etas.contains(&Complex::default())
+        {
+            return Err(Error::InvalidInput(
+                "component adjoints require an explicit nonzero Ewald split".into(),
+            ));
+        }
+        Ok(Self {
+            waves,
+            wavenumbers,
+            lattices,
+            shifts,
+            etas,
+            parts,
+            size,
+        })
+    }
+
+    /// Evaluate the recorded inputs once per output.
+    pub fn values(&self) -> Result<Vec<Complex>> {
+        broadcast::map(self.size, PARALLEL, |i| {
+            let (wave, k, lattice, r, eta, part) = self.element(i);
+            sum_part(wave, k, lattice, r, eta, part)
+        })
+    }
     /// Contract each sum's analytic local derivatives with one input direction.
     /// `tangents` contains one shared direction or one direction per output.
     pub fn pushforward(&self, tangents: &[SumTangent]) -> Result<Vec<Complex>> {
@@ -139,7 +148,6 @@ mod tests {
 
     #[test]
     fn residual_reuses_inputs_across_forward_and_reverse_directions() {
-        use crate::saved::SavedState;
         let (_, residual) = sum_array(
             vec![Family::Spherical { l: 2, m: -1 }],
             vec![Complex::new(2.1, 0.2)],
@@ -154,11 +162,6 @@ mod tests {
             ..SumTangent::default()
         };
         let first = residual.pushforward(&[direction]).unwrap();
-        let bytes = residual.save_state().unwrap();
-        assert_eq!(bytes.len(), SumResidual::state_size(2).unwrap());
-        let restored = SumResidual::from_state(&bytes).unwrap();
-        assert_eq!(first, restored.pushforward(&[direction]).unwrap());
-        assert!(SumResidual::from_state(&bytes[..bytes.len() - 1]).is_err());
         let cotangent = [Complex::new(0.3, 0.4), Complex::new(-0.2, 0.1)];
         let gradient = residual.pullback(&cotangent).unwrap();
         let opposite = residual

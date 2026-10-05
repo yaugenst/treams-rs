@@ -17,21 +17,27 @@ from _support import assert_tree_allclose, jax_x64
 # Object records share the authoritative native-contract fixtures. Broadcast
 # records retain either computed state or their original inputs.
 SAVED_CASES = {
-    **CASES,
-    "coordinates": case(
-        lambda points: diff.coordinates(points, kind="car2sph"),
-        [[0.4, 0.7, 0.2], [1.3, 0.5, -0.5]],
-    ),
-    "vector_coordinates": case(
-        lambda vectors, points: diff.vector_coordinates(
-            vectors, points, kind="car2sph"
-        ),
-        [[[0.2 + 0.1j, 0.3, 0.7]], [[-0.1j, 0.8, 0.5]]],
-        [[0.4, 0.7, 0.2], [1.3, 0.5, -0.5]],
-    ),
+    name: factory for name, factory in CASES.items() if name != "lattice_sum_record"
 }
 
 INPUT_CASES = {
+    "coordinates": case(
+        partial(diff.coordinates, kind="car2sph"),
+        [[0.4, 0.7, 0.2], [1.3, 0.5, -0.5]],
+    ),
+    "vector_coordinates": case(
+        partial(diff.vector_coordinates, kind="car2sph"),
+        [[[0.2 + 0.1j, 0.3, 0.7]], [[-0.1j, 0.8, 0.5]]],
+        [[0.4, 0.7, 0.2], [1.3, 0.5, -0.5]],
+    ),
+    "lattice_sum": case(
+        partial(diff.lattice_sum, 2, [2, 3], -1),
+        [2.1 + 0.2j, 2.3 + 0.1j],
+        [0.1, 0.2],
+        [[1.5, 0.0], [0.2, 1.4]],
+        [[0.19, 0.11, 0.07], [0.21, -0.09, 0.05]],
+        0.9 + 0.02j,
+    ),
     "bessel": case(
         partial(diff.bessel, np.array([1, 2])[:, None]),
         [[0.7 + 0.2j, 1.1 + 0.1j]],
@@ -219,7 +225,14 @@ def test_saved_context_fixtures_cover_every_native_derivative_class():
 
 
 @pytest.mark.gradients
-@pytest.mark.parametrize("name", INPUT_CASES)
+@pytest.mark.parametrize(
+    "name",
+    [
+        name
+        for name in INPUT_CASES
+        if name not in ("coordinates", "vector_coordinates", "lattice_sum")
+    ],
+)
 @pytest.mark.parametrize("shape", ["scalar", "empty"])
 def test_input_context_reconstruction_preserves_broadcast_shapes(name, shape):
     fixture = INPUT_CASES[name]()
@@ -292,7 +305,11 @@ def test_input_context_jax_derivatives_do_not_replay_values(name, x64, monkeypat
         assert calls == {"forward": 1}
 
         calls.clear()
-        jax.block_until_ready(jax.jit(jax.jacfwd(function, holomorphic=True))(*inputs))
+        jax.block_until_ready(
+            jax.jit(jax.jacfwd(function, holomorphic=np.iscomplexobj(inputs[0])))(
+                *inputs
+            )
+        )
         # With only derivatives requested, no computed state depends on the
         # values, so JAX can omit their evaluation altogether.
         assert not calls

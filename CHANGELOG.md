@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Remove redundant coordinate and lattice-sum state serialization. Avoid
+  retaining unused JAX inputs and reuse the saved illumination response across
+  derivative directions without increasing its stored matrix count.
 - Preserve exact scalar gradient shapes, reject inconsistent cascade port
   definitions, and validate restored context dimensions and Ewald split ranges
   before native numerical work.

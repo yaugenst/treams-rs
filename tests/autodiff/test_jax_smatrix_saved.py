@@ -64,6 +64,7 @@ def test_jit_stack_linearization_and_pullback_reuse_native_state(monkeypatch):
         reverse_value, pullback = jax.vjp(function, parameters)
         assert_allclose(reverse_value, value, rtol=1e-13)
         assert calls == one_forward + one_forward
+
         for scale in (1.0, -0.4):
             gradient = np.asarray(pullback(jnp.asarray(scale))[0])
             for direction, derivative in zip(directions, projected, strict=True):
@@ -71,3 +72,55 @@ def test_jit_stack_linearization_and_pullback_reuse_native_state(monkeypatch):
                     np.dot(gradient, direction), scale * derivative, rtol=1e-12
                 )
         assert calls == one_forward + one_forward
+
+
+@pytest.mark.parametrize("operation", ["cascade", "power"])
+def test_mapped_smatrix_contexts_keep_state_without_dense_primals(operation):
+    from treams_rs import jax as tj
+
+    ports = tr.PlaneWavePorts.default([[0.1, 0.05]])
+    initial = tr.slab(basis=ports, k0=1.2, thickness=0.2, material=2.2 + 0.05j).array
+
+    def function(*matrices):
+        system = tj.smatrix(matrices[0], basis=ports, k0=1.2)
+        if operation == "cascade":
+            upper = tj.smatrix(matrices[1], basis=ports, k0=1.2)
+            return system.cascade(upper).array
+        return system.power([1.0, 0.3j], side="positive").transmission
+
+    with jax_x64():
+        inputs = (jnp.asarray(initial),) * (2 if operation == "cascade" else 1)
+        directions = tuple(jnp.full_like(value, 0.03 + 0.02j) for value in inputs)
+        value, linear = jax.linearize(function, *inputs)
+        retained = jax.make_jaxpr(linear)(*directions).consts
+        state = [array for array in retained if array.dtype == np.uint8]
+        expected_bytes = (
+            _native.SMatrixAddContext._state_spec(2)
+            if operation == "cascade"
+            else _native.SMatrixTrContext._state_spec(2, 1, 1)
+        )
+        assert len(state) == 1
+        assert state[0].nbytes == expected_bytes
+        # Fixed metadata needs zero tangents, but its values and the dense
+        # input matrices must not survive alongside the recorded state.
+        for array in retained:
+            if array.dtype != np.uint8:
+                assert_allclose(array, 0, rtol=0, atol=0)
+        assert sum(array.nbytes for array in retained) < expected_bytes + sum(
+            array.nbytes for array in inputs
+        )
+
+        first = linear(*directions)
+        assert_allclose(linear(*(2 * d for d in directions)), 2 * first, rtol=1e-12)
+        _, reverse = jax.vjp(function, *inputs)
+        weights = jnp.ones_like(value)
+        gradients = reverse(weights)
+        assert_allclose(
+            jnp.real(
+                sum(jnp.sum(g * d) for g, d in zip(gradients, directions, strict=True))
+            ),
+            jnp.real(jnp.sum(first)),
+            rtol=1e-12,
+        )
+        for actual, expected in zip(reverse(weights), gradients, strict=True):
+            assert_allclose(actual, expected, rtol=0, atol=0)

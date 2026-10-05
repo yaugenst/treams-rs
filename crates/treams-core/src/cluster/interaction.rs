@@ -225,13 +225,15 @@ impl InteractionFactor {
         self.local.apply(&adjoint, true)
     }
 
-    /// Solve like [`solve`](Self::solve) and keep what the pullback needs. The
-    /// residual shares this factor.
+    /// Solve like [`solve`](Self::solve) and keep `B + C X` for both derivative
+    /// directions. This response replaces the incident fields, and the residual
+    /// shares this factor. Use `solve` when only the scattered fields are needed.
     pub fn record(self: &Arc<Self>, incident: DMatrix<Complex>) -> Result<IlluminateResidual> {
         let value = self.solve(&incident)?;
+        let response = incident + product(&self.coupling, &value);
         Ok(IlluminateResidual {
             factor: Arc::clone(self),
-            incident,
+            response,
             value,
         })
     }
@@ -417,11 +419,11 @@ impl InteractionResidual {
 }
 
 /// What [`InteractionFactor::record`] saves for its pullback: the shared factor and
-/// the incident and scattered fields of the requested columns.
+/// the total incident response `B + C X` and scattered fields of the requested columns.
 #[derive(Debug)]
 pub struct IlluminateResidual {
     factor: Arc<InteractionFactor>,
-    incident: DMatrix<Complex>,
+    response: DMatrix<Complex>,
     value: DMatrix<Complex>,
 }
 
@@ -467,13 +469,12 @@ impl IlluminateResidual {
     ) -> Result<DMatrix<Complex>> {
         let factor = &self.factor;
         factor.validate_tangents(local, coupling)?;
-        if incident.shape() != self.incident.shape() || incident.iter().any(|&z| !finite(z)) {
+        if incident.shape() != self.shape() || incident.iter().any(|&z| !finite(z)) {
             return Err(Error::InvalidInput(
                 "incident tangent must be finite and match the incident fields".into(),
             ));
         }
-        let response = &self.incident + product(&factor.coupling, &self.value);
-        let mut rhs = factor.local.apply_tangent(local, &response)?;
+        let mut rhs = factor.local.apply_tangent(local, &self.response)?;
         rhs += factor
             .local
             .apply(&(incident + product(coupling, &self.value)), false)?;
@@ -498,8 +499,7 @@ impl IlluminateResidual {
         let mut adjoint = cotangent.clone();
         factor.lu.solve_adjoint_in_place(view_mut(&mut adjoint))?;
         let incident = factor.local.apply(&adjoint, true)?;
-        let response = &self.incident + product(&factor.coupling, &self.value);
-        let local = factor.local.block_gradients(&adjoint, &response);
+        let local = factor.local.block_gradients(&adjoint, &self.response);
         let coupling = product_adjoint_right(&incident, &self.value);
         Ok(IlluminateGradient {
             local,

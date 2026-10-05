@@ -1,7 +1,7 @@
 //! Python bindings of treams-core: the extension module `treams_rs._native`.
 //!
 //! The bindings turn `NumPy` arrays and Python values into core inputs, run the
-//! core with the GIL released, and return `NumPy` arrays and pullback contexts.
+//! core with the GIL released, and return `NumPy` arrays and derivative contexts.
 //! Every formula and every analytic derivative lives in treams-core; this crate
 //! converts arrays, checks shapes and sums gradients over broadcast axes. Users
 //! never import `_native`: the package `treams_rs` wraps it, and the stub
@@ -22,6 +22,8 @@
 //! - *Record*: a native function or method that returns `(value, context)`.
 //! - *Pullback*: `context.pullback(cotangent)`, which returns the gradients with
 //!   respect to the differentiable inputs.
+//! - *Pushforward*: `context.pushforward(*tangents)`, which returns the change in
+//!   each output from one direction for every differentiable input.
 //! - *Cotangent*: the gradient `g` of the loss with respect to the value. It has the
 //!   shape of the value.
 //! - *Real pairing*: the convention dL = Re Σ conj(g)·dx. A real input gets a real
@@ -117,6 +119,17 @@
 //!   `BandsContext.pullback(wavenumbers, eigenvectors)` take one cotangent per
 //!   output.
 //!
+//! # Saved contexts
+//!
+//! JAX callbacks transport saved numerical work as owned arrays. Contexts with
+//! computed state expose `_state()`, `_from_state(state)` and `_state_spec(...)`;
+//! the last method determines the byte count from static dimensions. All three
+//! use the core's shared `SavedState` contract. Input-only contexts instead use
+//! cheap `*_context` constructors that retain inputs without evaluating values.
+//! Both forms restore reusable pushforwards and pullbacks without repeating an
+//! expensive forward calculation. These methods are private adapter contracts,
+//! not a persistent serialization format.
+//!
 //! # Naming rules
 //!
 //! - A native function that serves a `treams_rs.diff` function has its name. The
@@ -158,7 +171,9 @@
 //!    one-line doc that names the core function, whose whole body is one
 //!    `ieee(|| ...)` call and whose core call runs in `detached`. Define its context
 //!    with `context!` (`broadcast_context!` for broadcast records) and the
-//!    `pullback` in a `#[pymethods]` block. A ufunc instead takes a loop in
+//!    `pushforward` and `pullback` in a `#[pymethods]` block. Add saved-state
+//!    methods or an input-only constructor when JAX must restore the context.
+//!    A ufunc instead takes a loop in
 //!    `ufunc/loops.rs` and a row with its doc literal in `ufunc/registry.rs`.
 //! 3. Export it in the `#[pymodule_export] use` line of its file below.
 //! 4. Declare it in `python/treams_rs/_native.pyi`.
@@ -234,7 +249,8 @@ mod _native {
 
     #[pymodule_export]
     use super::coordinates::{
-        CoordinatesContext, VectorCoordinatesContext, coordinates_record, vector_coordinates_record,
+        CoordinatesContext, VectorCoordinatesContext, coordinates_context, coordinates_record,
+        vector_coordinates_context, vector_coordinates_record,
     };
     #[pymodule_export]
     use super::integrals::{
@@ -252,7 +268,7 @@ mod _native {
     use super::lattice::{
         LatticeExpansionContext, LatticeExpansionFromTableContext, LatticeSumContext,
         cylindrical_lattice_expansion, diffraction_orders, first_brillouin, lattice_cube,
-        lattice_expansion, lattice_expansion_from_table, lattice_sum_record,
+        lattice_expansion, lattice_expansion_from_table, lattice_sum_context, lattice_sum_record,
     };
 
     #[pymodule_export]

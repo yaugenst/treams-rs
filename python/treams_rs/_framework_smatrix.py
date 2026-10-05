@@ -45,12 +45,6 @@ def _power_context(context: Any, *_primals: Any) -> DerivativeContext:
     return DerivativeContext(pullback, context.pushforward, native_context=context)
 
 
-def _cascade_context(
-    context: Any, _lower: Any, _higher: Any, *metadata: Any
-) -> DerivativeContext:
-    return with_zero_metadata(context, *metadata)
-
-
 def _bands_context(
     context: Any, _array: Any, _period: Any, outer: Any
 ) -> DerivativeContext:
@@ -283,6 +277,7 @@ class SMatrix(HasPorts):
                 inputs[4].shape[0],
             ),
             map_context=_power_context,
+            needs_primals=False,
         )
         def record(a: Any, i: Any, ks: Any, zs: Any, q: Any) -> Any:
             value, context = diff.smatrix_tr(
@@ -334,11 +329,28 @@ class SMatrix(HasPorts):
         b.require_same(
             upper._backend, "stacked systems require one framework namespace"
         )
+        metadata = (
+            self.ports.transverse_wavevectors,
+            upper.ports.transverse_wavevectors,
+            b.array(self.k0),
+            b.array(upper.k0),
+            # media = (positive, negative): this positive side meets the
+            # upper system's negative side.
+            b.medium_key(self.media[0]),
+            b.medium_key(upper.media[1]),
+        )
+        metadata_shapes = tuple(value.shape for value in metadata)
+
+        def map_context(context: Any) -> DerivativeContext:
+            return with_zero_metadata(
+                context, *(np.zeros(shape) for shape in metadata_shapes)
+            )
 
         @native_state(
             _native.SMatrixAddContext,
             lambda inputs: (inputs[0].shape[-1],),
-            map_context=_cascade_context,
+            map_context=map_context,
+            needs_primals=False,
         )
         def record(
             lower: Any,
@@ -359,31 +371,14 @@ class SMatrix(HasPorts):
                     "stacked systems require matching wavevectors, k0 and adjacent medium"
                 )
             value, context = diff.smatrix_add(lower, higher)
-            return value, _cascade_context(
-                context,
-                lower,
-                higher,
-                first_q,
-                second_q,
-                first_k,
-                second_k,
-                first_medium,
-                second_medium,
-            )
+            return value, map_context(context)
 
         array = b.apply(
             record,
             tuple(self.array.shape),
             self.array,
             upper.array,
-            self.ports.transverse_wavevectors,
-            upper.ports.transverse_wavevectors,
-            b.array(self.k0),
-            b.array(upper.k0),
-            # media = (positive, negative): this positive side meets the
-            # upper system's negative side.
-            b.medium_key(self.media[0]),
-            b.medium_key(upper.media[1]),
+            *metadata,
         )
         return SMatrix(
             array,
