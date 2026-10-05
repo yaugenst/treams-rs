@@ -3,17 +3,19 @@
 //!
 //! Upstream: `treams.SMatrices.illuminate` with a second S-matrix (`smat=`).
 
+mod saved;
+
 use faer::MatRef;
 use nalgebra::DMatrix;
 use rayon::prelude::*;
 
 use super::{
-    Blocks, StoredBlock, any_nonfinite,
+    Blocks, StoredBlock, any_nonfinite, checked_dimension,
     solve::{AdjointSolve, InternalSolve},
 };
 use crate::{
     Complex, Error, Result,
-    linalg::{product_adjoint_right_into, product_views, view},
+    linalg::{product, product_adjoint_right, product_views, view},
     numerics::finite,
 };
 
@@ -66,12 +68,9 @@ pub fn illuminate(
         );
         [a, b, c, d]
     };
-    // A one-thread pool gains nothing from concurrency, but whether the copies run
-    // on the calling thread or on the worker decides which glibc arena holds the
-    // copies and the block gradients that reuse them in the pullback. Which thread
-    // faults fewer pages depends on the size and on whether the residual is pulled back
-    // or dropped; copying on the calling thread below 512 rows and on the worker from
-    // 512 rows faults fewer pages in both the forward and the pullback.
+    // A one-thread pool gains nothing from concurrency. Large recorded snapshots
+    // are allocated on its worker, alongside the numerical work; small snapshots
+    // avoid dispatching to the worker just to copy their inputs.
     let threshold = if crate::threads::current_num_threads() > 1 {
         PARALLEL_SNAPSHOT_ROWS
     } else {
@@ -189,8 +188,50 @@ impl IlluminateResidual {
         self.solve.value.shape()
     }
 
+    /// Propagate stack and incident-field tangents through the recorded solve.
+    /// Products remain mode-by-illumination arrays for a thin illumination batch.
+    pub fn pushforward(
+        &self,
+        lower: &Blocks,
+        upper: &Blocks,
+        incoming: &[DMatrix<Complex>; 2],
+    ) -> Result<[DMatrix<Complex>; 4]> {
+        let (n, _) = self.shape();
+        checked_dimension(lower, n, "invalid lower illumination S matrix tangent")?;
+        checked_dimension(upper, n, "invalid upper illumination S matrix tangent")?;
+        if incoming
+            .iter()
+            .any(|a| a.shape() != self.shape() || a.iter().any(|&z| !finite(z)))
+        {
+            return Err(Error::InvalidInput(
+                "invalid illumination input tangent".into(),
+            ));
+        }
+        let up = &self.solve.value;
+        let direct = product(&upper[2], up)
+            + product(&upper[3], &self.incoming[1])
+            + product_views(self.upper[3].view(), view(&incoming[1]));
+        let rhs = product(&lower[0], &self.incoming[0])
+            + product_views(self.lower[0].view(), view(&incoming[0]))
+            + product(&lower[1], &self.down)
+            + product_views(self.lower[1].view(), view(&direct));
+        let tangent_up =
+            self.solve
+                .solve_forward(self.lower[1].view(), self.upper[2].view(), rhs)?;
+        let tangent_down = direct + product_views(self.upper[2].view(), view(&tangent_up));
+        let top = product(&upper[0], up)
+            + product_views(self.upper[0].view(), view(&tangent_up))
+            + product(&upper[1], &self.incoming[1])
+            + product_views(self.upper[1].view(), view(&incoming[1]));
+        let bottom = product(&lower[2], &self.incoming[0])
+            + product_views(self.lower[2].view(), view(&incoming[0]))
+            + product(&lower[3], &self.down)
+            + product_views(self.lower[3].view(), view(&tangent_down));
+        Ok([top, bottom, tangent_up, tangent_down])
+    }
+
     /// Return lower/upper S matrices and incoming up/down amplitude cotangents.
-    pub fn pullback(self, cotangent: &[DMatrix<Complex>; 4]) -> Result<IlluminateGradient> {
+    pub fn pullback(&self, cotangent: &[DMatrix<Complex>; 4]) -> Result<IlluminateGradient> {
         if cotangent
             .iter()
             .any(|a| a.shape() != self.shape() || a.iter().any(|&z| !finite(z)))
@@ -217,29 +258,18 @@ impl IlluminateResidual {
             product_views(self.upper[1].view().adjoint(), view(&cotangent[0]))
                 + product_views(self.upper[3].view().adjoint(), view(&direct)),
         ];
-        // The pullback reads the saved blocks for the last time above. Overwrite
-        // them with rank-P gradients instead of allocating eight dense matrices.
-        let mut lower = self.lower.map(StoredBlock::into_buffer);
-        let mut upper = self.upper.map(StoredBlock::into_buffer);
-        for ((output, left), right) in lower
-            .iter_mut()
-            .zip([&rhs, &rhs, &cotangent[1], &cotangent[1]])
-            .zip([&self.incoming[0], &self.down, &self.incoming[0], &self.down])
-        {
-            product_adjoint_right_into(output, left, right);
-        }
-        for ((output, left), right) in upper
-            .iter_mut()
-            .zip([&cotangent[0], &cotangent[0], &direct, &direct])
-            .zip([
-                &internal_up,
-                &self.incoming[1],
-                &internal_up,
-                &self.incoming[1],
-            ])
-        {
-            product_adjoint_right_into(output, left, right);
-        }
+        let lower = [
+            product_adjoint_right(&rhs, &self.incoming[0]),
+            product_adjoint_right(&rhs, &self.down),
+            product_adjoint_right(&cotangent[1], &self.incoming[0]),
+            product_adjoint_right(&cotangent[1], &self.down),
+        ];
+        let upper = [
+            product_adjoint_right(&cotangent[0], internal_up),
+            product_adjoint_right(&cotangent[0], &self.incoming[1]),
+            product_adjoint_right(&direct, internal_up),
+            product_adjoint_right(&direct, &self.incoming[1]),
+        ];
         Ok(IlluminateGradient {
             lower,
             upper,

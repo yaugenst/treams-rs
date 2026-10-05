@@ -72,14 +72,14 @@ fn channel_pullback<'py, R: Send>(
     residual: &mut OneUse<R>,
     cotangent: &Cotangent<'py>,
     shape: impl FnOnce(&R) -> (usize, usize),
-    pullback: impl FnOnce(R, &DMatrix<Complex>) -> treams_core::Result<ChannelGradient> + Send,
+    pullback: impl FnOnce(&R, &DMatrix<Complex>) -> treams_core::Result<ChannelGradient> + Send,
 ) -> PyResult<Gradient<'py>> {
     let (residual, g) = residual.take_if(|residual| {
         // (kind, side, multipole) rows in C order are the native row index.
         let (rows, columns) = shape(residual);
         merged_cotangent::<Ix4>(cotangent, &[2, 2, rows / 4, columns], (rows, columns))
     })?;
-    let result = detached(py, move || pullback(residual, &g))?;
+    let result = detached(py, move || pullback(&residual, &g))?;
     Ok((
         rows_array(py, result.positions)?,
         result.ks.to_vec().into_pyarray(py),

@@ -2,6 +2,8 @@
 //! form the coupling matrix. treams-rs extension.
 #![allow(clippy::indexing_slicing)] // Mode, particle and Krylov indices built and checked here.
 
+mod saved;
+
 use std::sync::Arc;
 
 use faer::{Accum, MatMut, MatRef, Par, linalg::matmul::matmul};
@@ -11,7 +13,7 @@ use rayon::prelude::*;
 use crate::{
     Complex, Error, Result,
     cluster::SphereClusterGradient,
-    coeffs::{Matrix2, MieResidual, mie, to_mode_order},
+    coeffs::{Material, Matrix2, MieResidual, mie, to_mode_order},
     linalg::{Convergence, GmresOptions, gmres_batch, view},
     numerics::{finite, parallel::try_fold_ordered},
     special::Radial,
@@ -95,15 +97,27 @@ impl IterativeSphereCluster {
     /// [`sphere`](crate::tmatrix::sphere) places the same blocks in a dense T-matrix
     /// for [`sphere_cluster`](super::sphere_cluster); this applies them in place.
     fn local(&self, input: &[Complex], adjoint: bool) -> Vec<Complex> {
+        self.apply_local(input, adjoint, |particle, degree| {
+            to_mode_order(self.degrees[particle][degree].value())
+        })
+    }
+
+    /// Apply value or tangent Mie blocks without forming a local T-matrix.
+    fn apply_local(
+        &self,
+        input: &[Complex],
+        adjoint: bool,
+        matrix_at: impl Fn(usize, usize) -> Matrix2,
+    ) -> Vec<Complex> {
         let mut output = vec![Complex::default(); input.len()];
         let modes = self.modes_per_particle();
         for (output, input) in output
             .chunks_exact_mut(self.dimension)
             .zip(input.chunks_exact(self.dimension))
         {
-            for (particle, degrees) in self.degrees.iter().enumerate() {
+            for particle in 0..self.degrees.len() {
                 for (block, &degree) in self.mode_degrees.iter().enumerate() {
-                    let matrix = to_mode_order(degrees[degree].value());
+                    let matrix = matrix_at(particle, degree);
                     let offset = particle * modes + block * 2;
                     for i in 0..2 {
                         for j in 0..2 {
@@ -129,6 +143,53 @@ impl IterativeSphereCluster {
     /// The particle-pair coupling `C`, or `Cᴴ`, applied to `columns` column-major
     /// vectors. Each translation block is evaluated once for all columns.
     fn coupling(&self, input: &[Complex], columns: usize, adjoint: bool) -> Result<Vec<Complex>> {
+        self.coupling_action(input, columns, |i, j, source, destination| {
+            let (to, from) = if adjoint { (j, i) } else { (i, j) };
+            let displacement =
+                std::array::from_fn(|axis| self.positions[to][axis] - self.positions[from][axis]);
+            self.plan.apply(
+                Complex::new(self.k0, 0.0),
+                displacement,
+                Radial::Singular,
+                source,
+                destination,
+                adjoint,
+            )
+        })
+    }
+
+    /// Directional coupling action, with the same streaming storage as `C` itself.
+    fn coupling_tangent(
+        &self,
+        input: &[Complex],
+        columns: usize,
+        k0: f64,
+        positions: &[[f64; 3]],
+    ) -> Result<Vec<Complex>> {
+        self.coupling_action(input, columns, |i, j, source, destination| {
+            let displacement =
+                std::array::from_fn(|axis| self.positions[i][axis] - self.positions[j][axis]);
+            let tangent = std::array::from_fn(|axis| positions[i][axis] - positions[j][axis]);
+            self.plan.apply_pushforward(
+                Complex::new(self.k0, 0.0),
+                displacement,
+                Radial::Singular,
+                tangent,
+                Complex::new(k0, 0.0),
+                source,
+                destination,
+            )
+        })
+    }
+
+    /// Apply either the coupling or its parameter tangent, sharing each pair's
+    /// harmonic table across the incident columns without a dense pair block.
+    fn coupling_action(
+        &self,
+        input: &[Complex],
+        columns: usize,
+        apply: impl Fn(usize, usize, MatRef<'_, Complex>, MatMut<'_, Complex>) -> Result<()> + Sync,
+    ) -> Result<Vec<Complex>> {
         let modes = self.modes_per_particle();
         let particles = self.positions.len();
         let input = MatRef::from_column_major_slice(input, self.dimension, columns);
@@ -139,17 +200,11 @@ impl IterativeSphereCluster {
                     // Rows of particle `i`, column-major over the input columns.
                     let mut output = vec![Complex::default(); modes * columns];
                     for j in (0..particles).filter(|&j| j != i) {
-                        let (to, from) = if adjoint { (j, i) } else { (i, j) };
-                        let displacement = std::array::from_fn(|axis| {
-                            self.positions[to][axis] - self.positions[from][axis]
-                        });
-                        self.plan.apply(
-                            Complex::new(self.k0, 0.0),
-                            displacement,
-                            Radial::Singular,
+                        apply(
+                            i,
+                            j,
                             input.subrows(j * modes, modes),
                             MatMut::from_column_major_slice_mut(&mut output, modes, columns),
-                            adjoint,
                         )?;
                     }
                     Ok(output)
@@ -287,6 +342,109 @@ impl IterativeResidual {
         self.solution.value.shape()
     }
 
+    /// Number of particles, for binding-level tangent validation.
+    #[must_use]
+    pub fn particles(&self) -> usize {
+        self.operator.radii.len()
+    }
+
+    /// The exciting field `B + C X`, shared by both derivative directions. Reuse
+    /// the coupling action's output allocation without copying saved incident data.
+    fn response(&self) -> Result<DMatrix<Complex>> {
+        let columns = self.incident.ncols();
+        let mut response =
+            self.operator
+                .coupling(self.solution.value.as_slice(), columns, false)?;
+        for (entry, incident) in response.iter_mut().zip(self.incident.iter()) {
+            *entry += incident;
+        }
+        Ok(DMatrix::from_vec(
+            self.operator.dimension,
+            columns,
+            response,
+        ))
+    }
+
+    /// Differentiate the converged equation, retaining the matrix-free operator:
+    /// `(I - T C) dX = dT (B + C X) + T (dB + dC X)`.
+    ///
+    /// Tangent solves use the primal GMRES options and return independent residual
+    /// certificates. No Krylov iteration history is retained or differentiated.
+    pub fn pushforward(
+        &self,
+        k0: f64,
+        radii: &[f64],
+        epsilon: &[Complex],
+        positions: &[[f64; 3]],
+        incident: &DMatrix<Complex>,
+    ) -> Result<IterativeSolution> {
+        if !k0.is_finite()
+            || radii.len() != self.particles()
+            || epsilon.len() != self.particles()
+            || positions.len() != self.particles()
+            || radii
+                .iter()
+                .chain(positions.iter().flatten())
+                .any(|x| !x.is_finite())
+            || epsilon.iter().any(|&z| !finite(z))
+            || incident.shape() != self.shape()
+            || incident.iter().any(|&z| !finite(z))
+        {
+            return Err(Error::InvalidInput("invalid illumination tangents".into()));
+        }
+        let operator = &self.operator;
+        let columns = incident.ncols();
+        let value = &self.solution.value;
+        let response = self.response()?;
+        // Evaluate each directional Mie block once, then reuse it over all orders
+        // and incident columns, just as the operator reuses the value blocks.
+        let zero = Material {
+            epsilon: Complex::default(),
+            mu: Complex::default(),
+            kappa: Complex::default(),
+        };
+        let blocks = operator
+            .degrees
+            .iter()
+            .enumerate()
+            .map(|(particle, degrees)| {
+                let size = k0 * operator.radii[particle] + operator.k0 * radii[particle];
+                let materials = [
+                    Material {
+                        epsilon: epsilon[particle],
+                        ..zero
+                    },
+                    zero,
+                ];
+                degrees
+                    .iter()
+                    .map(|residual| {
+                        residual
+                            .pushforward(&[size], &materials)
+                            .map(|matrix| to_mode_order(&matrix))
+                    })
+                    .collect::<Result<Vec<_>>>()
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let local_tangent = operator.apply_local(response.as_slice(), false, |particle, degree| {
+            blocks[particle][degree]
+        });
+        let mut response_tangent =
+            operator.coupling_tangent(value.as_slice(), columns, k0, positions)?;
+        for (entry, tangent) in response_tangent.iter_mut().zip(incident.iter()) {
+            *entry += tangent;
+        }
+        let mut rhs = DMatrix::from_vec(
+            operator.dimension,
+            columns,
+            operator.local(&response_tangent, false),
+        );
+        for (entry, tangent) in rhs.iter_mut().zip(local_tangent) {
+            *entry += tangent;
+        }
+        operator.solve_rhs(&rhs, self.options, false)
+    }
+
     /// Gradients of the cluster and the incident fields from `cotangent`, the gradient
     /// of a real loss with respect to the solution.
     ///
@@ -295,20 +453,16 @@ impl IterativeResidual {
     /// chunks of particles fixed by the particle count, and the chunk sums in chunk
     /// order; the radius and permittivity gradients add in particle order. The thread
     /// count changes none of the gradients.
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<IterativeGradient> {
+    pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<IterativeGradient> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&z| !finite(z)) {
             return Err(Error::InvalidInput("invalid illumination cotangent".into()));
         }
-        let operator = self.operator;
+        let operator = &self.operator;
         let adjoint = operator.solve_rhs(cotangent, self.options, true)?;
         let columns = self.incident.ncols();
         let value = &self.solution.value;
         // The local matrices multiply the response B + C X; the coupling sees T^H Y.
-        let mut response = self.incident;
-        let scattered = operator.coupling(value.as_slice(), columns, false)?;
-        for (response, scattered) in response.iter_mut().zip(scattered) {
-            *response += scattered;
-        }
+        let response = self.response()?;
         let incident = DMatrix::from_vec(
             operator.dimension,
             columns,
@@ -424,7 +578,7 @@ impl IterativeSphereCluster {
                 }
             }
             for (residual, cotangent) in degrees.iter().zip(degree_cotangents) {
-                let gradient = residual.clone().pullback(&to_mode_order(&cotangent))?;
+                let gradient = residual.pullback(&to_mode_order(&cotangent))?;
                 cluster.radii[particle] += self.k0 * gradient.sizes[0];
                 cluster.k0 += self.radii[particle] * gradient.sizes[0];
                 cluster.epsilon[particle] += gradient.epsilon[0];

@@ -90,18 +90,14 @@ pub fn incgamma_array(
     degrees: Vec<f64>,
     arguments: Vec<Complex>,
 ) -> Result<(Vec<Complex>, IncgammaResidual)> {
-    let size = broadcast::size(&[degrees.len(), arguments.len()], BROADCAST)?;
-    let value = broadcast::map(size, PARALLEL, |i| {
-        incgamma(element(&degrees, i), element(&arguments, i))
+    let residual = IncgammaResidual::new(degrees, arguments)?;
+    let value = broadcast::map(residual.size, PARALLEL, |i| {
+        incgamma(
+            element(&residual.degrees, i),
+            element(&residual.arguments, i),
+        )
     })?;
-    Ok((
-        value,
-        IncgammaResidual {
-            degrees,
-            arguments,
-            size,
-        },
-    ))
+    Ok((value, residual))
 }
 
 /// What [`incgamma_array`] saves for its pullback: the degrees and the arguments. Only
@@ -113,9 +109,42 @@ pub struct IncgammaResidual {
     size: usize,
 }
 impl IncgammaResidual {
+    /// Keep the broadcast inputs needed by derivatives without evaluating values.
+    pub fn new(degrees: Vec<f64>, arguments: Vec<Complex>) -> Result<Self> {
+        let size = broadcast::size(&[degrees.len(), arguments.len()], BROADCAST)?;
+        Ok(Self {
+            degrees,
+            arguments,
+            size,
+        })
+    }
+
+    /// Directional derivative with respect to the complex argument.
+    pub fn pushforward(&self, tangents: [&[Complex]; 1]) -> Result<Vec<Complex>> {
+        broadcast::pushforward(
+            tangents,
+            self.size,
+            "gamma tangent must be finite and broadcast to output",
+            PARALLEL,
+            |i, [tangent]| {
+                if tangent == Complex::default() {
+                    return Ok(tangent);
+                }
+                let value = tangent
+                    * gamma_derivative(element(&self.degrees, i), element(&self.arguments, i));
+                if !finite(value) {
+                    return Err(Error::SpecialFunction(
+                        "gamma derivative is singular or overflowed".into(),
+                    ));
+                }
+                Ok(value)
+            },
+        )
+    }
+
     /// The gradient with respect to the arguments, given the gradient `cotangent` with
     /// respect to the values: `cotangent` times the conjugate of `dGamma/dz`.
-    pub fn pullback(self, cotangent: &[Complex]) -> Result<Vec<Complex>> {
+    pub fn pullback(&self, cotangent: &[Complex]) -> Result<Vec<Complex>> {
         let [gradient] = broadcast::pullback(
             cotangent,
             self.size,
@@ -149,25 +178,15 @@ pub fn intkambe_array(
     orders: Vec<i32>,
     arguments: [Vec<Complex>; 2],
 ) -> Result<(Vec<Complex>, IntkambeResidual)> {
-    let size = broadcast::size(
-        &[orders.len(), arguments[0].len(), arguments[1].len()],
-        BROADCAST,
-    )?;
-    let value = broadcast::map(size, PARALLEL, |i| {
+    let residual = IntkambeResidual::new(orders, arguments)?;
+    let value = broadcast::map(residual.size, PARALLEL, |i| {
         intkambe(
-            element(&orders, i),
-            element(&arguments[0], i),
-            element(&arguments[1], i),
+            element(&residual.orders, i),
+            element(&residual.arguments[0], i),
+            element(&residual.arguments[1], i),
         )
     })?;
-    Ok((
-        value,
-        IntkambeResidual {
-            orders,
-            arguments,
-            size,
-        },
-    ))
+    Ok((value, residual))
 }
 
 /// What [`intkambe_array`] saves for its pullback: the orders and the arguments. The
@@ -179,10 +198,58 @@ pub struct IntkambeResidual {
     size: usize,
 }
 impl IntkambeResidual {
+    /// Keep the broadcast inputs needed by derivatives without evaluating values.
+    pub fn new(orders: Vec<i32>, arguments: [Vec<Complex>; 2]) -> Result<Self> {
+        let size = broadcast::size(
+            &[orders.len(), arguments[0].len(), arguments[1].len()],
+            BROADCAST,
+        )?;
+        Ok(Self {
+            orders,
+            arguments,
+            size,
+        })
+    }
+
+    /// Directional derivative in `z` and `eta`. Inactive arguments do not evaluate
+    /// their derivative, so a direction in `eta` remains valid when only `dz` is singular.
+    pub fn pushforward(&self, tangents: [&[Complex]; 2]) -> Result<Vec<Complex>> {
+        broadcast::pushforward(
+            tangents,
+            self.size,
+            "Kambe tangents must be finite and broadcast to output",
+            PARALLEL,
+            |i, [tz, teta]| {
+                if tz == Complex::default() && teta == Complex::default() {
+                    return Ok(Complex::default());
+                }
+                let n = element(&self.orders, i);
+                let [z, eta] = self.arguments.each_ref().map(|v| element(v, i));
+                let dz = if tz == Complex::default() {
+                    Complex::default()
+                } else {
+                    tz * kambe_z_derivative(n, z, eta)
+                };
+                let deta = if teta == Complex::default() {
+                    Complex::default()
+                } else {
+                    teta * kambe_eta_derivative(n, z, eta)
+                };
+                let value = dz + deta;
+                if !finite(value) {
+                    return Err(Error::SpecialFunction(
+                        "Kambe derivative is singular or overflowed".into(),
+                    ));
+                }
+                Ok(value)
+            },
+        )
+    }
+
     /// The gradients with respect to `z` and `eta`, given the gradient `cotangent` with
     /// respect to the values. At `z = 0` the `z` gradient of orders `n <= -3` is its
     /// limit, zero. Orders `n >= -2` have no `z` gradient at `z = 0` and give an error.
-    pub fn pullback(self, cotangent: &[Complex]) -> Result<[Vec<Complex>; 2]> {
+    pub fn pullback(&self, cotangent: &[Complex]) -> Result<[Vec<Complex>; 2]> {
         let lengths = self.arguments.each_ref().map(Vec::len);
         broadcast::pullback(
             cotangent,
@@ -196,12 +263,8 @@ impl IntkambeResidual {
                 }
                 let n = element(&self.orders, i);
                 let [z, eta] = self.arguments.each_ref().map(|v| element(v, i));
-                let dz = if z == Complex::default() && n <= -3 {
-                    Complex::default()
-                } else {
-                    -z * kambe(n + 2, z, eta)
-                };
-                let deta = -eta.powi(n) * (0.5 * (1.0 / (eta * eta) - z * z * eta * eta)).exp();
+                let dz = kambe_z_derivative(n, z, eta);
+                let deta = kambe_eta_derivative(n, z, eta);
                 let result = [dz, deta].map(|d| g * d.conj());
                 if result.iter().any(|&v| !finite(v)) {
                     return Err(Error::SpecialFunction(
@@ -212,6 +275,18 @@ impl IntkambeResidual {
             },
         )
     }
+}
+
+fn kambe_z_derivative(n: i32, z: Complex, eta: Complex) -> Complex {
+    if z == Complex::default() && n <= -3 {
+        Complex::default()
+    } else {
+        -z * kambe(n + 2, z, eta)
+    }
+}
+
+fn kambe_eta_derivative(n: i32, z: Complex, eta: Complex) -> Complex {
+    -eta.powi(n) * (0.5 * (1.0 / (eta * eta) - z * z * eta * eta)).exp()
 }
 
 /// Reference cases of a `n re(z) im(z) [...]: re im` table with `#` comments, for the

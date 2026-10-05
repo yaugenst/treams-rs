@@ -14,6 +14,8 @@
 //! Upstream: `treams.chirality_density`. Its interval average decays with `Re(kz)`
 //! instead of `Im(kz)` and drops the phase of the cross form; these kernels keep both.
 
+mod saved;
+
 use nalgebra::DMatrix;
 
 use crate::{
@@ -77,15 +79,30 @@ fn mean_exp<const N: usize>(slope: Jet<N>, interval: [Jet<N>; 2]) -> Jet<N> {
 
 /// The up, down and cross forms of one mode of [`chirality_density`].
 fn chirality_mode<const N: usize>(k: Complex, normal: Complex, z: [f64; 2]) -> [Jet<N>; 3] {
-    let scale = k.norm();
-    let kr = Jet::variable(k.re, KS) / scale;
-    let ki = Jet::variable(k.im, KS + 1) / scale;
-    let nr = Jet::variable(normal.re, KZS);
-    let ni = Jet::variable(normal.im, KZS + 1);
-    let z = [
-        Jet::variable(z[0], INTERVAL),
-        Jet::variable(z[1], INTERVAL + 1),
-    ];
+    chirality_forms(
+        [Jet::variable(k.re, KS), Jet::variable(k.im, KS + 1)],
+        [
+            Jet::variable(normal.re, KZS),
+            Jet::variable(normal.im, KZS + 1),
+        ],
+        [
+            Jet::variable(z[0], INTERVAL),
+            Jet::variable(z[1], INTERVAL + 1),
+        ],
+    )
+}
+
+/// The same scaled formulas for value, coordinate derivatives and directional jets.
+fn chirality_forms<const N: usize>(
+    k: [Jet<N>; 2],
+    normal: [Jet<N>; 2],
+    z: [Jet<N>; 2],
+) -> [Jet<N>; 3] {
+    // The common scale cancels algebraically; holding it fixed also avoids taking
+    // a derivative of the normalization rather than of the physical observable.
+    let scale = k[0].value.re.hypot(k[1].value.re);
+    let [kr, ki] = k.map(|v| v / scale);
+    let [nr, ni] = normal;
     let denominator = kr.powi(2) + ki.powi(2);
     let same = 2.0 * (kr.powi(2) + (ni / scale).powi(2)) / denominator;
     let cross = 2.0 * (kr.powi(2) - (nr / scale).powi(2)) / denominator;
@@ -119,7 +136,11 @@ pub fn chirality_density(
                 .into(),
         ));
     }
-    let value = mode_forms(ks.len(), |j| Ok(chirality_mode(ks[j], normal[j], interval)))?;
+    let value = mode_forms(
+        ks.len(),
+        |j| Ok(chirality_mode::<0>(ks[j], normal[j], interval)),
+        |v| v.value,
+    )?;
     Ok((
         value,
         ChiralityDensityResidual {
@@ -131,9 +152,10 @@ pub fn chirality_density(
 }
 
 /// The three forms of every mode as a (3, modes) matrix, in parallel from 1024 modes.
-fn mode_forms(
+fn mode_forms<const N: usize>(
     modes: usize,
-    forms: impl Fn(usize) -> Result<[Jet<0>; 3]> + Sync,
+    forms: impl Fn(usize) -> Result<[Jet<N>; 3]> + Sync,
+    component: impl Fn(Jet<N>) -> Complex + Sync,
 ) -> Result<DMatrix<Complex>> {
     let mut value = DMatrix::zeros(3, modes);
     try_fill_chunks(
@@ -142,7 +164,7 @@ fn mode_forms(
         modes >= PARALLEL_ITEMS,
         |j, column| {
             for (out, form) in column.iter_mut().zip(forms(j)?) {
-                *out = form.value;
+                *out = component(form);
                 if !finite(*out) {
                     return Err(Error::NonFinite("chirality density overflow".into()));
                 }
@@ -186,8 +208,41 @@ impl ChiralityDensityResidual {
         (3, self.ks.len())
     }
 
+    /// Propagate one real direction in the complex wavenumbers and interval.
+    pub fn pushforward(
+        &self,
+        ks: &[Complex],
+        normal: &[Complex],
+        interval: [f64; 2],
+    ) -> Result<DMatrix<Complex>> {
+        if ks.len() != self.ks.len()
+            || normal.len() != self.normal.len()
+            || ks.iter().chain(normal).any(|&v| !finite(v))
+            || interval.iter().any(|v| !v.is_finite())
+        {
+            return Err(Error::InvalidInput(
+                "chirality tangents must be finite and match inputs".into(),
+            ));
+        }
+        let interval = std::array::from_fn(|j| Jet {
+            value: self.interval[j].into(),
+            derivative: [interval[j].into()],
+        });
+        mode_forms(
+            self.ks.len(),
+            |j| {
+                Ok(chirality_forms(
+                    real_direction(self.ks[j], ks[j]),
+                    real_direction(self.normal[j], normal[j]),
+                    interval,
+                ))
+            },
+            |v| v.derivative[0],
+        )
+    }
+
     /// Recompute six local derivatives per mode instead of keeping a dense Jacobian.
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<ChiralityDensityGradient> {
+    pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<ChiralityDensityGradient> {
         let local = mode_cotangents(cotangent, self.ks.len(), |j| {
             Ok(chirality_mode(self.ks[j], self.normal[j], self.interval))
         })?;
@@ -236,16 +291,37 @@ fn oriented_chirality_mode<const N: usize>(
     axis: usize,
     interval: [f64; 2],
 ) -> Result<[Jet<N>; 3]> {
-    let nr = Jet::variable(normal.re, KZS);
-    let ni = Jet::variable(normal.im, KZS + 1);
-    let z = [
-        Jet::variable(interval[0], INTERVAL),
-        Jet::variable(interval[1], INTERVAL + 1),
-    ];
+    oriented_chirality_forms(
+        [
+            Jet::variable(transverse[0], Q),
+            Jet::variable(transverse[1], Q + 1),
+        ],
+        [
+            Jet::variable(normal.re, KZS),
+            Jet::variable(normal.im, KZS + 1),
+        ],
+        pol,
+        axis,
+        [
+            Jet::variable(interval[0], INTERVAL),
+            Jet::variable(interval[1], INTERVAL + 1),
+        ],
+    )
+}
+
+/// Jets of the real coordinates retain the non-holomorphic polarization inner products.
+fn oriented_chirality_forms<const N: usize>(
+    transverse: [Jet<N>; 2],
+    normal: [Jet<N>; 2],
+    pol: u8,
+    axis: usize,
+    z: [Jet<N>; 2],
+) -> Result<[Jet<N>; 3]> {
+    let [nr, ni] = normal;
     let sign = helicity_sign(pol);
     // The observable has a smooth limit even where the polarization gauge does not.
-    if transverse.iter().all(|&q| q == 0.0) {
-        if normal == Complex::default() {
+    if transverse.iter().all(|q| q.value == Complex::default()) {
+        if normal.iter().all(|v| v.value == Complex::default()) {
             return Err(Error::InvalidInput("wavevector must be nonzero".into()));
         }
         return Ok([
@@ -256,8 +332,8 @@ fn oriented_chirality_mode<const N: usize>(
     }
     let mut vector = [Jet::default(); 3];
     vector[axis] = nr + Complex::i() * ni;
-    vector[(axis + 1) % 3] = Jet::variable(transverse[0], Q);
-    vector[(axis + 2) % 3] = Jet::variable(transverse[1], Q + 1);
+    vector[(axis + 1) % 3] = transverse[0];
+    vector[(axis + 2) % 3] = transverse[1];
     let up = crate::pw::polarization_from_inputs(vector, pol)?;
     vector[axis] = -vector[axis];
     let down = crate::pw::polarization_from_inputs(vector, pol)?;
@@ -308,9 +384,13 @@ pub fn oriented_chirality(
             "chirality requires matching finite geometry, polarization 0/1 and axis 0/1/2".into(),
         ));
     }
-    let value = mode_forms(normal.len(), |j| {
-        oriented_chirality_mode(transverse[j], normal[j], polarizations[j], axis, interval)
-    })?;
+    let value = mode_forms(
+        normal.len(),
+        |j| {
+            oriented_chirality_mode::<0>(transverse[j], normal[j], polarizations[j], axis, interval)
+        },
+        |v| v.value,
+    )?;
     Ok((
         value,
         OrientedChiralityResidual {
@@ -330,8 +410,47 @@ impl OrientedChiralityResidual {
         (3, self.normal.len())
     }
 
+    /// Propagate transverse, normal-wavenumber and interval directions together.
+    pub fn pushforward(
+        &self,
+        transverse: &[[f64; 2]],
+        normal: &[Complex],
+        interval: [f64; 2],
+    ) -> Result<DMatrix<Complex>> {
+        if transverse.len() != self.transverse.len()
+            || normal.len() != self.normal.len()
+            || transverse.iter().flatten().any(|v| !v.is_finite())
+            || normal.iter().any(|&v| !finite(v))
+            || interval.iter().any(|v| !v.is_finite())
+        {
+            return Err(Error::InvalidInput(
+                "chirality tangents must be finite and match inputs".into(),
+            ));
+        }
+        let interval = std::array::from_fn(|j| Jet {
+            value: self.interval[j].into(),
+            derivative: [interval[j].into()],
+        });
+        mode_forms(
+            self.normal.len(),
+            |j| {
+                oriented_chirality_forms(
+                    std::array::from_fn(|a| Jet {
+                        value: self.transverse[j][a].into(),
+                        derivative: [transverse[j][a].into()],
+                    }),
+                    real_direction(self.normal[j], normal[j]),
+                    self.polarizations[j],
+                    self.axis,
+                    interval,
+                )
+            },
+            |v| v.derivative[0],
+        )
+    }
+
     /// Recompute six local real derivatives per mode and pair them with the cotangent.
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<OrientedChiralityGradient> {
+    pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<OrientedChiralityGradient> {
         let local = mode_cotangents(cotangent, self.normal.len(), |j| {
             oriented_chirality_mode(
                 self.transverse[j],
@@ -354,4 +473,18 @@ impl OrientedChiralityResidual {
         }
         Ok(gradient)
     }
+}
+
+/// Real and imaginary coordinates of one complex directional input.
+fn real_direction(value: Complex, tangent: Complex) -> [Jet<1>; 2] {
+    [
+        Jet {
+            value: value.re.into(),
+            derivative: [tangent.re.into()],
+        },
+        Jet {
+            value: value.im.into(),
+            derivative: [tangent.im.into()],
+        },
+    ]
 }

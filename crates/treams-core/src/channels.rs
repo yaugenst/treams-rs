@@ -18,9 +18,9 @@
 //! On side 0 the plane wave travels up, toward `+z` for spheres and `+y` for cylinders;
 //! on side 1 it travels down.
 //!
-//! Both families share [`ChannelGradient`], the input checks and the row layout, so they
-//! live in one module. Their forward and pullback drivers repeat the same loops on
-//! purpose: each runs on its own channel type and jet size.
+//! Both families share [`ChannelGradient`], input checks and matrix assembly. Each
+//! evaluates its own channel type and jet size; pullbacks retain their family-specific
+//! reductions.
 //!
 //! The inline `tests` module checks the error paths; the reciprocity, scaling and
 //! adjoint identities of the channels are in `properties/plane.rs`.
@@ -33,6 +33,7 @@ use crate::{
     Complex, Error, Result,
     basis::ModeLabel,
     numerics::{Jet, finite, parallel::try_fold_ordered},
+    saved::{self, Reader, SavedState, Writer},
     special::polarized_angular,
     sw::{Basis, Mode},
 };
@@ -54,6 +55,32 @@ const SPHERICAL_SLOTS: usize = SPHERICAL_MEASURE + 1;
 const CYLINDRICAL_MEASURE: usize = 5;
 /// Jet size of a cylindrical channel.
 const CYLINDRICAL_SLOTS: usize = CYLINDRICAL_MEASURE + 1;
+
+/// Assemble incident/radiated pairs, constructing each channel once per side.
+/// Each worker owns complete plane-mode columns without buffering intermediate values.
+fn channel_matrix<I: Iterator<Item = [Complex; 2]>>(
+    multipoles: usize,
+    planes: usize,
+    entries: impl Fn(usize, usize) -> Result<I> + Sync,
+) -> Result<DMatrix<Complex>> {
+    let mut value = DMatrix::zeros(4 * multipoles, planes);
+    crate::threads::install(|| {
+        value
+            .as_mut_slice()
+            .par_chunks_mut(4 * multipoles)
+            .enumerate()
+            .try_for_each(|(j, column)| -> Result<()> {
+                for side in 0..2 {
+                    for (i, [incident, radiated]) in entries(j, side)?.enumerate() {
+                        column[side * multipoles + i] = incident;
+                        column[(2 + side) * multipoles + i] = radiated;
+                    }
+                }
+                Ok(())
+            })
+    })?;
+    Ok(value)
+}
 
 /// One diffraction channel of a 2D array of spheres in one direction: the plane wave
 /// `(qx, qy, ±kz)` and the angles at which the multipole coefficients are evaluated,
@@ -263,33 +290,16 @@ pub fn spherical_channels(
 ) -> Result<(DMatrix<Complex>, SphericalChannelsResidual)> {
     basis.validate()?;
     validate_channels(ks, &q, &polarizations, area, helicity)?;
-    // The same loops as `cylindrical_channels`. The forward pass takes no derivatives
-    // (N = 0), so `fixed_q` has no effect here.
-    let d = basis.modes.len();
-    let mut value = DMatrix::zeros(4 * d, q.len());
-    crate::threads::install(|| {
-        value
-            .as_mut_slice()
-            .par_chunks_mut(4 * d)
-            .enumerate()
-            .try_for_each(|(j, column)| -> Result<()> {
-                for side in 0..2 {
-                    let channel = SphericalChannel::<0>::new(
-                        ks[usize::from(polarizations[j])],
-                        q[j],
-                        side,
-                        area,
-                        true,
-                    )?;
-                    for (i, &(p, mode)) in basis.modes.iter().enumerate() {
-                        let pair =
-                            channel.entry(mode, polarizations[j], basis.positions[p], helicity);
-                        column[side * d + i] = pair[0].value;
-                        column[(2 + side) * d + i] = pair[1].value;
-                    }
-                }
-                Ok(())
-            })
+    // The value pass takes no derivatives (N = 0), so `fixed_q` has no effect.
+    let positions = &basis.positions;
+    let value = channel_matrix(basis.modes.len(), q.len(), |j, side| {
+        let pol = polarizations[j];
+        let channel = SphericalChannel::<0>::new(ks[usize::from(pol)], q[j], side, area, true)?;
+        Ok(basis.modes.iter().map(move |&(p, mode)| {
+            channel
+                .entry(mode, pol, positions[p], helicity)
+                .map(|v| v.value)
+        }))
     })?;
     if value.iter().any(|&v| !finite(v)) {
         return Err(Error::NonFinite("non-finite plane-wave channel".into()));
@@ -349,16 +359,72 @@ impl ChannelGradient {
     }
 }
 impl SphericalChannelsResidual {
+    /// Bytes of saved derivative state for the fixed basis and channel counts.
+    pub fn state_size(multipoles: usize, positions: usize, channels: usize) -> Result<usize> {
+        channel_state_size(saved::sw_basis_size(multipoles, positions)?, channels)
+    }
+
     /// The shape of the channel matrix: four rows per multipole, one column per plane mode.
     #[must_use]
     pub fn shape(&self) -> (usize, usize) {
         (4 * self.basis.modes.len(), self.q.len())
     }
 
+    /// Check finite input tangents and their position and plane counts.
+    pub fn validate_tangent(
+        &self,
+        positions: &[[f64; 3]],
+        ks: [Complex; 2],
+        q: &[[f64; 2]],
+        measure: f64,
+    ) -> Result<()> {
+        validate_channel_tangent(
+            positions,
+            ks,
+            q,
+            measure,
+            self.basis.positions.len(),
+            self.q.len(),
+        )
+    }
+
+    /// Directional derivative of the channel matrix. Tangents have the same shapes
+    /// and order as the pullback outputs; `q` is held fixed with `fixed_q`. A zero
+    /// transverse tangent also permits other input directions at normal incidence.
+    pub fn pushforward(
+        &self,
+        positions: &[[f64; 3]],
+        ks: [Complex; 2],
+        q: &[[f64; 2]],
+        measure: f64,
+    ) -> Result<DMatrix<Complex>> {
+        self.validate_tangent(positions, ks, q, measure)?;
+        channel_matrix(self.basis.modes.len(), self.q.len(), |j, side| {
+            let pol = self.polarizations[j];
+            // The azimuth gauge at normal incidence is irrelevant when this
+            // direction leaves the transverse wavevector fixed.
+            let fixed_q = self.fixed_q || q[j].iter().all(|&v| v == 0.0);
+            let channel = SphericalChannel::<SPHERICAL_SLOTS>::new(
+                self.ks[usize::from(pol)],
+                self.q[j],
+                side,
+                self.area,
+                fixed_q,
+            )?;
+            Ok(self.basis.modes.iter().map(move |&(p, mode)| {
+                channel
+                    .entry(mode, pol, self.basis.positions[p], self.helicity)
+                    .map(|entry| {
+                        channel_direction(entry, positions[p], ks[usize::from(pol)], &q[j], measure)
+                    })
+            }))
+        })
+    }
+
     /// Gradients of the positions, the two medium wavenumbers, the transverse wavevectors
     /// (zero with `fixed_q`) and the area, for a `cotangent` of the channel matrix's
     /// shape. The loops mirror [`CylindricalChannelsResidual::pullback`].
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<ChannelGradient> {
+    pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<ChannelGradient> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&z| !finite(z)) {
             return Err(Error::InvalidInput("invalid channel cotangent".into()));
         }
@@ -420,6 +486,140 @@ impl SphericalChannelsResidual {
         result.q = q_gradients;
         Ok(result)
     }
+}
+
+impl SavedState for SphericalChannelsResidual {
+    fn save_state(&self) -> Result<Vec<u8>> {
+        let mut writer = Writer::new(Self::state_size(
+            self.basis.modes.len(),
+            self.basis.positions.len(),
+            self.q.len(),
+        )?);
+        saved::write_sw_basis(&mut writer, &self.basis);
+        write_channel_state(
+            &mut writer,
+            self.ks,
+            &self.q,
+            &self.polarizations,
+            self.area,
+        );
+        writer.byte(u8::from(self.helicity) | (u8::from(self.fixed_q) << 1));
+        Ok(writer.finish())
+    }
+
+    fn from_state(bytes: &[u8]) -> Result<Self> {
+        let mut reader = Reader::new(bytes);
+        let basis = saved::read_sw_basis(&mut reader)?;
+        let (ks, q, polarizations, area) = read_channel_state(&mut reader)?;
+        let flags = reader.byte()?;
+        if flags > 3 {
+            return Err(saved::invalid());
+        }
+        reader.finish()?;
+        let helicity = flags & 1 != 0;
+        validate_channels(ks, &q, &polarizations, area, helicity)?;
+        Ok(Self {
+            basis,
+            ks,
+            q,
+            polarizations,
+            area,
+            helicity,
+            fixed_q: flags & 2 != 0,
+        })
+    }
+}
+
+/// The shared numerical channel inputs, with one byte for the family's flags.
+fn channel_state_size(basis: usize, channels: usize) -> Result<usize> {
+    channels
+        .checked_mul(17)
+        .and_then(|n| n.checked_add(49))
+        .and_then(|n| n.checked_add(basis))
+        .ok_or_else(saved::invalid)
+}
+
+fn write_channel_state(
+    writer: &mut Writer,
+    ks: [Complex; 2],
+    q: &[[f64; 2]],
+    polarizations: &[u8],
+    measure: f64,
+) {
+    for k in ks {
+        writer.complex(k);
+    }
+    writer.usize(q.len());
+    for (&[x, y], &pol) in q.iter().zip(polarizations) {
+        writer.f64(x);
+        writer.f64(y);
+        writer.byte(pol);
+    }
+    writer.f64(measure);
+}
+
+type ChannelState = ([Complex; 2], Vec<[f64; 2]>, Vec<u8>, f64);
+
+fn read_channel_state(reader: &mut Reader<'_>) -> Result<ChannelState> {
+    let ks = [reader.complex()?, reader.complex()?];
+    let count = reader.count(17)?;
+    // Only the cell measure and the flag byte follow the channels. Check the exact
+    // remaining layout before allocating either of the channel vectors.
+    if reader.remaining_len() != channel_state_size(0, count)? - 40 {
+        return Err(saved::invalid());
+    }
+    let mut q = Vec::with_capacity(count);
+    let mut polarizations = Vec::with_capacity(count);
+    for _ in 0..count {
+        q.push([reader.f64()?, reader.f64()?]);
+        polarizations.push(reader.byte()?);
+    }
+    Ok((ks, q, polarizations, reader.f64()?))
+}
+
+/// Both families use the same input shapes and slot layout, except that cylinders
+/// have only the `kx` transverse slot. Contract each small local jet directly; no
+/// global Jacobian or output-sized cotangent seeds are needed.
+fn channel_direction<const N: usize>(
+    entry: Jet<N>,
+    position: [f64; 3],
+    k: Complex,
+    q: &[f64],
+    measure: f64,
+) -> Complex {
+    position
+        .iter()
+        .zip(&entry.derivative[POSITION..K])
+        .map(|(v, d)| *v * *d)
+        .sum::<Complex>()
+        + k * entry.derivative[K]
+        + q.iter()
+            .zip(&entry.derivative[Q..N - 1])
+            .map(|(v, d)| *v * *d)
+            .sum::<Complex>()
+        + measure * entry.derivative[N - 1]
+}
+
+fn validate_channel_tangent(
+    positions: &[[f64; 3]],
+    ks: [Complex; 2],
+    q: &[[f64; 2]],
+    measure: f64,
+    position_count: usize,
+    plane_count: usize,
+) -> Result<()> {
+    if positions.len() != position_count
+        || q.len() != plane_count
+        || positions.iter().flatten().any(|v| !v.is_finite())
+        || ks.iter().any(|&v| !finite(v))
+        || q.iter().flatten().any(|v| !v.is_finite())
+        || !measure.is_finite()
+    {
+        return Err(Error::InvalidInput(
+            "channel tangents must be finite and match the input shapes".into(),
+        ));
+    }
+    Ok(())
 }
 
 /// One diffraction channel of a 1D array of cylinders along x in one direction: the plane
@@ -601,33 +801,15 @@ pub fn cylindrical_channels(
 ) -> Result<(DMatrix<Complex>, CylindricalChannelsResidual)> {
     basis.validate()?;
     validate_channels(ks, &q, &polarizations, period, helicity)?;
-    // The same loops as `spherical_channels`. The forward pass takes no derivatives
-    // (N = 0), so `fixed_q` has no effect here.
-    let d = basis.modes.len();
-    let mut value = DMatrix::zeros(4 * d, q.len());
-    crate::threads::install(|| {
-        value
-            .as_mut_slice()
-            .par_chunks_mut(4 * d)
-            .enumerate()
-            .try_for_each(|(j, column)| -> Result<()> {
-                let pol = polarizations[j];
-                for side in 0..2 {
-                    let channel = CylindricalChannel::<0>::new(
-                        ks[usize::from(pol)],
-                        q[j],
-                        side,
-                        period,
-                        true,
-                    )?;
-                    for (i, &(p, mode)) in basis.modes.iter().enumerate() {
-                        let [incident, outgoing] = channel.entry(mode, pol, basis.positions[p]);
-                        column[side * d + i] = incident.value;
-                        column[(2 + side) * d + i] = outgoing.value;
-                    }
-                }
-                Ok(())
-            })
+    // The value pass takes no derivatives (N = 0), so `fixed_q` has no effect.
+    let positions = &basis.positions;
+    let value = channel_matrix(basis.modes.len(), q.len(), |j, side| {
+        let pol = polarizations[j];
+        let channel = CylindricalChannel::<0>::new(ks[usize::from(pol)], q[j], side, period, true)?;
+        Ok(basis
+            .modes
+            .iter()
+            .map(move |&(p, mode)| channel.entry(mode, pol, positions[p]).map(|v| v.value)))
     })?;
     if value.iter().any(|&v| !finite(v)) {
         return Err(Error::NonFinite(
@@ -647,6 +829,11 @@ pub fn cylindrical_channels(
     ))
 }
 impl CylindricalChannelsResidual {
+    /// Bytes of saved derivative state for the fixed basis and channel counts.
+    pub fn state_size(multipoles: usize, positions: usize, channels: usize) -> Result<usize> {
+        channel_state_size(saved::cw_basis_size(multipoles, positions)?, channels)
+    }
+
     /// The shape of the channel matrix: four rows per cylindrical mode, one column per
     /// plane mode.
     #[must_use]
@@ -654,11 +841,64 @@ impl CylindricalChannelsResidual {
         (4 * self.basis.modes.len(), self.q.len())
     }
 
+    /// Check finite input tangents and their position and plane counts.
+    pub fn validate_tangent(
+        &self,
+        positions: &[[f64; 3]],
+        ks: [Complex; 2],
+        q: &[[f64; 2]],
+        measure: f64,
+    ) -> Result<()> {
+        validate_channel_tangent(
+            positions,
+            ks,
+            q,
+            measure,
+            self.basis.positions.len(),
+            self.q.len(),
+        )
+    }
+
+    /// Directional derivative of the channel matrix. The axial `q[j][0]` is a fixed
+    /// label, and `q[j][1]` is held fixed as well when `fixed_q` was requested.
+    pub fn pushforward(
+        &self,
+        positions: &[[f64; 3]],
+        ks: [Complex; 2],
+        q: &[[f64; 2]],
+        measure: f64,
+    ) -> Result<DMatrix<Complex>> {
+        self.validate_tangent(positions, ks, q, measure)?;
+        channel_matrix(self.basis.modes.len(), self.q.len(), |j, side| {
+            let pol = self.polarizations[j];
+            let channel = CylindricalChannel::<CYLINDRICAL_SLOTS>::new(
+                self.ks[usize::from(pol)],
+                self.q[j],
+                side,
+                self.period,
+                self.fixed_q,
+            )?;
+            Ok(self.basis.modes.iter().map(move |&(p, mode)| {
+                channel
+                    .entry(mode, pol, self.basis.positions[p])
+                    .map(|entry| {
+                        channel_direction(
+                            entry,
+                            positions[p],
+                            ks[usize::from(pol)],
+                            &q[j][1..],
+                            measure,
+                        )
+                    })
+            }))
+        })
+    }
+
     /// Gradients of the positions, the two medium wavenumbers, the `kx` components and the
     /// period, for a `cotangent` of the channel matrix's shape. The axial `kz = q[j][0]`
     /// is a fixed label with a zero gradient, and `measure` holds the period gradient. The
     /// loops mirror [`SphericalChannelsResidual::pullback`].
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<ChannelGradient> {
+    pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<ChannelGradient> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&v| !finite(v)) {
             return Err(Error::InvalidInput(
                 "invalid cylindrical channel cotangent".into(),
@@ -719,10 +959,142 @@ impl CylindricalChannelsResidual {
     }
 }
 
+impl SavedState for CylindricalChannelsResidual {
+    fn save_state(&self) -> Result<Vec<u8>> {
+        let mut writer = Writer::new(Self::state_size(
+            self.basis.modes.len(),
+            self.basis.positions.len(),
+            self.q.len(),
+        )?);
+        saved::write_cw_basis(&mut writer, &self.basis);
+        write_channel_state(
+            &mut writer,
+            self.ks,
+            &self.q,
+            &self.polarizations,
+            self.period,
+        );
+        writer.byte(u8::from(self.fixed_q));
+        Ok(writer.finish())
+    }
+
+    fn from_state(bytes: &[u8]) -> Result<Self> {
+        let mut reader = Reader::new(bytes);
+        let basis = saved::read_cw_basis(&mut reader)?;
+        let (ks, q, polarizations, period) = read_channel_state(&mut reader)?;
+        let fixed_q = match reader.byte()? {
+            0 => false,
+            1 => true,
+            _ => return Err(saved::invalid()),
+        };
+        reader.finish()?;
+        // Cylindrical channels do not mix polarizations, so the original helicity
+        // convention has no further role once the forward inputs were checked.
+        validate_channels(ks, &q, &polarizations, period, true)?;
+        Ok(Self {
+            basis,
+            ks,
+            q,
+            polarizations,
+            period,
+            fixed_q,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_support::{assert_same_bits_on_pools, bits, cylindrical_basis, patterned};
+
+    fn roundtrip<R: SavedState>(residual: &R, expected_size: usize) -> R {
+        let mut bytes = residual.save_state().unwrap();
+        assert_eq!(bytes.len(), expected_size);
+        let restored = R::from_state(&bytes).unwrap();
+        assert_eq!(bytes, restored.save_state().unwrap());
+        assert!(R::from_state(&bytes[..bytes.len() - 1]).is_err());
+        bytes.push(0);
+        assert!(R::from_state(&bytes).is_err());
+        bytes.pop();
+        bytes[..8].copy_from_slice(&u64::MAX.to_le_bytes());
+        assert!(R::from_state(&bytes).is_err());
+        restored
+    }
+
+    fn assert_channel_gradient_same(left: &ChannelGradient, right: &ChannelGradient) {
+        assert_eq!(
+            bits(&[&left.positions, &left.ks, &left.q, &left.measure]),
+            bits(&[&right.positions, &right.ks, &right.q, &right.measure]),
+        );
+    }
+
+    /// Restoring numerical state preserves both derivative directions, including
+    /// the fixed-direction flags, and never consumes the original or restored state.
+    #[test]
+    fn saved_channels_preserve_both_derivatives() {
+        let ks = [Complex::new(1.3, 0.05); 2];
+        let dp = [[0.1, -0.2, 0.3]];
+        let dk = [Complex::new(0.04, -0.02); 2];
+        let dq = [[0.03, -0.02], [-0.01, 0.04]];
+        for helicity in [false, true] {
+            for fixed_q in [false, true] {
+                let basis = crate::test_support::spherical_basis(1, [0.1, -0.2, 0.05]);
+                let size = SphericalChannelsResidual::state_size(basis.modes.len(), 1, 2).unwrap();
+                let (value, residual) = spherical_channels(
+                    basis,
+                    ks,
+                    vec![[0.3, 0.2], [-0.4, 0.1]],
+                    vec![1, 0],
+                    2.0,
+                    helicity,
+                    fixed_q,
+                )
+                .unwrap();
+                let restored = roundtrip(&residual, size);
+                let g = patterned(value.nrows(), value.ncols(), 0.3);
+                assert_channel_gradient_same(
+                    &residual.pullback(&g).unwrap(),
+                    &restored.pullback(&g).unwrap(),
+                );
+                assert_eq!(
+                    residual.pushforward(&dp, dk, &dq, 0.07).unwrap(),
+                    restored.pushforward(&dp, dk, &dq, 0.07).unwrap(),
+                );
+                assert_channel_gradient_same(
+                    &residual.pullback(&g).unwrap(),
+                    &restored.pullback(&g).unwrap(),
+                );
+
+                let basis = cylindrical_basis(1, 0.2, [0.1, -0.2, 0.05]);
+                let size =
+                    CylindricalChannelsResidual::state_size(basis.modes.len(), 1, 2).unwrap();
+                let (value, residual) = cylindrical_channels(
+                    basis,
+                    ks,
+                    vec![[0.2, 0.3], [0.2, -0.4]],
+                    vec![1, 0],
+                    2.0,
+                    helicity,
+                    fixed_q,
+                )
+                .unwrap();
+                let restored = roundtrip(&residual, size);
+                let g = patterned(value.nrows(), value.ncols(), 0.3);
+                assert_channel_gradient_same(
+                    &residual.pullback(&g).unwrap(),
+                    &restored.pullback(&g).unwrap(),
+                );
+                assert_eq!(
+                    residual.pushforward(&dp, dk, &dq, 0.07).unwrap(),
+                    restored.pushforward(&dp, dk, &dq, 0.07).unwrap(),
+                );
+                assert_channel_gradient_same(
+                    &residual.pullback(&g).unwrap(),
+                    &restored.pullback(&g).unwrap(),
+                );
+            }
+        }
+    }
 
     /// A strongly evanescent order overflows the phase of a position far from the
     /// array axis; both families reject the non-finite channel instead of returning it.

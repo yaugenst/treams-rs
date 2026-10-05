@@ -9,6 +9,9 @@
 
 use std::sync::Arc;
 
+#[path = "interaction_state.rs"]
+mod state;
+
 use nalgebra::DMatrix;
 
 use crate::{
@@ -82,8 +85,17 @@ impl LocalMatrix {
     }
 
     fn apply_into(&self, result: &mut DMatrix<Complex>, right: &DMatrix<Complex>, adjoint: bool) {
+        Self::apply_blocks_into(&self.blocks, result, right, adjoint);
+    }
+
+    fn apply_blocks_into(
+        blocks: &[DMatrix<Complex>],
+        result: &mut DMatrix<Complex>,
+        right: &DMatrix<Complex>,
+        adjoint: bool,
+    ) {
         let mut offset = 0;
-        for block in &self.blocks {
+        for block in blocks {
             let target = view_mut(result).subrows_mut(offset, block.nrows());
             let rhs = view(right).subrows(offset, block.nrows());
             if adjoint {
@@ -93,6 +105,30 @@ impl LocalMatrix {
             }
             offset += block.nrows();
         }
+    }
+
+    fn validate_tangent(&self, tangent: &[DMatrix<Complex>]) -> Result<()> {
+        if tangent.len() != self.blocks.len()
+            || tangent.iter().zip(&self.blocks).any(|(direction, block)| {
+                direction.shape() != block.shape() || direction.iter().any(|&z| !finite(z))
+            })
+        {
+            return Err(Error::InvalidInput(
+                "local tangent blocks must be finite and match the local matrices".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Apply a validated block tangent without materializing its off-diagonal zeros.
+    fn apply_tangent(
+        &self,
+        tangent: &[DMatrix<Complex>],
+        right: &DMatrix<Complex>,
+    ) -> Result<DMatrix<Complex>> {
+        let mut result = numerics::zeros(self.dimension(), right.ncols())?;
+        Self::apply_blocks_into(tangent, &mut result, right, false);
+        Ok(result)
     }
 
     /// Diagonal blocks of `adjoint responseᴴ`: the cotangent of each local block when
@@ -180,6 +216,15 @@ impl InteractionFactor {
         self.solve_system(self.local.apply(incident, false)?)
     }
 
+    /// Gradient of incident columns for a fixed factor: `Tᴴ (I - T C)⁻ᴴ G`.
+    /// This borrows the saved LU and needs no incident or scattered fields.
+    pub fn pullback_incident(&self, cotangent: &DMatrix<Complex>) -> Result<DMatrix<Complex>> {
+        self.validate(cotangent)?;
+        let mut adjoint = cotangent.clone();
+        self.lu.solve_adjoint_in_place(view_mut(&mut adjoint))?;
+        self.local.apply(&adjoint, true)
+    }
+
     /// Solve like [`solve`](Self::solve) and keep what the pullback needs. The
     /// residual shares this factor.
     pub fn record(self: &Arc<Self>, incident: DMatrix<Complex>) -> Result<IlluminateResidual> {
@@ -207,6 +252,20 @@ impl InteractionFactor {
         {
             return Err(Error::InvalidInput(
                 "require finite channel-by-illumination columns matching the factorization".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn validate_tangents(
+        &self,
+        local: &[DMatrix<Complex>],
+        coupling: &DMatrix<Complex>,
+    ) -> Result<()> {
+        self.local.validate_tangent(local)?;
+        if coupling.shape() != self.coupling.shape() || coupling.iter().any(|&z| !finite(z)) {
+            return Err(Error::InvalidInput(
+                "coupling tangent must be finite and match the coupling matrix".into(),
             ));
         }
         Ok(())
@@ -267,6 +326,10 @@ pub struct InteractionGradient<L = DMatrix<Complex>> {
 }
 
 impl InteractionResidual {
+    pub(crate) fn local_shapes(&self) -> impl ExactSizeIterator<Item = (usize, usize)> {
+        self.factor.local.blocks.iter().map(DMatrix::shape)
+    }
+
     /// The interacting T-matrix `X`.
     #[must_use]
     pub const fn value(&self) -> &DMatrix<Complex> {
@@ -279,13 +342,39 @@ impl InteractionResidual {
         self.value.shape()
     }
 
+    /// Directional derivative of the interacting T-matrix with respect to dense
+    /// `T` and `C`. Reuses the forward LU for one tangent solve.
+    pub fn pushforward(
+        &self,
+        local: &DMatrix<Complex>,
+        coupling: &DMatrix<Complex>,
+    ) -> Result<DMatrix<Complex>> {
+        self.pushforward_blocks(std::slice::from_ref(local), coupling)
+    }
+
+    /// Like [`pushforward`](Self::pushforward), with one tangent per local block.
+    /// Solves `(I - T C) dX = dT (I + C X) + T dC X` without expanding `dT`.
+    pub fn pushforward_blocks(
+        &self,
+        local: &[DMatrix<Complex>],
+        coupling: &DMatrix<Complex>,
+    ) -> Result<DMatrix<Complex>> {
+        let factor = &self.factor;
+        factor.validate_tangents(local, coupling)?;
+        let mut response = product(&factor.coupling, &self.value);
+        response.set_diagonal(&(response.diagonal().add_scalar(Complex::new(1.0, 0.0))));
+        let mut rhs = factor.local.apply_tangent(local, &response)?;
+        rhs += factor.local.apply(&product(coupling, &self.value), false)?;
+        factor.solve_system(rhs)
+    }
+
     /// Gradients of `T` and `C` from `cotangent`, the gradient of a real loss with
     /// respect to `X`.
     ///
     /// The pullback solves one adjoint system with the forward LU. It has no Rayon
     /// reduction; the LU solve and the matrix products run in faer with the worker
     /// count of [`linalg`](crate::linalg).
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<InteractionGradient> {
+    pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<InteractionGradient> {
         self.pullback_with(cotangent, |_, adjoint, response| {
             product_adjoint_right(adjoint, response)
         })
@@ -294,14 +383,14 @@ impl InteractionResidual {
     /// Like [`pullback`](Self::pullback), with one gradient per diagonal block of a
     /// block-diagonal `T`, or a single one for a dense `T`.
     pub fn pullback_blocks(
-        self,
+        &self,
         cotangent: &DMatrix<Complex>,
     ) -> Result<InteractionGradient<Vec<DMatrix<Complex>>>> {
         self.pullback_with(cotangent, LocalMatrix::block_gradients)
     }
 
     fn pullback_with<T>(
-        self,
+        &self,
         cotangent: &DMatrix<Complex>,
         local_gradient: impl FnOnce(&LocalMatrix, &DMatrix<Complex>, &DMatrix<Complex>) -> T,
     ) -> Result<InteractionGradient<T>> {
@@ -310,27 +399,16 @@ impl InteractionResidual {
                 "invalid interacting-matrix cotangent".into(),
             ));
         }
-        let Self {
-            factor:
-                InteractionFactor {
-                    local,
-                    coupling: mut adjoint,
-                    lu,
-                },
-            value,
-        } = self;
-        // C is dead after forming I + C X. Reuse its allocation for A^-H G,
-        // then release the factors before constructing the input cotangents.
-        let mut response = product(&adjoint, &value);
+        let factor = &self.factor;
+        let mut response = product(&factor.coupling, &self.value);
         response.set_diagonal(&(response.diagonal().add_scalar(Complex::new(1.0, 0.0))));
-        adjoint.copy_from(cotangent);
-        lu.solve_adjoint_in_place(view_mut(&mut adjoint))?;
-        drop(lu);
-        let local_gradient = local_gradient(&local, &adjoint, &response);
-        // Both remaining square buffers can be reused: response becomes T^H Y,
-        // and the old adjoint becomes (T^H Y) X^H.
-        local.apply_into(&mut response, &adjoint, true);
-        product_adjoint_right_into(&mut adjoint, &response, &value);
+        let mut adjoint = cotangent.clone();
+        factor.lu.solve_adjoint_in_place(view_mut(&mut adjoint))?;
+        let local_gradient = local_gradient(&factor.local, &adjoint, &response);
+        // Reuse the derivative workspace: response becomes T^H Y, and the
+        // adjoint becomes (T^H Y) X^H. The saved factor and primal stay immutable.
+        factor.local.apply_into(&mut response, &adjoint, true);
+        product_adjoint_right_into(&mut adjoint, &response, &self.value);
         Ok(InteractionGradient {
             local: local_gradient,
             coupling: adjoint,
@@ -360,6 +438,11 @@ pub struct IlluminateGradient {
 }
 
 impl IlluminateResidual {
+    /// Shapes of the recorded local blocks, in particle order.
+    pub fn local_shapes(&self) -> impl ExactSizeIterator<Item = (usize, usize)> {
+        self.factor.local.blocks.iter().map(DMatrix::shape)
+    }
+
     /// The scattered coefficients, one column per incident field, which the pullback
     /// reads.
     #[must_use]
@@ -373,6 +456,30 @@ impl IlluminateResidual {
         self.value.shape()
     }
 
+    /// Directional derivative of the requested scattered columns for tangents of
+    /// the local blocks, coupling and incident fields. Uses the shared LU once:
+    /// `(I - T C) dX = dT (B + C X) + T (dB + dC X)`.
+    pub fn pushforward(
+        &self,
+        local: &[DMatrix<Complex>],
+        coupling: &DMatrix<Complex>,
+        incident: &DMatrix<Complex>,
+    ) -> Result<DMatrix<Complex>> {
+        let factor = &self.factor;
+        factor.validate_tangents(local, coupling)?;
+        if incident.shape() != self.incident.shape() || incident.iter().any(|&z| !finite(z)) {
+            return Err(Error::InvalidInput(
+                "incident tangent must be finite and match the incident fields".into(),
+            ));
+        }
+        let response = &self.incident + product(&factor.coupling, &self.value);
+        let mut rhs = factor.local.apply_tangent(local, &response)?;
+        rhs += factor
+            .local
+            .apply(&(incident + product(coupling, &self.value)), false)?;
+        factor.solve_system(rhs)
+    }
+
     /// Gradients of `T`, `C` and `B` from `cotangent`, the gradient of a real loss with
     /// respect to the scattered fields.
     ///
@@ -380,7 +487,7 @@ impl IlluminateResidual {
     /// each local block, `Tᴴ Y Xᴴ` and `Tᴴ Y`. The pullback has no Rayon reduction; the
     /// LU solve and the matrix products run in faer with the worker count of
     /// [`linalg`](crate::linalg).
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<IlluminateGradient> {
+    pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<IlluminateGradient> {
         self.factor.validate(cotangent)?;
         if cotangent.shape() != self.shape() {
             return Err(Error::InvalidInput(
@@ -412,7 +519,7 @@ mod tests {
     use super::{InteractionFactor, InteractionGradient, interaction};
     use crate::{
         Complex,
-        test_support::{DEFAULT_CASES, complex, complex_matrix, prop_assert_close},
+        test_support::{DEFAULT_CASES, complex, complex_matrix, prop_assert_close, re_dot},
     };
 
     /// Local blocks of sizes 1 to 3, a coupling, incident fields and cotangents for
@@ -509,6 +616,13 @@ mod tests {
         }
         prop_assert_close!(&gradient.coupling, &expected_coupling, tolerance);
         prop_assert_close!(&gradient.incident, &expected_incident, tolerance);
+        let incident_gradient = factor.pullback_incident(weight).unwrap();
+        prop_assert_close!(&incident_gradient, &expected_incident, tolerance);
+        prop_assert_close!(
+            re_dot(weight, residual.value()),
+            re_dot(&incident_gradient, incident),
+            tolerance * (1.0 + incident.norm())
+        );
 
         let dense = Arc::new(InteractionFactor::new(local.clone(), coupling.clone()).unwrap());
         let dense_gradient = dense
@@ -518,6 +632,11 @@ mod tests {
             .unwrap();
         prop_assert_eq!(dense_gradient.local.len(), 1);
         prop_assert_close!(&dense_gradient.local[0], &full_local, tolerance);
+        prop_assert_close!(
+            &dense.pullback_incident(weight).unwrap(),
+            &incident_gradient,
+            tolerance
+        );
 
         let interacting = interaction(local, coupling.clone()).unwrap();
         prop_assert_close!(interacting.value() * incident, x, value_tolerance);

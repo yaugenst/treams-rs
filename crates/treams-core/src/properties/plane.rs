@@ -375,6 +375,15 @@ fn check_cylindrical_channels_scale(k: f64, period: f64, x: f64) -> Result<(), T
     )
     .unwrap();
     prop_assert_close!(&value, &other, 1e-10);
+    let direction = forward
+        .pushforward(
+            &basis.positions,
+            ks.map(|k| -k),
+            &q.iter().map(|q| q.map(|v| -v)).collect::<Vec<_>>(),
+            period,
+        )
+        .unwrap();
+    prop_assert_close!(direction.norm(), 0.0, 1e-10);
     let gradient = forward.pullback(&g).unwrap();
     prop_assert_close!(gradient.measure * period, -emitted, 1e-10);
     let spatial = dot(
@@ -582,6 +591,15 @@ fn check_spherical_channel_scale(
     let g = DMatrix::from_fn(value.nrows(), 2, |i, j| {
         Complex::new(if i % 3 == j { 0.3 } else { -0.2 }, 0.1)
     });
+    let direction = forward
+        .pushforward(
+            &basis.positions,
+            ks.map(|k| -k),
+            &q.iter().map(|q| q.map(|v| -v)).collect::<Vec<_>>(),
+            2.0 * area,
+        )
+        .unwrap();
+    prop_assert_close!(direction.norm(), 0.0, 1e-10 * (1.0 + value.norm()));
     let gradient = forward.pullback(&g).unwrap();
     let spatial = dot(
         gradient.positions.iter().flatten(),
@@ -745,7 +763,16 @@ fn check_spherical_channels(
         }
     }
     let g = DMatrix::from_column_slice(4 * d, 3, g);
+    let tangent = residual
+        .pushforward(
+            &[[0.1, 0.2, -0.3]; 2],
+            [Complex::new(0.1, 0.07); 2],
+            &[[0.11, -0.09]; 3],
+            0.2,
+        )
+        .unwrap();
     let gradient = residual.pullback(&g).unwrap();
+    prop_assert_channel_adjoint(&g, &tangent, &gradient)?;
     let pidxs: Vec<_> = basis.modes.iter().map(|&(p, _)| p).collect();
     prop_assert_position_phases(&value, &g, &pidxs, vector, &gradient.positions)
 }
@@ -825,7 +852,40 @@ fn check_cylindrical_channels(
         }
     }
     let g = DMatrix::from_column_slice(4 * d, 3, g);
+    let tangent = residual
+        .pushforward(
+            &[[0.1, 0.2, -0.3]; 2],
+            [Complex::new(0.1, 0.07); 2],
+            &[[0.11, -0.09]; 3],
+            0.2,
+        )
+        .unwrap();
     let gradient = residual.pullback(&g).unwrap();
+    prop_assert_channel_adjoint(&g, &tangent, &gradient)?;
     let pidxs: Vec<_> = basis.modes.iter().map(|&(p, _)| p).collect();
     prop_assert_position_phases(&value, &g, &pidxs, vector, &gradient.positions)
+}
+
+/// JVP and VJP are adjoints for real geometry and complex wavenumbers, including
+/// cylinders' fixed axial labels. The direction excites every continuous input.
+fn prop_assert_channel_adjoint(
+    g: &DMatrix<Complex>,
+    tangent: &DMatrix<Complex>,
+    gradient: &channels::ChannelGradient,
+) -> Result<(), TestCaseError> {
+    let expected = dot(
+        gradient.positions.iter().flatten(),
+        [[0.1, 0.2, -0.3]; 2].iter().flatten(),
+    ) + re_dot(gradient.ks, [Complex::new(0.1, 0.07); 2])
+        + dot(
+            gradient.q.iter().flatten(),
+            [[0.11, -0.09]; 3].iter().flatten(),
+        )
+        + 0.2 * gradient.measure;
+    prop_assert_close!(
+        re_dot(g, tangent),
+        expected,
+        1e-10 * (1.0 + g.norm() * tangent.norm())
+    );
+    Ok(())
 }

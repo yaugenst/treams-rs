@@ -247,27 +247,6 @@ pub fn lpmv_real(degree: f64, order: f64, x: f64) -> Result<f64> {
     }
 }
 
-/// Borrowed angular values with scalar-or-equal-length broadcasting.
-pub(crate) fn angular_values(
-    degrees: &[f64],
-    orders: &[f64],
-    arguments: &[Complex],
-    kind: Angular,
-) -> Result<Vec<Complex>> {
-    let size = broadcast::size(
-        &[degrees.len(), orders.len(), arguments.len()],
-        "angular arrays must have equal lengths or scalar inputs",
-    )?;
-    broadcast::map(size, PARALLEL, |i| {
-        angular_value(
-            element(degrees, i),
-            element(orders, i),
-            element(arguments, i),
-            kind,
-        )
-    })
-}
-
 /// What [`angular_array`] saves for its pullback: the degrees, orders, arguments and
 /// function. The pullback recomputes the local derivatives.
 #[derive(Debug)]
@@ -288,25 +267,69 @@ pub fn angular_array(
     arguments: Vec<Complex>,
     kind: Angular,
 ) -> Result<(Vec<Complex>, AngularResidual)> {
-    let values = angular_values(&degrees, &orders, &arguments, kind)?;
-    let size = values.len();
-    Ok((
-        values,
-        AngularResidual {
+    let residual = AngularResidual::new(degrees, orders, arguments, kind)?;
+    let values = broadcast::map(residual.size, PARALLEL, |i| {
+        angular_value(
+            element(&residual.degrees, i),
+            element(&residual.orders, i),
+            element(&residual.arguments, i),
+            kind,
+        )
+    })?;
+    Ok((values, residual))
+}
+
+impl AngularResidual {
+    /// Keep the broadcast inputs needed by derivatives without evaluating values.
+    pub fn new(
+        degrees: Vec<f64>,
+        orders: Vec<f64>,
+        arguments: Vec<Complex>,
+        kind: Angular,
+    ) -> Result<Self> {
+        let size = broadcast::size(
+            &[degrees.len(), orders.len(), arguments.len()],
+            "angular arrays must have equal lengths or scalar inputs",
+        )?;
+        Ok(Self {
             degrees,
             orders,
             arguments,
             kind,
             size,
-        },
-    ))
-}
+        })
+    }
 
-impl AngularResidual {
+    fn argument_derivative(&self, i: usize) -> Result<Complex> {
+        let jet = angular_jet::<1>(
+            element(&self.degrees, i),
+            element(&self.orders, i),
+            element(&self.arguments, i),
+            self.kind,
+        )?;
+        Ok(jet.derivative.first().copied().unwrap_or_default())
+    }
+
+    /// Directional derivative of every value with respect to its complex argument.
+    pub fn pushforward(&self, tangents: [&[Complex]; 1]) -> Result<Vec<Complex>> {
+        broadcast::pushforward(
+            tangents,
+            self.size,
+            "angular tangent must be finite and broadcast to output",
+            PARALLEL,
+            |i, [tangent]| {
+                if tangent == Complex::default() {
+                    return Ok(tangent);
+                }
+                Ok(tangent * self.argument_derivative(i)?)
+            },
+        )
+    }
+
     /// The gradient with respect to the arguments, given the gradient `cotangent` with
     /// respect to the values. A zero cotangent skips derivatives that are singular at
     /// the poles.
-    pub fn pullback(self, cotangent: &[Complex]) -> Result<Vec<Complex>> {
+    pub fn pullback(&self, cotangent: &[Complex]) -> Result<Vec<Complex>> {
         let [gradient] = broadcast::pullback(
             cotangent,
             self.size,
@@ -317,13 +340,7 @@ impl AngularResidual {
                 if g == Complex::default() {
                     return Ok([g]);
                 }
-                let jet = angular_jet::<1>(
-                    element(&self.degrees, i),
-                    element(&self.orders, i),
-                    element(&self.arguments, i),
-                    self.kind,
-                )?;
-                Ok([g * jet.derivative.first().copied().unwrap_or_default().conj()])
+                Ok([g * self.argument_derivative(i)?.conj()])
             },
         )?;
         Ok(gradient)

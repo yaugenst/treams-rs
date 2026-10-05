@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add analytic first-order pushforwards throughout the Rust numerical core.
+  Reusable residuals share saved numerical work between input directions
+  and reverse gradients; dense solves reuse their recorded factors.
+  Spectral derivatives require differentiable, nondegenerate outputs.
+  Higher derivatives remain unsupported.
 - Preserve Clippy's default correctness errors and enable every Hypothesis
   health check on CI. Let Maturin configure Python extension linking and build
   source-distribution verification wheels through uv's default sdist rebuild.

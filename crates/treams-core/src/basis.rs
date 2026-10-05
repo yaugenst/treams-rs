@@ -210,6 +210,45 @@ impl ExpansionGradient {
     }
 }
 
+/// Validate the continuous directions shared by finite and lattice expansions.
+pub(crate) fn validate_expansion_tangent(
+    destination: &[[f64; 3]],
+    source: &[[f64; 3]],
+    ks: [Complex; 2],
+    counts: (usize, usize),
+) -> Result<()> {
+    if (destination.len(), source.len()) != counts
+        || destination
+            .iter()
+            .chain(source)
+            .flatten()
+            .any(|x| !x.is_finite())
+        || ks.into_iter().any(|x| !finite(x))
+    {
+        return Err(Error::InvalidInput(
+            "expansion tangents must be finite and match inputs".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Contract an entry's local derivatives with its position and medium directions.
+pub(crate) fn pair_tangent(
+    destination: &[[f64; 3]],
+    source: &[[f64; 3]],
+    ks: [Complex; 2],
+    [p, q, pol]: [usize; 3],
+    position: [Complex; 3],
+    k: Complex,
+) -> Complex {
+    k * ks[pol]
+        + position
+            .into_iter()
+            .enumerate()
+            .map(|(axis, derivative)| derivative * (destination[p][axis] - source[q][axis]))
+            .sum::<Complex>()
+}
+
 /// Pull the cotangent `cot` of an entry depending on the displacement
 /// `destination[p] - source[q]` (derivative `position`) and the medium wavenumber
 /// of polarization `pol` (derivative `k`) back into `result`.

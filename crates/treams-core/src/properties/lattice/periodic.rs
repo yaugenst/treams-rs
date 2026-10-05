@@ -36,6 +36,8 @@ pub(super) fn check_lattice_table_adjoint(
     let input = &table[..2 * channels * harmonics];
     let (value, residual) =
         lattice_expansion_from_table(&destination, &source, helicity, channels, input).unwrap();
+    let pushed = residual.pushforward(input).unwrap();
+    prop_assert_close!(&pushed, &value, 1e-14 * (1.0 + value.norm()));
     let loss = re_dot(g, &value);
     let gradient = residual.pullback(g).unwrap();
     let tolerance = 1e-12 * (1.0 + g.norm() * value.norm());
@@ -58,6 +60,17 @@ pub(super) fn check_cylindrical_periodic_axial_scale(kz: f64, a: f64) -> Result<
     let lattice = BlochLattice::new(&[vec![a]], &[kpar]).unwrap();
     let (_, residual) =
         cw::lattice_expansion(basis.clone(), basis, ks, lattice, c(0.9, 0.0)).unwrap();
+    let scale_direction = residual
+        .pushforward_axial(
+            &[[0.0; 3]],
+            &[[0.0; 3]],
+            ks.map(|k| -k),
+            &[-kpar],
+            &DMatrix::from_element(1, 1, a),
+            &[-kz],
+        )
+        .unwrap();
+    prop_assert_close!(scale_direction.norm(), 0.0, 1e-11);
     let g = DMatrix::from_element(2, 2, c(0.3, 0.2));
     let (g, gkz) = residual.pullback_axial(&g).unwrap();
     let length = g.vectors.iter().sum::<f64>() * a;

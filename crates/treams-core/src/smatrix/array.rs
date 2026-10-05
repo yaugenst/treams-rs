@@ -2,6 +2,8 @@
 //!
 //! Upstream: `treams.SMatrices.from_array`.
 
+mod saved;
+
 use faer::MatRef;
 use nalgebra::DMatrix;
 
@@ -94,8 +96,41 @@ impl FromArrayResidual {
         (self.channels[0].ncols(), self.channels[0].ncols())
     }
 
-    /// Effective-response and four-channel cotangents, consuming the residual.
-    pub fn pullback(self, cotangent: &Blocks) -> Result<FromArrayGradient> {
+    /// Multipole and plane-wave mode counts of the channel inputs.
+    #[must_use]
+    pub fn input_shape(&self) -> (usize, usize) {
+        self.channels[0].shape()
+    }
+
+    /// Apply response and channel tangents to the recorded scattered fields.
+    pub fn pushforward(&self, response: &DMatrix<Complex>, channels: &Channels) -> Result<Blocks> {
+        if response.shape() != self.response.shape()
+            || response.iter().any(|&z| !finite(z))
+            || channels
+                .iter()
+                .any(|a| a.shape() != self.input_shape() || a.iter().any(|&z| !finite(z)))
+        {
+            return Err(Error::InvalidInput(
+                "invalid array scattering tangent".into(),
+            ));
+        }
+        let scattered: [DMatrix<Complex>; 2] = std::array::from_fn(|direction| {
+            product(response, &self.channels[direction])
+                + product(&self.response, &channels[direction])
+        });
+        Ok(std::array::from_fn(|b| {
+            product_views(
+                view(&channels[2 + b / 2]).transpose(),
+                view(&self.scattered[b % 2]),
+            ) + product_views(
+                view(&self.channels[2 + b / 2]).transpose(),
+                view(&scattered[b % 2]),
+            )
+        }))
+    }
+
+    /// Effective-response and four-channel cotangents.
+    pub fn pullback(&self, cotangent: &Blocks) -> Result<FromArrayGradient> {
         let c = checked_dimension(
             cotangent,
             self.channels[0].ncols(),

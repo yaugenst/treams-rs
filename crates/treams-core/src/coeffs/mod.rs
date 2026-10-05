@@ -18,8 +18,8 @@ mod material;
 mod mie;
 mod mie_cyl;
 
-pub(crate) use material::validate_layers;
 pub use material::{LayerGradient, Material, real_refractive_indices};
+pub(crate) use material::{validate_layer_tangents, validate_layers};
 pub(crate) use mie::to_mode_order;
 pub use mie::{MieGradient, MieResidual, mie};
 pub use mie_cyl::{MieCylGradient, MieCylResidual, mie_cyl};

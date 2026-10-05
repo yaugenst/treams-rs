@@ -1,5 +1,11 @@
 //! Spherical and cylindrical vector waves, translations, rotations and field evaluation.
 
+#[path = "waves_forward_fields.rs"]
+mod forward_fields;
+
+#[path = "waves_forward.rs"]
+mod forward;
+
 use std::f64::consts::FRAC_1_SQRT_2;
 
 use nalgebra::{DMatrix, DVector};
@@ -928,7 +934,7 @@ impl FieldCase {
     /// Complete pullback; cylindrical bases add the per-mode axial gradients.
     fn pullback(
         &self,
-        field: fields::FieldResidual,
+        field: &fields::FieldResidual,
         g: &[[Complex; 3]],
     ) -> (fields::FieldGradient, Vec<f64>) {
         match self.basis {
@@ -1190,10 +1196,10 @@ fn check_field_evaluation(
     let permuted_coefficients: Vec<_> = order.iter().map(|&i| coefficients[i]).collect();
     let (permuted_field, permuted_residual) = permuted.field(&permuted_coefficients);
     prop_assert_close!(&permuted_field, &field, 1e-14 * scale);
-    let (permuted_gradient, permuted_axial) = permuted.pullback(permuted_residual, g);
+    let (permuted_gradient, permuted_axial) = permuted.pullback(&permuted_residual, g);
 
     let loss = re_dot(g.iter().flatten(), &value);
-    let (gradient, axial) = case.pullback(case.field(coefficients).1, g);
+    let (gradient, axial) = case.pullback(&case.field(coefficients).1, g);
     let gradient_scale = scale * (1.0 + g.iter().flatten().map(|z| z.norm()).sum::<f64>());
     prop_assert_close!(
         re_dot(&gradient.coefficients, coefficients),

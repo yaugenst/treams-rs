@@ -458,6 +458,20 @@ pub struct WignerDResidual {
 }
 
 impl WignerDResidual {
+    /// Keep the broadcast inputs needed by derivatives without evaluating values.
+    pub fn new(labels: Vec<[i32; 3]>, angles: [Vec<Complex>; 3]) -> Result<Self> {
+        let [a, b, c] = angles.each_ref().map(Vec::len);
+        let size = broadcast::size(
+            &[labels.len(), a, b, c],
+            "Wigner arrays must have equal lengths or scalar inputs",
+        )?;
+        Ok(Self {
+            labels,
+            angles,
+            size,
+        })
+    }
+
     fn element(&self, i: usize) -> ([i32; 3], [Complex; 3]) {
         (
             broadcast::element(&self.labels, i),
@@ -465,10 +479,34 @@ impl WignerDResidual {
         )
     }
 
+    /// Apply one direction in the Euler angles, carrying one jet slot per value.
+    pub fn pushforward(&self, tangents: [&[Complex]; 3]) -> Result<Vec<Complex>> {
+        broadcast::pushforward(
+            tangents,
+            self.size,
+            "Wigner tangents must be finite and broadcast to output",
+            PARALLEL,
+            |i, tangent| {
+                let ([l, m, k], angles) = self.element(i);
+                if tangent == [Complex::default(); 3]
+                    || m.unsigned_abs() > l.unsigned_abs()
+                    || k.unsigned_abs() > l.unsigned_abs()
+                {
+                    return Ok(Complex::default());
+                }
+                let angles: [Jet<1>; 3] = std::array::from_fn(|axis| Jet {
+                    value: angles[axis],
+                    derivative: [tangent[axis]],
+                });
+                Ok(wigner_d_jet(l, m, k, angles)?.derivative[0])
+            },
+        )
+    }
+
     /// The gradients with respect to the three Euler angles, given the gradient
     /// `cotangent` with respect to the values. An angle given as one value for all
     /// elements receives the sum of its element gradients.
-    pub fn pullback(self, cotangent: &[Complex]) -> Result<[Vec<Complex>; 3]> {
+    pub fn pullback(&self, cotangent: &[Complex]) -> Result<[Vec<Complex>; 3]> {
         broadcast::pullback(
             cotangent,
             self.size,
@@ -485,18 +523,24 @@ impl WignerDResidual {
                 }
                 let angles: [Jet<3>; 3] =
                     std::array::from_fn(|axis| Jet::variable(angles[axis], axis));
-                let value = (-Complex::i() * (f64::from(m) * angles[0] + f64::from(k) * angles[2]))
-                    .exp()
-                    * wigner_small_d_jet(l, m, k, angles[1]);
-                if !value.finite() {
-                    return Err(Error::SpecialFunction(
-                        "non-finite Wigner derivative".into(),
-                    ));
-                }
+                let value = wigner_d_jet(l, m, k, angles)?;
                 Ok(value.derivative.map(|derivative| g * derivative.conj()))
             },
         )
     }
+}
+
+/// The same Euler-angle chain rule serves both one tangent and three adjoint
+/// partials, with the derivative width selected by the caller.
+fn wigner_d_jet<const N: usize>(l: i32, m: i32, k: i32, angles: [Jet<N>; 3]) -> Result<Jet<N>> {
+    let value = (-Complex::i() * (f64::from(m) * angles[0] + f64::from(k) * angles[2])).exp()
+        * wigner_small_d_jet(l, m, k, angles[1]);
+    if !value.finite() {
+        return Err(Error::SpecialFunction(
+            "non-finite Wigner derivative".into(),
+        ));
+    }
+    Ok(value)
 }
 
 /// Broadcast [`wigner_d`] values with all three Euler angles differentiable: each input
@@ -507,17 +551,8 @@ pub fn wigner_d_array(
     labels: Vec<[i32; 3]>,
     angles: [Vec<Complex>; 3],
 ) -> Result<(Vec<Complex>, WignerDResidual)> {
-    let [a, b, c] = angles.each_ref().map(Vec::len);
-    let size = broadcast::size(
-        &[labels.len(), a, b, c],
-        "Wigner arrays must have equal lengths or scalar inputs",
-    )?;
-    let residual = WignerDResidual {
-        labels,
-        angles,
-        size,
-    };
-    let values = broadcast::map(size, PARALLEL, |i| {
+    let residual = WignerDResidual::new(labels, angles)?;
+    let values = broadcast::map(residual.size, PARALLEL, |i| {
         let ([l, m, k], a) = residual.element(i);
         wigner_d(l, m, k, a)
     })?;

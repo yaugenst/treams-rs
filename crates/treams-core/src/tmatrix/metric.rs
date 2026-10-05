@@ -3,6 +3,8 @@
 //! Upstream: `treams.TMatrix.cd`, `treams.TMatrix.db` and `treams.TMatrix.chi`.
 #![allow(clippy::indexing_slicing)] // Validated square matrix, polarizations and helicity groups.
 
+mod saved;
+
 use nalgebra::DMatrix;
 
 use crate::linalg::SvdvalsResidual;
@@ -43,12 +45,46 @@ pub struct MetricGradient {
 }
 
 impl MetricResidual {
+    /// The shape of the recorded T-matrix.
+    #[must_use]
+    pub const fn shape(&self) -> (usize, usize) {
+        (self.dimension, self.dimension)
+    }
+
+    /// The real metric tangent, from the saved scalar gradient and changes of the
+    /// T-matrix and embedding wavenumbers, using the real complex inner product.
+    pub fn pushforward(&self, matrix: &DMatrix<Complex>, ks: [f64; 2]) -> Result<f64> {
+        if matrix.shape() != (self.dimension, self.dimension)
+            || matrix.iter().any(|&z| !finite(z))
+            || ks.iter().any(|k| !k.is_finite())
+        {
+            return Err(Error::InvalidInput(
+                "metric tangents must be finite and match the recorded inputs".into(),
+            ));
+        }
+        if matrix.iter().all(|&z| z == Complex::default()) && ks.iter().all(|&k| k == 0.0) {
+            return Ok(0.0);
+        }
+        Ok(self
+            .gradient
+            .as_ref()
+            .map_err(Clone::clone)?
+            .dotc(matrix)
+            .re
+            + self
+                .ks_gradient
+                .iter()
+                .zip(ks)
+                .map(|(g, d)| g * d)
+                .sum::<f64>())
+    }
+
     /// Gradients of the matrix and the embedding wavenumbers from `cotangent`, the
     /// gradient of a real loss with respect to the metric.
     ///
     /// The pullback scales the saved gradient on the calling thread, so the Rayon pool
     /// does not change it.
-    pub fn pullback(self, cotangent: f64) -> Result<MetricGradient> {
+    pub fn pullback(&self, cotangent: f64) -> Result<MetricGradient> {
         if !cotangent.is_finite() {
             return Err(Error::InvalidInput(
                 "metric cotangent must be finite".into(),
@@ -61,7 +97,11 @@ impl MetricResidual {
             });
         }
         Ok(MetricGradient {
-            matrix: self.gradient?.map(|z| z * cotangent),
+            matrix: self
+                .gradient
+                .as_ref()
+                .map_err(Clone::clone)?
+                .map(|z| z * cotangent),
             ks: self.ks_gradient.map(|k| k * cotangent),
         })
     }

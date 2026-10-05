@@ -281,11 +281,11 @@ impl AngularLabels {
 /// Each wavevector gradient belongs to one plane mode, which writes it in place.
 #[derive(Debug)]
 pub struct ExpansionResidual {
-    basis: MultipoleBasis,
-    vectors: Vec<[Complex; 3]>,
-    polarizations: Vec<u8>,
-    helicity: bool,
-    fixed_vectors: bool,
+    pub(super) basis: MultipoleBasis,
+    pub(super) vectors: Vec<[Complex; 3]>,
+    pub(super) polarizations: Vec<u8>,
+    pub(super) helicity: bool,
+    pub(super) fixed_vectors: bool,
 }
 /// Plane-expansion cotangents.
 #[derive(Debug)]
@@ -362,8 +362,118 @@ impl ExpansionResidual {
     pub fn shape(&self) -> (usize, usize) {
         (self.basis.len(), self.vectors.len())
     }
+
+    /// Validate position and wavevector tangents for the recorded operation.
+    pub fn validate_tangents(
+        &self,
+        positions: &[[f64; 3]],
+        vectors: &[[Complex; 3]],
+    ) -> Result<()> {
+        if positions.len() != self.basis.positions().len()
+            || vectors.len() != self.vectors.len()
+            || positions.iter().flatten().any(|r| !r.is_finite())
+            || vectors.iter().flatten().any(|&k| !finite(k))
+        {
+            return Err(Error::InvalidInput(
+                "invalid plane-expansion tangents".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Push a direction through the position phases and angular coefficients.
+    /// Cylindrical axial components remain fixed mode labels, as in the pullback.
+    pub fn pushforward(
+        &self,
+        positions: &[[f64; 3]],
+        vectors: &[[Complex; 3]],
+    ) -> Result<DMatrix<Complex>> {
+        self.validate_tangents(positions, vectors)?;
+        let labels = AngularLabels::of(&self.basis);
+        let axes = if matches!(self.basis, MultipoleBasis::Spherical(_)) {
+            3
+        } else {
+            2
+        };
+        let mut tangent = DMatrix::zeros(self.basis.len(), self.vectors.len());
+        try_fill_chunks(
+            tangent.as_mut_slice(),
+            self.basis.len(),
+            self.vectors.len() > 1,
+            |j, column| -> Result<()> {
+                if self.fixed_vectors || vectors[j][..axes].iter().all(|&v| v == Complex::default())
+                {
+                    self.push_column(
+                        &labels,
+                        j,
+                        &Direction::<0>::new(self.vectors[j])?,
+                        positions,
+                        vectors,
+                        column,
+                    );
+                } else {
+                    self.push_column(
+                        &labels,
+                        j,
+                        &Direction::<3>::new(self.vectors[j])?,
+                        positions,
+                        vectors,
+                        column,
+                    );
+                }
+                Ok(())
+            },
+        )?;
+        Ok(tangent)
+    }
+
+    /// Evaluate and contract the same angular jets used by the reverse contraction.
+    fn push_column<const N: usize>(
+        &self,
+        labels: &AngularLabels,
+        j: usize,
+        direction: &Direction<N>,
+        positions: &[[f64; 3]],
+        vectors: &[[Complex; 3]],
+        column: &mut [Complex],
+    ) {
+        let vector = self.vectors[j];
+        let angular = labels.evaluate(
+            &self.basis,
+            vector,
+            direction,
+            self.polarizations[j],
+            self.helicity,
+        );
+        let axes = if matches!(self.basis, MultipoleBasis::Spherical(_)) {
+            3
+        } else {
+            2
+        };
+        let phases: Vec<_> = self
+            .basis
+            .positions()
+            .iter()
+            .enumerate()
+            .map(|(p, &position)| {
+                let angle: Complex = (0..3).map(|a| vector[a] * positions[p][a]).sum::<Complex>()
+                    + (0..N.min(axes))
+                        .map(|a| vectors[j][a] * position[a])
+                        .sum::<Complex>();
+                (phase(vector, position), Complex::i() * angle)
+            })
+            .collect();
+        for (i, (out, &slot)) in column.iter_mut().zip(&labels.slot).enumerate() {
+            let angular = angular[slot];
+            let (phase, angle) = phases[self.basis.position_pol(i).0];
+            let derivative: Complex = (0..N.min(axes))
+                .map(|a| angular.derivative[a] * vectors[j][a])
+                .sum();
+            *out = phase * (derivative + angular.value * angle);
+        }
+    }
     /// Differentiate position phases and the full direction-dependent angular coefficient.
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<ExpansionGradient> {
+    pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<ExpansionGradient> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&v| !finite(v)) {
             return Err(Error::InvalidInput(
                 "invalid plane-expansion cotangent".into(),

@@ -1,4 +1,4 @@
-//! Dense linear solves and general complex eigensystems with analytic pullbacks, and
+//! Dense linear solves and general complex eigensystems with analytic derivatives, and
 //! restarted GMRES. treams-rs extension.
 //!
 //! Two libraries share the linear algebra, by one rule:
@@ -17,6 +17,9 @@
 #![allow(clippy::indexing_slicing)] // Validated matrix dimensions and eigenvector pivots.
 
 mod gmres;
+mod saved;
+
+use std::sync::OnceLock;
 
 pub use gmres::{Convergence, GmresOptions};
 pub(crate) use gmres::{gmres, gmres_batch, norm};
@@ -384,8 +387,8 @@ impl Lu {
     }
 }
 
-/// What [`solve`] saves for its pullback: the LU factors and the solution. The pullback
-/// solves the adjoint system with the same factors.
+/// What [`solve`] saves for its derivatives: the LU factors and the solution. Both
+/// derivative directions solve with the same factors.
 #[derive(Clone, Debug)]
 pub struct SolveResidual {
     lu: Lu,
@@ -499,11 +502,12 @@ fn eigen(a: MatRef<'_, Complex>) -> Result<(Diag<Complex>, Mat<Complex>)> {
     Ok((values, vectors))
 }
 
-/// What [`svdvals`] saves for its pullback: the thin singular vectors and the singular
+/// What [`svdvals`] saves for its derivatives: the thin singular vectors and the singular
 /// values.
 #[derive(Debug)]
 pub struct SvdvalsResidual {
-    decomposition: ThinSvd,
+    u: Mat<Complex>,
+    v: Mat<Complex>,
     values: Vec<f64>,
 }
 
@@ -524,7 +528,8 @@ pub fn svdvals(operator: &DMatrix<Complex>) -> Result<SvdvalsResidual> {
         return Err(Error::NonFinite("non-finite singular values".into()));
     }
     Ok(SvdvalsResidual {
-        decomposition,
+        u: decomposition.u,
+        v: decomposition.v,
         values,
     })
 }
@@ -536,9 +541,52 @@ impl SvdvalsResidual {
         &self.values
     }
 
+    /// The shape of the input operator.
+    #[must_use]
+    pub fn shape(&self) -> (usize, usize) {
+        (self.u.nrows(), self.v.nrows())
+    }
+
+    /// Singular-value tangents `Re(uᴴ dA v)` for simple positive singular values.
+    ///
+    /// The ordered individual singular values have no linear derivative at repeated
+    /// or zero values. Unlike the pullback of a smooth spectral sum, a pushforward
+    /// returns each individual derivative and therefore rejects these cases.
+    pub fn pushforward(&self, operator: &DMatrix<Complex>) -> Result<Vec<f64>> {
+        if operator.shape() != self.shape() || operator.iter().any(|&z| !finite(z)) {
+            return Err(Error::InvalidInput(
+                "invalid singular-value operator tangent".into(),
+            ));
+        }
+        if self.values.contains(&0.0) {
+            return Err(Error::InvalidInput(
+                "singular values at zero have no pushforward".into(),
+            ));
+        }
+        let tolerance = 64.0 * f64::EPSILON * self.values[0];
+        if self
+            .values
+            .windows(2)
+            .any(|pair| pair[0] - pair[1] <= tolerance)
+        {
+            return Err(Error::InvalidInput(
+                "individual repeated singular values have no pushforward".into(),
+            ));
+        }
+        let moved = product_views(view(operator), self.v.as_ref());
+        let u = self.u.as_ref();
+        Ok((0..self.values.len())
+            .map(|j| {
+                (0..u.nrows())
+                    .map(|i| (u[(i, j)].conj() * moved[(i, j)]).re)
+                    .sum()
+            })
+            .collect())
+    }
+
     /// Equal weights are supported at repeated positive values; zero values
     /// require zero weights because the singular value itself is not smooth there.
-    pub fn pullback(self, cotangent: &[f64]) -> Result<DMatrix<Complex>> {
+    pub fn pullback(&self, cotangent: &[f64]) -> Result<DMatrix<Complex>> {
         if cotangent.len() != self.values.len() || cotangent.iter().any(|x| !x.is_finite()) {
             return Err(Error::InvalidInput(
                 "invalid singular-value cotangent".into(),
@@ -561,13 +609,10 @@ impl SvdvalsResidual {
                 ));
             }
         }
-        let u = self.decomposition.u.as_ref();
+        let u = self.u.as_ref();
         let weighted =
             DMatrix::from_fn(u.nrows(), cotangent.len(), |i, j| u[(i, j)] * cotangent[j]);
-        Ok(product_views(
-            view(&weighted),
-            self.decomposition.v.as_ref().adjoint(),
-        ))
+        Ok(product_views(view(&weighted), self.v.as_ref().adjoint()))
     }
 }
 
@@ -595,6 +640,27 @@ impl SolveResidual {
         self.value.shape()
     }
 
+    /// Solve `A dX = dB - dA X`, reusing the forward LU and the tangent RHS buffer.
+    pub fn pushforward(
+        &self,
+        operator: &DMatrix<Complex>,
+        mut rhs: DMatrix<Complex>,
+    ) -> Result<DMatrix<Complex>> {
+        let n = self.value.nrows();
+        if operator.shape() != (n, n)
+            || rhs.shape() != self.shape()
+            || operator.iter().chain(rhs.iter()).any(|&z| !finite(z))
+        {
+            return Err(Error::InvalidInput("invalid linear-solve tangent".into()));
+        }
+        rhs -= product(operator, &self.value);
+        self.lu.solve_in_place(view_mut(&mut rhs))?;
+        if rhs.iter().any(|&z| !finite(z)) {
+            return Err(Error::Singular);
+        }
+        Ok(rhs)
+    }
+
     pub(crate) fn adjoint_rhs(&self, mut cotangent: DMatrix<Complex>) -> Result<DMatrix<Complex>> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&z| !finite(z)) {
             return Err(Error::InvalidInput("invalid linear-solve cotangent".into()));
@@ -604,7 +670,7 @@ impl SolveResidual {
     }
 
     /// Return operator and right-hand-side cotangents, reusing the forward LU.
-    pub fn pullback(self, cotangent: DMatrix<Complex>) -> Result<SolveGradient> {
+    pub fn pullback(&self, cotangent: DMatrix<Complex>) -> Result<SolveGradient> {
         let rhs = self.adjoint_rhs(cotangent)?;
         Ok(SolveGradient {
             operator: -product_adjoint_right(&rhs, &self.value),
@@ -613,7 +679,7 @@ impl SolveResidual {
     }
 }
 
-/// What [`eig`] saves for its pullback: the right eigensystem, with unit vectors whose
+/// What [`eig`] saves for its derivatives: the right eigensystem, with unit vectors whose
 /// largest component is real and positive.
 #[derive(Debug)]
 pub struct EigResidual {
@@ -621,9 +687,12 @@ pub struct EigResidual {
     vectors: DMatrix<Complex>,
     pivots: Vec<usize>,
     scale: f64,
+    /// Factor the eigenvectors only when a derivative needs their inverse;
+    /// every later direction and cotangent shares the same factors.
+    vectors_lu: OnceLock<Result<Lu>>,
 }
 
-/// General complex eigendecomposition. Repeated eigenvalues are allowed in forward.
+/// General complex eigendecomposition. Repeated eigenvalues are allowed in the primal.
 pub fn eig(operator: &DMatrix<Complex>) -> Result<EigResidual> {
     let n = operator.nrows();
     if n == 0 || !operator.is_square() || operator.iter().any(|&z| !finite(z)) {
@@ -654,10 +723,18 @@ pub fn eig(operator: &DMatrix<Complex>) -> Result<EigResidual> {
         vectors,
         pivots,
         scale,
+        vectors_lu: OnceLock::new(),
     })
 }
 
 impl EigResidual {
+    fn vectors_lu(&self) -> Result<&Lu> {
+        self.vectors_lu
+            .get_or_init(|| Lu::new(self.vectors.clone()))
+            .as_ref()
+            .map_err(Clone::clone)
+    }
+
     /// The eigenvalues in the solver's order, which the pullback reads.
     #[must_use]
     pub fn values(&self) -> &[Complex] {
@@ -670,13 +747,78 @@ impl EigResidual {
         &self.vectors
     }
 
+    /// Whether the phase pivot is tied with another largest component.
+    fn tied_pivot(&self, column: usize) -> bool {
+        let pivot = self.pivots[column];
+        let size = self.vectors[(pivot, column)].norm();
+        (0..self.values.len()).any(|i| {
+            i != pivot
+                && (size - self.vectors[(i, column)].norm()).abs() <= 64.0 * f64::EPSILON * size
+        })
+    }
+
+    /// Eigenpair tangents with the same unit norm and real-positive pivot phase as
+    /// the primal. Repeated eigenvalues and tied phase pivots have no pushforward of
+    /// the complete eigenpair output.
+    pub fn pushforward(
+        &self,
+        operator: &DMatrix<Complex>,
+    ) -> Result<(Vec<Complex>, DMatrix<Complex>)> {
+        let n = self.values.len();
+        if operator.shape() != (n, n) || operator.iter().any(|&z| !finite(z)) {
+            return Err(Error::InvalidInput("invalid eigensystem tangent".into()));
+        }
+        for j in 0..n {
+            for i in 0..j {
+                if (self.values[j] - self.values[i]).norm() <= 64.0 * f64::EPSILON * self.scale {
+                    return Err(Error::InvalidInput(
+                        "individual eigenmodes have no pushforward at repeated eigenvalues".into(),
+                    ));
+                }
+            }
+            if self.tied_pivot(j) {
+                return Err(Error::InvalidInput(
+                    "eigenvector pushforward requires a unique largest component".into(),
+                ));
+            }
+        }
+        // E = V⁻¹ dA V; its diagonal gives dλ, and its off-diagonal entries
+        // divided by λ_j - λ_i give the unnormalized eigenvector changes.
+        let mut moved = product(operator, &self.vectors);
+        self.vectors_lu()?.solve_in_place(view_mut(&mut moved))?;
+        let values: Vec<_> = moved.diagonal().iter().copied().collect();
+        for j in 0..n {
+            for i in 0..n {
+                moved[(i, j)] = if i == j {
+                    Complex::default()
+                } else {
+                    ratio(moved[(i, j)], self.values[j] - self.values[i])
+                };
+            }
+        }
+        let mut vectors = product(&self.vectors, &moved);
+        for j in 0..n {
+            let pivot = self.pivots[j];
+            let normalization = self.vectors.column(j).dotc(&vectors.column(j)).re;
+            let phase = vectors[(pivot, j)].im / self.vectors[(pivot, j)].re;
+            let correction = Complex::new(normalization, phase);
+            for i in 0..n {
+                vectors[(i, j)] -= self.vectors[(i, j)] * correction;
+            }
+        }
+        if values.iter().chain(vectors.iter()).any(|&z| !finite(z)) {
+            return Err(Error::Singular);
+        }
+        Ok((values, vectors))
+    }
+
     /// The operator gradient from the eigenvalue and eigenvector cotangents, with the
     /// phase of each vector fixed at its pivot.
     ///
     /// Repeated eigenvalues support equal eigenvalue weights and zero vector
     /// cotangents within each repeated group. Individual modes there have no pullback.
     pub fn pullback(
-        self,
+        &self,
         values: &[Complex],
         mut vectors: DMatrix<Complex>,
     ) -> Result<DMatrix<Complex>> {
@@ -700,13 +842,7 @@ impl EigResidual {
         for j in 0..n {
             let inner = vectors.column(j).dotc(&self.vectors.column(j));
             let pivot = self.pivots[j];
-            let pivot_size = self.vectors[(pivot, j)].norm();
-            if inner.im.abs() > 64.0 * f64::EPSILON * vectors.column(j).norm()
-                && (0..n).any(|i| {
-                    i != pivot
-                        && (pivot_size - self.vectors[(i, j)].norm()).abs()
-                            <= 64.0 * f64::EPSILON * pivot_size
-                })
+            if inner.im.abs() > 64.0 * f64::EPSILON * vectors.column(j).norm() && self.tied_pivot(j)
             {
                 return Err(Error::InvalidInput(
                     "phase-dependent eigenvector pullback requires a unique largest component"
@@ -743,8 +879,8 @@ impl EigResidual {
             }
         }
         let mut result = product_adjoint_right(&g, &self.vectors);
-        let lu = Lu::new(self.vectors)?;
-        lu.solve_adjoint_in_place(view_mut(&mut result))?;
+        self.vectors_lu()?
+            .solve_adjoint_in_place(view_mut(&mut result))?;
         if result.iter().any(|&z| !finite(z)) {
             return Err(Error::Singular);
         }
@@ -759,11 +895,43 @@ mod tests {
     use nalgebra::DMatrix;
     use proptest::{prelude::*, test_runner::TestCaseError};
 
-    use super::{SolveGradient, equilibrate, faer_zeros, lu_threads, scratch, solve_owned};
+    use super::{SolveGradient, eig, equilibrate, faer_zeros, lu_threads, scratch, solve_owned};
     use crate::{
         Complex, Error,
         test_support::{ALGEBRA_CASES, complex_matrix, prop_assert_close},
     };
+
+    #[test]
+    fn eigen_derivatives_share_one_lazy_factorization() {
+        let operator = DMatrix::from_diagonal(&nalgebra::DVector::from_vec(vec![
+            Complex::new(2.0, 0.1),
+            Complex::new(3.0, -0.2),
+        ]));
+        let residual = eig(&operator).unwrap();
+        assert!(residual.vectors_lu.get().is_none());
+        // A trace cotangent needs no inverse eigenvectors, including at defective
+        // eigenvalues. It should not allocate a derivative factorization.
+        let weights = [Complex::from(1.0); 2];
+        assert_eq!(
+            residual.pullback(&weights, DMatrix::zeros(2, 2)).unwrap(),
+            DMatrix::identity(2, 2)
+        );
+        assert!(residual.vectors_lu.get().is_none());
+        let direction = DMatrix::from_element(2, 2, Complex::new(0.2, 0.1));
+        let tangent = residual.pushforward(&direction).unwrap();
+        let factor = residual.vectors_lu().unwrap();
+        let gradient = residual
+            .pullback(&weights, DMatrix::from_element(2, 2, Complex::from(0.3)))
+            .unwrap();
+        assert_eq!(residual.pushforward(&direction).unwrap(), tangent);
+        assert_eq!(
+            residual
+                .pullback(&weights, DMatrix::from_element(2, 2, Complex::from(0.3)))
+                .unwrap(),
+            gradient
+        );
+        assert!(std::ptr::eq(factor, residual.vectors_lu().unwrap()));
+    }
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(ALGEBRA_CASES))]
@@ -903,7 +1071,7 @@ mod tests {
         let SolveGradient {
             operator: ga,
             rhs: gb,
-        } = residual.clone().pullback(cotangent).unwrap();
+        } = residual.pullback(cotangent).unwrap();
         prop_assert_eq!(&gb, &adjoint);
         for i in 0..n {
             for j in 0..n {

@@ -368,6 +368,36 @@ pub fn vector_wave_pullback(
         Family::Plane => pullback_impl::<6>(family, label, args, helicity, cotangent),
     }
 }
+
+/// Directional derivative in the wave's six complex arguments. One jet slot
+/// propagates the supplied direction through the same kernels as the value.
+pub fn vector_wave_pushforward(
+    family: Family,
+    label: WaveLabel,
+    args: [Complex; 6],
+    helicity: bool,
+    tangent: [Complex; 6],
+) -> Result<[Complex; 3]> {
+    if tangent.iter().any(|&v| !finite(v)) {
+        return Err(Error::InvalidInput(
+            "vector-wave tangents must be finite".into(),
+        ));
+    }
+    if tangent == [Complex::default(); 6] {
+        vector_wave(family, label, args, helicity)?;
+        return Ok([Complex::default(); 3]);
+    }
+    Ok(checked(evaluate::<1>(
+        family,
+        label,
+        std::array::from_fn(|i| Jet {
+            value: args[i],
+            derivative: [tangent[i]],
+        }),
+        helicity,
+    )?)?
+    .map(|value| value.derivative[0]))
+}
 /// [`vector_wave_pullback`] with derivatives in the first `N` arguments, the ones the
 /// family reads; the others get zero.
 fn pullback_impl<const N: usize>(
@@ -410,6 +440,49 @@ pub struct VectorWaveResidual {
     size: usize,
 }
 impl VectorWaveResidual {
+    /// Retain broadcast inputs without evaluating the waves.
+    pub fn new(
+        family: Family,
+        labels: Vec<WaveLabel>,
+        arguments: [Vec<Complex>; 6],
+        helicity: bool,
+    ) -> Result<Self> {
+        let [a, b, c, d, e, f] = arguments.each_ref().map(Vec::len);
+        let size = broadcast::size(
+            &[labels.len(), a, b, c, d, e, f],
+            "wave arrays must have equal lengths or scalar inputs",
+        )?;
+        Ok(Self {
+            family,
+            labels,
+            arguments,
+            helicity,
+            size,
+        })
+    }
+
+    /// Evaluate the values of the retained wave inputs.
+    pub fn values(&self) -> Result<Vec<[Complex; 3]>> {
+        let plane = match self.fixed_plane() {
+            Some((label, k)) => {
+                // Check the shared label and wavevector once before the plane sweep.
+                vector_wave(self.family, label, self.element(0).1, self.helicity)?;
+                Some((crate::pw::polarization(k, label.pol, self.helicity)?, k))
+            }
+            None => None,
+        };
+        broadcast::map(self.size, PARALLEL, |i| {
+            if let Some((p, k)) = plane {
+                crate::pw::field_value(p, k, self.point(i))
+            } else {
+                let (m, a) = self.element(i);
+                vector_wave(self.family, m, a, self.helicity)
+            }
+        })
+    }
+}
+
+impl VectorWaveResidual {
     fn element(&self, i: usize) -> (WaveLabel, [Complex; 6]) {
         (
             broadcast::element(&self.labels, i),
@@ -432,9 +505,41 @@ impl VectorWaveResidual {
         let [_, _, _, x, y, z] = &self.arguments;
         [x, y, z].map(|v| broadcast::element(v, i))
     }
+    /// Directional derivative of every wave from scalar or elementwise argument
+    /// tangents. It carries one direction, irrespective of the number of arguments.
+    pub fn pushforward(&self, tangents: [&[Complex]; 6]) -> Result<Vec<[Complex; 3]>> {
+        // A common plane-wave polarization is evaluated once for all positions.
+        let plane = match self.fixed_plane() {
+            Some((label, k)) => {
+                let p = if tangents[..3]
+                    .iter()
+                    .any(|t| t.iter().any(|&v| v != Complex::default()))
+                {
+                    crate::pw::polarization_jet::<3>(k, label.pol, self.helicity)?
+                } else {
+                    crate::pw::polarization(k, label.pol, self.helicity)?.map(Jet::constant)
+                };
+                Some((p, k))
+            }
+            None => None,
+        };
+        broadcast::pushforward(
+            tangents,
+            self.size,
+            "wave tangents must be finite and broadcast to output",
+            PARALLEL,
+            |i, tangent| {
+                if let Some((p, k)) = &plane {
+                    return fixed_plane_pushforward(p, *k, self.point(i), tangent);
+                }
+                let (label, arguments) = self.element(i);
+                vector_wave_pushforward(self.family, label, arguments, self.helicity, tangent)
+            },
+        )
+    }
     /// The gradients of the six arguments from one complex vector cotangent per output;
     /// an argument given as one value for all outputs gets the sum of its gradients.
-    pub fn pullback(self, cotangent: &[[Complex; 3]]) -> Result<[Vec<Complex>; 6]> {
+    pub fn pullback(&self, cotangent: &[[Complex; 3]]) -> Result<[Vec<Complex>; 6]> {
         // Waves of one direction share the polarization jet; each element then
         // reads only its point.
         let plane = match self.fixed_plane() {
@@ -460,6 +565,31 @@ impl VectorWaveResidual {
             },
         )
     }
+}
+
+/// Directional product of a shared polarization and the point-dependent phase.
+fn fixed_plane_pushforward(
+    p: &[Jet<3>; 3],
+    k: [Complex; 3],
+    r: [Complex; 3],
+    tangent: [Complex; 6],
+) -> Result<[Complex; 3]> {
+    let phase = (Complex::i() * (0..3).map(|j| k[j] * r[j]).sum::<Complex>()).exp();
+    let dphase = Complex::i()
+        * (0..3)
+            .map(|j| tangent[j] * r[j] + k[j] * tangent[j + 3])
+            .sum::<Complex>();
+    let result = p.map(|p| {
+        phase
+            * (p.value * dphase
+                + (0..3)
+                    .map(|j| p.derivative[j] * tangent[j])
+                    .sum::<Complex>())
+    });
+    if result.iter().any(|&v| !finite(v)) {
+        return Err(Error::NonFinite("non-finite plane-wave pushforward".into()));
+    }
+    Ok(result)
 }
 
 /// Pullback to `(k, r)` of a plane wave `p exp(i k·r)`, given the polarization jet
@@ -504,35 +634,8 @@ pub fn vector_wave_array(
     arguments: [Vec<Complex>; 6],
     helicity: bool,
 ) -> Result<(Vec<[Complex; 3]>, VectorWaveResidual)> {
-    let [a, b, c, d, e, f] = arguments.each_ref().map(Vec::len);
-    let size = broadcast::size(
-        &[labels.len(), a, b, c, d, e, f],
-        "wave arrays must have equal lengths or scalar inputs",
-    )?;
-    let residual = VectorWaveResidual {
-        family,
-        labels,
-        arguments,
-        helicity,
-        size,
-    };
-    let plane = match residual.fixed_plane() {
-        Some((label, k)) => {
-            // Evaluating the first wave checks the shared label and wavevector once.
-            vector_wave(family, label, residual.element(0).1, helicity)?;
-            Some((crate::pw::polarization(k, label.pol, helicity)?, k))
-        }
-        None => None,
-    };
-    let values = broadcast::map(size, PARALLEL, |i| {
-        if let Some((p, k)) = plane {
-            crate::pw::field_value(p, k, residual.point(i))
-        } else {
-            let (m, a) = residual.element(i);
-            vector_wave(family, m, a, helicity)
-        }
-    })?;
-    Ok((values, residual))
+    let residual = VectorWaveResidual::new(family, labels, arguments, helicity)?;
+    Ok((residual.values()?, residual))
 }
 
 /// Scalar spherical harmonic `Y_l^m(theta, phi)` at the polar angle `theta` and the
@@ -582,6 +685,7 @@ pub fn sph_harm_from_vsh_z_pullback(cotangent: Complex) -> [Complex; 3] {
 mod tests {
     use super::{
         Complex, Family, PI, Radial, SERIES_RADIUS, WaveLabel, vector_wave, vector_wave_pullback,
+        vector_wave_pushforward,
     };
     use crate::{
         cw, fields,
@@ -768,6 +872,21 @@ mod tests {
         let direction = Complex::new(0.2, 0.1);
         for (family, args) in families {
             let gradient = vector_wave_pullback(family, label, args, helicity, g).unwrap();
+            let tangent =
+                std::array::from_fn(|a| direction * f64::from(u32::try_from(a + 1).unwrap()));
+            let forward = vector_wave_pushforward(family, label, args, helicity, tangent).unwrap();
+            let forward_pair: Complex = g.into_iter().zip(forward).map(|(g, d)| g.conj() * d).sum();
+            let reverse_pair: Complex = gradient
+                .into_iter()
+                .zip(tangent)
+                .map(|(g, d)| g.conj() * d)
+                .sum();
+            prop_assert_close!(
+                forward_pair,
+                reverse_pair,
+                1e-12 * (1.0 + reverse_pair.norm()),
+                "{family:?} forward/reverse duality"
+            );
             for (a, gradient) in gradient.into_iter().enumerate() {
                 let (numeric, scale) =
                     paired_difference(family, label, args, helicity, g, a, direction);

@@ -234,7 +234,8 @@ fn check_real_degree_branches(degree: f64, m: i32) -> Result<(), TestCaseError> 
     Ok(())
 }
 
-/// The Euler-angle pullback of Wigner D equals the Lie-algebra generators applied to D.
+/// Both Euler-angle derivatives of Wigner D equal the Lie-algebra generators
+/// applied to D, and one saved evaluation supports repeated derivative directions.
 fn check_wigner_generator(l: i32, m: i32, k: i32, theta: Complex) -> Result<(), TestCaseError> {
     let zero = vec![Complex::default()];
     let (value, residual) =
@@ -248,6 +249,20 @@ fn check_wigner_generator(l: i32, m: i32, k: i32, theta: Complex) -> Result<(), 
         ladder(m) * raised - ladder(m - 1) * lowered,
         -Complex::i() * f64::from(k) * value,
     ];
+    let tangents = [
+        [Complex::new(0.3, -0.1)],
+        [Complex::new(-0.2, 0.4)],
+        [Complex::new(0.1, 0.2)],
+    ];
+    let direction = residual
+        .pushforward(tangents.each_ref().map(<[Complex; 1]>::as_slice))
+        .unwrap();
+    let expected: Complex = derivatives
+        .iter()
+        .zip(tangents)
+        .map(|(derivative, [tangent])| derivative * tangent)
+        .sum();
+    prop_assert_close!(direction[0], expected, 1e-11 * (1.0 + expected.norm()));
     let g = Complex::new(0.4, 0.2);
     let gradient = residual.pullback(&[g]).unwrap();
     prop_assert_eq!(gradient.len(), 3);
@@ -255,6 +270,12 @@ fn check_wigner_generator(l: i32, m: i32, k: i32, theta: Complex) -> Result<(), 
         let tolerance = 1e-11 * (1.0 + expected.norm());
         prop_assert_close!(actual[0], g * expected.conj(), tolerance);
     }
+    prop_assert_eq!(
+        residual
+            .pushforward(tangents.each_ref().map(<[Complex; 1]>::as_slice))
+            .unwrap(),
+        direction
+    );
     Ok(())
 }
 

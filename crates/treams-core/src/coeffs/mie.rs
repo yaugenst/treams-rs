@@ -10,6 +10,8 @@ use crate::{
     numerics::{finite, ratio},
 };
 
+mod saved;
+
 // Radial entries of one interface argument x = size (n -+ kappa) for the regular and
 // singular kinds: (f, f' + f/x) of the spherical function f, and their x-derivatives.
 #[derive(Clone, Copy, Debug)]
@@ -253,10 +255,47 @@ pub fn mie(l: u32, sizes: &[f64], materials: &[Material]) -> Result<MieResidual>
 }
 
 impl MieResidual {
+    /// The number of recorded layer boundaries.
+    #[must_use]
+    pub fn boundaries(&self) -> usize {
+        self.sizes.len()
+    }
+
     /// The Mie coefficient matrix, which the pullback reads.
     #[must_use]
     pub const fn value(&self) -> &Matrix2 {
         &self.value
+    }
+
+    /// The coefficient tangent along changes of the sizes and materials. Each
+    /// `materials` entry stores changes of epsilon, mu and kappa, including the
+    /// embedding medium. One combined direction travels through the cached
+    /// interfaces; no Bessel functions or parameter Jacobians are evaluated.
+    pub fn pushforward(&self, sizes: &[f64], materials: &[Material]) -> Result<Matrix2> {
+        super::validate_layer_tangents(self.sizes.len(), sizes, materials)?;
+        let optical: Vec<_> = self
+            .materials
+            .iter()
+            .zip(materials)
+            .map(|(&material, &direction)| material.pushforward(direction))
+            .collect();
+        let mut dq = Matrix42::zeros();
+        for (i, layer) in self.interfaces.iter().enumerate() {
+            let dx = std::array::from_fn(|side| {
+                let material = optical[i + side];
+                let dn = [
+                    material.index - material.kappa,
+                    material.index + material.kappa,
+                ];
+                std::array::from_fn(|pol| {
+                    layer.x[side][pol] * (sizes[i] / self.sizes[i]) + self.sizes[i] * dn[pol]
+                })
+            });
+            let dz = [optical[i].impedance, optical[i + 1].impedance];
+            let (_, df) = interface::<true>(layer.x, layer.z, &layer.radials, dx, dz);
+            dq = df * layer.before + layer.matrix * dq;
+        }
+        Ok((dq.fixed_rows::<2>(2) - self.value * dq.fixed_rows::<2>(0)) * self.inverse)
     }
 
     /// Gradients of the size parameters and the materials from `cotangent`, the
@@ -264,7 +303,7 @@ impl MieResidual {
     ///
     /// The pullback runs on the calling thread and adds the boundaries in order, from
     /// the outermost in.
-    pub fn pullback(self, cotangent: &Matrix2) -> Result<MieGradient> {
+    pub fn pullback(&self, cotangent: &Matrix2) -> Result<MieGradient> {
         if cotangent.iter().any(|z| !finite(*z)) {
             return Err(Error::InvalidInput("cotangents must be finite".into()));
         }

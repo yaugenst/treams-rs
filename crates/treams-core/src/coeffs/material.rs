@@ -33,6 +33,19 @@ impl Default for Material {
 }
 
 impl Material {
+    /// Directional derivatives of the derived optical parameters. `direction` stores
+    /// changes of epsilon, mu and kappa, rather than another physical material.
+    pub(super) fn pushforward(self, direction: Self) -> MaterialTangent {
+        MaterialTangent {
+            index: (self.mu * direction.epsilon + self.epsilon * direction.mu)
+                / (2.0 * self.index()),
+            impedance: self.impedance()
+                * (direction.mu / self.mu - direction.epsilon / self.epsilon)
+                / 2.0,
+            kappa: direction.kappa,
+        }
+    }
+
     /// The refractive index `sqrt(epsilon mu)` on the principal branch.
     #[must_use]
     pub fn index(self) -> Complex {
@@ -165,6 +178,27 @@ pub(crate) fn validate_layers(sizes: &[f64], materials: &[Material]) -> Result<(
                 "require finite materials with nonzero epsilon and mu".into(),
             ));
         }
+    }
+    Ok(())
+}
+
+/// Validate a direction of the layer inputs, without imposing physical material or
+/// positive-radius constraints on derivatives.
+pub(crate) fn validate_layer_tangents(
+    boundaries: usize,
+    sizes: &[f64],
+    materials: &[Material],
+) -> Result<()> {
+    if sizes.len() != boundaries
+        || materials.len() != boundaries + 1
+        || sizes.iter().any(|x| !x.is_finite())
+        || materials
+            .iter()
+            .any(|m| !finite(m.epsilon) || !finite(m.mu) || !finite(m.kappa))
+    {
+        return Err(Error::InvalidInput(
+            "layer tangents must be finite and match the recorded inputs".into(),
+        ));
     }
     Ok(())
 }

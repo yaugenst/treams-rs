@@ -93,7 +93,7 @@
 //!   pullback does not read the value. When the pullback reads it, the forward returns
 //!   only the residual, which lends the value through an accessor such as `value()`:
 //!   [`coeffs::mie`], [`smatrix::tr`] and [`linalg::solve`] work this way.
-//!   `XResidual::pullback(self, cotangent)` returns an `XGradient` with one field per
+//!   `XResidual::pullback(&self, cotangent)` returns an `XGradient` with one field per
 //!   differentiable input, or an array of gradients in argument order. The residual
 //!   name drops the suffixes `_array`, `_matrix` and `_value`:
 //!   `sw::polar_translation_array` returns a [`sw::PolarTranslationResidual`], and
@@ -196,15 +196,15 @@
 //!
 //! # Glossary
 //!
-//! A record is a function that returns a value and a context. The context stores what is needed to compute gradients later and can be used once: `context.pullback(g)` takes the gradient `g` of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.
+//! A record is a function that returns a value and a reusable context. The context stores what is needed to compute derivatives later: `context.pullback(g)` takes the gradient `g` of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.
 //!
-//! In the Rust core, a function returns `(value, XResidual)`, and `XResidual::pullback(self, cotangent)` returns the input gradients as `XGradient`.
+//! In the Rust core, a function returns `(value, XResidual)`, and `XResidual::pullback(&self, cotangent)` returns the input gradients as `XGradient`.
 //!
 //! | Term | Meaning |
 //! |---|---|
 //! | forward | A function that computes a value. One that supports gradients returns a residual, beside the value or holding it. |
 //! | residual | What a forward saves for its pullback: `XResidual` for the forward `X`. Not the `b - A x` of a linear system, which the GMRES solver of [`linalg`] calls the residual. |
-//! | pullback | `XResidual::pullback`: turns the gradient with respect to the value into the gradients with respect to the inputs. It consumes the residual, so it runs once. |
+//! | pullback | `XResidual::pullback`: turns the gradient with respect to the value into the gradients with respect to the inputs. It borrows the reusable residual. |
 //! | cotangent | The gradient of a real-valued loss with respect to one value: the `g` of the definition above. |
 //! | gradient | `XGradient`: the input gradients that a pullback returns, in the order of the forward's arguments. |
 //! | record | The Python name of a forward with a residual: a function of `treams_rs.diff` that returns `(value, context)`. |
@@ -298,6 +298,7 @@ pub mod vectorwaves;
 pub mod cluster;
 pub mod coeffs;
 pub mod ebcm;
+pub mod saved;
 pub mod tmatrix;
 
 // L5: planar and periodic S-matrices (treams SMatrices).
@@ -330,7 +331,7 @@ pub const MAX_DEGREE: i32 = 128;
 ///
 /// The Python bindings raise [`OutOfMemory`](Self::OutOfMemory) as `MemoryError` and
 /// every other variant as `ValueError`, each with the displayed message.
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 pub enum Error {
     /// The operation does not accept the input, for example a negative degree or a
     /// non-finite wavenumber.

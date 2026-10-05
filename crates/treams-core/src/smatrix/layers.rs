@@ -5,6 +5,8 @@
 //! Upstream: `treams.SMatrices.stack` of interfaces and propagations.
 #![allow(clippy::indexing_slicing)] // Validated layer counts and two-polarization channels.
 
+mod saved;
+
 use nalgebra::DMatrix;
 
 use super::{AddGradient, AddResidual, Blocks, InterfaceGradient, InterfaceResidual};
@@ -237,14 +239,84 @@ impl LayerStackGradient {
 }
 
 impl LayerStackResidual {
+    /// Number of media, including the exterior half-spaces.
+    #[must_use]
+    pub fn medium_count(&self) -> usize {
+        self.ks.len()
+    }
+
     /// Number of independent transverse channels.
     #[must_use]
     pub fn channel_count(&self) -> usize {
         self.q.len()
     }
 
+    /// Propagate one parameter direction through the independent two-polarization
+    /// channels, reusing every saved interface and internal-field factorization.
+    pub fn pushforward(
+        &self,
+        ks: &[[Complex; 2]],
+        zs: &[Complex],
+        q: &[[f64; 2]],
+        thickness: &[f64],
+    ) -> Result<Vec<Blocks>> {
+        if ks.len() != self.ks.len()
+            || zs.len() != self.ks.len()
+            || q.len() != self.q.len()
+            || thickness.len() != self.thickness.len()
+            || ks.iter().flatten().chain(zs).any(|&v| !finite(v))
+            || q.iter().flatten().chain(thickness).any(|v| !v.is_finite())
+        {
+            return Err(Error::InvalidInput("invalid layer-stack tangents".into()));
+        }
+        try_map(self.channels.len(), self.channels.len() > 1, |i| {
+            let channel = &self.channels[i];
+            let dq = if self.fixed_q { [0.0; 2] } else { q[i] };
+            let mut tangent = channel
+                .initial
+                .pushforward([ks[0], ks[1]], [zs[0], zs[1]], dq)?;
+            for (layer, step) in channel.steps.iter().enumerate() {
+                let medium = layer + 1;
+                let phase_tangent: [Complex; 2] = std::array::from_fn(|pol| {
+                    let normal_tangent = (self.ks[medium][pol] * ks[medium][pol]
+                        - self.q[i][0] * dq[0]
+                        - self.q[i][1] * dq[1])
+                        / step.normal[pol];
+                    Complex::i()
+                        * step.phase[pol]
+                        * (self.thickness[layer] * normal_tangent
+                            + step.normal[pol] * thickness[layer])
+                });
+                let [dv0, dv1, dv2, dv3] = tangent;
+                let [v0, v1, v3] = &step.below;
+                let phase = step.phase;
+                let spaced = [
+                    DMatrix::from_fn(2, 2, |i, j| {
+                        phase_tangent[i] * v0[(i, j)] + phase[i] * dv0[(i, j)]
+                    }),
+                    DMatrix::from_fn(2, 2, |i, j| {
+                        phase_tangent[i] * v1[(i, j)] * phase[j]
+                            + phase[i] * dv1[(i, j)] * phase[j]
+                            + phase[i] * v1[(i, j)] * phase_tangent[j]
+                    }),
+                    dv2,
+                    DMatrix::from_fn(2, 2, |i, j| {
+                        dv3[(i, j)] * phase[j] + v3[(i, j)] * phase_tangent[j]
+                    }),
+                ];
+                let boundary = step.interface.pushforward(
+                    [ks[medium], ks[medium + 1]],
+                    [zs[medium], zs[medium + 1]],
+                    dq,
+                )?;
+                tangent = step.boundary.pushforward(&spaced, &boundary)?;
+            }
+            Ok(tangent)
+        })
+    }
+
     /// Reuse every two-polarization solve; accumulate shared medium and thickness derivatives.
-    pub fn pullback(self, cotangent: Vec<Blocks>) -> Result<LayerStackGradient> {
+    pub fn pullback(&self, cotangent: Vec<Blocks>) -> Result<LayerStackGradient> {
         if cotangent.len() != self.q.len()
             || cotangent
                 .iter()
@@ -266,7 +338,7 @@ impl LayerStackResidual {
         // the medium and thickness gradients that all channels share.
         let mut q_gradients = vec![[0.0; 2]; q.len()];
         let items: Vec<_> = channels
-            .into_iter()
+            .iter()
             .zip(cotangent)
             .zip(&mut q_gradients)
             .collect();
@@ -281,7 +353,7 @@ impl LayerStackResidual {
             },
             |mut result, i, ((channel, mut cotangent), q_gradient)| -> Result<_> {
                 let wavevector = q[i];
-                for (layer, step) in channel.steps.into_iter().enumerate().rev() {
+                for (layer, step) in channel.steps.iter().enumerate().rev() {
                     let medium = layer + 1;
                     let AddGradient {
                         lower: spaced_g,

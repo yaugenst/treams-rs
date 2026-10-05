@@ -2,6 +2,8 @@
 //!
 //! Upstream: `treams.SMatrices.add`.
 
+mod saved;
+
 use std::ops::AddAssign;
 
 use faer::MatRef;
@@ -13,7 +15,7 @@ use super::{
 };
 use crate::{
     Complex, Error, Result,
-    linalg::{product, product_adjoint_right_into, product_views, view, view_mut},
+    linalg::{product, product_adjoint_right, product_views, view, view_mut},
 };
 
 /// What [`add`] saves for its pullback: four of the eight input blocks, the internal
@@ -115,47 +117,66 @@ impl AddResidual {
         (self.down.nrows(), self.down.nrows())
     }
 
-    /// Input cotangents under `dL = Re(sum(conj(g) * dx))`; consumes the residual.
-    pub fn pullback(self, cotangent: &Blocks) -> Result<AddGradient> {
+    /// Propagate all eight block tangents through the recorded internal-field solve.
+    /// The forward factorization is reused; no dense Jacobian is formed.
+    pub fn pushforward(&self, lower: &Blocks, upper: &Blocks) -> Result<Blocks> {
+        let n = self.down.nrows();
+        checked_dimension(lower, n, "invalid lower S matrix tangent")?;
+        checked_dimension(upper, n, "invalid upper S matrix tangent")?;
+        let up = view(&self.solve.value);
+        let mut direct = product_views(view(&upper[2]), up);
+        direct.columns_mut(n, n).add_assign(&upper[3]);
+        let mut rhs = product_views(view(&lower[1]), view(&self.down))
+            + product_views(view(&self.lower[0]), view(&direct));
+        rhs.columns_mut(0, n).add_assign(&lower[0]);
+        let tangent_up =
+            self.solve
+                .solve_forward(view(&self.lower[0]), view(&self.upper[1]), rhs)?;
+        let tangent_down = direct + product(&self.upper[1], &tangent_up);
+        let mut top = product_views(view(&upper[0]), up) + product(&self.upper[0], &tangent_up);
+        top.columns_mut(n, n).add_assign(&upper[1]);
+        let mut bottom = product(&lower[3], &self.down) + product(&self.lower[1], &tangent_down);
+        bottom.columns_mut(0, n).add_assign(&lower[2]);
+        Ok([
+            top.columns(0, n).into_owned(),
+            top.columns(n, n).into_owned(),
+            bottom.columns(0, n).into_owned(),
+            bottom.columns(n, n).into_owned(),
+        ])
+    }
+
+    /// Input cotangents under `dL = Re(sum(conj(g) * dx))`.
+    pub fn pullback(&self, cotangent: &Blocks) -> Result<AddGradient> {
         let n = checked_dimension(
             cotangent,
             self.down.nrows(),
             "invalid S matrix cotangent shape",
         )?;
-        let Self {
-            lower: [mut reflection, mut transmission],
-            upper: [mut top_transmission, mut bottom_reflection],
-            solve,
-            down: down_fields,
-        } = self;
+        let [reflection, transmission] = &self.lower;
+        let [top_transmission, bottom_reflection] = &self.upper;
         let mut top = DMatrix::zeros(n, 2 * n);
         top.columns_mut(0, n).copy_from(&cotangent[0]);
         top.columns_mut(n, n).copy_from(&cotangent[1]);
         let mut bottom = DMatrix::zeros(n, 2 * n);
         bottom.columns_mut(0, n).copy_from(&cotangent[2]);
         bottom.columns_mut(n, n).copy_from(&cotangent[3]);
-        let down = product_views(view(&transmission).adjoint(), view(&bottom));
-        let adjoint = product_views(view(&top_transmission).adjoint(), view(&top))
-            + product_views(view(&bottom_reflection).adjoint(), view(&down));
+        let down = product_views(view(transmission).adjoint(), view(&bottom));
+        let adjoint = product_views(view(top_transmission).adjoint(), view(&top))
+            + product_views(view(bottom_reflection).adjoint(), view(&down));
         let AdjointSolve { adjoint, value: up } =
-            solve.solve_adjoint(view(&reflection), view(&bottom_reflection), adjoint)?;
-        let incident = down + product_views(view(&reflection).adjoint(), view(&adjoint));
-        // The saved input blocks are read for the last time above; overwrite them with
-        // their gradients.
-        product_adjoint_right_into(&mut reflection, &adjoint, &down_fields);
-        product_adjoint_right_into(&mut transmission, &bottom, &down_fields);
-        product_adjoint_right_into(&mut top_transmission, &top, &up);
-        product_adjoint_right_into(&mut bottom_reflection, &incident, &up);
+            self.solve
+                .solve_adjoint(view(reflection), view(bottom_reflection), adjoint)?;
+        let incident = down + product_views(view(reflection).adjoint(), view(&adjoint));
         let lower = [
             adjoint.columns(0, n).into_owned(),
-            reflection,
+            product_adjoint_right(&adjoint, &self.down),
             cotangent[2].clone(),
-            transmission,
+            product_adjoint_right(&bottom, &self.down),
         ];
         let upper = [
-            top_transmission,
+            product_adjoint_right(&top, up),
             cotangent[1].clone(),
-            bottom_reflection,
+            product_adjoint_right(&incident, up),
             incident.columns(n, n).into_owned(),
         ];
         Ok(AddGradient { lower, upper })

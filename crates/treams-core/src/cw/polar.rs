@@ -33,13 +33,28 @@ fn cylindrical_jet<const N: usize>(
     radial: Radial,
     fixed_phase: Option<Complex>,
 ) -> Result<Jet<N>> {
-    if order.unsigned_abs() > MAX_ORDER.unsigned_abs() || args.iter().any(|&v| !finite(v)) {
+    cylindrical_seeded(
+        order,
+        std::array::from_fn(|i| Jet::<N>::variable(args[i], i)),
+        radial,
+        fixed_phase,
+    )
+}
+
+/// One kernel with value-only, coordinate or directional seeds.
+fn cylindrical_seeded<const N: usize>(
+    order: i32,
+    args: [Jet<N>; 4],
+    radial: Radial,
+    fixed_phase: Option<Complex>,
+) -> Result<Jet<N>> {
+    if order.unsigned_abs() > MAX_ORDER.unsigned_abs() || args.iter().any(|&v| !v.finite()) {
         return Err(Error::InvalidInput(
             // 256 is MAX_ORDER.
             "require |order difference| <= 256 and finite arguments".into(),
         ));
     }
-    let [kr, phi, z, kz] = std::array::from_fn(|i| Jet::<N>::variable(args[i], i));
+    let [kr, phi, z, kz] = args;
     let bessel = radial_jet(order, kr, radial, false)?;
     let phase = if N == 0
         && let Some(phase) = fixed_phase
@@ -98,9 +113,27 @@ impl PolarTranslationResidual {
         )
     }
 
+    /// Directional derivative of the four broadcast polar arguments.
+    pub fn pushforward(&self, tangents: [&[Complex]; 4]) -> Result<Vec<Complex>> {
+        broadcast::pushforward(
+            tangents,
+            self.size,
+            "translation tangents must be finite and match output",
+            Parallel::Chunked(64),
+            |i, tangent| {
+                let (order, args) = self.element(i);
+                let jets = std::array::from_fn(|a| Jet {
+                    value: args[a],
+                    derivative: [tangent[a]],
+                });
+                Ok(cylindrical_seeded(order, jets, self.radial, None)?.derivative[0])
+            },
+        )
+    }
+
     /// The gradients of all four continuous arguments; an argument given as one value
     /// for all outputs gets the sum of its gradients.
-    pub fn pullback(self, cotangent: &[Complex]) -> Result<[Vec<Complex>; 4]> {
+    pub fn pullback(&self, cotangent: &[Complex]) -> Result<[Vec<Complex>; 4]> {
         broadcast::pullback(
             cotangent,
             self.size,
@@ -124,22 +157,8 @@ pub fn polar_translation_array(
     arguments: [Vec<Complex>; 4],
     radial: Radial,
 ) -> Result<(Vec<Complex>, PolarTranslationResidual)> {
-    // 256 is MAX_ORDER.
-    let message = "require |order difference| <= 256 and equal lengths or scalar inputs";
-    let [a, b, c, d] = arguments.each_ref().map(Vec::len);
-    let size = broadcast::size(&[orders.len(), a, b, c, d], message)?;
-    if orders
-        .iter()
-        .any(|m| m.unsigned_abs() > MAX_ORDER.unsigned_abs())
-    {
-        return Err(Error::InvalidInput(message.into()));
-    }
-    let residual = PolarTranslationResidual {
-        orders,
-        arguments,
-        radial,
-        size,
-    };
+    let residual = PolarTranslationResidual::new(orders, arguments, radial)?;
+    let size = residual.size;
     // A radial sweep shares its angular/axial phase. Keep all original inputs
     // in the residual so the pullback still differentiates all four arguments.
     let fixed_phase = if size > 1
@@ -158,6 +177,28 @@ pub fn polar_translation_array(
         Ok(cylindrical_jet::<0>(order, args, radial, fixed_phase)?.value)
     })?;
     Ok((value, residual))
+}
+
+impl PolarTranslationResidual {
+    /// Retain broadcast inputs and prepare static labels without evaluating translations.
+    pub fn new(orders: Vec<i32>, arguments: [Vec<Complex>; 4], radial: Radial) -> Result<Self> {
+        // 256 is MAX_ORDER.
+        let message = "require |order difference| <= 256 and equal lengths or scalar inputs";
+        let [a, b, c, d] = arguments.each_ref().map(Vec::len);
+        let size = broadcast::size(&[orders.len(), a, b, c, d], message)?;
+        if orders
+            .iter()
+            .any(|m| m.unsigned_abs() > MAX_ORDER.unsigned_abs())
+        {
+            return Err(Error::InvalidInput(message.into()));
+        }
+        Ok(Self {
+            orders,
+            arguments,
+            radial,
+            size,
+        })
+    }
 }
 
 /// Cylindrical translation coefficient of the mode pair `(qz, m)` to `(kz, mu)`.

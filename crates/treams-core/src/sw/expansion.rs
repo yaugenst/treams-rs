@@ -17,6 +17,9 @@ use nalgebra::DMatrix;
 use rayon::prelude::*;
 use std::{collections::HashMap, sync::Arc};
 
+#[path = "expansion_lattice_state.rs"]
+mod lattice_state;
+
 /// The modes of one destination position against those of one source position.
 #[derive(Clone, Debug)]
 struct Block {
@@ -33,6 +36,14 @@ struct Block {
 impl Block {
     fn len(&self) -> usize {
         self.rows.len() * self.cols.len()
+    }
+
+    /// A shared polarization uses one buffer; distinct polarizations use two.
+    fn values(
+        shared: bool,
+        evaluate: impl Fn(usize) -> Result<Option<Vec<Complex>>>,
+    ) -> Result<[Option<Vec<Complex>>; 2]> {
+        Ok([evaluate(0)?, if shared { None } else { evaluate(1)? }])
     }
 
     /// The block of `matrix`, column-major, with the columns of other polarizations
@@ -93,6 +104,7 @@ pub struct ExpansionResidual {
     source: Basis,
     ks: [Complex; 2],
     radial: Radial,
+    helicity: bool,
     blocks: Vec<Block>,
 }
 
@@ -108,38 +120,107 @@ pub fn expansion(
     helicity: bool,
     radial: Radial,
 ) -> Result<(DMatrix<Complex>, ExpansionResidual)> {
-    validate_expansion(&destination, &source, ks, helicity)?;
-    let blocks = blocks(&destination, &source, helicity, false)?;
-    let value = assemble(
-        &destination,
-        &source,
-        ks,
-        &blocks,
-        BATCH,
-        |plan, k, displacement| expansion_block(plan, k, displacement, radial),
-    )?;
-    Ok((
-        value,
-        ExpansionResidual {
+    let residual = ExpansionResidual::prepare(destination, source, ks, helicity, radial)?;
+    let value = assemble(residual.shape(), &residual.blocks, BATCH, |block, _| {
+        Block::values(ks[0] == ks[1], |pol| {
+            expansion_block(&block.plan, ks[pol], block.displacement, radial)
+        })
+    })?;
+    Ok((value, residual))
+}
+
+impl ExpansionResidual {
+    fn prepare(
+        destination: Basis,
+        source: Basis,
+        ks: [Complex; 2],
+        helicity: bool,
+        radial: Radial,
+    ) -> Result<Self> {
+        validate_expansion(&destination, &source, ks, helicity)?;
+        let blocks = blocks(&destination, &source, helicity, false)?;
+        Ok(Self {
             destination,
             source,
             ks,
             radial,
+            helicity,
             blocks,
-        },
-    ))
-}
+        })
+    }
 
-impl ExpansionResidual {
+    /// Fixed saved-state bytes for the two basis shapes.
+    pub fn state_size(
+        destination_modes: usize,
+        destination_positions: usize,
+        source_modes: usize,
+        source_positions: usize,
+    ) -> Result<usize> {
+        let destination = crate::saved::sw_basis_size(destination_modes, destination_positions)?;
+        let source = crate::saved::sw_basis_size(source_modes, source_positions)?;
+        destination
+            .checked_add(source)
+            .and_then(|n| n.checked_add(34))
+            .ok_or_else(crate::saved::invalid)
+    }
+
+    /// Append state for a containing residual without allocating an intermediate buffer.
+    pub(crate) fn write_state(&self, writer: &mut crate::saved::Writer) {
+        crate::saved::write_sw_basis(writer, &self.destination);
+        crate::saved::write_sw_basis(writer, &self.source);
+        for k in self.ks {
+            writer.complex(k);
+        }
+        crate::saved::write_radial(writer, self.radial);
+        writer.byte(u8::from(self.helicity));
+    }
     /// Destination and source mode counts: the shape of the expansion matrix.
     #[must_use]
     pub fn shape(&self) -> (usize, usize) {
         (self.destination.modes.len(), self.source.modes.len())
     }
 
+    /// Directional derivative in the positions and the two medium wavenumbers.
+    pub fn pushforward(
+        &self,
+        destination: &[[f64; 3]],
+        source: &[[f64; 3]],
+        ks: [Complex; 2],
+    ) -> Result<DMatrix<Complex>> {
+        crate::basis::validate_expansion_tangent(
+            destination,
+            source,
+            ks,
+            (
+                self.destination.positions.len(),
+                self.source.positions.len(),
+            ),
+        )?;
+        assemble(self.shape(), &self.blocks, BATCH, |block, _| {
+            if self.radial == Radial::Singular && block.displacement.iter().all(|&x| x == 0.0) {
+                return Ok([None, None]);
+            }
+            let direction = std::array::from_fn(|axis| {
+                destination[block.destination][axis] - source[block.source][axis]
+            });
+            Block::values(self.ks[0] == self.ks[1] && ks[0] == ks[1], |pol| {
+                block
+                    .plan
+                    .pushforward(
+                        self.ks[pol],
+                        block.displacement,
+                        self.radial,
+                        direction,
+                        ks[pol],
+                    )
+                    .map(Some)
+            })
+        })
+    }
+
     /// Position and wavenumber gradients from `cotangent`, the gradient of a real loss
     /// with respect to the matrix.
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<ExpansionGradient> {
+    pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<ExpansionGradient> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&z| !finite(z)) {
             return Err(Error::InvalidInput("invalid expansion cotangent".into()));
         }
@@ -183,6 +264,41 @@ impl ExpansionResidual {
             }
         }
         Ok(result)
+    }
+}
+
+impl crate::saved::SavedState for ExpansionResidual {
+    fn save_state(&self) -> Result<Vec<u8>> {
+        let mut writer = crate::saved::Writer::new(Self::state_size(
+            self.destination.modes.len(),
+            self.destination.positions.len(),
+            self.source.modes.len(),
+            self.source.positions.len(),
+        )?);
+        self.write_state(&mut writer);
+        Ok(writer.finish())
+    }
+
+    fn from_state(bytes: &[u8]) -> Result<Self> {
+        let mut shape = crate::saved::Reader::new(bytes);
+        let (dm, dp) = crate::saved::read_sw_basis_dimensions(&mut shape)?;
+        let (sm, sp) = crate::saved::read_sw_basis_dimensions(&mut shape)?;
+        if bytes.len() != Self::state_size(dm, dp, sm, sp)? {
+            return Err(crate::saved::invalid());
+        }
+        let mut reader = crate::saved::Reader::new(bytes);
+        let destination = crate::saved::read_sw_basis(&mut reader)?;
+        let source = crate::saved::read_sw_basis(&mut reader)?;
+        let ks = [reader.complex()?, reader.complex()?];
+        let radial = crate::saved::read_radial(&mut reader)?;
+        let helicity = match reader.byte()? {
+            0 => false,
+            1 => true,
+            _ => return Err(crate::saved::invalid()),
+        };
+        reader.finish()?;
+        // Angular plans depend only on static mode labels. No translation values are reevaluated.
+        Self::prepare(destination, source, ks, helicity, radial)
     }
 }
 
@@ -261,48 +377,34 @@ fn batch_count(blocks: &[Block], budget: usize) -> usize {
 }
 
 /// Evaluate the blocks in parallel, in batches of at most `batch` entries or of one
-/// larger block, and scatter them in order. `evaluate` returns `None` for a
-/// vanishing block.
+/// larger block, and scatter them in order. A missing second polarization shares
+/// the first; two missing polarizations skip the block. The evaluator also receives
+/// the worker budget of the current batch for nested lattice evaluations.
 fn assemble(
-    destination: &Basis,
-    source: &Basis,
-    ks: [Complex; 2],
+    shape: (usize, usize),
     blocks: &[Block],
     batch: usize,
-    evaluate: impl Fn(&TranslationPlan, Complex, [f64; 3]) -> Result<Option<Vec<Complex>>> + Sync,
+    evaluate: impl Fn(&Block, usize) -> Result<[Option<Vec<Complex>>; 2]> + Sync,
 ) -> Result<DMatrix<Complex>> {
-    let mut value = numerics::zeros(destination.modes.len(), source.modes.len())?;
+    let mut value = numerics::zeros(shape.0, shape.1)?;
     let mut rest = blocks;
     while !rest.is_empty() {
         let count = batch_count(rest, batch);
         let (current, next) = rest.split_at(count);
         rest = next;
+        let workers = crate::threads::current_num_threads().div_ceil(current.len());
         let values = crate::threads::install(|| {
             current
                 .par_iter()
-                .map(|block| {
-                    let first = evaluate(&block.plan, ks[0], block.displacement)?;
-                    // Equal wavenumbers share one evaluation between the polarizations.
-                    let second = if ks[0] == ks[1] {
-                        None
-                    } else {
-                        Some(evaluate(&block.plan, ks[1], block.displacement)?)
-                    };
-                    Ok((first, second))
-                })
+                .map(|block| evaluate(block, workers))
                 .collect::<Result<Vec<_>>>()
         })?;
-        for (block, (first, second)) in current.iter().zip(values) {
-            let Some(second) = second else {
-                if let Some(first) = first {
-                    block.scatter(&first, None, &mut value);
-                }
-                continue;
-            };
-            for (pol, values) in [first, second].into_iter().enumerate() {
-                if let Some(values) = values {
-                    block.scatter(&values, Some(pol), &mut value);
-                }
+        for (block, [first, second]) in current.iter().zip(values) {
+            if let Some(first) = first {
+                block.scatter(&first, second.as_ref().map(|_| 0), &mut value);
+            }
+            if let Some(second) = second {
+                block.scatter(&second, Some(1), &mut value);
             }
         }
     }
@@ -325,14 +427,16 @@ pub fn lattice_expansion(
     let blocks = blocks(&destination, &source, helicity, false)?;
     let workers = crate::threads::current_num_threads().div_ceil(blocks.len().max(1));
     let value = assemble(
-        &destination,
-        &source,
-        ks,
+        (destination.modes.len(), source.modes.len()),
         &blocks,
         BATCH,
-        |plan, k, displacement| {
-            plan.evaluate_periodic(k, displacement, &lattice, eta, workers)
-                .map(Some)
+        |block, _| {
+            Block::values(ks[0] == ks[1], |pol| {
+                block
+                    .plan
+                    .evaluate_periodic(ks[pol], block.displacement, &lattice, eta, workers)
+                    .map(Some)
+            })
         },
     )?;
     Ok((
@@ -343,6 +447,7 @@ pub fn lattice_expansion(
             ks,
             lattice,
             eta,
+            helicity,
             blocks,
         },
     ))
@@ -360,10 +465,55 @@ pub struct LatticeExpansionResidual {
     ks: [Complex; 2],
     lattice: crate::lattice::BlochLattice,
     eta: Complex,
+    helicity: bool,
     blocks: Vec<Block>,
 }
 
 impl LatticeExpansionResidual {
+    /// Directional derivative in destination/source positions, medium wavenumbers,
+    /// Bloch wavevector and lattice vectors. The Ewald split remains fixed.
+    pub fn pushforward(
+        &self,
+        destination: &[[f64; 3]],
+        source: &[[f64; 3]],
+        ks: [Complex; 2],
+        kpar: &[f64],
+        vectors: &DMatrix<f64>,
+    ) -> Result<DMatrix<Complex>> {
+        crate::basis::validate_expansion_tangent(
+            destination,
+            source,
+            ks,
+            (
+                self.destination.positions.len(),
+                self.source.positions.len(),
+            ),
+        )?;
+        let geometry =
+            crate::lattice::SumTangent::with_lattice(kpar, vectors, self.lattice.dimension())?;
+        assemble(self.shape(), &self.blocks, BATCH, |block, workers| {
+            let shift = std::array::from_fn(|a| {
+                source[block.source][a] - destination[block.destination][a]
+            });
+            let tangents = ks.map(|k| crate::lattice::SumTangent {
+                k,
+                shift,
+                ..geometry
+            });
+            block
+                .plan
+                .pushforward_periodic(
+                    self.ks,
+                    block.displacement,
+                    &self.lattice,
+                    self.eta,
+                    &tangents,
+                    workers,
+                )
+                .map(|values| values.map(Some))
+        })
+    }
+
     /// Destination and source mode counts: the shape of the coupling matrix.
     #[must_use]
     pub fn shape(&self) -> (usize, usize) {
@@ -372,7 +522,7 @@ impl LatticeExpansionResidual {
 
     /// Position, wavenumber, Bloch-vector and lattice-vector gradients from `cotangent`;
     /// the pullback recomputes the analytic derivatives of the Ewald sums.
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<LatticeExpansionGradient> {
+    pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<LatticeExpansionGradient> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&g| !finite(g)) {
             return Err(Error::InvalidInput(
                 "invalid periodic expansion cotangent".into(),
@@ -424,6 +574,9 @@ impl LatticeExpansionResidual {
 /// result every run.
 #[derive(Debug)]
 pub struct LatticeExpansionFromTableResidual {
+    destination: Basis,
+    source: Basis,
+    helicity: bool,
     blocks: Vec<Block>,
     table_shape: [usize; 4],
     shape: (usize, usize),
@@ -479,29 +632,49 @@ pub fn lattice_expansion_from_table(
     }
     let blocks = blocks(destination, source, helicity, true)?;
     let shape = (destination.modes.len(), source.modes.len());
-    let mut value = numerics::zeros(shape.0, shape.1)?;
-    for block in &blocks {
-        let offset = (block.destination * table_shape[1] + block.source) * channels * harmonics;
-        for channel in 0..channels {
-            let data = &table[offset + channel * harmonics..offset + (channel + 1) * harmonics];
-            let evaluated = block.plan.evaluate_table(data);
-            block.scatter(&evaluated, (channels == 2).then_some(channel), &mut value);
-        }
-    }
-    if value.iter().any(|&v| !finite(v)) {
-        return Err(Error::NonFinite("lattice table sum overflows".into()));
-    }
-    Ok((
-        value,
-        LatticeExpansionFromTableResidual {
-            blocks,
-            table_shape,
-            shape,
-        },
-    ))
+    let residual = LatticeExpansionFromTableResidual {
+        destination: destination.clone(),
+        source: source.clone(),
+        helicity,
+        blocks,
+        table_shape,
+        shape,
+    };
+    Ok((residual.apply_table(table)?, residual))
 }
 
 impl LatticeExpansionFromTableResidual {
+    /// The same sparse linear angular map applied to the table direction.
+    pub fn pushforward(&self, tangent: &[Complex]) -> Result<DMatrix<Complex>> {
+        if tangent.len() != self.table_shape.iter().product::<usize>()
+            || tangent.iter().any(|&value| !finite(value))
+        {
+            return Err(Error::InvalidInput(
+                "lattice table tangent must be finite and match the table".into(),
+            ));
+        }
+        self.apply_table(tangent)
+    }
+
+    /// Values and directions use one sparse linear contraction.
+    fn apply_table(&self, tangent: &[Complex]) -> Result<DMatrix<Complex>> {
+        let [_, sources, channels, harmonics] = self.table_shape;
+        let mut result = numerics::zeros(self.shape.0, self.shape.1)?;
+        for block in &self.blocks {
+            let offset = (block.destination * sources + block.source) * channels * harmonics;
+            for channel in 0..channels {
+                let table =
+                    &tangent[offset + channel * harmonics..offset + (channel + 1) * harmonics];
+                let evaluated = block.plan.evaluate_table(table);
+                block.scatter(&evaluated, (channels == 2).then_some(channel), &mut result);
+            }
+        }
+        if result.iter().any(|&value| !finite(value)) {
+            return Err(Error::NonFinite("lattice table sum overflows".into()));
+        }
+        Ok(result)
+    }
+
     /// Destination and source mode counts: the shape of the coupling matrix.
     #[must_use]
     pub const fn shape(&self) -> (usize, usize) {
@@ -517,7 +690,7 @@ impl LatticeExpansionFromTableResidual {
 
     /// The table gradient: the conjugate transpose of the fixed angular weights applied to
     /// `cotangent`.
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<Vec<Complex>> {
+    pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<Vec<Complex>> {
         if cotangent.shape() != self.shape || cotangent.iter().any(|&v| !finite(v)) {
             return Err(Error::InvalidInput(
                 "invalid lattice table cotangent".into(),
@@ -525,7 +698,7 @@ impl LatticeExpansionFromTableResidual {
         }
         let [_, sources, channels, harmonics] = self.table_shape;
         let mut gradient = vec![Complex::default(); self.table_shape.iter().product()];
-        for block in self.blocks {
+        for block in &self.blocks {
             let offset = (block.destination * sources + block.source) * channels * harmonics;
             for channel in 0..channels {
                 let local = block.gather(cotangent, (channels == 2).then_some(channel));
@@ -544,7 +717,7 @@ mod tests {
     //! Batched assembly of the expansion matrix. Identities of expansions are in
     //! `properties/waves.rs`.
 
-    use super::{Basis, assemble, blocks, expansion, expansion_block};
+    use super::{Basis, Block, assemble, blocks, expansion, expansion_block};
     use crate::{Complex, special::Radial, sw};
 
     /// Bounded batches, down to one block at a time, assemble the matrix of a single
@@ -572,9 +745,16 @@ mod tests {
                 let (expected, _) =
                     expansion(basis.clone(), basis.clone(), ks, true, radial).unwrap();
                 for batch in [1, 150, 300] {
-                    let value = assemble(&basis, &basis, ks, &blocks, batch, |plan, k, d| {
-                        expansion_block(plan, k, d, radial)
-                    })
+                    let value = assemble(
+                        (basis.modes.len(), basis.modes.len()),
+                        &blocks,
+                        batch,
+                        |block, _| {
+                            Block::values(ks[0] == ks[1], |pol| {
+                                expansion_block(&block.plan, ks[pol], block.displacement, radial)
+                            })
+                        },
+                    )
                     .unwrap();
                     assert_eq!(value, expected, "batch {batch}, {radial:?}");
                 }

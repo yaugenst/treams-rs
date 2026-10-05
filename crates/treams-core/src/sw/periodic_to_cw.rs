@@ -170,14 +170,94 @@ pub fn periodic_to_cw_matrix(
 }
 
 impl PeriodicToCwResidual {
+    /// Saved-state size from the cylindrical destination and spherical source shapes.
+    pub fn state_size(
+        destination_modes: usize,
+        destination_positions: usize,
+        source_modes: usize,
+        source_positions: usize,
+    ) -> Result<usize> {
+        let destination = crate::saved::cw_basis_size(destination_modes, destination_positions)?;
+        let source = crate::saved::sw_basis_size(source_modes, source_positions)?;
+        destination
+            .checked_add(source)
+            .and_then(|n| n.checked_add(41))
+            .ok_or_else(crate::saved::invalid)
+    }
     /// Cylindrical output and spherical input mode counts.
     #[must_use]
     pub fn shape(&self) -> (usize, usize) {
         (self.destination.modes.len(), self.source.modes.len())
     }
 
+    /// Directional derivative of the positions, medium, independent output axial
+    /// wavenumbers and period.
+    pub fn pushforward(
+        &self,
+        destination: &[[f64; 3]],
+        source: &[[f64; 3]],
+        ks: [Complex; 2],
+        kz: &[f64],
+        period: f64,
+    ) -> Result<DMatrix<Complex>> {
+        crate::basis::validate_expansion_tangent(
+            destination,
+            source,
+            ks,
+            (
+                self.destination.positions.len(),
+                self.source.positions.len(),
+            ),
+        )?;
+        if kz.len() != self.destination.modes.len()
+            || kz.iter().any(|k| !k.is_finite())
+            || !period.is_finite()
+        {
+            return Err(Error::InvalidInput(
+                "axial and period tangents must be finite and match inputs".into(),
+            ));
+        }
+        let mut value = crate::numerics::zeros(self.shape().0, self.shape().1)?;
+        crate::threads::install(|| {
+            value
+                .as_mut_slice()
+                .par_chunks_mut(self.shape().0)
+                .enumerate()
+                .try_for_each(|(j, column)| -> Result<()> {
+                    let (q, from) = self.source.modes[j];
+                    let pol = usize::from(from.pol);
+                    for (i, (out, &(p, to))) in
+                        column.iter_mut().zip(&self.destination.modes).enumerate()
+                    {
+                        let displacement = std::array::from_fn(|axis| {
+                            self.destination.positions[p][axis] - self.source.positions[q][axis]
+                        });
+                        let entry = periodic_entry::<2>(
+                            to,
+                            from,
+                            self.ks[pol],
+                            displacement,
+                            self.period,
+                            self.helicity,
+                        )?;
+                        *out = crate::basis::pair_tangent(
+                            destination,
+                            source,
+                            ks,
+                            [p, q, pol],
+                            entry.position,
+                            entry.k,
+                        ) + entry.kz * kz[i]
+                            - entry.value * (period / self.period);
+                    }
+                    Ok(())
+                })
+        })?;
+        Ok(value)
+    }
+
     /// Recompute the local derivatives of every entry instead of keeping a Jacobian.
-    pub fn pullback(self, cotangent: &DMatrix<Complex>) -> Result<PeriodicToCwGradient> {
+    pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<PeriodicToCwGradient> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&v| !finite(v)) {
             return Err(Error::InvalidInput(
                 "invalid periodic conversion cotangent".into(),
@@ -227,6 +307,56 @@ impl PeriodicToCwResidual {
                 total
             },
         )
+    }
+}
+
+impl crate::saved::SavedState for PeriodicToCwResidual {
+    fn save_state(&self) -> Result<Vec<u8>> {
+        let mut writer = crate::saved::Writer::new(Self::state_size(
+            self.destination.modes.len(),
+            self.destination.positions.len(),
+            self.source.modes.len(),
+            self.source.positions.len(),
+        )?);
+        crate::saved::write_cw_basis(&mut writer, &self.destination);
+        crate::saved::write_sw_basis(&mut writer, &self.source);
+        for k in self.ks {
+            writer.complex(k);
+        }
+        writer.f64(self.period);
+        writer.byte(u8::from(self.helicity));
+        Ok(writer.finish())
+    }
+
+    fn from_state(bytes: &[u8]) -> Result<Self> {
+        let mut shape = crate::saved::Reader::new(bytes);
+        let (dm, dp) = crate::saved::read_cw_basis_dimensions(&mut shape)?;
+        let (sm, sp) = crate::saved::read_sw_basis_dimensions(&mut shape)?;
+        if bytes.len() != Self::state_size(dm, dp, sm, sp)? {
+            return Err(crate::saved::invalid());
+        }
+        let mut reader = crate::saved::Reader::new(bytes);
+        let destination = crate::saved::read_cw_basis(&mut reader)?;
+        let source = crate::saved::read_sw_basis(&mut reader)?;
+        let ks = [reader.complex()?, reader.complex()?];
+        let period = reader.f64()?;
+        let helicity = match reader.byte()? {
+            0 => false,
+            1 => true,
+            _ => return Err(crate::saved::invalid()),
+        };
+        reader.finish()?;
+        validate_wavenumbers(ks, helicity, false)?;
+        if !period.is_finite() || period <= 0.0 {
+            return Err(crate::saved::invalid());
+        }
+        Ok(Self {
+            destination,
+            source,
+            ks,
+            period,
+            helicity,
+        })
     }
 }
 
