@@ -665,6 +665,7 @@ class Cluster:
                 isinstance(self.basis, CylindricalBasis),
             ),
             map_context=map_context,
+            needs_primals=False,
         )
         def record(positions: Any, ks: Any, *blocks: Any) -> Recorded:
             value, context = diff.particle_cluster(

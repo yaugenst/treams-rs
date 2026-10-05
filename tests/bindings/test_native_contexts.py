@@ -155,11 +155,14 @@ class Case:
     ``record(*arrays)`` returns the native result; ``arrays`` are fresh NumPy
     inputs that reach the binding exactly as given (never normalized by a Python
     wrapper), so their layouts and later mutation are seen by the binding.
+    ``state_args`` describes the saved state from its static input dimensions;
+    input-only contexts have no saved state and leave it as ``None``.
     """
 
     record: Callable[..., Any]
     arrays: tuple[np.ndarray, ...] = ()
     method: str = "pullback"
+    state_args: tuple[Any, ...] | None = None
 
 
 def _rng():
@@ -208,9 +211,9 @@ def _ebcm_samples():
     return np.column_stack([theta, weights * np.pi / 2, radii, slopes])
 
 
-def case(record, *arrays, method="pullback"):
+def case(record, *arrays, method="pullback", state_args=None):
     """A factory of ``Case`` with fresh copies of ``arrays``."""
-    return lambda: Case(record, tuple(np.array(a) for a in arrays), method)
+    return lambda: Case(record, tuple(np.array(a) for a in arrays), method, state_args)
 
 
 _ORIGIN = [[0.0] * 3]
@@ -218,38 +221,58 @@ _SW_PAIR = (list(_SW.modes), list(_SW.modes))
 _CW_PAIR = (list(_CW.modes), list(_CW.modes))
 
 CASES = {
-    "mie": case(lambda *a: _native.mie(2, *a), 2 * _RADII, *_LAYERS.values()),
-    "sphere": case(lambda *a: _native.sphere(1, 2.0, *a), _RADII, *_LAYERS.values()),
+    "mie": case(
+        lambda *a: _native.mie(2, *a),
+        2 * _RADII,
+        *_LAYERS.values(),
+        state_args=(len(_RADII),),
+    ),
+    "sphere": case(
+        lambda *a: _native.sphere(1, 2.0, *a),
+        _RADII,
+        *_LAYERS.values(),
+        state_args=(1, len(_RADII)),
+    ),
     "mie_cyl": case(
-        lambda *a: _native.mie_cyl(0.2, 1, 2.0, *a), _RADII, *_LAYERS.values()
+        lambda *a: _native.mie_cyl(0.2, 1, 2.0, *a),
+        _RADII,
+        *_LAYERS.values(),
+        state_args=(len(_RADII),),
     ),
     "cylinder": case(
         lambda kz, *a: _native.cylinder(kz, 1, 2.0, *a),
         np.array([0.1, -0.3]),
         _RADII,
         *_LAYERS.values(),
+        state_args=(2, 1, len(_RADII)),
     ),
     "sphere_cluster": case(
         lambda *a: _native.sphere_cluster(1, 2.0, *a),
         _RADII,
         _LAYERS["epsilon"][:2],
         _POSITIONS,
+        state_args=(1, len(_RADII)),
     ),
-    "interaction": case(_native.interaction, 0.3 * _square(4, 1), 0.2 * _square(4, 2)),
+    "interaction": case(
+        _native.interaction, 0.3 * _square(4, 1), 0.2 * _square(4, 2), state_args=(4,)
+    ),
     "particle_cluster": case(
         lambda *local: _native.particle_cluster(list(local), *_modes(_SW2), _KS, True),
         0.3 * _square(6, 1),
         0.2 * _square(6, 2),
+        state_args=([6, 6], False),
     ),
     "cylindrical_particle_cluster": case(
         lambda local: _native.cylindrical_particle_cluster(
             [local], *_modes(_CW), _KS, True
         ),
         0.3 * _square(len(_CW), 1),
+        state_args=([len(_CW)], True),
     ),
     "tmatrix_metric": case(
         lambda a: _native.tmatrix_metric(a, list(_SW.pol), (1.2, 1.4), "cd"),
         0.2 * _square(6, 3) - 0.1,
+        state_args=(6,),
     ),
     "expansion": case(
         lambda: _native.expansion(
@@ -260,25 +283,30 @@ CASES = {
             _KS,
             True,
             True,
-        )
+        ),
+        state_args=(len(_SW), 1, len(_SW2), len(_POSITIONS), 0),
     ),
     "cylindrical_expansion": case(
         lambda: _native.cylindrical_expansion(
             *_CW_PAIR, [[0.1, 0.2, -0.3]], [[0.4, -0.1, 0.2]], _KS, True
-        )
+        ),
+        state_args=(len(_CW), 1, len(_CW), 1, 1),
     ),
     "cw_to_sw": case(
         lambda: _native.cw_to_sw(
             list(_SW.modes), list(_CW.modes), [[0.1, 0.2, -0.3]], _ORIGIN, _KS, True
-        )
+        ),
+        state_args=(len(_SW), 1, len(_CW), 1, 2),
     ),
     "rotation": case(
-        lambda: _native.rotation(*_SW_PAIR, _ORIGIN, _ORIGIN, (0.3, 0.5, -0.2))
+        lambda: _native.rotation(*_SW_PAIR, _ORIGIN, _ORIGIN, (0.3, 0.5, -0.2)),
+        state_args=(*_SW_PAIR, False),
     ),
     "cylindrical_rotation": case(
         lambda: _native.cylindrical_rotation(
             *_CW_PAIR, _ORIGIN, _ORIGIN, (0.3, 0.0, 0.0)
-        )
+        ),
+        state_args=(*_CW_PAIR, True),
     ),
     "plane_expansion": case(
         lambda: _native.plane_expansion(
@@ -287,12 +315,14 @@ CASES = {
             [0, 1],
             True,
             False,
-        )
+        ),
+        state_args=(len(_SW2), len(_POSITIONS), 2, False),
     ),
     "cylindrical_plane_expansion": case(
         lambda: _native.cylindrical_plane_expansion(
             *_modes(_CW), [[0.3, 0.4, 0.1], [0.1, -0.2, 0.3]], [0, 1], True, False
-        )
+        ),
+        state_args=(len(_CW), 1, 2, True),
     ),
     "periodic_to_cw": case(
         lambda: _native.periodic_to_cw(
@@ -303,13 +333,15 @@ CASES = {
             list(_KS),
             1.7,
             True,
-        )
+        ),
+        state_args=(len(_CW), 1, len(_SW), 1),
     ),
     "lattice_expansion_from_table": case(
         lambda table: _native.lattice_expansion_from_table(
             *_SW_PAIR, _ORIGIN, _ORIGIN, True, table
         ),
         complex_normal(_rng(), (1, 1, 2, 9)),
+        state_args=(len(_SW), len(_SW), 1, 1),
     ),
     "lattice_expansion": case(
         lambda: _native.lattice_expansion(
@@ -321,12 +353,14 @@ CASES = {
             [0.1, 0.2],
             [[1.5, 0.0], [0.3, 1.4]],
             0.9 + 0.1j,
-        )
+        ),
+        state_args=(len(_SW), len(_SW), 1, 1, False),
     ),
     "cylindrical_lattice_expansion": case(
         lambda: _native.cylindrical_lattice_expansion(
             *_CW_PAIR, _ORIGIN, [[0.1, 0.0, 0.0]], _KS, [0.1], [[1.5]], 0.9 + 0.1j
-        )
+        ),
+        state_args=(len(_CW), len(_CW), 1, 1, True),
     ),
     "lattice_sum_record": case(
         lambda k, q, a, r, eta: _native.lattice_sum_record(
@@ -353,60 +387,79 @@ CASES = {
         lambda c, p: _native.field(*_modes(_SW2), c, p, _KS, True, True),
         complex_normal(_rng(), len(_SW2)),
         _POINTS,
+        state_args=(len(_SW2), len(_POSITIONS), len(_POINTS), False),
     ),
     "cylindrical_field": case(
         lambda c, p: _native.cylindrical_field(*_modes(_CW), c, p, _KS, True, True),
         complex_normal(_rng(), len(_CW)),
         _POINTS,
+        state_args=(len(_CW), 1, len(_POINTS), True),
     ),
     "field_operator": case(
-        lambda p: _native.field_operator(*_modes(_SW2), p, _KS, True, False), _POINTS
+        lambda p: _native.field_operator(*_modes(_SW2), p, _KS, True, False),
+        _POINTS,
+        state_args=(len(_SW2), len(_POSITIONS), len(_POINTS), False),
     ),
     "cylindrical_field_operator": case(
         lambda p: _native.cylindrical_field_operator(*_modes(_CW), p, _KS, True, True),
         _POINTS,
+        state_args=(len(_CW), 1, len(_POINTS), True),
     ),
     "plane_field": case(
         lambda v, p, c: _native.plane_field(v, [0, 1], p, c, True, False),
         _VECTORS,
         _POINTS,
         np.array([0.4 - 0.1j, 1.2 + 0.3j]),
+        state_args=(len(_POINTS), len(_VECTORS), True),
     ),
     "plane_field.operator": case(
         lambda v, p: _native.plane_field(v, [0, 1], p, None, True, False),
         _VECTORS,
         _POINTS,
+        state_args=(len(_POINTS), len(_VECTORS), False),
     ),
-    "plane_phases": case(_native.plane_phases, _POINTS, _VECTORS),
+    "plane_phases": case(
+        _native.plane_phases,
+        _POINTS,
+        _VECTORS,
+        state_args=(len(_POINTS), len(_VECTORS)),
+    ),
     "plane_permutation": case(
         lambda v, pol: _native.plane_permutation(v, pol, 1, True),
         _VECTORS,
         np.array([0.0, 1.0]),
+        state_args=(len(_VECTORS),),
     ),
     "spherical_channels": case(
         lambda: _native.spherical_channels(
             *_modes(_SW), list(_KS), [[0.2, 0.1]] * 2, [0, 1], 2.8, True, False
-        )
+        ),
+        state_args=(len(_SW), 1, 2),
     ),
     "cylindrical_channels": case(
         lambda: _native.cylindrical_channels(
             *_modes(_CW), [1.3, 1.3], [[0.3, 0.1]] * 2, [0, 1], 1.7, True, False
-        )
+        ),
+        state_args=(len(_CW), 1, 2),
     ),
     "smatrix_from_array": case(
         _native.smatrix_from_array,
         0.2 * _square(3, 4),
         complex_normal(_rng(), (2, 2, 3, 2)),
+        state_args=(3, 2),
     ),
-    "smatrix_add": case(_native.smatrix_add, _smatrix(3, 1), _smatrix(3, 2)),
+    "smatrix_add": case(
+        _native.smatrix_add, _smatrix(3, 1), _smatrix(3, 2), state_args=(3,)
+    ),
     "smatrix_illuminate": case(
         _native.smatrix_illuminate,
         _smatrix(3, 1),
         _smatrix(3, 2),
         *complex_normal(_rng(), (2, 3, 2)),
+        state_args=(3, 2),
     ),
-    "smatrix_periodic": case(_native.smatrix_periodic, _smatrix(3, 5)),
-    "bands": case(lambda s: _native.bands(s, 1.3), _smatrix(2, 6)),
+    "smatrix_periodic": case(_native.smatrix_periodic, _smatrix(3, 5), state_args=(3,)),
+    "bands": case(lambda s: _native.bands(s, 1.3), _smatrix(2, 6), state_args=(2,)),
     **{
         f"smatrix_tr{suffix}": case(
             lambda m, i, d=direction: _native.smatrix_tr(
@@ -423,6 +476,7 @@ CASES = {
             ),
             _smatrix(2, 7),
             complex_normal(_rng(), (2, 3)),
+            state_args=(2, 3, 1),
         )
         # Upward transmission borrows blocks [0, 0] and [1, 0], downward [1, 1]
         # and [0, 1].
@@ -432,26 +486,31 @@ CASES = {
         lambda ks, normal: _native.chirality_density(ks, normal, (-0.2, 0.4)),
         np.array([1.3 + 0.1j, 1.1]),
         np.array([1.2 + 0.1j, 0.3 + 0.5j]),
+        state_args=(2,),
     ),
     "oriented_chirality": case(
         lambda q, normal: _native.oriented_chirality(q, normal, [0, 1], 2, (-0.2, 0.4)),
         np.array([[0.2, 0.3], [0.4, 0.5]]),
         np.array([1.2 + 0.1j, 0.3 + 0.5j]),
+        state_args=(2,),
     ),
     "fresnel": case(
         lambda: _native.fresnel(
             [[1.3, 1.5], [1.1, 1.4]], [[1.2, 1.4], [1.0, 1.3]], [1.2, 0.9]
-        )
+        ),
+        state_args=(),
     ),
     "interface_coefficients": case(
         lambda: _native.interface_coefficients(
             [[1.3, 1.5], [1.1, 1.4]], [1.2, 0.9], [0.2, 0.1], 2, False
-        )
+        ),
+        state_args=(),
     ),
     "propagation_matrix": case(
         lambda: _native.propagation_matrix(
             [[0.2, 0.1, 1.2 + 0.01j], [0.2, 0.1, 1.3 + 0.02j]], [0.0, 0.1, 0.4]
-        )
+        ),
+        state_args=(2,),
     ),
     "layer_stack": case(
         lambda: _native.layer_stack(
@@ -461,7 +520,8 @@ CASES = {
             [0.4],
             2,
             False,
-        )
+        ),
+        state_args=(3, 1),
     ),
     "ebcm_qmat": case(
         lambda samples, ks: _native.ebcm_qmat(
@@ -475,11 +535,16 @@ CASES = {
         ),
         _ebcm_samples(),
         np.array([[2.1 + 0.2j, 2.3 + 0.1j], [1.3, 1.4]]),
+        state_args=(16, 2, 2),
     ),
-    "solve": case(_native.solve, _square(4, 1), complex_normal(_rng(), (4, 2))),
-    "eig": case(_native.eig, _square(4, 3) + np.diag([0, 1, 2, 3])),
-    "eigvals": case(_native.eigvals, _square(4, 3) + np.diag([0, 1, 2, 3])),
-    "svdvals": case(_native.svdvals, _square(4, 5)),
+    "solve": case(
+        _native.solve, _square(4, 1), complex_normal(_rng(), (4, 2)), state_args=(4, 2)
+    ),
+    "eig": case(_native.eig, _square(4, 3) + np.diag([0, 1, 2, 3]), state_args=(4,)),
+    "eigvals": case(
+        _native.eigvals, _square(4, 3) + np.diag([0, 1, 2, 3]), state_args=(4,)
+    ),
+    "svdvals": case(_native.svdvals, _square(4, 5), state_args=(4, 4)),
     "InteractionFactor.record": case(
         lambda local, coupling, incident: _native.InteractionFactor(
             local, coupling
@@ -487,6 +552,7 @@ CASES = {
         0.3 * _square(4, 1),
         0.2 * _square(4, 2),
         complex_normal(_rng(), (4, 2)),
+        state_args=([4], 2),
     ),
     "InteractionFactor.from_blocks.record": case(
         lambda a, b, coupling, incident: _native.InteractionFactor.from_blocks(
@@ -497,6 +563,7 @@ CASES = {
         0.2 * _square(4, 3),
         complex_normal(_rng(), (4, 2)),
         method="pullback_blocks",
+        state_args=([2, 2], 2),
     ),
     "sphere_cluster_factor.record": case(
         lambda radii, epsilon, positions, incident: _native.sphere_cluster_factor(
@@ -507,6 +574,7 @@ CASES = {
         _POSITIONS,
         _INCIDENT,
         method="pullback_blocks",
+        state_args=([6, 6], 2),
     ),
     "IterativeSphereCluster.record": case(
         lambda radii, epsilon, positions, incident: _native.IterativeSphereCluster(
@@ -516,6 +584,7 @@ CASES = {
         _LAYERS["epsilon"][:2],
         _POSITIONS,
         _INCIDENT,
+        state_args=(1, len(_RADII), _INCIDENT.shape[1]),
     ),
 }
 
@@ -537,6 +606,17 @@ def _split(result):
     items = result if isinstance(result, tuple) else (result,)
     index = next(i for i, item in enumerate(items) if hasattr(item, "pullback"))
     return items[:index], items[index]
+
+
+@pytest.mark.interface
+@pytest.mark.parametrize("name", CASES)
+def test_saved_state_size_matches_native_specification(name):
+    """The static dimensions predict the bytes produced by a real record."""
+    fixture = CASES[name]()
+    _, context = _split(fixture.record(*fixture.arrays))
+    assert (fixture.state_args is not None) == hasattr(context, "_state_spec")
+    if fixture.state_args is not None:
+        assert type(context)._state_spec(*fixture.state_args) == len(context._state())
 
 
 def _cotangents(values):
@@ -686,10 +766,19 @@ def test_every_object_context_method_has_a_case():
         if method.startswith("pullback")
     }
     covered = set()
+    saved = set()
     for factory in CASES.values():
         case = factory()
-        covered.add((type(_split(case.record(*case.arrays))[1]).__name__, case.method))
+        cls = type(_split(case.record(*case.arrays))[1])
+        covered.add((cls.__name__, case.method))
+        if case.state_args is not None:
+            saved.add(cls)
     assert covered == methods
+    assert saved == {
+        cls
+        for cls in vars(_native).values()
+        if isinstance(cls, type) and hasattr(cls, "_state_spec")
+    }
 
 
 @pytest.mark.interface

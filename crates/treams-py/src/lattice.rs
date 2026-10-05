@@ -13,7 +13,7 @@ use treams_core::{
     Complex,
     fpenv::ieee,
     lattice,
-    saved::{Reader, SavedState, Writer},
+    saved::{SavedState, Writer},
 };
 
 use crate::{
@@ -65,6 +65,10 @@ impl Periodic {
             Self::Cylindrical(r) => r.pullback(g),
         }
     }
+}
+
+fn invalid_state() -> treams_core::Error {
+    treams_core::Error::InvalidInput("invalid saved lattice context".into())
 }
 
 impl SavedState for Periodic {
@@ -455,31 +459,6 @@ broadcast_context!(LatticeSumContext(
 ));
 #[pymethods]
 impl LatticeSumContext {
-    #[staticmethod]
-    fn _state_spec(
-        shape: Vec<usize>,
-        argument_shapes: [Vec<usize>; 5],
-        dim: usize,
-        coordinates: usize,
-    ) -> PyResult<usize> {
-        ieee(|| {
-            let shapes = BroadcastShapes {
-                shape,
-                argument_shapes,
-            };
-            lattice_sum_state_size(&shapes, dim, coordinates).map_err(error)
-        })
-    }
-
-    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
-        ieee(|| state_array(py, self))
-    }
-
-    #[staticmethod]
-    fn _from_state(state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
-        ieee(|| restore_state(&state))
-    }
-
     fn pushforward<'py>(
         &self,
         py: Python<'py>,
@@ -598,59 +577,6 @@ impl LatticeSumContext {
     }
 }
 
-fn invalid_state() -> treams_core::Error {
-    treams_core::Error::InvalidInput("invalid saved lattice context".into())
-}
-
-fn lattice_sum_state_size(
-    shapes: &BroadcastShapes<[Vec<usize>; 5]>,
-    dim: usize,
-    coordinates: usize,
-) -> treams_core::Result<usize> {
-    if !(1..=3).contains(&dim) || !(2..=3).contains(&coordinates) || dim > coordinates {
-        return Err(invalid_state());
-    }
-    let cores: [&[usize]; 5] = [&[], &[dim], &[dim, dim], &[coordinates], &[]];
-    for (argument, core) in shapes.argument_shapes.iter().zip(cores) {
-        check_broadcast(&[shapes.shape.as_slice(), core].concat(), &[argument])
-            .map_err(|_| invalid_state())?;
-    }
-    let count = shapes.shape.iter().try_fold(1_usize, |count, &dim| {
-        count.checked_mul(dim).ok_or_else(invalid_state)
-    })?;
-    let metadata = shapes.state_size()?;
-    lattice::SumResidual::state_size(count)?
-        .checked_add(metadata)
-        .and_then(|size| size.checked_add(16))
-        .ok_or_else(invalid_state)
-}
-
-impl SavedState for LatticeSumContext {
-    fn save_state(&self) -> treams_core::Result<Vec<u8>> {
-        let mut writer = Writer::new(lattice_sum_state_size(
-            &self.shapes,
-            self.dim,
-            self.coordinates,
-        )?);
-        writer.usize(self.dim);
-        writer.usize(self.coordinates);
-        self.shapes.write_state(&mut writer)?;
-        writer.raw(&self.residual.save_state()?);
-        Ok(writer.finish())
-    }
-
-    fn from_state(bytes: &[u8]) -> treams_core::Result<Self> {
-        let mut reader = Reader::new(bytes);
-        let dim = reader.usize()?;
-        let coordinates = reader.usize()?;
-        let shapes = BroadcastShapes::read_state(&mut reader)?;
-        if bytes.len() != lattice_sum_state_size(&shapes, dim, coordinates)? {
-            return Err(invalid_state());
-        }
-        let residual = lattice::SumResidual::from_state(reader.raw(reader.remaining_len())?)?;
-        Ok(Self::new(residual, shapes, dim, coordinates))
-    }
-}
 /// Record lattice sums, their Ewald parts or direct shells: `lattice::sum_array`.
 #[pyfunction]
 pub(crate) fn lattice_sum_record<'py>(
@@ -668,6 +594,44 @@ pub(crate) fn lattice_sum_record<'py>(
     shape: Vec<usize>,
     argument_shapes: [Vec<usize>; 5],
 ) -> PyResult<(CDyn<'py>, LatticeSumContext)> {
+    ieee(|| {
+        let context = lattice_sum_context(
+            py,
+            spherical,
+            dim,
+            modes,
+            k,
+            kpar,
+            a,
+            r,
+            eta,
+            part,
+            shells,
+            shape,
+            argument_shapes,
+        )?;
+        let values = detached(py, || context.residual.values())?;
+        Ok((shaped(py, values, &context.shapes.shape)?, context))
+    })
+}
+
+/// Restore an input-only sum context without evaluating any Ewald sums.
+#[pyfunction]
+pub(crate) fn lattice_sum_context<'py>(
+    py: Python<'py>,
+    spherical: bool,
+    dim: usize,
+    modes: Vec<(i32, i32)>,
+    k: PyReadonlyArray1<'py, Complex>,
+    kpar: PyReadonlyArray2<'py, f64>,
+    a: numpy::PyReadonlyArray3<'py, f64>,
+    r: PyReadonlyArray2<'py, f64>,
+    eta: PyReadonlyArray1<'py, Complex>,
+    part: u8,
+    shells: Vec<i64>,
+    shape: Vec<usize>,
+    argument_shapes: [Vec<usize>; 5],
+) -> PyResult<LatticeSumContext> {
     ieee(|| {
         let q = kpar.as_array();
         let a = a.as_array();
@@ -721,7 +685,7 @@ pub(crate) fn lattice_sum_record<'py>(
         let shifts = r
             .outer_iter()
             .map(|row| std::array::from_fn(|j| if j < coordinates { row[j] } else { 0.0 }))
-            .collect();
+            .collect::<Vec<_>>();
         let waves = modes
             .into_iter()
             .map(|(l, m)| {
@@ -731,7 +695,7 @@ pub(crate) fn lattice_sum_record<'py>(
                     lattice::Family::Cylindrical { m }
                 }
             })
-            .collect();
+            .collect::<Vec<_>>();
         let parts = if part == 3 {
             shells.into_iter().map(lattice::SumPart::Direct).collect()
         } else {
@@ -743,20 +707,28 @@ pub(crate) fn lattice_sum_record<'py>(
         };
         let k = k.as_array().to_vec();
         let eta = eta.as_array().to_vec();
-        let (value, residual) = detached(py, move || {
-            lattice::sum_array(waves, k, lattices, shifts, eta, parts)
+        crate::broadcast::check_flat_shape(
+            &shape,
+            &[
+                waves.len(),
+                k.len(),
+                lattices.len(),
+                shifts.len(),
+                eta.len(),
+                parts.len(),
+            ],
+        )?;
+        let residual = detached(py, move || {
+            lattice::SumResidual::new(waves, k, lattices, shifts, eta, parts)
         })?;
-        Ok((
-            shaped(py, value, &shape)?,
-            LatticeSumContext::new(
-                residual,
-                BroadcastShapes {
-                    shape,
-                    argument_shapes,
-                },
-                dim,
-                coordinates,
-            ),
+        Ok(LatticeSumContext::new(
+            residual,
+            BroadcastShapes {
+                shape,
+                argument_shapes,
+            },
+            dim,
+            coordinates,
         ))
     })
 }

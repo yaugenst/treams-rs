@@ -66,7 +66,8 @@ def _elementwise(
     """Lift scalar records, broadcasting tangents and reducing input gradients."""
     shape = _shape(values, labels)
     prepared = saved_record(evaluate)
-    assert prepared is not None
+    if prepared is None:
+        raise TypeError("coefficient record must declare its saved-state contract")
     child: SavedRecord = prepared
 
     def scalar_specs(arrays: Any) -> tuple[ArraySpec, ...]:

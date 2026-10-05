@@ -192,92 +192,12 @@ pub(crate) struct BroadcastShapes<A> {
     pub(crate) argument_shapes: A,
 }
 
-fn invalid_state() -> treams_core::Error {
-    treams_core::Error::InvalidInput("invalid native broadcast state".into())
-}
-
 /// Number of elements, checked before using shape metadata to allocate storage.
 pub(crate) fn shape_size(shape: &[usize]) -> treams_core::Result<usize> {
     shape.iter().try_fold(1_usize, |size, &dim| {
-        size.checked_mul(dim).ok_or_else(invalid_state)
+        size.checked_mul(dim)
+            .ok_or_else(|| treams_core::Error::InvalidInput("broadcast shape is too large".into()))
     })
-}
-
-impl<A: AsRef<[Vec<usize>]>> BroadcastShapes<A> {
-    /// Check elementwise broadcasting; callers with additional core axes use
-    /// their own shape contract after reading the shared metadata.
-    pub(crate) fn validate_broadcast(&self) -> treams_core::Result<()> {
-        if self.argument_shapes.as_ref().iter().any(|argument| {
-            argument.len() > self.shape.len()
-                || argument
-                    .iter()
-                    .rev()
-                    .zip(self.shape.iter().rev())
-                    .any(|(&a, &b)| a != 1 && a != b)
-        }) {
-            return Err(invalid_state());
-        }
-        Ok(())
-    }
-
-    /// Shape metadata occupies one dimension count per shape and one argument count.
-    pub(crate) fn state_size(&self) -> treams_core::Result<usize> {
-        std::iter::once(&self.shape)
-            .chain(self.argument_shapes.as_ref())
-            .try_fold(8_usize, |size, shape| {
-                shape_size(shape)?;
-                shape
-                    .len()
-                    .checked_add(1)
-                    .and_then(|n| n.checked_mul(8))
-                    .and_then(|n| size.checked_add(n))
-                    .ok_or_else(invalid_state)
-            })
-    }
-
-    /// Store output and original argument shapes, independently of the core residual.
-    pub(crate) fn write_state(
-        &self,
-        writer: &mut treams_core::saved::Writer,
-    ) -> treams_core::Result<()> {
-        self.state_size()?;
-        writer.usize(self.argument_shapes.as_ref().len());
-        for shape in std::iter::once(&self.shape).chain(self.argument_shapes.as_ref()) {
-            writer.usize(shape.len());
-            for &dimension in shape {
-                writer.usize(dimension);
-            }
-        }
-        Ok(())
-    }
-}
-
-impl<A> BroadcastShapes<A>
-where
-    A: AsRef<[Vec<usize>]> + TryFrom<Vec<Vec<usize>>>,
-{
-    /// Read bounded shape metadata before restoring a core residual.
-    pub(crate) fn read_state(
-        reader: &mut treams_core::saved::Reader<'_>,
-    ) -> treams_core::Result<Self> {
-        let arguments = reader.count(8)?;
-        let mut read_shape = || -> treams_core::Result<Vec<usize>> {
-            let count = reader.count(8)?;
-            let shape = (0..count)
-                .map(|_| reader.usize())
-                .collect::<treams_core::Result<Vec<_>>>()?;
-            shape_size(&shape)?;
-            Ok(shape)
-        };
-        let shape = read_shape()?;
-        let argument_shapes = (0..arguments)
-            .map(|_| read_shape())
-            .collect::<treams_core::Result<Vec<_>>>()?;
-        Ok(Self {
-            shape,
-            argument_shapes: argument_shapes.try_into().map_err(|_| invalid_state())?,
-        })
-    }
 }
 
 /// A pullback context of `N` broadcast arguments.

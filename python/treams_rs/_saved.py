@@ -103,15 +103,22 @@ def native_state[Function: Callable[..., Any]](
     dimensions: Callable[[tuple[ArraySpec, ...]], tuple[Any, ...]],
     *,
     map_context: Callable[..., Any] | None = None,
+    needs_primals: bool = True,
 ) -> Callable[[Function], Function]:
-    """Attach the native fixed-byte-state contract to an ordinary diff function."""
+    """Attach native state; value-independent context mappings can drop primals."""
 
     def decorate(record: Function) -> Function:
         def factory(evaluate: Record) -> SavedRecord | None:
             return (
                 None
                 if isinstance(evaluate, partial)
-                else _native_saved(evaluate, context_type, dimensions, map_context)
+                else _native_saved(
+                    evaluate,
+                    context_type,
+                    dimensions,
+                    map_context,
+                    needs_primals=needs_primals,
+                )
             )
 
         # Local physics records should expire with their last caller, without
@@ -127,6 +134,8 @@ def _native_saved(
     context_type: Any,
     dimensions: Callable[[tuple[ArraySpec, ...]], tuple[Any, ...]],
     map_context: Callable[..., Any] | None = None,
+    *,
+    needs_primals: bool = True,
 ) -> SavedRecord:
     def state_spec(inputs: tuple[ArraySpec, ...]) -> tuple[ArraySpec, ...]:
         size = context_type._state_spec(*dimensions(inputs))
@@ -142,7 +151,11 @@ def _native_saved(
         return context if map_context is None else map_context(context, *primals)
 
     return SavedRecord(
-        evaluate, state_spec, save, restore, needs_primals=map_context is not None
+        evaluate,
+        state_spec,
+        save,
+        restore,
+        needs_primals=map_context is not None and needs_primals,
     )
 
 

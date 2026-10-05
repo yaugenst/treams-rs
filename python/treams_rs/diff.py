@@ -223,32 +223,6 @@ def _expansion(arguments: dict[str, Any]) -> tuple[int, int, int, int, int]:
     )
 
 
-def _vector_coordinates(values: dict[str, Any]) -> tuple[Any, ...]:
-    shapes = (np.shape(values["vectors"]), np.shape(values["points"]))
-    return np.broadcast_shapes(*shapes), shapes
-
-
-def _lattice_sum(values: dict[str, Any]) -> tuple[Any, ...]:
-    dim = values["dim"]
-    coordinates = 3 if values["spherical"] else 2
-    shapes = tuple(np.shape(values[name]) for name in ("k", "kpar", "a", "r", "eta"))
-    k, kpar, a, r, eta = shapes
-    if dim == 1:
-        if kpar[-1:] != (1,):
-            kpar += (1,)
-        if a[-2:] != (1, 1):
-            a += (1, 1)
-    shape = np.broadcast_shapes(
-        *(np.shape(values[name]) for name in ("degree", "order", "shell")),
-        k,
-        kpar[:-1],
-        a[:-2],
-        r[:-1],
-        eta,
-    )
-    return shape, shapes, dim, coordinates
-
-
 def _polarizations(values: ArrayLike) -> list[int]:
     pols = np.asarray(values)
     if not np.all((pols == 0) | (pols == 1)):
@@ -446,7 +420,11 @@ def _bessel_context(
     )
 
 
-@_native_record(_native.LatticeSumContext, _lattice_sum)
+@_primal_record(
+    lambda *args, **kwargs: _native.lattice_sum_context(
+        *_lattice_sum_inputs(*args, **kwargs)
+    )
+)
 def lattice_sum(
     dim: int,
     degree: ArrayLike,
@@ -489,6 +467,37 @@ def lattice_sum(
         part: "full", "real", "reciprocal" or "direct".
         shell: integer cube shell of the direct sum (part="direct").
     """
+    return _native.lattice_sum_record(
+        *_lattice_sum_inputs(
+            dim,
+            degree,
+            order,
+            k,
+            kpar,
+            a,
+            r,
+            eta,
+            spherical=spherical,
+            part=part,
+            shell=shell,
+        )
+    )
+
+
+def _lattice_sum_inputs(
+    dim: int,
+    degree: ArrayLike,
+    order: ArrayLike,
+    k: ArrayLike,
+    kpar: ArrayLike,
+    a: ArrayLike,
+    r: ArrayLike,
+    eta: ArrayLike = 0,
+    *,
+    spherical: bool = True,
+    part: str = "full",
+    shell: ArrayLike = 0,
+) -> tuple[Any, ...]:
     if not 1 <= dim <= (3 if spherical else 2):
         raise ValueError("invalid lattice dimension")
     try:
@@ -544,7 +553,7 @@ def lattice_sum(
         shifts.shape[:-1],
         etas.shape,
     )
-    return _native.lattice_sum_record(
+    return (
         spherical,
         dim,
         [(mode[0], mode[1]) for mode in _mode_tuples((degrees, orders), shape)],
@@ -2244,7 +2253,7 @@ def _real_points(points: ArrayLike) -> NDArray[np.float64]:
     return np.asarray(points, dtype=np.float64)
 
 
-@_native_record(_native.CoordinatesContext, lambda a: (np.shape(a["points"]),))
+@_primal_record(lambda *args, **kwargs: _coordinates_context(*args, **kwargs))
 def coordinates(
     points: ArrayLike, *, function: str | None = None, kind: str | None = None
 ) -> tuple[NDArray[np.float64], _native.CoordinatesContext]:
@@ -2267,7 +2276,19 @@ def coordinates(
     return _native.coordinates_record(_real_points(points), function)
 
 
-@_native_record(_native.VectorCoordinatesContext, _vector_coordinates)
+def _coordinates_context(
+    points: ArrayLike, *, function: str | None, kind: str | None
+) -> _native.CoordinatesContext:
+    return _native.coordinates_context(
+        _real_points(points), _required("function", function, "kind", kind)
+    )
+
+
+@_primal_record(
+    lambda *args, **kwargs: _native.vector_coordinates_context(
+        *_vector_coordinates_inputs(*args, **kwargs)
+    )
+)
 def vector_coordinates(
     vectors: ArrayLike,
     points: ArrayLike,
@@ -2290,6 +2311,18 @@ def vector_coordinates(
         function: a coordinate conversion such as "car2sph", the name of the
             vector function without its v prefix; ``kind`` is an alias.
     """
+    return _native.vector_coordinates_record(
+        *_vector_coordinates_inputs(vectors, points, function=function, kind=kind)
+    )
+
+
+def _vector_coordinates_inputs(
+    vectors: ArrayLike,
+    points: ArrayLike,
+    *,
+    function: str | None = None,
+    kind: str | None = None,
+) -> tuple[Any, ...]:
     function = _required("function", function, "kind", kind)
     vector = np.asarray(vectors, dtype=np.complex128)
     position = _real_points(points)
@@ -2302,7 +2335,7 @@ def vector_coordinates(
     ):
         raise ValueError("last axes must match coordinate dimension")
     v, p = np.broadcast_arrays(vector, position)
-    return _native.vector_coordinates_record(
+    return (
         vector if vector.size == dim else v,
         position if position.size == dim else cast("NDArray[np.float64]", p),
         function,

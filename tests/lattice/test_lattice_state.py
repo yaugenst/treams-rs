@@ -1,9 +1,12 @@
 """Saved lattice contexts preserve derivatives without reevaluating their values."""
 
+from functools import partial
+
 import numpy as np
 import pytest
 
 import treams_rs as tr
+from treams_rs._saved import saved_record
 
 from _support import assert_saved_context
 
@@ -21,17 +24,21 @@ def test_lattice_sum_saved_state(spherical, broadcast):
         np.array([0.19, 0.11, 0.07])[:coordinates],
         np.asarray(0.9 + 0.03j),
     )
-    value, context = tr.diff.lattice_sum(2, 2, -1, *parameters, spherical=spherical)
-    size = type(context)._state_spec(
-        list(value.shape), [list(p.shape) for p in parameters], 2, coordinates
+    record = partial(tr.diff.lattice_sum, 2, 2, -1, spherical=spherical)
+    value, context = record(*parameters)
+    saved = saved_record(record)
+    assert saved is not None
+    assert saved.state_spec(()) == saved.save(context) == ()
+    restored = saved.restore((), *parameters)
+    directions = tuple(np.full_like(p, 0.03) for p in parameters)
+    cotangent = np.full_like(value, 0.3 + 0.2j)
+    np.testing.assert_array_equal(
+        restored.pushforward(*directions), context.pushforward(*directions)
     )
-    assert_saved_context(
-        context,
-        tuple(np.full_like(p, 0.03) for p in parameters),
-        np.full_like(value, 0.3 + 0.2j),
-        size=size,
-        rtol=1e-13,
-    )
+    for actual, expected in zip(
+        restored.pullback(cotangent), context.pullback(cotangent), strict=True
+    ):
+        np.testing.assert_array_equal(actual, expected)
 
 
 @pytest.mark.parametrize("cylindrical", [False, True])

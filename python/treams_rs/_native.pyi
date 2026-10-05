@@ -131,28 +131,16 @@ def after_fork() -> None: ...
 
 class CoordinatesContext:
     """Created by ``diff.coordinates``. ``pullback(cotangent) -> points``."""
-    @staticmethod
-    def _state_spec(shape: Sequence[int]) -> int: ...
-    def _state(self) -> NDArray[np.uint8]: ...
-    @staticmethod
-    def _from_state(state: NDArray[np.uint8]) -> CoordinatesContext: ...
     def pushforward(self, points_tangent: ArrayLike) -> RealArray: ...
     def pullback(self, cotangent: RealArray) -> RealArray: ...
 
 def coordinates_record(
     points: RealArray, kind: str
 ) -> tuple[RealArray, CoordinatesContext]: ...
+def coordinates_context(points: RealArray, kind: str) -> CoordinatesContext: ...
 
 class VectorCoordinatesContext:
     """Created by ``diff.vector_coordinates``. ``pullback(cotangent) -> (vectors, points)``."""
-    @staticmethod
-    def _state_spec(
-        shape: Sequence[int],
-        argument_shapes: tuple[Sequence[int], Sequence[int]],
-    ) -> int: ...
-    def _state(self) -> NDArray[np.uint8]: ...
-    @staticmethod
-    def _from_state(state: NDArray[np.uint8]) -> VectorCoordinatesContext: ...
     def pushforward(
         self, vectors_tangent: ArrayLike, points_tangent: ArrayLike
     ) -> ComplexArray: ...
@@ -165,6 +153,13 @@ def vector_coordinates_record(
     shape: tuple[int, ...],
     argument_shapes: tuple[tuple[int, ...], tuple[int, ...]],
 ) -> tuple[ComplexArray, VectorCoordinatesContext]: ...
+def vector_coordinates_context(
+    vectors: ComplexArray,
+    points: RealArray,
+    kind: str,
+    shape: tuple[int, ...],
+    argument_shapes: tuple[tuple[int, ...], tuple[int, ...]],
+) -> VectorCoordinatesContext: ...
 
 # integrals.rs: treams_core::special (incomplete gamma, Kambe integral).
 
@@ -299,18 +294,6 @@ def wignerd_record_scalar(
 
 class LatticeSumContext:
     """Created by ``diff.lattice_sum``. ``pullback(cotangent) -> (k, kpar, a, r, eta)``."""
-    @staticmethod
-    def _state_spec(
-        shape: Sequence[int],
-        argument_shapes: tuple[
-            Sequence[int], Sequence[int], Sequence[int], Sequence[int], Sequence[int]
-        ],
-        dim: int,
-        coordinates: int,
-    ) -> int: ...
-    def _state(self) -> NDArray[np.uint8]: ...
-    @staticmethod
-    def _from_state(state: NDArray[np.uint8]) -> LatticeSumContext: ...
     def pushforward(
         self, k: ArrayLike, kpar: ArrayLike, a: ArrayLike, r: ArrayLike, eta: ArrayLike
     ) -> ComplexArray: ...
@@ -332,6 +315,20 @@ def lattice_sum_record(
     shape: tuple[int, ...],
     argument_shapes: list[tuple[int, ...]],
 ) -> tuple[ComplexArray, LatticeSumContext]: ...
+def lattice_sum_context(
+    spherical: bool,
+    dim: int,
+    modes: list[tuple[int, int]],
+    k: ComplexArray,
+    kpar: RealArray,
+    a: RealArray,
+    r: RealArray,
+    eta: ComplexArray,
+    part: int,
+    shells: list[int],
+    shape: tuple[int, ...],
+    argument_shapes: list[tuple[int, ...]],
+) -> LatticeSumContext: ...
 
 class LatticeExpansionContext:
     """Created by ``diff.lattice_expansion``.
