@@ -47,9 +47,12 @@ nav:
       - examples/cylindrical_array.md
       - examples/sphere_radius_optimization.md
       - examples/array_transmission_gradient.md
+      - examples/forward_field_sensitivity.md
+      - examples/reverse_cluster_gradient.md
   - Differentiation:
       - differentiation/index.md
       - differentiation/frameworks.md
+      - differentiation/choosing-a-mode.md
       - differentiation/custom-records.md
       - differentiation/gradient-checks.md
   - Design:

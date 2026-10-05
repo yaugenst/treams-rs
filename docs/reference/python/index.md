@@ -31,11 +31,11 @@ gradients with respect to the inputs (see the
 | [`treams_rs.operators`](operators.md) | Basis and field operators, as functions and as operator objects. |
 | [`treams_rs.iterative`](iterative.md) | Matrix-free scattering by finite clusters of homogeneous spheres in vacuum. |
 | [`treams_rs.parallel`](parallel.md) | CPU threads of the native numerical work. |
-| [`treams_rs.diff`](diff.md) | Records: functions that return a value and a context for its gradients. |
-| [`treams_rs.testing`](testing.md) | Finite-difference checks of first-order gradients and pullbacks. |
-| [`treams_rs.advect`](advect.md) | Advect adapter: physics objects and records differentiated by Advect, on the CPU and in first-order reverse mode only. |
-| [`treams_rs.jax`](jax.md) | JAX adapter: physics objects and records as JAX operations on the CPU, in first-order reverse mode only, with jit and sequential vmap. |
-| [`treams_rs.torch`](torch.md) | PyTorch adapter: physics objects and records as autograd operations on the CPU, in first-order reverse mode only. |
+| [`treams_rs.diff`](diff.md) | Records: values with analytic first-order pushforward and pullback contexts. |
+| [`treams_rs.testing`](testing.md) | Finite-difference checks of first-order gradients, pullbacks and pushforwards. |
+| [`treams_rs.advect`](advect.md) | Advect adapter: physics objects and records differentiated by Advect, on the CPU and in first-order forward and reverse mode. |
+| [`treams_rs.jax`](jax.md) | JAX adapter: physics objects and records on the CPU with first-order forward and reverse mode, jit and sequential vmap. |
+| [`treams_rs.torch`](torch.md) | PyTorch adapter: physics objects and records as autograd operations on the CPU, in first-order forward and reverse mode. |
 | [`treams_rs.autograd`](autograd.md) | HIPS Autograd adapter: physics objects and native records on the CPU. |
 
 [Returned types](native-types.md) lists the objects that records and
@@ -47,7 +47,7 @@ solvers return.
 - **native_pairing**: dL = Re(sum(conj(g) * dx))
 - **derivative_order**: 1
 - **static_parameters**: mode counts, integer labels, topology; see each operation's docstring
-- **context_lifetime**: Treat native recorded contexts as single-use; record again for another pullback.
+- **context_lifetime**: Native recorded contexts are reusable: pushforwards and pullbacks share immutable residuals.
 - **python_execution**: CPU
 
 Backend `cpu`: precision float64, complex128.

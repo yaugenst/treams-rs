@@ -1,5 +1,5 @@
 ---
-description: 'PyTorch adapter: physics objects and records as autograd operations on the CPU, in first-order reverse mode only.'
+description: 'PyTorch adapter: physics objects and records as autograd operations on the CPU, in first-order forward and reverse mode.'
 ---
 
 # `treams_rs.torch`
@@ -8,9 +8,11 @@ description: 'PyTorch adapter: physics objects and records as autograd operation
 <!-- fmt: off -->
 
 PyTorch adapter: physics objects and records as autograd operations on the
-CPU, in first-order reverse mode only. The first backward uses the Rust context
-saved by the forward; a repeated backward (``retain_graph=True``) reruns the
-Rust forward from copies of the inputs. Tensors must be CPU float32, float64,
+CPU, in first-order forward and reverse mode. Forward mode and the first
+backward share the Rust context saved by the forward. The first backward
+releases that context; repeated backward (``retain_graph=True``) reruns the
+Rust forward from copies of the inputs.
+Tensors must be CPU float32, float64,
 complex64 or complex128 (TypeError for other dtypes, ValueError for other
 devices). Native computation and outputs use float64/complex128; gradients
 retain each input's dtype.
@@ -30,9 +32,10 @@ gradient = radius.grad
 
 A pullback maps the gradient with respect to an output to the gradients with
 respect to the inputs; ``treams_rs.diff`` defines records, contexts and
-pullbacks. Install ``treams-rs[torch]``. Higher derivatives
-(``create_graph=True``), forward mode, ``torch.func`` and ``torch.compile`` are
-not available. Run another record with ``wrap``.
+pullbacks. Install ``treams-rs[torch]``. Forward mode supports
+``torch.func.jvp`` and ``torch.autograd.forward_ad``. Higher derivatives,
+vectorized transforms and ``torch.compile`` are not available. Run another
+record with ``wrap``.
 
 Framework adapters guide: https://yaugenst.github.io/treams-rs/latest/differentiation/frameworks/
 
@@ -2272,14 +2275,14 @@ Multipole coefficients of shape (modes,) or (modes, illuminations).
 wrap(record: Record) -> Callable[..., Output]
 ```
 
-Turn a record into a PyTorch function with a first-order gradient.
+Turn a record into a PyTorch function with first-order derivatives.
 
 For example, ``wrap(diff.solve)`` differentiates a linear solve. Custom
 records: https://yaugenst.github.io/treams-rs/latest/differentiation/custom-records/
 
 **Args**
 
-- `record`: function of the dynamic inputs that returns ``(value, context)`` or ``(value, pullback)``. The value is an array, a scalar or a flat tuple of them. The pullback returns one gradient per dynamic input, in argument order. Bind labels and options with a closure or ``functools.partial``.
+- `record`: function of the dynamic inputs that returns ``(value, context)`` or ``(value, pullback)``. The value is an array, a scalar or a flat tuple of them. The pullback returns one gradient per dynamic input, in argument order. Forward mode additionally requires a context with ``pushforward(*input_tangents)``. Bind labels and options with a closure or ``functools.partial``.
 
 **Returns**
 

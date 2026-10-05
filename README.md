@@ -27,7 +27,7 @@ treams-rs computes electromagnetic scattering with T-matrices: spheres,
 cylinders and layered or chiral particles, finite clusters, periodic arrays and
 planar stacks, with their fields, cross sections and power. A T-matrix is the
 linear map from the multipole coefficients of an incident wave to those of the
-scattered wave. Advect, JAX, PyTorch and HIPS Autograd use its analytic gradients
+scattered wave. Advect, JAX, PyTorch and HIPS Autograd use its analytic derivatives
 through the ordinary `treams_rs` API.
 
 ## Relationship to treams
@@ -108,8 +108,12 @@ print(grad(scattering)(0.2))
 The same `scattering` function works with `jax.grad`, `torch.autograd` and
 `autograd.grad`. Optional adapters load only when needed; Python and NumPy
 inputs retain NumPy behavior. Rust computes each derivative analytically.
-The adapters support first-order CPU gradients, with framework-specific dtype
-and transform requirements; see
+The adapters support first-order CPU forward and reverse mode: JVPs give the
+sensitivity of every output to one input direction; pullbacks give objective
+gradients with respect to many inputs. Higher derivatives remain unsupported.
+Direct records expose `context.pushforward(*tangents)` and
+`context.pullback(*cotangents)`, with one derivative action per context.
+Framework-specific dtype and transform requirements are listed in
 [Differentiation](https://yaugenst.github.io/treams-rs/latest/differentiation/).
 
 ## Documentation

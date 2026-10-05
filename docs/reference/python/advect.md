@@ -1,5 +1,5 @@
 ---
-description: 'Advect adapter: physics objects and records differentiated by Advect, on the CPU and in first-order reverse mode only.'
+description: 'Advect adapter: physics objects and records differentiated by Advect, on the CPU and in first-order forward and reverse mode.'
 ---
 
 # `treams_rs.advect`
@@ -8,9 +8,9 @@ description: 'Advect adapter: physics objects and records differentiated by Adve
 <!-- fmt: off -->
 
 Advect adapter: physics objects and records differentiated by Advect, on the
-CPU and in first-order reverse mode only. Each gradient pass uses the data
-stored by its forward pass once, so call the transformed objective again for
-every optimization step. Inputs may be float64, complex128, float32 or
+CPU and in first-order forward and reverse mode. Derivative directions reuse
+the data stored by their forward invocation; a new optimization step records
+the new inputs. Inputs may be float64, complex128, float32 or
 complex64; the Rust code computes in double precision, outputs are float64 or
 complex128, and each gradient has the dtype of its input.
 
@@ -33,10 +33,12 @@ The Rust core computes each gradient analytically with a pullback: a map from
 the gradient with respect to an output to the gradients with respect to the
 inputs. ``treams_rs.diff`` defines records, contexts and pullbacks.
 
-Install ``treams-rs[advect]``. Forward mode, higher derivatives, staging and
+Install ``treams-rs[advect]``. Higher derivatives, staging and
 checkpointing are not available. Mode cutoffs, integer labels and topology are
 static. Pass inputs as arrays (scalars as ``np.asarray(x)``) and keep traced
 values inside Advect: converting them to float or NumPy loses derivatives.
+Advect 0.3.1 or later reuses the native context from the forward invocation,
+including its factorizations, for every direction on a linear map.
 Plain Python and NumPy inputs retain NumPy behavior; constant physics objects
 are promoted when combined with Advect values. Use this explicit namespace
 when constants alone should produce Advect objects, or for its record helpers.

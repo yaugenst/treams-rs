@@ -209,7 +209,7 @@ parallel run fails and reports as a serial one does.
 [`tests/_support.py`](../../tests/_support.py) holds what several test files
 share:
 
-- `assert_one_use_context`, which checks that a context pulls back once and
+- `assert_reusable_context`, which checks that repeated pullbacks agree and
   rejects wrong cotangents;
 - `selecting` and `varying`, which adapt a native record for `check_pullback`;
 - `LAYOUTS`, `arrange`, `layouts` and `strided_copies` for memory layouts, and

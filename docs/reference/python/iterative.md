@@ -23,7 +23,8 @@ reuses them for every solve and gradient.
 ``SphereCluster.record`` returns the solution and an ``IterativeContext``. A
 record is a function that returns a value and a context; ``context.pullback(g)``
 takes the gradient ``g`` of a real loss with respect to the value and returns
-the gradients with respect to the inputs. The pullback runs only once. For a
+the gradients with respect to the inputs. The context supports repeated
+pushforwards and pullbacks using the saved forward solution. For a
 few spheres, the dense ``treams_rs.Cluster`` and ``diff.sphere_cluster`` build
 the full T-matrix.
 
@@ -148,7 +149,7 @@ One report per column of the conjugate-transposed solve.
 
 ## `IterativeContext`
 
-Context of ``SphereCluster.record``; its ``pullback`` runs once.
+Reusable derivative context of ``SphereCluster.record``.
 
 It holds copies of every input, so later changes to your arrays leave the
 gradients unchanged.
@@ -158,6 +159,20 @@ gradients unchanged.
 ```python
 IterativeContext(context: _native.IterativeContext, vector: bool) -> None
 ```
+
+### `IterativeContext.pushforward`
+
+```python
+IterativeContext.pushforward(k0: float, radii: ArrayLike, epsilon: ArrayLike, positions: ArrayLike, incident: ArrayLike) -> Solution
+```
+
+Directional derivative of the converged scattered coefficients.
+
+Pass one direction for each continuous input, in constructor order
+followed by the incident coefficients. The tangent solves the
+linearized scattering equation with the forward solver's tolerances.
+Its convergence reports certify that tangent solve; GMRES iterations
+are not differentiated.
 
 ### `IterativeContext.pullback`
 
