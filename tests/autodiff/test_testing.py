@@ -276,3 +276,27 @@ def test_pushforward_checker_rejects_nonfinite_output_tangent():
 
     with pytest.raises(ValueError, match=r"tangent for output 0.*finite"):
         check_pushforward(lambda x: (x, Context()), np.array([0.2, 0.4]))
+
+
+def test_adjoint_check_uses_tighter_tolerance_than_finite_differences():
+    class Context:
+        def pushforward(self, direction):
+            return 2 * direction
+
+        def pullback(self, cotangent):
+            return (2 + 1e-8) * cotangent
+
+    def record(x):
+        return 2 * x, Context()
+
+    parameters = (np.array([0.2, 0.4]),)
+    probes = {"directions": (np.ones(2),), "cotangents": np.ones(2)}
+    with pytest.raises(AssertionError, match="adjoint identity"):
+        check_pushforward(record, *parameters, rtol=1e-3, **probes)
+    check_pushforward(record, *parameters, adjoint_rtol=1e-7, **probes)
+
+
+@pytest.mark.parametrize("tolerance", [-1.0, np.nan, np.inf])
+def test_pushforward_checker_rejects_invalid_adjoint_tolerance(tolerance):
+    with pytest.raises(ValueError, match="adjoint tolerances"):
+        check_pushforward(diff.svdvals, np.eye(2), adjoint_atol=tolerance)

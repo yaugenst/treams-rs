@@ -370,6 +370,8 @@ Eigenvalues and unit right eigenvectors of a complex matrix.
 The largest component of each vector is real and positive. Single modes
 at repeated eigenvalues have no gradient; equal value cotangents with zero
 vector cotangents still give the gradient of their spectral sums.
+A pushforward also needs a unique largest component in every eigenvector
+to fix its phase. Use :func:`eigvals` when only eigenvalues are needed.
 
 **Returns**
 
@@ -386,6 +388,35 @@ cotangent for each.
 none.
 
 **Pullback** `EigContext.pullback(eigenvalues: ArrayLike, eigenvectors: ArrayLike) -> ComplexArray`
+
+## `eigvals`
+
+```python
+eigvals(operator: ArrayLike) -> tuple[NDArray[np.complex128], _native.EigvalsContext]
+```
+
+Eigenvalues of a complex matrix, without an eigenvector phase constraint.
+
+Pushforwards require eigenvalues with distinct real parts, so the returned
+order stays fixed under small perturbations. At ties, including repeated
+eigenvalues, pullbacks support equal loss weights, such as the trace.
+A tie in real parts is an ordering limitation even for distinct complex
+eigenvalues; follow individual modes explicitly to cross it.
+
+**Returns**
+
+complex128 array (n,), sorted by real part, then imaginary part.
+Follow individual modes explicitly when this ordering changes.
+
+**Dynamic inputs**
+
+- `operator`: square matrix, shape (n, n).
+
+**Static configuration**
+
+none.
+
+**Pullback** `EigvalsContext.pullback(eigenvalues: ArrayLike) -> ComplexArray`
 
 ## `expansion`
 
@@ -805,7 +836,7 @@ incoming direction, then pol 0 and 1.
 - `ks`: wavenumbers, shape (media, 2), from the negative to the positive side, pol 0 then 1.
 - `zs`: impedances, shape (media,).
 - `q`: transverse wavevector of each channel, shape (channels, 2).
-- `thickness`: one thickness per interior medium, shape (media - 2,).
+- `thickness`: one thickness per interior medium, shape (media - 2,); a scalar is also accepted for a single interior medium.
 
 **Static configuration**
 
@@ -1444,7 +1475,9 @@ Singular values of a complex matrix, in descending order.
 
 The pullback uses the thin singular vectors. Repeated positive values need
 equal cotangents. A zero singular value needs a zero cotangent: single
-values there have no gradient.
+values there have no gradient. Pushforwards require distinct positive values.
+Values below ``64 * eps * largest_value`` count as numerically zero; the
+pullback applies the same relative tolerance to their cotangents.
 
 **Returns**
 

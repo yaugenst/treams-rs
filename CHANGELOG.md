@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Check analytic adjoint identities independently of finite-difference error,
+  cover saved-state dimensions and multilayer pushforwards, and record final
+  release-build comparisons with their remaining small-operation slowdowns.
 - Remove redundant coordinate and lattice-sum state serialization. Avoid
   retaining unused JAX inputs and reuse the saved illumination response across
   derivative directions without increasing its stored matrix count.

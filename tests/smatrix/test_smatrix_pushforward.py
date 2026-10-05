@@ -79,22 +79,24 @@ def _cases():
             partial(diff.interface_coefficients, alignment=alignment),
             (ks, zs, q),
         )
-        yield (
-            f"layers_{alignment}",
-            partial(diff.layer_stack, alignment=alignment),
-            (
-                np.array(
-                    [
-                        [1.0 + 0.02j, 1.0 + 0.02j],
-                        [1.5 + 0.1j, 1.6 + 0.1j],
-                        [1.2 + 0.03j, 1.2 + 0.03j],
-                    ]
+        for interiors in (1, 2):
+            yield (
+                f"layers_{alignment}_{interiors}",
+                partial(diff.layer_stack, alignment=alignment),
+                (
+                    np.array(
+                        [
+                            [1.0 + 0.02j, 1.0 + 0.02j],
+                            [1.5 + 0.1j, 1.6 + 0.1j],
+                            [1.2 + 0.03j, 1.2 + 0.03j],
+                            [1.4 + 0.04j, 1.3 + 0.02j],
+                        ][: interiors + 2]
+                    ),
+                    np.array([1.0, 0.7, 0.9, 0.8][: interiors + 2], dtype=complex),
+                    np.array([[0.2, 0.1], [0.1, -0.2]]),
+                    np.array([0.4, 0.25][:interiors]),
                 ),
-                np.array([1.0, 0.7, 0.9], dtype=complex),
-                np.array([[0.2, 0.1], [0.1, -0.2]]),
-                np.array([0.4]),
-            ),
-        )
+            )
     for direction in ("up", "down"):
         for poltype in ("helicity", "parity"):
             yield (

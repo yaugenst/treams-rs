@@ -111,8 +111,8 @@ keeps input shapes and dtypes without retaining another copy of the inputs.
 Shared output checks preserve this metadata lazily, so the other adapters do
 not pay for resolving or copying a saved-state contract they do not use.
 
-Contexts containing only inputs, such as Bessel functions and individual wave
-coefficients, retain those inputs and rebuild the derivative context without
+Contexts containing only inputs, such as Bessel functions, coordinates, lattice
+sums and individual wave coefficients, retain those inputs and rebuild the derivative context without
 evaluating the values again. Their ordinary forward and restoration paths share
 the same argument preparation and native constructor.
 
@@ -139,9 +139,33 @@ one native forward and subsequent directions reuse it. The adapter requires
 Advect 0.3.1 or later for this residual-aware JVP API.
 
 These are first-order contracts. Differentiating a native tangent or adjoint
-again is unsupported; adding a JVP does not make a native pullback differentiable.
+with respect to the original model inputs is unsupported. JAX can transpose a
+linearization at fixed inputs; the [framework examples](../differentiation/frameworks.md#use-both-modes-together)
+show how to combine both directions without taking second derivatives.
 PyTorch supports `torch.func.jvp`; other `torch.func` transforms and
 `torch.compile` remain unsupported.
+
+## Costs of reusable contexts
+
+Saved work still has a cost. JAX copies numerical state into arrays and decodes
+it for each derivative callback. This saves expensive factorizations, but a tiny
+operation can spend more time passing that state than recomputing it.
+
+For example, a compiled gradient of a linear sum of a 2-by-2 solve takes two
+callbacks here. The previous reverse-only bridge could discard its unused value
+callback and perform the solve and pullback together in one callback. Asking for
+the value too, or using a squared-output loss, keeps two callbacks in both
+versions; the current bridge then performs one native solve instead of two.
+These callback counts explain the tradeoff, not a universal timing prediction.
+The [final regression measurements](../../benchmarks/forward-autodiff-final-20261005.json)
+retain the small-operation slowdowns alongside the complete physics workflows.
+
+Reusable contexts also keep their recorded matrices intact. Pullbacks allocate
+gradient workspaces instead of overwriting those matrices. Thin cluster
+illumination saves its useful response in place of the incident array, with no
+increase in stored matrix count. S-matrix derivative solves that fall back from
+iteration to a dense solve still refactor on each such call; that fallback is
+not a cached-factor path.
 
 ## Static configuration
 

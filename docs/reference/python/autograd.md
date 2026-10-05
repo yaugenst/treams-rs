@@ -1422,7 +1422,11 @@ Transmission/reflection for port amplitudes; fixed port wavevectors.
 SMatrix.cascade(next_layer: SMatrix) -> SMatrix
 ```
 
-Compose this lower system with the adjacent upper system.
+Compose adjacent systems whose port wavevectors have the same dependence.
+
+Fixed basis ports cannot be mixed with diffraction-order ports: matching
+their current wavevectors does not match their derivatives. Use a fixed
+basis for both systems, or diffraction orders for both.
 
 ### `SMatrix.bands`
 

@@ -84,7 +84,7 @@ None when every parameter passes.
 ## `check_pushforward`
 
 ```python
-check_pushforward(record: Record, *parameters: ArrayLike, directions: tuple[ArrayLike, ...] | None=None, cotangents: ArrayLike | tuple[ArrayLike, ...] | None=None, step: float=1e-06, rtol: float=1e-05, atol: float=1e-07, seed: int=0) -> None
+check_pushforward(record: Record, *parameters: ArrayLike, directions: tuple[ArrayLike, ...] | None=None, cotangents: ArrayLike | tuple[ArrayLike, ...] | None=None, step: float=1e-06, rtol: float=1e-05, atol: float=1e-07, adjoint_rtol: float=1e-12, adjoint_atol: float=1e-12, seed: int=0) -> None
 ```
 
 Check a record's analytic JVP against differences and its adjoint.
@@ -102,8 +102,10 @@ each context. No Jacobian is constructed.
 - `directions`: tuple with one direction per parameter. Individual directions may be zero; at least one must be nonzero. Default: random directions drawn from ``seed``.
 - `cotangents`: probes for the adjoint identity, with the same array or tuple structure as the output. Default: random probes from ``seed``.
 - `step`: positive finite difference step. Both shifted points must remain in the physical domain.
-- `rtol`: relative tolerance for each output entry and the adjoint pairing.
-- `atol`: absolute tolerance for each output entry and the adjoint pairing.
+- `rtol`: relative tolerance for each finite-difference output entry.
+- `atol`: absolute tolerance for each finite-difference output entry.
+- `adjoint_rtol`: relative tolerance for the analytic adjoint identity.
+- `adjoint_atol`: absolute tolerance for the analytic adjoint identity.
 - `seed`: random seed, as in ``check_pullback``.
 
 **Returns**
