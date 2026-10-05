@@ -487,6 +487,18 @@ def lattice_order_power(tr, x, *, parameter):
     return response.to_smatrix(orders=[[0, 0]]).power([1.0, 0.0]).transmission
 
 
+@scenario(0.1, has_core=False)
+def cascaded_order_power(tr, q):
+    layers = []
+    for radius in (0.2, 0.15):
+        tm = tr.sphere_tmatrix(k0=1.2, lmax=1, radius=radius, material=3 + 0.1j)
+        response = tr.solve_periodic(
+            tm, lattice=[[2.0, 0.0], [0.0, 2.0]], kpar=[q, 0.05]
+        )
+        layers.append(response.to_smatrix(orders=[[0, 0]]))
+    return tr.stack(layers).power([1.0, 0.0]).transmission
+
+
 @scenario(0.4, has_core=False)
 def chiral_slab_bands(tr, thickness):
     # Distinct Bloch wavenumbers keep the eigen-derivatives well defined.
@@ -1438,6 +1450,35 @@ def test_propagation_cascade_and_parity(engine):
     assert scattered.positive.ports is scattered.negative.ports is actual.ports
     assert actual.basis is ports
     assert actual.modes == scattered.positive.modes == ((0, 1), (0, 0))
+
+
+@pytest.mark.interface
+@pytest.mark.parametrize("fixed_lower", [False, True])
+@pytest.mark.parametrize("forward", [False, True], ids=["reverse", "forward"])
+def test_cascade_rejects_mixed_fixed_and_order_ports(engine, fixed_lower, forward):
+    def objective(tr, q):
+        tm = tr.sphere_tmatrix(k0=1.2, lmax=1, radius=0.2, material=3 + 0.1j)
+        response = tr.solve_periodic(
+            tm, lattice=[[2.0, 0.0], [0.0, 2.0]], kpar=[q, 0.05]
+        )
+        order_layer = response.to_smatrix(orders=[[0, 0]])
+        fixed_layer = tr.slab(
+            basis=core.PlaneWavePorts.default([[0.1, 0.05]]),
+            k0=1.2,
+            thickness=0.3,
+            material=2.0,
+        )
+        lower, upper = (
+            (fixed_layer, order_layer) if fixed_lower else (order_layer, fixed_layer)
+        )
+        return lower.cascade(upper).power([1.0, 0.0]).transmission
+
+    # The wavevectors coincide at the primal but have different derivatives.
+    with pytest.raises(ValueError, match=r"fixed.*diffraction-order ports"):
+        if forward:
+            engine.jvp(objective, np.asarray(0.1), np.asarray(1.0))
+        else:
+            engine.value_and_grad(objective, 0.1)
 
 
 @pytest.mark.interface

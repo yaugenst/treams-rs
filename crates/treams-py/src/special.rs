@@ -11,7 +11,7 @@ use treams_core::{
 
 use crate::{
     args::{angular_function, bessel_function},
-    broadcast::{Recorded, broadcast_context, context, record, record_held},
+    broadcast::{Recorded, broadcast_context, check_flat_shape, context, record, record_held},
     context::error,
 };
 
@@ -54,6 +54,10 @@ pub(crate) fn bessel_context(
     argument_shape: Vec<usize>,
 ) -> PyResult<BesselContext> {
     ieee(|| {
+        check_flat_shape(
+            &shape,
+            &[orders.as_array().len(), arguments.as_array().len()],
+        )?;
         let residual = BesselResidual::new(
             orders.as_array().to_vec(),
             arguments.as_array().to_vec(),
@@ -136,6 +140,14 @@ pub(crate) fn angular_context(
     argument_shape: Vec<usize>,
 ) -> PyResult<AngularContext> {
     ieee(|| {
+        check_flat_shape(
+            &shape,
+            &[
+                degrees.as_array().len(),
+                orders.as_array().len(),
+                arguments.as_array().len(),
+            ],
+        )?;
         let residual = AngularResidual::new(
             degrees.as_array().to_vec(),
             orders.as_array().to_vec(),
@@ -178,6 +190,8 @@ pub(crate) fn wignerd_context(
 ) -> PyResult<WignerdContext> {
     ieee(|| {
         let angles = [phi, theta, psi].map(|angle| angle.as_array().to_vec());
+        let [a, b, c] = angles.each_ref().map(Vec::len);
+        check_flat_shape(&shape, &[labels.len(), a, b, c])?;
         let residual = WignerDResidual::new(labels, angles).map_err(error)?;
         context(shape, argument_shapes, residual)
     })

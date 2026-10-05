@@ -9,7 +9,7 @@ use treams_core::{
 };
 
 use crate::{
-    broadcast::{Recorded, broadcast_context, context, record, record_held},
+    broadcast::{Recorded, broadcast_context, check_flat_shape, context, record, record_held},
     context::error,
 };
 
@@ -44,6 +44,10 @@ pub(crate) fn incgamma_context(
     argument_shape: Vec<usize>,
 ) -> PyResult<IncgammaContext> {
     ieee(|| {
+        check_flat_shape(
+            &shape,
+            &[degrees.as_array().len(), arguments.as_array().len()],
+        )?;
         let residual =
             IncgammaResidual::new(degrees.as_array().to_vec(), arguments.as_array().to_vec())
                 .map_err(error)?;
@@ -90,6 +94,14 @@ pub(crate) fn intkambe_context(
     argument_shapes: [Vec<usize>; 2],
 ) -> PyResult<IntkambeContext> {
     ieee(|| {
+        check_flat_shape(
+            &shape,
+            &[
+                orders.as_array().len(),
+                z.as_array().len(),
+                eta.as_array().len(),
+            ],
+        )?;
         let residual = IntkambeResidual::new(
             orders.as_array().to_vec(),
             [z.as_array().to_vec(), eta.as_array().to_vec()],

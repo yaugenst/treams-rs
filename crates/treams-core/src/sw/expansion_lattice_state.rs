@@ -180,3 +180,53 @@ impl SavedState for LatticeExpansionFromTableResidual {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        Complex,
+        sw::{Basis, Mode, lattice_expansion},
+    };
+    use nalgebra::DMatrix;
+
+    #[test]
+    fn extreme_saved_split_returns_an_error_without_panicking() {
+        let destination = Basis {
+            modes: vec![(0, Mode { l: 1, m: 0, pol: 0 })],
+            positions: vec![[0.0; 3]],
+        };
+        let source = Basis {
+            positions: vec![[0.1, 0.0, 0.0]],
+            ..destination.clone()
+        };
+        let lattice = BlochLattice::new(&[vec![1.5, 0.0], vec![0.3, 1.4]], &[0.1, 0.2]).unwrap();
+        let (_, mut residual) = lattice_expansion(
+            destination,
+            source,
+            [Complex::new(1.2, 0.1); 2],
+            true,
+            lattice,
+            Complex::new(0.9, 0.1),
+        )
+        .unwrap();
+        for eta in [
+            Complex::new(1e200, 0.0),
+            Complex::new(1e-200, 0.0),
+            Complex::new(0.0, 1e200),
+            Complex::new(1e200, 1e200),
+            Complex::new(f64::MAX, 0.0),
+            Complex::new(0.0, f64::MAX),
+        ] {
+            residual.eta = eta;
+            let restored =
+                LatticeExpansionResidual::from_state(&residual.save_state().unwrap()).unwrap();
+            assert!(
+                restored
+                    .pullback(&DMatrix::from_element(1, 1, Complex::new(1.0, 0.0)))
+                    .is_err(),
+                "eta={eta}"
+            );
+        }
+    }
+}

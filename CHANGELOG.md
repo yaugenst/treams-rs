@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Preserve exact scalar gradient shapes, reject inconsistent cascade port
+  definitions, and validate restored context dimensions and Ewald split ranges
+  before native numerical work.
 - Keep iterative derivatives accurate for small directions when the value
   solve uses an absolute tolerance. Add eigenvalue-only `diff.eigvals` and
   `advect.eigvals`, and clarify numerical and ordering limits of spectral

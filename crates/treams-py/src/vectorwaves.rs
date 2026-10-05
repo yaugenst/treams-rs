@@ -3,7 +3,10 @@
 //! (`treams_core::vectorwaves`).
 use crate::{
     args::family,
-    broadcast::{BroadcastShapes, broadcast_context, check_broadcast, reduce_broadcast, shaped},
+    broadcast::{
+        BroadcastShapes, broadcast_context, check_broadcast, check_flat_shape, reduce_broadcast,
+        shaped,
+    },
     context::detached,
     convert::{CDyn, Cotangent, finite_cotangent},
 };
@@ -151,7 +154,7 @@ fn prepare(
         ));
     }
     check_broadcast(&shape, &argument_shapes)?;
-    let labels = labels
+    let labels: Vec<_> = labels
         .into_iter()
         .map(|(l, m, p)| WaveLabel {
             l,
@@ -164,6 +167,8 @@ fn prepare(
             .get(i)
             .map_or_else(|| vec![Complex::default()], |a| a.as_array().to_vec())
     });
+    let [a, b, c, d, e, f] = args.each_ref().map(Vec::len);
+    check_flat_shape(&shape, &[labels.len(), a, b, c, d, e, f])?;
     let residual = VectorWaveResidual::new(family, labels, args, pol.is_none())
         .map_err(crate::context::error)?;
     Ok(VectorWaveContext::new(

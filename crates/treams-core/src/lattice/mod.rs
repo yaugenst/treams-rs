@@ -481,6 +481,13 @@ fn evaluate_shared<const N: usize>(
         return direct_shell(wave, lattice, &inputs, shell);
     }
     let eta = resolve_split(k, lattice, eta);
+    // Ewald powers and zero-shift jets require a representable squared split.
+    // In particular, 0 * an overflowing eta squared would corrupt exact zeros.
+    if !finite(eta * eta) {
+        return Err(Error::InvalidInput(
+            "Ewald split squared must be finite; reduce the split parameter".into(),
+        ));
+    }
     ewald(wave, lattice, inputs, eta, evaluation, shared).map_err(|error| larger_split(error, eta))
 }
 

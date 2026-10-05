@@ -394,9 +394,9 @@ def test_layer_stack_scalar_thickness_gradient_keeps_primal_shape(fixed_q):
     gradient = grad(loss)(np.asarray(0.3))
     assert np.shape(gradient) == ()
     _, context = diff.layer_stack(ks, zs, q, np.asarray(0.3), fixed_q=fixed_q)
-    np.testing.assert_allclose(
-        gradient, context.pullback(weight)[3].real[0], rtol=1e-13
-    )
+    native_gradient = context.pullback(weight)[3]
+    assert native_gradient.shape == ()
+    np.testing.assert_allclose(gradient, native_gradient.real, rtol=1e-13)
     direction = np.asarray(0.1)
     _, tangent = advect.jvp(loss)(np.asarray(0.3), tangents=direction)
     np.testing.assert_allclose(tangent, gradient * direction, rtol=1e-13)

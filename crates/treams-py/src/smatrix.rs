@@ -24,10 +24,10 @@ use treams_core::{
 use crate::{
     context::{context, cotangent_error, detached},
     convert::{
-        C1, C2, C3, C4, C5, Cotangent, Finite, LentMatrix, R1, R2, RealCotangent, RealTangent,
-        Tangent, all_finite, cotangent_view, finite_cotangent, finite_tangent, from_array,
-        layout_error, matrix, matrix_cotangent, matrix_from_view, matrix_tangent, owned_matrix,
-        rows, rows_array, vector_cotangent, vector_tangent,
+        C1, C2, C3, C4, C5, Cotangent, Finite, LentMatrix, R1, R2, RDyn, RealCotangent,
+        RealTangent, Tangent, all_finite, cotangent_view, finite_cotangent, finite_tangent,
+        from_array, layout_error, matrix, matrix_cotangent, matrix_from_view, matrix_tangent,
+        owned_matrix, rows, rows_array, vector_cotangent, vector_tangent,
     },
 };
 
@@ -867,23 +867,43 @@ pub(crate) fn propagation_matrix(
     })
 }
 
-context!(LayerStackContext(smatrix::LayerStackResidual));
+context!(LayerStackContext(smatrix::LayerStackResidual, scalar_thickness: bool));
 #[pymethods]
 impl LayerStackContext {
     #[staticmethod]
     fn _state_spec(media: usize, channels: usize) -> PyResult<usize> {
         ieee(|| {
-            smatrix::LayerStackResidual::state_size(media, channels).map_err(crate::context::error)
+            smatrix::LayerStackResidual::state_size(media, channels)
+                .map_err(crate::context::error)?
+                .checked_add(1)
+                .ok_or_else(|| PyValueError::new_err("invalid layer-stack state size"))
         })
     }
 
     fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, numpy::PyArray1<u8>>> {
-        ieee(|| crate::context::state_array(py, &self.residual))
+        ieee(|| {
+            use treams_core::saved::SavedState;
+            let mut state = detached(py, || self.residual.save_state())?;
+            state.push(u8::from(self.scalar_thickness));
+            Ok(state.into_pyarray(py))
+        })
     }
 
     #[staticmethod]
     fn _from_state(state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
-        ieee(|| crate::context::restore_state(&state).map(Self::new))
+        ieee(|| {
+            use treams_core::saved::SavedState;
+            let (scalar, bytes) = state
+                .as_slice()?
+                .split_last()
+                .ok_or_else(|| PyValueError::new_err("invalid layer-stack state"))?;
+            let residual =
+                smatrix::LayerStackResidual::from_state(bytes).map_err(crate::context::error)?;
+            if *scalar > 1 || (*scalar == 1 && residual.medium_count() != 3) {
+                return Err(PyValueError::new_err("invalid layer-stack state"));
+            }
+            Ok(Self::new(residual, *scalar == 1))
+        })
     }
 
     fn pushforward<'py>(
@@ -921,7 +941,7 @@ impl LayerStackContext {
         &self,
         py: Python<'py>,
         cotangent: Cotangent<'py>,
-    ) -> PyResult<(C2<'py>, C1<'py>, R2<'py>, R1<'py>)> {
+    ) -> PyResult<(C2<'py>, C1<'py>, R2<'py>, RDyn<'py>)> {
         ieee(|| {
             let residual = &self.residual;
             let expected = [residual.channel_count(), 2, 2, 2, 2];
@@ -934,27 +954,38 @@ impl LayerStackContext {
                 })
                 .collect();
             let result = detached(py, move || residual.pullback(g))?;
+            let thickness_shape = [residual.medium_count() - 2];
             Ok((
                 rows_array(py, result.ks)?,
                 result.zs.into_pyarray(py),
                 rows_array(py, result.q)?,
-                result.thickness.into_pyarray(py),
+                crate::broadcast::shaped(
+                    py,
+                    result.thickness,
+                    if self.scalar_thickness {
+                        &[]
+                    } else {
+                        &thickness_shape
+                    },
+                )?,
             ))
         })
     }
 }
 /// Record the S-matrices of a layer stack, one per plane-wave channel: `smatrix::layer_stack`.
 #[pyfunction]
-pub(crate) fn layer_stack(
-    py: Python<'_>,
+pub(crate) fn layer_stack<'py>(
+    py: Python<'py>,
     ks: Vec<[Complex; 2]>,
     zs: Vec<Complex>,
     q: Vec<[f64; 2]>,
-    thickness: Vec<f64>,
+    thickness: RealTangent<'py>,
     axis: usize,
     fixed_q: bool,
-) -> PyResult<(C5<'_>, LayerStackContext)> {
+) -> PyResult<(C5<'py>, LayerStackContext)> {
     ieee(|| {
+        let scalar_thickness = thickness.as_array().ndim() == 0;
+        let thickness = vector_tangent(&thickness, ks.len().saturating_sub(2))?;
         let (values, residual) = detached(py, move || {
             smatrix::layer_stack(ks, &zs, q, &thickness, axis, fixed_q)
         })?;
@@ -962,7 +993,7 @@ pub(crate) fn layer_stack(
             values[q][2 * a + b][(i, j)]
         })
         .into_pyarray(py);
-        Ok((array, LayerStackContext::new(residual)))
+        Ok((array, LayerStackContext::new(residual, scalar_thickness)))
     })
 }
 
