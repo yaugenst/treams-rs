@@ -6,7 +6,7 @@ use nalgebra::DMatrix;
 
 use crate::{
     Complex,
-    cluster::IterativeSphereCluster,
+    cluster::{IterativeSphereCluster, sphere_cluster},
     ebcm::{Surface, qmat},
     linalg::GmresOptions,
     special::Radial,
@@ -93,6 +93,77 @@ fn iterative_pushforward_matches_perturbed_solutions_and_adjoint() {
                 .iter()
                 .all(|report| report.iterations == 0)
         );
+    }
+}
+
+/// A derivative's accuracy cannot depend on the amplitude of its direction or
+/// cotangent. Absolute primal tolerances still stop small primal solves, while
+/// derivative solves retain relative accuracy, including across GMRES restarts.
+#[test]
+fn iterative_derivatives_keep_relative_accuracy_below_primal_atol() {
+    let radii = [0.6, 0.59];
+    let epsilon = [Complex::new(5.0, 0.02), Complex::new(6.0, 0.05)];
+    let positions = [[0.0; 3], [1.25, 0.1, 0.0]];
+    let operator =
+        Arc::new(IterativeSphereCluster::new(2, 1.4, &radii, &epsilon, &positions).unwrap());
+    let dense = sphere_cluster(2, 1.4, &radii, &epsilon, &positions).unwrap();
+    let incident = patterned(operator.dimension(), 1, 0.3);
+    let direction = patterned(operator.dimension(), 1, -0.2);
+    let cotangent = patterned(operator.dimension(), 1, 0.7);
+    let expected_tangent = dense.value() * &direction;
+    let expected_gradient = dense.value().adjoint() * &cotangent;
+    for rtol in [2e-12, 1e-3, 0.0] {
+        let options = GmresOptions {
+            rtol,
+            atol: 1e-5,
+            restart: 1,
+            max_iterations: 300,
+        };
+        let record = operator.record(incident.clone(), options).unwrap();
+        let derivative_rtol = if rtol > 0.0 {
+            rtol
+        } else {
+            GmresOptions::default().rtol
+        };
+        let tiny_primal = operator
+            .solve(&(&incident * Complex::from(1e-9)), options)
+            .unwrap();
+        assert_eq!(tiny_primal.value.norm().to_bits(), 0.0_f64.to_bits());
+        assert_eq!(tiny_primal.convergence[0].iterations, 0);
+        for scale in [1.0, 1e-9, 1e9] {
+            let tangent = record
+                .pushforward(
+                    0.0,
+                    &[0.0; 2],
+                    &[Complex::default(); 2],
+                    &[[0.0; 3]; 2],
+                    &(&direction * Complex::from(scale)),
+                )
+                .unwrap();
+            let gradient = record
+                .pullback(&(&cotangent * Complex::from(scale)))
+                .unwrap();
+            for report in tangent.convergence.iter().chain(&gradient.convergence) {
+                assert!(report.residual_norm <= derivative_rtol * report.rhs_norm);
+                assert!(report.iterations > options.restart);
+            }
+            let tangent = tangent.value / Complex::from(scale);
+            let gradient = gradient.incident / Complex::from(scale);
+            assert!(
+                (&tangent - &expected_tangent).norm()
+                    < 4.0 * derivative_rtol * expected_tangent.norm()
+            );
+            assert!(
+                (&gradient - &expected_gradient).norm()
+                    < 4.0 * derivative_rtol * expected_gradient.norm()
+            );
+            let forward_pairing = re_dot(&cotangent, &tangent);
+            let reverse_pairing = re_dot(&gradient, &direction);
+            assert!(
+                (forward_pairing - reverse_pairing).abs()
+                    < 8.0 * derivative_rtol * cotangent.norm() * expected_tangent.norm()
+            );
+        }
     }
 }
 

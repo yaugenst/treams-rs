@@ -322,6 +322,16 @@ def particle_cluster(
     return _operation(record, positions, ks, *local)
 
 
+def eigvals(operator: ArrayLike) -> NDArray[np.complex128]:
+    """Differentiable eigenvalues, without an eigenvector phase constraint.
+
+    Values are sorted by real part, then imaginary part. Forward mode requires
+    distinct real parts to keep that order fixed. Reverse mode also supports
+    equal loss weights at ordering ties and repeated eigenvalues.
+    """
+    return _operation(diff.eigvals, operator)
+
+
 def eig(operator: ArrayLike) -> tuple[NDArray[np.complex128], NDArray[np.complex128]]:
     """Eigenvalues and phase-fixed eigenvectors of a complex matrix, differentiable.
 
@@ -1439,6 +1449,7 @@ __all__ = [
     "cylindrical_translation",
     "ebcm_qmat",
     "eig",
+    "eigvals",
     "expansion",
     "ffield",
     "field",

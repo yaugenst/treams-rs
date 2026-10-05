@@ -180,11 +180,13 @@ def _context_case(name):
         return diff.solve, (a, b), (da, b * (0.2 + 0.1j)), (b,)
     if name == "eig":
         return diff.eig, (a,), (da,), (np.ones(3, dtype=complex), np.ones_like(a))
+    if name == "eigvals":
+        return diff.eigvals, (a,), (da,), (np.ones(3, dtype=complex),)
     return diff.svdvals, (a,), (da,), (np.ones(3),)
 
 
 @pytest.mark.interface
-@pytest.mark.parametrize("name", ["solve", "eig", "svdvals"])
+@pytest.mark.parametrize("name", ["solve", "eig", "eigvals", "svdvals"])
 def test_pushforward_rejects_invalid_tangents_and_owns_inputs(name):
     record, inputs, tangents, cotangents = _context_case(name)
     cotangents = tuple(np.array(c, copy=True) for c in cotangents)

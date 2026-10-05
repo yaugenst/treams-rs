@@ -43,6 +43,22 @@ impl Default for GmresOptions {
 }
 
 impl GmresOptions {
+    /// Derivative right-hand sides have arbitrary scale, so an absolute tolerance
+    /// would incorrectly erase small tangents or cotangents. Keep the relative
+    /// tolerance, or use the default when the primal requested absolute-only
+    /// convergence; the restart and iteration budgets stay unchanged.
+    pub(crate) fn for_derivative(self) -> Self {
+        Self {
+            rtol: if self.rtol > 0.0 {
+                self.rtol
+            } else {
+                Self::default().rtol
+            },
+            atol: 0.0,
+            ..self
+        }
+    }
+
     /// Reject non-finite or negative tolerances, two zero tolerances, and a zero
     /// restart length or iteration limit.
     pub(crate) fn validate(self) -> Result<()> {

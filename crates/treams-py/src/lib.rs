@@ -226,7 +226,9 @@ mod _native {
 
     // One `use` per binding file, in the order of the `mod` declarations.
     #[pymodule_export]
-    use super::linalg::{EigContext, SolveContext, SvdvalsContext, eig, solve, svdvals};
+    use super::linalg::{
+        EigContext, EigvalsContext, SolveContext, SvdvalsContext, eig, eigvals, solve, svdvals,
+    };
     #[pymodule_export]
     use super::threads::{after_fork, set_num_threads, thread_info};
 

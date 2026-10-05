@@ -368,8 +368,11 @@ impl IterativeResidual {
     /// Differentiate the converged equation, retaining the matrix-free operator:
     /// `(I - T C) dX = dT (B + C X) + T (dB + dC X)`.
     ///
-    /// Tangent solves use the primal GMRES options and return independent residual
-    /// certificates. No Krylov iteration history is retained or differentiated.
+    /// Tangent and adjoint solves use relative-only convergence: the primal `rtol`,
+    /// or the default `1e-10` if it was zero. The primal `atol` applies only to the
+    /// primal solve, so small directions retain their relative accuracy. Restart
+    /// and iteration limits are unchanged, and each solve returns an independent
+    /// residual certificate. No Krylov history is retained or differentiated.
     pub fn pushforward(
         &self,
         k0: f64,
@@ -442,7 +445,7 @@ impl IterativeResidual {
         for (entry, tangent) in rhs.iter_mut().zip(local_tangent) {
             *entry += tangent;
         }
-        operator.solve_rhs(&rhs, self.options, false)
+        operator.solve_rhs(&rhs, self.options.for_derivative(), false)
     }
 
     /// Gradients of the cluster and the incident fields from `cotangent`, the gradient
@@ -453,12 +456,13 @@ impl IterativeResidual {
     /// chunks of particles fixed by the particle count, and the chunk sums in chunk
     /// order; the radius and permittivity gradients add in particle order. The thread
     /// count changes none of the gradients.
+    /// Convergence follows the same relative-only policy as [`Self::pushforward`].
     pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<IterativeGradient> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&z| !finite(z)) {
             return Err(Error::InvalidInput("invalid illumination cotangent".into()));
         }
         let operator = &self.operator;
-        let adjoint = operator.solve_rhs(cotangent, self.options, true)?;
+        let adjoint = operator.solve_rhs(cotangent, self.options.for_derivative(), true)?;
         let columns = self.incident.ncols();
         let value = &self.solution.value;
         // The local matrices multiply the response B + C X; the coupling sees T^H Y.

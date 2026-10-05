@@ -140,7 +140,12 @@ solution, and accepts the column only if
 
 The defaults are `rtol = 1e-10`, `atol = 0`, `restart = 30` and
 `max_iterations = 300` (also available as constants such as
-`iterative.DEFAULT_RTOL`). The adjoint solves `Aᴴ Λ = G` with the same check.
+`iterative.DEFAULT_RTOL`). Forward and reverse derivatives use only `rtol`;
+`atol` does not apply, since it would erase sufficiently small directions or
+loss gradients. If the primal solve used `rtol=0`, derivatives use the default
+`1e-10` instead. They keep the same restart and iteration limits, and their
+accuracy still depends on the solver tolerance.
+
 A solve that reaches
 `max_iterations`, breaks down because GMRES cannot extend its stored vectors,
 or produces a non-finite residual raises `ValueError`. Each `Convergence(iterations, residual_norm,

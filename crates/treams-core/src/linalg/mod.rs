@@ -552,18 +552,20 @@ impl SvdvalsResidual {
     /// The ordered individual singular values have no linear derivative at repeated
     /// or zero values. Unlike the pullback of a smooth spectral sum, a pushforward
     /// returns each individual derivative and therefore rejects these cases.
+    /// Values within `64 ε` of the largest value's scale are numerically unresolved
+    /// and are treated as zero, including roundoff from rank-deficient matrices.
     pub fn pushforward(&self, operator: &DMatrix<Complex>) -> Result<Vec<f64>> {
         if operator.shape() != self.shape() || operator.iter().any(|&z| !finite(z)) {
             return Err(Error::InvalidInput(
                 "invalid singular-value operator tangent".into(),
             ));
         }
-        if self.values.contains(&0.0) {
+        let tolerance = 64.0 * f64::EPSILON * self.values[0];
+        if self.values.iter().any(|&value| value <= tolerance) {
             return Err(Error::InvalidInput(
-                "singular values at zero have no pushforward".into(),
+                "singular values at zero or below numerical resolution have no pushforward".into(),
             ));
         }
-        let tolerance = 64.0 * f64::EPSILON * self.values[0];
         if self
             .values
             .windows(2)
@@ -584,8 +586,9 @@ impl SvdvalsResidual {
             .collect())
     }
 
-    /// Equal weights are supported at repeated positive values; zero values
-    /// require zero weights because the singular value itself is not smooth there.
+    /// Equal weights are supported at repeated positive values; numerically zero
+    /// values require numerically zero weights because the singular value itself
+    /// is not smooth there. Both tests use relative tolerance `64 ε`.
     pub fn pullback(&self, cotangent: &[f64]) -> Result<DMatrix<Complex>> {
         if cotangent.len() != self.values.len() || cotangent.iter().any(|x| !x.is_finite()) {
             return Err(Error::InvalidInput(
@@ -593,13 +596,16 @@ impl SvdvalsResidual {
             ));
         }
         let tolerance = 64.0 * f64::EPSILON * self.values[0];
+        let weight_tolerance =
+            64.0 * f64::EPSILON * cotangent.iter().map(|x| x.abs()).fold(0.0, f64::max);
         for i in 0..cotangent.len() {
-            if self.values[i] == 0.0 && cotangent[i] != 0.0 {
+            if self.values[i] <= tolerance && cotangent[i].abs() > weight_tolerance {
                 return Err(Error::InvalidInput(
-                    "nonzero singular-value weight at zero is not differentiable".into(),
+                    "nonzero singular-value weight at zero or below numerical resolution is not supported".into(),
                 ));
             }
             if i > 0
+                && self.values[i - 1] > tolerance
                 && (self.values[i - 1] - self.values[i]).abs() <= tolerance
                 && (cotangent[i - 1] - cotangent[i]).abs()
                     > 64.0 * f64::EPSILON * cotangent[i - 1].abs().max(cotangent[i].abs())
@@ -727,6 +733,24 @@ pub fn eig(operator: &DMatrix<Complex>) -> Result<EigResidual> {
     })
 }
 
+/// Eigenvalues ordered by real part, then imaginary part. The same eigensystem
+/// residual supplies derivatives without imposing an eigenvector phase constraint.
+pub fn eigvals(operator: &DMatrix<Complex>) -> Result<EigResidual> {
+    let mut residual = eig(operator)?;
+    let n = residual.values.len();
+    let mut order: Vec<_> = (0..n).collect();
+    order.sort_by(|&i, &j| {
+        residual.values[i]
+            .re
+            .total_cmp(&residual.values[j].re)
+            .then_with(|| residual.values[i].im.total_cmp(&residual.values[j].im))
+    });
+    residual.values = order.iter().map(|&j| residual.values[j]).collect();
+    residual.vectors = DMatrix::from_fn(n, n, |i, j| residual.vectors[(i, order[j])]);
+    residual.pivots = order.iter().map(|&j| residual.pivots[j]).collect();
+    Ok(residual)
+}
+
 impl EigResidual {
     fn vectors_lu(&self) -> Result<&Lu> {
         self.vectors_lu
@@ -757,13 +781,9 @@ impl EigResidual {
         })
     }
 
-    /// Eigenpair tangents with the same unit norm and real-positive pivot phase as
-    /// the primal. Repeated eigenvalues and tied phase pivots have no pushforward of
-    /// the complete eigenpair output.
-    pub fn pushforward(
-        &self,
-        operator: &DMatrix<Complex>,
-    ) -> Result<(Vec<Complex>, DMatrix<Complex>)> {
+    /// Express the perturbation in the eigenbasis; its diagonal is the
+    /// eigenvalue derivative and its off-diagonal entries determine eigenvectors.
+    fn eigenbasis_tangent(&self, operator: &DMatrix<Complex>) -> Result<DMatrix<Complex>> {
         let n = self.values.len();
         if operator.shape() != (n, n) || operator.iter().any(|&z| !finite(z)) {
             return Err(Error::InvalidInput("invalid eigensystem tangent".into()));
@@ -776,17 +796,69 @@ impl EigResidual {
                     ));
                 }
             }
-            if self.tied_pivot(j) {
-                return Err(Error::InvalidInput(
-                    "eigenvector pushforward requires a unique largest component".into(),
-                ));
-            }
         }
-        // E = V⁻¹ dA V; its diagonal gives dλ, and its off-diagonal entries
-        // divided by λ_j - λ_i give the unnormalized eigenvector changes.
         let mut moved = product(operator, &self.vectors);
         self.vectors_lu()?.solve_in_place(view_mut(&mut moved))?;
+        if moved.iter().any(|&z| !finite(z)) {
+            return Err(Error::Singular);
+        }
+        Ok(moved)
+    }
+
+    /// An ordered spectrum switches modes when real parts cross. Only equal
+    /// loss weights across a tied group make that change irrelevant.
+    fn check_value_order(&self, weights: Option<&[Complex]>) -> Result<()> {
+        for j in 0..self.values.len() {
+            for i in 0..j {
+                let tied = (self.values[j].re - self.values[i].re).abs()
+                    <= 64.0 * f64::EPSILON * self.scale;
+                let equal_weights = weights.is_some_and(|g| {
+                    (g[j] - g[i]).norm() <= 64.0 * f64::EPSILON * g[j].norm().max(g[i].norm())
+                });
+                if tied && !equal_weights {
+                    return Err(Error::InvalidInput(
+                        "ordered eigenvalue derivatives require distinct real parts or equal loss weights at ordering ties".into(),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Eigenvalue tangents with no eigenvector phase constraint. Distinct real
+    /// parts keep [`eigvals`]' ordering fixed; tied phase pivots are supported.
+    pub fn pushforward_values(&self, operator: &DMatrix<Complex>) -> Result<Vec<Complex>> {
+        let moved = self.eigenbasis_tangent(operator)?;
+        self.check_value_order(None)?;
+        Ok(moved.diagonal().iter().copied().collect())
+    }
+
+    /// Pullback of [`eigvals`], allowing equal weights at ordering ties.
+    pub fn pullback_values(&self, values: &[Complex]) -> Result<DMatrix<Complex>> {
+        let n = self.values.len();
+        let gradient = self.pullback(values, DMatrix::zeros(n, n))?;
+        self.check_value_order(Some(values))?;
+        Ok(gradient)
+    }
+
+    /// Eigenpair tangents with the same unit norm and real-positive pivot phase as
+    /// the primal. Repeated eigenvalues and tied phase pivots have no pushforward of
+    /// the complete eigenpair output. Use [`Self::pushforward_values`] when only
+    /// eigenvalues are needed.
+    pub fn pushforward(
+        &self,
+        operator: &DMatrix<Complex>,
+    ) -> Result<(Vec<Complex>, DMatrix<Complex>)> {
+        let n = self.values.len();
+        let mut moved = self.eigenbasis_tangent(operator)?;
+        if (0..n).any(|j| self.tied_pivot(j)) {
+            return Err(Error::InvalidInput(
+                "eigenvector pushforward requires a unique largest component; use eigvals for eigenvalues alone".into(),
+            ));
+        }
         let values: Vec<_> = moved.diagonal().iter().copied().collect();
+        // E = V⁻¹ dA V; divide off-diagonal entries by λ_j - λ_i to get
+        // the unnormalized eigenvector changes. Its diagonal already gave dλ.
         for j in 0..n {
             for i in 0..n {
                 moved[(i, j)] = if i == j {

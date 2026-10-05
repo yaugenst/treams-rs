@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Keep iterative derivatives accurate for small directions when the value
+  solve uses an absolute tolerance. Add eigenvalue-only `diff.eigvals` and
+  `advect.eigvals`, and clarify numerical and ordering limits of spectral
+  derivatives.
 - Reuse JAX callback identities across eager calls and allow transposing a
   linearization at fixed inputs. Add JAX and PyTorch examples that combine
   forward and reverse mode without taking second derivatives.

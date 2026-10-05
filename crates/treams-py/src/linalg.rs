@@ -1,4 +1,4 @@
-//! `solve`, `eig` and `svdvals` with their contexts (`treams_core::linalg`).
+//! `solve`, `eig`, `eigvals` and `svdvals` with their contexts (`treams_core::linalg`).
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 use treams_core::{Complex, fpenv::ieee, linalg};
@@ -143,6 +143,57 @@ pub(crate) fn eig<'py>(
             residual.values().to_vec().into_pyarray(py),
             matrix(py, residual.vectors())?,
             EigContext::new(residual),
+        ))
+    })
+}
+
+context!(EigvalsContext(linalg::EigResidual));
+
+#[pymethods]
+impl EigvalsContext {
+    #[staticmethod]
+    fn _state_spec(n: usize) -> PyResult<usize> {
+        ieee(|| linalg::EigResidual::state_size(n).map_err(error))
+    }
+
+    fn _state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u8>>> {
+        ieee(|| state_array(py, &self.residual))
+    }
+
+    #[staticmethod]
+    fn _from_state(state: PyReadonlyArray1<'_, u8>) -> PyResult<Self> {
+        ieee(|| restore_state(&state).map(Self::new))
+    }
+
+    fn pushforward<'py>(&self, py: Python<'py>, operator: Tangent<'py>) -> PyResult<C1<'py>> {
+        ieee(|| {
+            let residual = &self.residual;
+            let operator = matrix_tangent(&operator, residual.vectors().shape())?;
+            Ok(detached(py, move || residual.pushforward_values(&operator))?.into_pyarray(py))
+        })
+    }
+
+    fn pullback<'py>(&self, py: Python<'py>, eigenvalues: Cotangent<'py>) -> PyResult<C2<'py>> {
+        ieee(|| {
+            let residual = &self.residual;
+            let values = vector_cotangent(&eigenvalues, residual.values().len())?;
+            owned_matrix(py, detached(py, move || residual.pullback_values(&values))?)
+        })
+    }
+}
+
+/// Record only the eigenvalues, retaining the eigensystem for their derivatives.
+#[pyfunction]
+pub(crate) fn eigvals<'py>(
+    py: Python<'py>,
+    operator: PyReadonlyArray2<'py, Complex>,
+) -> PyResult<(C1<'py>, EigvalsContext)> {
+    ieee(|| {
+        let a = from_array(operator, "operator")?;
+        let residual = detached(py, move || linalg::eigvals(&a))?;
+        Ok((
+            residual.values().to_vec().into_pyarray(py),
+            EigvalsContext::new(residual),
         ))
     })
 }
