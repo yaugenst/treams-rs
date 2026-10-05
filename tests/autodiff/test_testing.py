@@ -6,7 +6,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from treams_rs import diff
-from treams_rs.testing import check_gradient, check_pullback
+from treams_rs.testing import check_gradient, check_pullback, check_pushforward
 
 from _support import complex_normal
 
@@ -200,3 +200,79 @@ def test_shifted_real_output_cannot_silently_discard_imaginary_change():
 
     with pytest.raises(ValueError, match="real probe/output"):
         check_pullback(record, np.zeros(2))
+
+
+@pytest.mark.parametrize("vary_real_input", [False, True])
+def test_pushforward_checks_mixed_tuple_outputs_with_fresh_contexts(vary_real_input):
+    calls = []
+
+    class Context:
+        def __init__(self, z, x):
+            self.z, self.x = z, x
+            self.consumed = False
+
+        def pushforward(self, dz, dx):
+            assert not self.consumed
+            self.consumed = True
+            calls.append("pushforward")
+            return (
+                dz * self.x + self.z * dx,
+                2 * (self.z.conj() * dz).real,
+                dx,
+            )
+
+        def pullback(self, g, h, k):
+            assert not self.consumed
+            self.consumed = True
+            calls.append("pullback")
+            return g * self.x + 2 * h * self.z, (self.z.conj() * g).real + k
+
+    def record(z, x):
+        return (z * x, abs(z) ** 2, x), Context(z, x)
+
+    check_pushforward(
+        record,
+        np.array([0.3 + 0.4j, -0.2 + 0.1j]),
+        np.array([0.8, 1.2]),
+        directions=(
+            np.array([0.2j, 0.1 + 0.3j]),
+            np.array([0.2, -0.4]) if vary_real_input else np.zeros(2),
+        ),
+        seed=17,
+    )
+    assert calls == ["pushforward", "pullback"]
+
+
+@pytest.mark.parametrize(
+    ("derivative", "message"),
+    [("pushforward", "finite differences"), ("pullback", "adjoint identity")],
+)
+def test_pushforward_checker_detects_wrong_derivative_on_either_side(
+    derivative, message
+):
+    class Context:
+        def pushforward(self, direction):
+            return (3 if derivative == "pushforward" else 2) * direction
+
+        def pullback(self, cotangent):
+            return (3 if derivative == "pullback" else 2) * cotangent
+
+    with pytest.raises(AssertionError, match=message):
+        check_pushforward(
+            lambda x: (2 * x, Context()),
+            np.array([0.2, 0.4]),
+            directions=(np.ones(2),),
+            cotangents=np.ones(2),
+        )
+
+
+def test_pushforward_checker_rejects_nonfinite_output_tangent():
+    class Context:
+        def pushforward(self, direction):
+            return np.full_like(direction, np.nan)
+
+        def pullback(self, cotangent):
+            return cotangent
+
+    with pytest.raises(ValueError, match=r"tangent for output 0.*finite"):
+        check_pushforward(lambda x: (x, Context()), np.array([0.2, 0.4]))

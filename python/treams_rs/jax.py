@@ -1,8 +1,12 @@
-"""JAX adapter: physics objects and records as JAX operations on the CPU, in
-first-order reverse mode only, with jit and sequential vmap. JAX stores only
-the inputs; each gradient pass reruns the Rust forward and uses its pullback
-once. Inputs may be float32, float64, complex64 or complex128. Native work
-uses double precision; outputs are float32/complex64 with JAX's default
+"""JAX adapter: physics objects and records on the CPU with first-order forward
+and reverse mode, jit and sequential vmap. Records with explicit array state
+retain their native residual for reverse mode, ``jacfwd`` and repeated
+``linearize`` directions. JAX owns the saved arrays; ``checkpoint`` can choose
+to recompute them. Opaque custom records retain their inputs and rerun the
+record for each pullback or tangent application, including a direct JVP.
+
+Inputs may be float32, float64, complex64 or complex128. Native work uses
+double precision; outputs are float32/complex64 with JAX's default
 configuration, or float64/complex128 with ``jax_enable_x64`` enabled. Input
 gradients retain their input dtype. This adapter does not change JAX settings.
 
@@ -18,9 +22,9 @@ Differentiate a scattering cross section::
 
     value, gradient = jax.jit(jax.value_and_grad(objective))(0.2)
 
-A pullback maps the gradient with respect to an output to the gradients with
-respect to the inputs; ``treams_rs.diff`` defines records, contexts and
-pullbacks. Install ``treams-rs[jax]`` and keep the CPU backend: host callbacks
+A pushforward maps input tangents to output tangents. A pullback maps output
+cotangents to input cotangents; ``treams_rs.diff`` defines records and their
+derivative contexts. Install ``treams-rs[jax]`` and keep the CPU backend: host callbacks
 run the Rust code, and ``vmap`` calls them one after another. Run another
 record with ``wrap``.
 
@@ -34,6 +38,8 @@ from typing import TYPE_CHECKING, Any, cast
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax.extend import core
+from jax.interpreters import ad, batching, mlir
 
 # Physical objects share one implementation; this namespace selects execution.
 from . import _framework, _framework_backend
@@ -43,15 +49,23 @@ from ._framework_smatrix import SMatrix, stack
 from ._framework_tmatrix import Cluster, PeriodicResponse, TMatrix, solve_periodic
 from ._framework_waves import PlaneWave, PortWave, Wave
 from ._lattice import Lattice
-from ._records import apply_pullback, native_array, require_inexact, run_record
+from ._records import (
+    apply_pullback,
+    apply_pushforward,
+    native_array,
+    record_outputs,
+    require_inexact,
+    run_record,
+)
 from ._results import BandModes, CrossSections, PowerBalance, ScatteredPorts
+from ._saved import ArraySpec, SavedRecord, pack_state, saved_record, unpack_state
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from jax.typing import ArrayLike
 
-    from ._records import Array, Record
+    from ._records import Array, ArrayMetadata, Record
 
 type Output = jax.Array | tuple[jax.Array, ...]
 
@@ -69,64 +83,240 @@ def _inputs(values: tuple[ArrayLike, ...]) -> tuple[jax.Array, ...]:
     return arrays
 
 
-def _primitive(
-    record: Record, specs: tuple[jax.ShapeDtypeStruct, ...], multiple: bool
-) -> Callable[..., Output]:
-    """The ``jax.custom_vjp`` function behind wrap and _operation, for fixed specs."""
+class _NativeCall:
+    """Keep the record's numeric residual in JAX-owned arrays between calls."""
 
-    def forward_callback(*values: Array) -> tuple[Array, ...]:
-        outputs, _, is_multiple = run_record(
-            record, tuple(native_array(v) for v in values)
+    def __init__(
+        self,
+        record: SavedRecord,
+        specs: tuple[jax.ShapeDtypeStruct, ...],
+        multiple: bool,
+        inputs: tuple[jax.Array, ...],
+    ) -> None:
+        self.record = record
+        self.specs = specs
+        self.multiple = multiple
+        self.input_specs = tuple(
+            ArraySpec(value.shape, np.dtype(value.dtype)) for value in inputs
         )
-        if is_multiple != multiple or len(outputs) != len(specs):
+        self.retained_count = len(inputs) if record.needs_primals else 0
+        self.state_specs = record.state_spec(
+            tuple(
+                ArraySpec(
+                    value.shape,
+                    np.dtype(np.complex128 if np.iscomplexobj(value) else np.float64),
+                )
+                for value in inputs
+            )
+        )
+        self.buffer_specs = tuple(
+            jax.ShapeDtypeStruct((spec.nbytes,), np.uint8) for spec in self.state_specs
+        )
+        self.native_outputs = tuple(
+            ArraySpec(
+                spec.shape,
+                np.dtype(
+                    np.complex128
+                    if np.issubdtype(spec.dtype, np.complexfloating)
+                    else np.float64
+                ),
+            )
+            for spec in specs
+        )
+
+    def _outputs(self, values: tuple[Array, ...], multiple: bool) -> tuple[Array, ...]:
+        if multiple != self.multiple or len(values) != len(self.specs):
             raise ValueError("native operation changed its output structure")
         return tuple(
             np.asarray(value, dtype=spec.dtype)
-            for value, spec in zip(outputs, specs, strict=True)
+            for value, spec in zip(values, self.specs, strict=True)
         )
 
-    @jax.custom_vjp
+    def forward(self, *values: Array) -> tuple[Array, ...]:
+        outputs, _, multiple = run_record(
+            self.record, tuple(native_array(value) for value in values)
+        )
+        return self._outputs(outputs, multiple)
+
+    def record_and_save(self, *values: Array) -> tuple[Any, ...]:
+        outputs, context, multiple = record_outputs(
+            self.record, tuple(native_array(value) for value in values)
+        )
+        state = pack_state(self.record.save(context), self.state_specs)
+        return (*self._outputs(outputs, multiple), *state)
+
+    def _restore(
+        self, packed: tuple[Any, ...]
+    ) -> tuple[Any, tuple[ArrayMetadata, ...], int]:
+        primals = tuple(np.asarray(value) for value in packed[: self.retained_count])
+        boundary = self.retained_count + len(self.state_specs)
+        state = unpack_state(packed[self.retained_count : boundary], self.state_specs)
+        context = self.record.restore(
+            state, *(native_array(value) for value in primals)
+        )
+        return context, self.input_specs, boundary
+
+    def tangent(self, *packed: Array) -> tuple[Array, ...]:
+        context, primals, boundary = self._restore(packed)
+        tangents = apply_pushforward(
+            context, packed[boundary:], primals, self.native_outputs
+        )
+        return self._outputs(tangents, self.multiple)
+
+    def pullback(self, *packed: Array) -> tuple[Array, ...]:
+        context, primals, boundary = self._restore(packed)
+        return apply_pullback(
+            context if callable(context) else context.pullback,
+            tuple(native_array(value) for value in packed[boundary:]),
+            primals,
+            conjugate=True,
+        )
+
+
+def _callback(*values: jax.Array, operation: _NativeCall) -> tuple[jax.Array, ...]:
+    return jax.pure_callback(
+        operation.tangent, operation.specs, *values, vmap_method="sequential"
+    )
+
+
+def _batch(
+    values: tuple[jax.Array, ...],
+    dimensions: tuple[int | None, ...],
+    *,
+    operation: _NativeCall,
+) -> tuple[Any, tuple[int | None, ...]]:
+    batched = tuple(
+        jnp.moveaxis(value, dimension, 0)
+        for value, dimension in zip(values, dimensions, strict=True)
+        if dimension is not None
+    )
+
+    def mapped(items: tuple[jax.Array, ...]) -> Any:
+        iterator = iter(items)
+        arguments = tuple(
+            value if dimension is None else next(iterator)
+            for value, dimension in zip(values, dimensions, strict=True)
+        )
+        return _tangent.bind(*arguments, operation=operation)
+
+    outputs = jax.lax.map(mapped, batched)
+    return outputs, (0,) * len(outputs)
+
+
+def _abstract(*_: Any, operation: _NativeCall) -> tuple[Any, ...]:
+    return tuple(
+        jax.core.ShapedArray(spec.shape, spec.dtype) for spec in operation.specs
+    )
+
+
+# Only this linear boundary needs a primitive: its transpose applies the native
+# pullback to the same array-owned residual used by the pushforward.
+_tangent = core.Primitive("treams_tangent")
+_tangent.multiple_results = True
+_tangent.def_impl(_callback)
+_tangent.def_abstract_eval(_abstract)
+mlir.register_lowering(_tangent, mlir.lower_fun(_callback, multiple_results=True))
+batching.primitive_batchers[_tangent] = _batch
+
+
+def _higher_order(*_: Any, **__: Any) -> Any:
+    raise ValueError("treams-rs supports first-order differentiation only")
+
+
+ad.primitive_jvps[_tangent] = _higher_order
+
+
+def _saved_transpose(
+    cotangents: tuple[Any, ...], *values: Any, operation: _NativeCall
+) -> tuple[Any, ...]:
+    count = operation.retained_count
+    boundary = count + len(operation.state_specs)
+    gradients = jax.pure_callback(
+        operation.pullback,
+        tuple(
+            jax.ShapeDtypeStruct(value.shape, value.dtype)
+            for value in operation.input_specs
+        ),
+        *values[:boundary],
+        *(ad.instantiate_zeros(value) for value in cotangents),
+        vmap_method="sequential",
+    )
+    return (None,) * boundary + tuple(gradients)
+
+
+ad.primitive_transposes[_tangent] = _saved_transpose
+
+
+def _saved_call(
+    record: SavedRecord,
+    specs: tuple[jax.ShapeDtypeStruct, ...],
+    multiple: bool,
+    inputs: tuple[jax.Array, ...],
+) -> Output:
+    operation = _NativeCall(record, specs, multiple, inputs)
+
+    @jax.custom_jvp
     def primitive(*values: jax.Array) -> tuple[jax.Array, ...]:
         return jax.pure_callback(
-            forward_callback, specs, *values, vmap_method="sequential"
+            operation.forward, specs, *values, vmap_method="sequential"
         )
 
-    def forward_rule(*values: jax.Array) -> tuple[tuple[jax.Array, ...], Any]:
-        return primitive(*values), values
-
-    def backward_rule(
-        primals: tuple[jax.Array, ...], cotangents: tuple[jax.Array, ...]
-    ) -> tuple[jax.Array, ...]:
-        # JAX may return scalar constants as Python values in the saved inputs.
-        primals = tuple(jnp.asarray(value) for value in primals)
-        input_specs = tuple(jax.ShapeDtypeStruct(v.shape, v.dtype) for v in primals)
-
-        def callback(*packed: Array) -> tuple[Array, ...]:
-            values = tuple(np.asarray(v) for v in packed[: len(primals)])
-            _, pullback, _ = run_record(record, tuple(native_array(v) for v in values))
-            # JAX uses the bilinear complex convention; Rust uses Re(vdot(g, dx)).
-            return apply_pullback(
-                pullback,
-                tuple(native_array(v) for v in packed[len(primals) :]),
-                values,
-                conjugate=True,
-            )
-
+    @jax.custom_jvp
+    def record_and_save(*values: jax.Array) -> tuple[Any, ...]:
         return jax.pure_callback(
-            callback, input_specs, *primals, *cotangents, vmap_method="sequential"
+            operation.record_and_save,
+            (*specs, *operation.buffer_specs),
+            *values,
+            vmap_method="sequential",
         )
 
-    primitive.defvjp(forward_rule, backward_rule)
+    record_and_save.defjvp(_higher_order)
+
+    @primitive.defjvp
+    def jvp_rule(
+        primals: tuple[jax.Array, ...], tangents: tuple[jax.Array, ...]
+    ) -> Any:
+        recorded = record_and_save(*primals)
+        outputs, state = recorded[: len(specs)], recorded[len(specs) :]
+        output_tangents = _tangent.bind(
+            *primals[: operation.retained_count],
+            *state,
+            *tangents,
+            operation=operation,
+        )
+        return outputs, tuple(output_tangents)
+
+    outputs = primitive(*inputs)
+    return outputs if multiple else outputs[0]
+
+
+def _primitive(
+    record: Record, specs: tuple[jax.ShapeDtypeStruct, ...], multiple: bool
+) -> Callable[..., Output]:
+    """One custom JVP backed by native pushforward and pullback callbacks."""
+    prepared = saved_record(record)
+    if prepared is None:
+        # Arbitrary user records have no array-state contract. Replaying the
+        # record preserves reverse compatibility and enables a basic JVP.
+        def state_spec(_inputs: tuple[ArraySpec, ...]) -> tuple[ArraySpec, ...]:
+            return ()
+
+        def save(_context: Any) -> tuple[Any, ...]:
+            return ()
+
+        def restore(_state: tuple[Any, ...], *primals: Any) -> Any:
+            return record(*primals)[1]
+
+        prepared = SavedRecord(record, state_spec, save, restore)
 
     def call(*values: ArrayLike) -> Output:
-        outputs = primitive(*_inputs(values))
-        return outputs if multiple else outputs[0]
+        return _saved_call(prepared, specs, multiple, _inputs(values))
 
     return call
 
 
 def wrap(record: Record, *example_values: ArrayLike) -> Callable[..., Output]:
-    """Turn a record into a JAX function with a first-order gradient.
+    """Turn a record into a JAX function with first-order forward and reverse AD.
 
     ``wrap`` runs ``record(*example_values)`` once to fix the shapes and dtypes
     of the inputs and outputs; later calls must use the same input shapes and
@@ -146,7 +336,8 @@ def wrap(record: Record, *example_values: ArrayLike) -> Callable[..., Output]:
     Returns:
         A function of the dynamic inputs that returns JAX arrays, a tuple for
         several outputs. It works under ``jax.jit``, ``jax.grad`` and
-        ``jax.vmap``.
+        ``jax.vmap``, ``jax.jvp`` and ``jax.jacfwd``. Forward mode requires a
+        context with a ``pushforward`` method.
     """
     arrays = _inputs(example_values)
     examples = tuple(native_array(value) for value in arrays)

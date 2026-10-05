@@ -4,13 +4,15 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from functools import partial
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
 from . import diff
 from ._autodiff_functions import require_no_out
+from ._saved import SavedRecord, saved_record
 
 
 def _apply(
@@ -115,7 +117,10 @@ def lpmv(
             )
         return result, context
 
-    result = _apply(backend, record, (n, m), z)
+    prepared = cast(
+        "SavedRecord", saved_record(partial(diff.angular, n, m, function="legendre"))
+    )
+    result = _apply(backend, replace(prepared, evaluate=record), (n, m), z)
     # The NumPy function returns real values for real arguments. The native
     # record is complex; projection is a framework operation with its own rule.
     return result if complex_ else backend.xp.real(result)

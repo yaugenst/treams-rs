@@ -708,7 +708,7 @@ def support_catalog() -> dict[str, Any]:
             "native_pairing": "dL = Re(sum(conj(g) * dx))",
             "derivative_order": 1,
             "static_parameters": "mode counts, integer labels, topology; see each operation's docstring",
-            "context_lifetime": "Treat native recorded contexts as single-use; record again for another pullback.",
+            "context_lifetime": "Native recorded contexts are reusable: pushforwards and pullbacks share immutable residuals.",
             "python_execution": "CPU",
         },
         "backends": {

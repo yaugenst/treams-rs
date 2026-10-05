@@ -206,6 +206,9 @@ def test_sublattice_gradients_preserve_cell_shape_and_excluded_axes(engine, matr
     value, gradient = engine.value_and_grad(objective, point)
     assert_allclose(value, objective(tr, point), rtol=1e-12)
     assert gradient.shape == point.shape
+    forward_value, tangent = engine.jvp(objective, point, direction)
+    assert_allclose(forward_value, value, rtol=1e-12)
+    assert_allclose(tangent, np.vdot(gradient, direction).real, rtol=1e-10, atol=1e-12)
     if matrix:
         assert_allclose(gradient[0], 0, atol=0)
         assert_allclose(gradient[:, 2], 0, atol=0)

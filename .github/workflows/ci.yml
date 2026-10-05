@@ -314,9 +314,9 @@ jobs:
           - label: Frameworks lower bounds
             python-version: "3.12"
             numpy-requirement: numpy==2.1.*
-            advect-requirement: advect==0.2.0
+            advect-requirement: advect==0.3.1
             autograd-requirement: autograd==1.8.0
-            jax-requirement: jax==0.9.0
+            jax-requirement: jax==0.10.0
             h5py-requirement: h5py==3.11.0
             torch-requirement: torch==2.7.0
             # The API reference uses the locked NumPy (see the NumPy lanes).
@@ -324,18 +324,18 @@ jobs:
           - label: Frameworks latest / Python 3.13
             python-version: "3.13"
             numpy-requirement: numpy>=2.1,<2.6
-            advect-requirement: advect>=0.2.0,<0.4
+            advect-requirement: advect>=0.3.1,<0.4
             autograd-requirement: autograd>=1.8,<2
-            jax-requirement: jax>=0.9,<0.12
+            jax-requirement: jax>=0.10,<0.12
             h5py-requirement: h5py>=3.11,<4
             torch-requirement: torch>=2.7,<3
             deselect: ""
           - label: Frameworks latest / Python 3.14
             python-version: "3.14"
             numpy-requirement: numpy>=2.1,<2.6
-            advect-requirement: advect>=0.2.0,<0.4
+            advect-requirement: advect>=0.3.1,<0.4
             autograd-requirement: autograd>=1.8,<2
-            jax-requirement: jax>=0.9,<0.12
+            jax-requirement: jax>=0.10,<0.12
             h5py-requirement: h5py>=3.11,<4
             torch-requirement: torch>=2.7,<3
             deselect: ""

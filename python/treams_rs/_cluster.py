@@ -8,6 +8,8 @@ import numpy as np
 
 from . import diff
 from ._dispatch import autodiff_method, backend_for, namespace
+from ._records import DerivativeContext
+from ._saved import SavedRecord
 from ._tmatrix import CylindricalTMatrix, TMatrix, interaction_coupling, solve_columns
 from ._validation import check_particle_positions
 from ._waves import check_compatible
@@ -103,16 +105,24 @@ class ScatteringFactor:
             vector = wave.coefficients.ndim == 1
             columns = wave.coefficients[:, None] if vector else wave.coefficients
 
-            def record(values: Any) -> Any:
-                value, context = self._factor.record(values)
+            # With a constant cluster this map is linear. Both derivative
+            # directions use the same factors, with no per-illumination state.
+            context = DerivativeContext(
+                self._factor.pullback_incident, self._factor.solve
+            )
 
-                # The cluster and its LU factors are constant; only incident
-                # columns need gradients from this block-local record.
-                def pullback(g: Any) -> tuple[Any]:
-                    return (context.pullback_blocks(g)[2],)
+            def evaluate(values: Any) -> Any:
+                return self._factor.solve(values), context
 
-                return value, pullback
+            def restore(_state: Any, *_primals: Any) -> DerivativeContext:
+                return context
 
+            record = SavedRecord(
+                evaluate,
+                lambda _inputs: (),
+                lambda _context: (),
+                restore,
+            )
             scattered = backend.apply(record, tuple(columns.shape), columns)
             return FrameworkWave(
                 scattered[:, 0] if vector else scattered,

@@ -7,6 +7,7 @@ a quadratic matrix merely to extract its diagonal. Their pullbacks stay native.
 
 from __future__ import annotations
 
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -15,6 +16,8 @@ from . import _modes, _native, diff
 from ._autodiff_functions import require_no_out
 from ._bases import CylindricalBasis, SphericalBasis
 from ._dispatch import backend_for
+from ._records import DerivativeContext
+from ._saved import ArraySpec, SavedRecord, native_state, saved_record
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -60,23 +63,21 @@ def _elementwise(
     values: tuple[Any, ...],
     labels: tuple[Any, ...] = (),
 ) -> Any:
-    """Lift scalar records with broadcasting and reverse broadcast reduction."""
+    """Lift scalar records, broadcasting tangents and reducing input gradients."""
     shape = _shape(values, labels)
+    prepared = saved_record(evaluate)
+    assert prepared is not None
+    child: SavedRecord = prepared
 
-    def record(*arrays: Any) -> Any:
-        broadcast = np.broadcast_arrays(*arrays, *labels)
-        result = np.empty(shape, dtype=np.complex128)
-        pullbacks = []
-        for index in np.ndindex(shape):
-            scalar_values = tuple(value[index] for value in broadcast)
-            result[index], pullback = evaluate(*scalar_values)
-            pullbacks.append((index, pullback))
+    def scalar_specs(arrays: Any) -> tuple[ArraySpec, ...]:
+        return tuple(ArraySpec((), value.dtype) for value in (*arrays, *labels))
 
+    def map_context(contexts: Any, arrays: Any) -> DerivativeContext:
         def pullback(cotangent: Any) -> Any:
             gradients = [np.empty(shape, dtype=np.complex128) for _ in arrays]
-            for index, scalar_pullback in pullbacks:
+            for index, context in contexts:
                 for gradient, value in zip(
-                    gradients, scalar_pullback(cotangent[index]), strict=True
+                    gradients, context.pullback(cotangent[index]), strict=True
                 ):
                     gradient[index] = value
             reduced = []
@@ -92,9 +93,59 @@ def _elementwise(
                 )
             return tuple(reduced)
 
-        return result, pullback
+        def pushforward(*tangents: Any) -> Any:
+            broadcast = [np.broadcast_to(tangent, shape) for tangent in tangents]
+            output = np.empty(shape, dtype=np.complex128)
+            for index, context in contexts:
+                output[index] = context.pushforward(
+                    *(value[index] for value in broadcast)
+                )
+            return output
 
-    return backend.apply(record, shape, *values)
+        return DerivativeContext(pullback, pushforward, (contexts, arrays))
+
+    def record(*arrays: Any) -> Any:
+        broadcast = np.broadcast_arrays(*arrays, *labels)
+        result = np.empty(shape, dtype=np.complex128)
+        contexts = []
+        for index in np.ndindex(shape):
+            scalar_values = tuple(value[index] for value in broadcast)
+            result[index], context = evaluate(*scalar_values)
+            contexts.append((index, context))
+        return result, map_context(contexts, arrays)
+
+    def state_spec(inputs: tuple[ArraySpec, ...]) -> tuple[ArraySpec, ...]:
+        return tuple(
+            ArraySpec((*shape, *spec.shape), spec.dtype)
+            for spec in child.state_spec(scalar_specs(inputs))
+        )
+
+    def save(context: DerivativeContext) -> tuple[Any, ...]:
+        contexts, arrays = context.native_context
+        states = tuple(
+            np.empty((*shape, *spec.shape), dtype=spec.dtype)
+            for spec in child.state_spec(scalar_specs(arrays))
+        )
+        for index, context in contexts:
+            for target, value in zip(states, child.save(context), strict=True):
+                target[index] = value
+        return states
+
+    def restore(states: tuple[Any, ...], *arrays: Any) -> DerivativeContext:
+        broadcast = np.broadcast_arrays(*arrays, *labels)
+        contexts = [
+            (
+                index,
+                child.restore(
+                    tuple(state[index] for state in states),
+                    *(value[index] for value in broadcast),
+                ),
+            )
+            for index in np.ndindex(shape)
+        ]
+        return map_context(contexts, arrays)
+
+    return backend.apply(SavedRecord(record, state_spec, save, restore), shape, *values)
 
 
 def sw_translate(
@@ -116,17 +167,16 @@ def sw_translate(
     _options(args, kwargs)
     labels = _labels(lambda_, mu, pol, l, m, qol)
     values = tuple(backend.array(v, complex_=True) for v in (kr, theta, phi))
+    shape = _shape(values, labels)
 
-    def record(*values: Any) -> Any:
-        return diff.spherical_translation(
-            *values,
-            destination=labels[:3],
-            source=labels[3:],
-            poltype=poltype,
-            singular=singular,
-        )
-
-    return backend.apply(record, _shape(values, labels), *values)
+    record = partial(
+        diff.spherical_translation,
+        destination=labels[:3],
+        source=labels[3:],
+        poltype=poltype,
+        singular=singular,
+    )
+    return backend.apply(record, shape, *values)
 
 
 def sw_rotate(
@@ -149,17 +199,29 @@ def sw_rotate(
     shape = _shape(values, labels)
     values = tuple(_broadcast(backend, value, shape) for value in values)
 
-    def record(phi: Any, theta: Any, psi: Any) -> Any:
-        value = _native.sw_rotate(*labels, phi, theta, psi)
-        _, context = diff.wignerd(labels[3], labels[1], labels[4], phi, theta, psi)
+    def restore(_state: Any, phi: Any, theta: Any, psi: Any) -> DerivativeContext:
+        context = _native.wignerd_context(
+            *diff._wignerd_inputs(labels[3], labels[1], labels[4], phi, theta, psi)
+        )
         mask = (labels[0] == labels[3]) & (labels[2] == labels[5])
 
         def pullback(g: Any) -> Any:
             return context.pullback(np.where(mask, g, 0))
 
-        return value, pullback
+        def pushforward(*tangents: Any) -> Any:
+            return np.where(mask, context.pushforward(*tangents), 0)
 
-    return backend.apply(record, shape, *values)
+        return DerivativeContext(pullback, pushforward)
+
+    def record(phi: Any, theta: Any, psi: Any) -> Any:
+        value = _native.sw_rotate(*labels, phi, theta, psi)
+        return value, restore((), phi, theta, psi)
+
+    return backend.apply(
+        SavedRecord(record, lambda _inputs: (), lambda _context: (), restore),
+        shape,
+        *values,
+    )
 
 
 def cw_rotate(
@@ -180,19 +242,32 @@ def cw_rotate(
     shape = _shape(values, labels)
     values = tuple(_broadcast(backend, value, shape) for value in values)
 
-    def record(phi: Any, kz: Any, qz: Any) -> Any:
+    def restore(_state: Any, phi: Any, kz: Any, qz: Any) -> DerivativeContext:
         mu, pol, m, qol = labels
-        value = _native.cw_rotate(kz, mu, pol, qz, m, qol, phi)
-        _, context = diff.wignerd(np.abs(m), m, m, phi, 0.0, 0.0)
+        context = _native.wignerd_context(
+            *diff._wignerd_inputs(np.abs(m), m, m, phi, 0.0, 0.0)
+        )
         mask = (kz == qz) & (mu == m) & (pol == qol)
 
         def pullback(g: Any) -> Any:
             angle, _, _ = context.pullback(np.where(mask, g, 0))
             return angle, np.zeros_like(kz), np.zeros_like(qz)
 
-        return value, pullback
+        def pushforward(phi: Any, _kz: Any, _qz: Any) -> Any:
+            return np.where(mask, context.pushforward(phi, 0.0, 0.0), 0)
 
-    return backend.apply(record, shape, *values)
+        return DerivativeContext(pullback, pushforward)
+
+    def record(phi: Any, kz: Any, qz: Any) -> Any:
+        mu, pol, m, qol = labels
+        value = _native.cw_rotate(kz, mu, pol, qz, m, qol, phi)
+        return value, restore((), phi, kz, qz)
+
+    return backend.apply(
+        SavedRecord(record, lambda _inputs: (), lambda _context: (), restore),
+        shape,
+        *values,
+    )
 
 
 def cw_translate(
@@ -222,12 +297,14 @@ def cw_translate(
     shape = _shape(values, labels)
     values = tuple(_broadcast(backend, value, shape) for value in values)
 
-    def record(krr: Any, phi: Any, z: Any, kz: Any, qz: Any) -> Any:
+    def restore(
+        _state: Any, krr: Any, phi: Any, z: Any, kz: Any, qz: Any
+    ) -> DerivativeContext:
         mu, pol, m, qol = labels
-        function = _native.cw_translate_s if singular else _native.cw_translate_r
-        value = function(kz, mu, pol, qz, m, qol, krr, phi, z)
-        _, context = diff.cylindrical_translation(
-            krr, phi, z, qz, order=m - mu, singular=singular
+        context = _native.cylindrical_translation_context(
+            *diff._cylindrical_translation_inputs(
+                krr, phi, z, qz, order=m - mu, singular=singular
+            )
         )
         mask = (kz == qz) & (pol == qol)
 
@@ -237,9 +314,22 @@ def cw_translate(
             # Credit their shared phase derivative once, to the source qz.
             return radial, angle, axial, np.zeros_like(kz), wave
 
-        return value, pullback
+        def pushforward(krr: Any, phi: Any, z: Any, _kz: Any, qz: Any) -> Any:
+            return np.where(mask, context.pushforward(krr, phi, z, qz), 0)
 
-    return backend.apply(record, shape, *values)
+        return DerivativeContext(pullback, pushforward)
+
+    def record(krr: Any, phi: Any, z: Any, kz: Any, qz: Any) -> Any:
+        mu, pol, m, qol = labels
+        function = _native.cw_translate_s if singular else _native.cw_translate_r
+        value = function(kz, mu, pol, qz, m, qol, krr, phi, z)
+        return value, restore((), krr, phi, z, kz, qz)
+
+    return backend.apply(
+        SavedRecord(record, lambda _inputs: (), lambda _context: (), restore),
+        shape,
+        *values,
+    )
 
 
 def pw_translate(
@@ -259,14 +349,22 @@ def pw_translate(
         *(backend.array(v) for v in (x, y, z)),
     )
 
-    def evaluate(kx: Any, ky: Any, kz: Any, x: Any, y: Any, z: Any) -> Any:
-        value, context = diff.plane_phases([[x, y, z]], [[kx, ky, kz]])
-
+    def map_context(context: Any, *_primals: Any) -> DerivativeContext:
         def pullback(g: Any) -> Any:
             points, vectors = context.pullback(np.array([[g]]))
             return (*vectors[0], *points[0])
 
-        return value[0, 0], pullback
+        def pushforward(kx: Any, ky: Any, kz: Any, x: Any, y: Any, z: Any) -> Any:
+            return context.pushforward([[x, y, z]], [[kx, ky, kz]])[0, 0]
+
+        return DerivativeContext(pullback, pushforward, context)
+
+    @native_state(
+        _native.PlanePhasesContext, lambda _inputs: (1, 1), map_context=map_context
+    )
+    def evaluate(kx: Any, ky: Any, kz: Any, x: Any, y: Any, z: Any) -> Any:
+        value, context = diff.plane_phases([[x, y, z]], [[kx, ky, kz]])
+        return value[0, 0], map_context(context, kx, ky, kz, x, y, z)
 
     return _elementwise(backend, evaluate, values)
 
@@ -288,6 +386,20 @@ def pw_to_sw(
     labels = _labels(l, m, polsw, polpw)
     values = tuple(backend.array(v, complex_=True) for v in (kx, ky, kz))
 
+    def map_context(context: Any, *_primals: Any) -> DerivativeContext:
+        def pullback(g: Any) -> Any:
+            return tuple(context.pullback(np.array([[g]]))[1][0])
+
+        def pushforward(kx: Any, ky: Any, kz: Any) -> Any:
+            return context.pushforward(np.zeros((1, 3)), [[kx, ky, kz]])[0, 0]
+
+        return DerivativeContext(pullback, pushforward, context)
+
+    @native_state(
+        _native.PlaneExpansionContext,
+        lambda _inputs: (1, 1, 1, False),
+        map_context=map_context,
+    )
     def evaluate(
         kx: Any,
         ky: Any,
@@ -300,11 +412,7 @@ def pw_to_sw(
         value, context = diff.plane_expansion(
             SphericalBasis([(l, m, polsw)]), [[kx, ky, kz]], [polpw], poltype=poltype
         )
-
-        def pullback(g: Any) -> Any:
-            return tuple(context.pullback(np.array([[g]]))[1][0])
-
-        return value[0, 0], pullback
+        return value[0, 0], map_context(context, kx, ky, kz, l, m, polsw, polpw)
 
     return _elementwise(backend, evaluate, values, labels)
 
@@ -330,29 +438,62 @@ def pw_to_cw(
         backend.array(kzpw),
     )
 
+    def map_context(context: Any, *_primals: Any) -> DerivativeContext:
+        if context is None:
+
+            def zero_pullback(_g: Any) -> Any:
+                return 0.0, 0.0j, 0.0j, 0.0
+
+            def zero_pushforward(*_tangents: Any) -> Any:
+                return 0.0j
+
+            return DerivativeContext(zero_pullback, zero_pushforward)
+
+        def pullback(g: Any) -> Any:
+            vector = context.pullback(np.array([[g]]))[1][0]
+            return 0.0, vector[0], vector[1], 0.0
+
+        def pushforward(_kzcw: Any, kx: Any, ky: Any, _kzpw: Any) -> Any:
+            return context.pushforward(np.zeros((1, 3)), [[kx, ky, 0.0]])[0, 0]
+
+        return DerivativeContext(pullback, pushforward, context)
+
     def evaluate(
         kzcw: Any, kx: Any, ky: Any, kzpw: Any, m: Any, polcw: Any, polpw: Any
     ) -> Any:
         # The public coefficient uses exact matching; the matrix record permits
         # a few ulps when matching a plane basis to cylindrical labels.
         value = _native.pw_to_cw(kzcw, m, polcw, kx, ky, kzpw, polpw)
-        if kzcw != kzpw or polcw != polpw:
+        context = None
+        if kzcw == kzpw and polcw == polpw:
+            _, context = diff.plane_expansion(
+                CylindricalBasis([(kzcw, m, polcw)]), [[kx, ky, kzpw]], [polpw]
+            )
+        return value, map_context(context, kzcw, kx, ky, kzpw, m, polcw, polpw)
 
-            def zero_pullback(_g: Any) -> Any:
-                return 0.0, 0.0j, 0.0j, 0.0
+    def state_spec(_inputs: tuple[ArraySpec, ...]) -> tuple[ArraySpec, ...]:
+        size = 1 + _native.PlaneExpansionContext._state_spec(1, 1, 1, True)
+        return (ArraySpec((size,), np.dtype(np.uint8)),)
 
-            return value, zero_pullback
-        _, context = diff.plane_expansion(
-            CylindricalBasis([(kzcw, m, polcw)]), [[kx, ky, kzpw]], [polpw]
+    def save(context: DerivativeContext) -> tuple[Any, ...]:
+        state = np.zeros(state_spec(())[0].shape, dtype=np.uint8)
+        if context.native_context is not None:
+            state[0] = 1
+            state[1:] = context.native_context._state()
+        return (state,)
+
+    def restore(state: tuple[Any, ...], *primals: Any) -> DerivativeContext:
+        active = state[0][0]
+        if active not in (0, 1):
+            raise ValueError("invalid plane-expansion state tag")
+        context = (
+            _native.PlaneExpansionContext._from_state(state[0][1:]) if active else None
         )
+        return map_context(context, *primals)
 
-        def pullback(g: Any) -> Any:
-            vector = context.pullback(np.array([[g]]))[1][0]
-            return 0.0, vector[0], vector[1], 0.0
-
-        return value, pullback
-
-    return _elementwise(backend, evaluate, values, labels)
+    return _elementwise(
+        backend, SavedRecord(evaluate, state_spec, save, restore), values, labels
+    )
 
 
 def pw_permute_xyz(
@@ -371,19 +512,29 @@ def pw_permute_xyz(
     labels = _labels(p, q)
     values = tuple(backend.array(v, complex_=True) for v in (kx, ky, kz))
 
+    def map_context(
+        context: Any, _kx: Any, _ky: Any, _kz: Any, p: Any, _q: Any
+    ) -> DerivativeContext:
+        def pullback(g: Any) -> Any:
+            cotangent = np.zeros((2, 1), dtype=np.complex128)
+            cotangent[int(p), 0] = g
+            return tuple(context.pullback(cotangent)[0])
+
+        def pushforward(kx: Any, ky: Any, kz: Any) -> Any:
+            return context.pushforward([[kx, ky, kz]])[int(p), 0]
+
+        return DerivativeContext(pullback, pushforward, context)
+
+    @native_state(
+        _native.PlanePermutationContext, lambda _inputs: (1,), map_context=map_context
+    )
     def evaluate(kx: Any, ky: Any, kz: Any, p: Any, q: Any) -> Any:
         if p not in (0, 1):
             raise ValueError("polarization must be 0 or 1")
         value, context = diff.plane_permutation(
             [[kx, ky, kz]], [q], n=2 if inverse else 1, poltype=poltype
         )
-
-        def pullback(g: Any) -> Any:
-            cotangent = np.zeros((2, 1), dtype=np.complex128)
-            cotangent[int(p), 0] = g
-            return tuple(context.pullback(cotangent)[0])
-
-        return value[int(p), 0], pullback
+        return value[int(p), 0], map_context(context, kx, ky, kz, p, q)
 
     return _elementwise(backend, evaluate, values, labels)
 
@@ -406,6 +557,23 @@ def sw_periodic_to_cw(
     labels = _labels(m, pol, l, mu, qol)
     values = (backend.array(kz), backend.array(k, complex_=True), backend.array(area))
 
+    def map_context(context: Any, *_primals: Any) -> DerivativeContext:
+        def pullback(g: Any) -> Any:
+            _, _, ks, axial, period = context.pullback(np.array([[g]]))
+            return axial[0], ks.sum(), period
+
+        def pushforward(kz: Any, k: Any, area: Any) -> Any:
+            return context.pushforward(
+                np.zeros((1, 3)), np.zeros((1, 3)), [k, k], [kz], area
+            )[0, 0]
+
+        return DerivativeContext(pullback, pushforward, context)
+
+    @native_state(
+        _native.PeriodicToCwContext,
+        lambda _inputs: (1, 1, 1, 1),
+        map_context=map_context,
+    )
     def evaluate(
         kz: Any,
         k: Any,
@@ -424,11 +592,7 @@ def sw_periodic_to_cw(
             poltype=poltype,
         )
 
-        def pullback(g: Any) -> Any:
-            _, _, ks, axial, period = context.pullback(np.array([[g]]))
-            return axial[0], ks.sum(), period
-
-        return value[0, 0], pullback
+        return value[0, 0], map_context(context, kz, k, area, m, pol, l, mu, qol)
 
     return _elementwise(backend, evaluate, values, labels)
 
@@ -454,6 +618,20 @@ def cw_to_sw(
     labels = _labels(l, m, polsw, kz, mu, polcw)
     values = (backend.array(k, complex_=True),)
 
+    def map_context(context: Any, *_primals: Any) -> DerivativeContext:
+        def pullback(g: Any) -> Any:
+            return (context.pullback(np.array([[g]]))[2].sum(),)
+
+        def pushforward(k: Any) -> Any:
+            return context.pushforward(np.zeros((1, 3)), np.zeros((1, 3)), [k, k])[0, 0]
+
+        return DerivativeContext(pullback, pushforward, context)
+
+    @native_state(
+        _native.ExpansionContext,
+        lambda _inputs: (1, 1, 1, 1, 2),
+        map_context=map_context,
+    )
     def evaluate(
         k: Any,
         l: Any,  # noqa: E741 - public spherical degree label
@@ -470,10 +648,7 @@ def cw_to_sw(
             poltype=poltype,
         )
 
-        def pullback(g: Any) -> Any:
-            return (context.pullback(np.array([[g]]))[2].sum(),)
-
-        return value[0, 0], pullback
+        return value[0, 0], map_context(context, k, l, m, polsw, kz, mu, polcw)
 
     return _elementwise(backend, evaluate, values, labels)
 
@@ -514,6 +689,16 @@ def translate_periodic(
         family, np.zeros(positions.shape), out, in_, np.zeros(source_positions.shape)
     )
 
+    @native_state(
+        _native.LatticeExpansionContext,
+        lambda inputs: (
+            len(destination),
+            len(source),
+            inputs[0].shape[0],
+            inputs[1].shape[0],
+            family is CylindricalBasis,
+        ),
+    )
     def record(rs: Any, rsin: Any, ks: Any, kpar: Any, a: Any) -> Any:
         destination, source = _modes.periodic_bases(family, rs, out, in_, rsin)
         return diff.lattice_expansion(

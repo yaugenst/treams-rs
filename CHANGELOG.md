@@ -9,6 +9,15 @@
   Higher derivatives remain unsupported.
 - Expose reusable native `pushforward` and `pullback` contexts in Python,
   with owned inputs and array-based transport for saved numerical state.
+- Add first-order forward mode to physics workflows and the Advect, JAX,
+  PyTorch and HIPS Autograd adapters. Add `testing.check_pushforward` for
+  finite-difference and adjoint-identity checks.
+- JAX retains computed derivative state or reconstructs input-only contexts
+  from saved inputs, avoiding another value calculation for built-in JVPs,
+  VJPs and Jacobian directions. Custom records can declare saved state or
+  use the documented recomputation path. Advect and HIPS Autograd reuse
+  the original context. Require Advect 0.3.1 or later for residual-aware
+  JVPs, and JAX 0.10 or later for batched reverse transforms.
 - Preserve Clippy's default correctness errors and enable every Hypothesis
   health check on CI. Let Maturin configure Python extension linking and build
   source-distribution verification wheels through uv's default sdist rebuild.

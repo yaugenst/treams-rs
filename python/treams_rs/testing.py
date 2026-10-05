@@ -1,4 +1,4 @@
-"""Finite-difference checks of first-order gradients and pullbacks.
+"""Finite-difference checks of first-order gradients, pullbacks and pushforwards.
 
 A pullback maps the gradient of a real loss with respect to an output to the
 gradients with respect to the inputs; ``treams_rs.diff`` defines records,
@@ -14,7 +14,9 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from ._records import apply_pullback as _apply_pullback
+from ._records import apply_pushforward as _apply_pushforward
 from ._records import input_array as _input_array
+from ._records import record_outputs as _record_outputs
 from ._records import run_record as _run_record
 
 if TYPE_CHECKING:
@@ -24,7 +26,7 @@ if TYPE_CHECKING:
 
     from ._records import Array, Record
 
-__all__ = ["check_gradient", "check_pullback"]
+__all__ = ["check_gradient", "check_pullback", "check_pushforward"]
 
 
 def _shaped(value: ArrayLike, reference: Array, label: str) -> Array:
@@ -50,6 +52,81 @@ def _probe(
         if np.iscomplexobj(reference):
             value = value + 1j * rng.standard_normal(reference.shape)
     return _shaped(value, reference, label)
+
+
+def _check_inputs(
+    parameters: tuple[ArrayLike, ...],
+    directions: tuple[ArrayLike, ...] | None,
+    step: float,
+    rtol: float,
+    atol: float,
+    seed: int,
+) -> tuple[tuple[Array, ...], tuple[Array, ...], np.random.Generator]:
+    if not np.isfinite(step) or step <= 0:
+        raise ValueError("step must be finite and positive")
+    if not all(np.isfinite(x) and x >= 0 for x in (rtol, atol)):
+        raise ValueError("rtol and atol must be finite and nonnegative")
+    primals = tuple(_input_array(value) for value in parameters)
+    for i, value in enumerate(primals):
+        if not value.size or not np.all(np.isfinite(value)):
+            raise ValueError(f"parameter {i}: require nonempty, finite values")
+    if directions is not None and (
+        not isinstance(directions, tuple) or len(directions) != len(primals)
+    ):
+        raise ValueError("directions must be a tuple with one item per parameter")
+    rng = np.random.default_rng(seed)
+    probes = tuple(
+        _probe(
+            None if directions is None else directions[i], value, rng, f"direction {i}"
+        )
+        for i, value in enumerate(primals)
+    )
+    return primals, probes, rng
+
+
+def _cotangent_probes(
+    outputs: tuple[Array, ...],
+    multiple: bool,
+    cotangents: ArrayLike | tuple[ArrayLike, ...] | None,
+    rng: np.random.Generator,
+) -> tuple[Array, ...]:
+    if cotangents is not None and isinstance(cotangents, tuple) != multiple:
+        raise ValueError(
+            "cotangents must match the output's single-array/tuple structure"
+        )
+    supplied = cotangents if isinstance(cotangents, tuple) else (cotangents,)
+    if cotangents is not None and len(supplied) != len(outputs):
+        raise ValueError("cotangents must contain one item per output")
+    weights = tuple(
+        _probe(
+            None if cotangents is None else supplied[i], value, rng, f"cotangent {i}"
+        )
+        for i, value in enumerate(outputs)
+    )
+    if not any(np.any(weight) for weight in weights):
+        raise ValueError("cotangents must not all be zero")
+    for i, output in enumerate(outputs):
+        _shaped(output, output, f"output {i}")
+    return weights
+
+
+def _checked_pullback(
+    pullback: Callable[..., object],
+    weights: tuple[Array, ...],
+    primals: tuple[Array, ...],
+) -> tuple[Array, ...]:
+    # Check finiteness before real projection, so a non-finite imaginary
+    # gradient of a real input cannot be silently discarded.
+    result = pullback(*weights)
+
+    def returned(*_: Array) -> object:
+        return result
+
+    gradients = _apply_pullback(returned, weights, primals, conjugate=False)
+    for i, raw in enumerate(result if isinstance(result, tuple) else (result,)):
+        if not np.all(np.isfinite(np.asarray(raw))):
+            raise ValueError(f"gradient for parameter {i}: values must be finite")
+    return gradients
 
 
 def check_pullback(
@@ -104,58 +181,12 @@ def check_pullback(
     """
     if not parameters:
         raise ValueError("check_pullback requires at least one dynamic parameter")
-    if not np.isfinite(step) or step <= 0:
-        raise ValueError("step must be finite and positive")
-    if not all(np.isfinite(x) and x >= 0 for x in (rtol, atol)):
-        raise ValueError("rtol and atol must be finite and nonnegative")
-    primals = tuple(_input_array(value) for value in parameters)
-    for i, value in enumerate(primals):
-        if not value.size or not np.all(np.isfinite(value)):
-            raise ValueError(f"parameter {i}: require nonempty, finite values")
-    if directions is not None and (
-        not isinstance(directions, tuple) or len(directions) != len(primals)
-    ):
-        raise ValueError("directions must be a tuple with one item per parameter")
-    rng = np.random.default_rng(seed)
-    probes = tuple(
-        _probe(
-            None if directions is None else directions[i], value, rng, f"direction {i}"
-        )
-        for i, value in enumerate(primals)
-    )
+    primals, probes, rng = _check_inputs(parameters, directions, step, rtol, atol, seed)
     if any(not np.any(direction) for direction in probes):
         raise ValueError("each direction must be nonzero")
     outputs, pullback, multiple = _run_record(record, primals)
-    if cotangents is not None and isinstance(cotangents, tuple) != multiple:
-        raise ValueError(
-            "cotangents must match the output's single-array/tuple structure"
-        )
-    supplied = cotangents if isinstance(cotangents, tuple) else (cotangents,)
-    if cotangents is not None and len(supplied) != len(outputs):
-        raise ValueError("cotangents must contain one item per output")
-    weights = tuple(
-        _probe(
-            None if cotangents is None else supplied[i], value, rng, f"cotangent {i}"
-        )
-        for i, value in enumerate(outputs)
-    )
-    if not any(np.any(weight) for weight in weights):
-        raise ValueError("cotangents must not all be zero")
-    for i, output in enumerate(outputs):
-        _shaped(output, output, f"output {i}")
-    # The adapters' rules: arity, shapes and the real projection for real
-    # parameters (whose imaginary gradient part does not enter the pairing).
-    # Finiteness is checked before that projection, so a non-finite imaginary
-    # part for a real parameter still exposes a pullback bug.
-    result = pullback(*weights)
-
-    def returned(*_: Array) -> object:
-        return result
-
-    gradients = _apply_pullback(returned, weights, primals, conjugate=False)
-    for i, raw in enumerate(result if isinstance(result, tuple) else (result,)):
-        if not np.all(np.isfinite(np.asarray(raw))):
-            raise ValueError(f"gradient for parameter {i}: values must be finite")
+    weights = _cotangent_probes(outputs, multiple, cotangents, rng)
+    gradients = _checked_pullback(pullback, weights, primals)
     for i, (gradient, direction) in enumerate(zip(gradients, probes, strict=True)):
         shifted_outputs = []
         for sign in (1, -1):
@@ -189,6 +220,106 @@ def check_pullback(
                 "Check gradient order/shapes and the Re(vdot) complex convention; "
                 "check step size and conditioning before changing tolerances."
             )
+
+
+def check_pushforward(
+    record: Record,
+    *parameters: ArrayLike,
+    directions: tuple[ArrayLike, ...] | None = None,
+    cotangents: ArrayLike | tuple[ArrayLike, ...] | None = None,
+    step: float = 1e-6,
+    rtol: float = 1e-5,
+    atol: float = 1e-7,
+    seed: int = 0,
+) -> None:
+    """Check a record's analytic JVP against differences and its adjoint.
+
+    All parameters move together along ``directions``. Each complete output
+    tangent is compared with a central difference, then the identity
+    ``Re(vdot(cotangent, JVP)) = Re(vdot(VJP, direction))`` is checked with a
+    fresh context. Four forward calls are made, with one derivative action on
+    each context. No Jacobian is constructed.
+
+    Args:
+        record: function of the dynamic inputs returning ``(value, context)``.
+            The value is one array or a flat tuple of arrays; the context has
+            ``pushforward(*directions)`` and ``pullback(*cotangents)`` methods.
+            Its pushforward has the same output structure as the value.
+        *parameters: nonempty, finite float64 or complex128 dynamic inputs.
+        directions: tuple with one direction per parameter. Individual
+            directions may be zero; at least one must be nonzero. Default:
+            random directions drawn from ``seed``.
+        cotangents: probes for the adjoint identity, with the same array or
+            tuple structure as the output. Default: random probes from ``seed``.
+        step: positive finite difference step. Both shifted points must remain
+            in the physical domain.
+        rtol: relative tolerance for each output entry and the adjoint pairing.
+        atol: absolute tolerance for each output entry and the adjoint pairing.
+        seed: random seed, as in ``check_pullback``.
+
+    Returns:
+        None when both derivative checks pass.
+
+    Raises:
+        AssertionError: a tangent or the adjoint pairing disagrees.
+        ValueError: an input, probe or derivative breaks the shape, structure or
+            finiteness contract.
+        NotImplementedError: the record context has no pushforward method.
+    """
+    if not parameters:
+        raise ValueError("check_pushforward requires at least one dynamic parameter")
+    primals, probes, rng = _check_inputs(parameters, directions, step, rtol, atol, seed)
+    if not any(np.any(direction) for direction in probes):
+        raise ValueError("directions must not all be zero")
+    outputs, context, multiple = _record_outputs(record, primals)
+    weights = _cotangent_probes(outputs, multiple, cotangents, rng)
+    tangents = _apply_pushforward(context, probes, primals, outputs)
+    for i, (tangent, output) in enumerate(zip(tangents, outputs, strict=True)):
+        _shaped(tangent, output, f"tangent for output {i}")
+    shifted_outputs = []
+    for sign in (1, -1):
+        shifted = tuple(
+            np.asarray(primal + sign * step * probe, dtype=primal.dtype)
+            for primal, probe in zip(primals, probes, strict=True)
+        )
+        values, _, is_multiple = _record_outputs(record, shifted)
+        if is_multiple != multiple or len(values) != len(outputs):
+            raise ValueError("perturbed output structure changed")
+        shifted_outputs.append(
+            tuple(
+                _shaped(value, output, f"perturbed output {i}")
+                for i, (value, output) in enumerate(zip(values, outputs, strict=True))
+            )
+        )
+    for i, (tangent, plus, minus) in enumerate(
+        zip(tangents, *shifted_outputs, strict=True)
+    ):
+        np.testing.assert_allclose(
+            tangent,
+            (plus - minus) / (2 * step),
+            rtol=rtol,
+            atol=atol,
+            err_msg=f"pushforward output {i} disagrees with finite differences "
+            f"(step={step:g}, seed={seed})",
+        )
+    _, pullback, _ = _run_record(record, primals)
+    gradients = _checked_pullback(pullback, weights, primals)
+    forward_pairing = sum(
+        float(np.vdot(weight, tangent).real)
+        for weight, tangent in zip(weights, tangents, strict=True)
+    )
+    reverse_pairing = sum(
+        float(np.vdot(gradient, probe).real)
+        for gradient, probe in zip(gradients, probes, strict=True)
+    )
+    np.testing.assert_allclose(
+        forward_pairing,
+        reverse_pairing,
+        rtol=rtol,
+        atol=atol,
+        err_msg="pushforward/pullback adjoint identity disagrees; "
+        "check the Re(vdot) complex convention",
+    )
 
 
 def check_gradient(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import partial
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
@@ -9,14 +10,16 @@ if TYPE_CHECKING:
 
 import numpy as np
 
-from . import diff
+from . import _native, diff
 from ._bases import CylindricalBasis, PlaneWavePorts, SphericalBasis
 from ._framework_backend import Backend, Basis, Material, Recorded, with_zero_metadata
 from ._framework_smatrix import SMatrix
 from ._framework_waves import PlaneWave, PortSet, PortWave, Wave
 from ._lattice import framework_cell, on_diffraction_orders, periodic_alignment
 from ._promotion import promote
+from ._records import DerivativeContext
 from ._results import CrossSections
+from ._saved import native_state
 from ._validation import check_particle_positions, one_of
 
 __all__ = ["Cluster", "PeriodicResponse", "TMatrix", "solve_periodic"]
@@ -354,11 +357,8 @@ class TMatrix:
         """Rotate local multipole channels by differentiable z-y-z Euler angles."""
         b = self._backend
 
-        def record(angles: Any) -> Recorded:
-            return diff.rotation(angles, self.basis)
-
         rotation = b.apply(
-            record,
+            partial(diff.rotation, destination=self.basis),
             self.shape,
             b.array([phi, theta, psi]),
         )
@@ -485,14 +485,7 @@ class TMatrix:
         b = self._backend
         ks = self._propagating_ks() if kind == "cd" else b.array([1.0, 1.0])
 
-        def record(matrix: Any, ks: Any) -> Recorded:
-            return diff.tmatrix_metric(
-                matrix,
-                ks,
-                polarizations=self.basis.pol,
-                metric=kind,
-            )
-
+        record = partial(diff.tmatrix_metric, polarizations=self.basis.pol, metric=kind)
         return b.apply(record, (), self.array, ks, real=True)
 
     @property
@@ -652,19 +645,32 @@ class Cluster:
         bases = [particle.basis for particle in self.particles]
         polarization = self.polarization
 
-        # The native cluster keeps the particle blocks separate and builds the
-        # coupling itself; neither the dense local matrix nor the coupling of
-        # _coupling() is formed. It also rejects particles at one position.
-        def record(positions: Any, ks: Any, *blocks: Any) -> Recorded:
-            value, context = diff.particle_cluster(
-                list(blocks), positions, ks, bases=bases, poltype=polarization
-            )
-
+        def map_context(context: Any, *_primals: Any) -> DerivativeContext:
             def pullback(g: Any) -> Any:
                 local, positions, ks = context.pullback(g)
                 return (positions, ks, *local)
 
-            return value, pullback
+            def pushforward(positions: Any, ks: Any, *blocks: Any) -> Any:
+                return context.pushforward(list(blocks), positions, ks)
+
+            return DerivativeContext(pullback, pushforward, context)
+
+        # The native cluster keeps the particle blocks separate and builds the
+        # coupling itself; neither the dense local matrix nor the coupling of
+        # _coupling() is formed. It also rejects particles at one position.
+        @native_state(
+            _native.ParticleClusterContext,
+            lambda inputs: (
+                [block.shape[0] for block in inputs[2:]],
+                isinstance(self.basis, CylindricalBasis),
+            ),
+            map_context=map_context,
+        )
+        def record(positions: Any, ks: Any, *blocks: Any) -> Recorded:
+            value, context = diff.particle_cluster(
+                list(blocks), positions, ks, bases=bases, poltype=polarization
+            )
+            return value, map_context(context)
 
         size = len(self.basis)
         result = b.apply(
@@ -700,21 +706,38 @@ class Cluster:
         b = self._backend
         wave = _regular_incident(self, incident)
 
+        def map_context(
+            context: Any, _coupling: Any, _incident: Any, positions: Any, *_blocks: Any
+        ) -> DerivativeContext:
+            def pullback(g: Any) -> Any:
+                local, coupling, incident = context.pullback_blocks(g)
+                return (coupling, incident, np.zeros_like(positions), *local)
+
+            def pushforward(
+                coupling: Any, incident: Any, _positions: Any, *blocks: Any
+            ) -> Any:
+                return context.pushforward_blocks(list(blocks), coupling, incident)
+
+            return DerivativeContext(pullback, pushforward, context)
+
         # The native factor keeps the particle blocks separate; no dense local
         # matrix or full interacting response is formed. The positions only
         # pass through for the check that solve() gets from its native cluster.
+        @native_state(
+            _native.IlluminateContext,
+            lambda inputs: (
+                [block.shape[0] for block in inputs[3:]],
+                inputs[1].shape[1],
+            ),
+            map_context=map_context,
+        )
         def record(coupling: Any, incident: Any, positions: Any, *blocks: Any) -> Any:
             check_particle_positions(
                 positions, cylindrical=isinstance(self.basis, CylindricalBasis)
             )
             factor = diff.factor_interaction_blocks(list(blocks), coupling)
             value, context = factor.record(np.asarray(incident, dtype=np.complex128))
-
-            def pullback(g: Any) -> Any:
-                local, coupling, incident = context.pullback_blocks(g)
-                return (coupling, incident, np.zeros_like(positions), *local)
-
-            return value, pullback
+            return value, map_context(context, coupling, incident, positions, *blocks)
 
         vector = wave.coefficients.ndim == 1
         columns = wave.coefficients[:, None] if vector else wave.coefficients
@@ -817,6 +840,16 @@ class PeriodicWave:
                     "periodic coupling maps outgoing to regular waves of the same family"
                 )
 
+            @native_state(
+                _native.LatticeExpansionContext,
+                lambda inputs: (
+                    len(basis),
+                    len(wave.basis),
+                    inputs[0].shape[0],
+                    inputs[1].shape[0],
+                    isinstance(basis, CylindricalBasis),
+                ),
+            )
             def record(
                 destination: Any, source: Any, ks: Any, q: Any, a: Any
             ) -> Recorded:
@@ -861,6 +894,40 @@ def _cylindrical_radiation(
     if tuple(lattice.shape) != (1, 1) or tuple(kpar.shape) != (1,):
         raise ValueError("spherical-to-cylindrical radiation requires a 1D z period")
 
+    def map_context(
+        context: Any, _destination: Any, _source: Any, _ks: Any, a: Any, q: Any
+    ) -> DerivativeContext:
+        def pullback(g: Any) -> tuple[Any, ...]:
+            gd, gs, gks, _gkz, period = context.pullback(g)
+            return (
+                gd,
+                gs,
+                gks,
+                np.asarray([[period * np.sign(a[0, 0])]]),
+                np.zeros_like(q),
+            )
+
+        def pushforward(gd: Any, gs: Any, gks: Any, da: Any, _q: Any) -> Any:
+            return context.pushforward(
+                gd,
+                gs,
+                gks,
+                np.zeros_like(destination.kz),
+                float(da[0, 0] * np.sign(a[0, 0])),
+            )
+
+        return DerivativeContext(pullback, pushforward, context)
+
+    @native_state(
+        _native.PeriodicToCwContext,
+        lambda inputs: (
+            len(destination),
+            inputs[0].shape[0],
+            len(source.basis),
+            inputs[1].shape[0],
+        ),
+        map_context=map_context,
+    )
     def record(
         destination_at: Any, source_at: Any, ks: Any, a: Any, q: Any
     ) -> Recorded:
@@ -876,18 +943,7 @@ def _cylindrical_radiation(
             float(abs(a[0, 0])),
             poltype=source.polarization,
         )
-
-        def pullback(g: Any) -> tuple[Any, ...]:
-            gd, gs, gks, _gkz, period = context.pullback(g)
-            return (
-                gd,
-                gs,
-                gks,
-                np.asarray([[period * np.sign(a[0, 0])]]),
-                np.zeros_like(q),
-            )
-
-        return value, pullback
+        return value, map_context(context, destination_at, source_at, ks, a, q)
 
     result = b.apply(
         record,
@@ -923,6 +979,16 @@ def _radiation_channels(
         else lattice[0, 0]
     )
 
+    def map_context(context: Any, *_primals: Any) -> DerivativeContext:
+        return with_zero_metadata(context, *_primals[-2:])
+
+    @native_state(
+        _native.SphericalChannelsContext
+        if spherical
+        else _native.CylindricalChannelsContext,
+        lambda inputs: (len(tm.basis), inputs[0].shape[0], inputs[2].shape[0]),
+        map_context=map_context,
+    )
     def record(
         positions: Any, ks: Any, q: Any, measure: Any, a: Any, bloch: Any
     ) -> Recorded:
@@ -945,7 +1011,7 @@ def _radiation_channels(
             poltype=tm.polarization,
             fixed_q=ports.fixed_q,
         )
-        return value, with_zero_metadata(context.pullback, a, bloch)
+        return value, map_context(context, positions, ks, q, measure, a, bloch)
 
     return b.apply(
         record,
