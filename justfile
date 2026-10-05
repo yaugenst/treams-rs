@@ -9,6 +9,23 @@ build-ext:
 build-ext-release:
     uv run --no-sync maturin develop --release -m crates/treams-py/Cargo.toml
 
+# Install the locked test environment, including the CPU build of PyTorch.
+ci-python-setup python:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    uv python install "{{ python }}"
+    uv sync --locked --no-install-project --group dev --extra jax --extra autograd \
+        --python "{{ python }}"
+    torch_version="$(
+        uv export --locked --extra torch --no-emit-project --no-hashes \
+            --no-header --no-annotate | sed -n 's/^torch==\([^ ;]*\).*/\1/p'
+    )"
+    test -n "$torch_version"
+    uv pip install \
+        --python .venv/bin/python \
+        --index-url "$TORCH_CPU_INDEX" \
+        "torch==${torch_version}+cpu"
+
 rust-fmt-check:
     cargo fmt --check --all
 

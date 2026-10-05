@@ -57,26 +57,12 @@ jobs:
         with:
           just-version: "1.58.0"
 
-      - name: Set up Python
-        run: uv python install "$PYTHON_VERSION"
-
       # Dependency-group markers select the interpreter-specific oracle stack;
       # tests/conftest.py reports test modules whose dependencies cannot install.
       # `just build-ext` builds the tested extension, so uv does not build the
       # project as well.
       - name: Install dependencies
-        run: |
-          uv sync --locked --no-install-project --group dev --extra jax --extra autograd \
-            --python "$PYTHON_VERSION"
-          torch_version="$(
-            uv export --locked --extra torch --no-emit-project --no-hashes \
-              --no-header --no-annotate | sed -n 's/^torch==\([^ ;]*\).*/\1/p'
-          )"
-          test -n "$torch_version"
-          uv pip install \
-            --python .venv/bin/python \
-            --index-url "$TORCH_CPU_INDEX" \
-            "torch==${torch_version}+cpu"
+        run: just ci-python-setup "$PYTHON_VERSION"
 
       - name: Build the extension
         run: just build-ext
@@ -114,6 +100,7 @@ jobs:
     name: Coverage
     needs: python
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
     permissions:
@@ -145,6 +132,7 @@ jobs:
           key: python-coverage-base-${{ env.BASE_SHA }}
 
       - name: Download the base commit's saved coverage
+        id: base-artifact
         if: steps.base-coverage.outputs.cache-hit != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -154,9 +142,36 @@ jobs:
             --commit "$BASE_SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
           if [[ -z "$run_id" ]] || ! gh run download "$run_id" \
             --name python-coverage --dir coverage/base; then
-            echo "::error::No saved coverage report is available for base commit $BASE_SHA. Tests are not rerun automatically."
-            exit 1
+            echo "No saved report for $BASE_SHA; regenerating and caching it."
+            echo "rebuild=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+        if: steps.base-artifact.outputs.rebuild == 'true'
+        with:
+          toolchain: 1.94.0
+
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        if: steps.base-artifact.outputs.rebuild == 'true'
+        with:
+          just-version: "1.58.0"
+
+      - name: Regenerate missing base coverage
+        if: steps.base-artifact.outputs.rebuild == 'true'
+        env:
+          TREAMS_RS_NUM_THREADS: "1"
+          COVERAGE_CORE: sysmon
+        run: |
+          baseline="$RUNNER_TEMP/coverage-base"
+          git worktree add --detach "$baseline" "$BASE_SHA"
+          trap 'git -C "$GITHUB_WORKSPACE" worktree remove --force "$baseline"' EXIT
+          just --justfile "$GITHUB_WORKSPACE/justfile" \
+            --working-directory "$baseline" ci-python-setup 3.12
+          cd "$baseline"
+          just build-ext
+          mkdir -p "$GITHUB_WORKSPACE/coverage/base"
+          .venv/bin/python -m pytest -n auto --cov=treams_rs \
+            --cov-report="xml:$GITHUB_WORKSPACE/coverage/base/coverage.xml"
 
       - name: Cache the base report before enforcing thresholds
         if: steps.base-coverage.outputs.cache-hit != 'true'
@@ -207,22 +222,9 @@ jobs:
         with:
           just-version: "1.58.0"
 
-      - name: Set up Python
-        run: uv python install 3.12
-
       # Pyrefly checks the framework adapters against JAX, Autograd and PyTorch.
       - name: Install dependencies
-        run: |
-          uv sync --locked --no-install-project --group dev --extra jax --extra autograd --python 3.12
-          torch_version="$(
-            uv export --locked --extra torch --no-emit-project --no-hashes \
-              --no-header --no-annotate | sed -n 's/^torch==\([^ ;]*\).*/\1/p'
-          )"
-          test -n "$torch_version"
-          uv pip install \
-            --python .venv/bin/python \
-            --index-url "$TORCH_CPU_INDEX" \
-            "torch==${torch_version}+cpu"
+        run: just ci-python-setup 3.12
 
       - name: Lint GitHub Actions workflows
         run: |

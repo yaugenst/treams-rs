@@ -122,9 +122,12 @@ The Coverage job checks the Python 3.12 report directly. Overall line coverage
 may drop by at most **0.1 percentage points** from the exact base commit, and
 at least **90% of changed executable lines** must be covered. The base is the
 pull request's base SHA, or the previous `main` SHA for a push. CI reuses that
-commit's saved report and caches it for later checks; it never reruns the tests
-to get a baseline. Reports are retained for 90 days. A missing baseline fails
-with an explicit error instead of skipping the comparison.
+commit's cached report or its saved CI artifact, retained for 90 days. If both
+are missing, the same Coverage job regenerates the report from that exact
+commit using its locked dependencies and Python 3.12 tests, then caches it for
+later runs of the pull request. Normal checks reuse the report without running
+the base tests again. A regeneration failure fails the check; it never skips
+the comparison.
 
 To check two downloaded reports locally, run from the repository root:
 
