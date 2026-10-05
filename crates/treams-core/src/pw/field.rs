@@ -439,7 +439,7 @@ impl FieldResidual {
                 rows.max(1),
                 parallel,
                 |j, out| -> Result<()> {
-                    for (i, out) in out.chunks_exact_mut(3).enumerate() {
+                    for (i, out) in out.as_chunks_mut::<3>().0.iter_mut().enumerate() {
                         out.copy_from_slice(&evaluate(i, j));
                     }
                     Ok(())

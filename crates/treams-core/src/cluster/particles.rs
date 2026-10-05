@@ -183,7 +183,7 @@ impl ParticleClusterResidual {
     }
 
     /// Shapes of the recorded particle T-matrices, in particle order.
-    #[must_use]
+    #[must_use = "iterate over the recorded particle shapes"]
     pub fn local_shapes(&self) -> impl ExactSizeIterator<Item = (usize, usize)> {
         self.interaction.local_shapes()
     }
