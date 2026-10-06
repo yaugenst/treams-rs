@@ -56,9 +56,9 @@ pub(super) fn check_rejected_wavenumber(sum: &Ewald) -> Result<(), TestCaseError
 /// With a `direction`, the spectral series matches it in value and every derivative
 /// within 1e-11 of their scales plus twice its own rounding bound; without, the sum at
 /// the automatic split, from whichever of the two each component comes, within
-/// `CHAIN_TOLERANCE` of them, and its value equals the value-only sum. Gain
-/// wavenumbers must instead be rejected. Draws next to a diffraction threshold are
-/// skipped ([`skip_threshold_band`]).
+/// `CHAIN_TOLERANCE` of them, and its value matches the value-only sum within 4 ulps of
+/// `max(|S|, 1)`. Gain wavenumbers must instead be rejected. Draws next to a diffraction
+/// threshold are skipped ([`skip_threshold_band`]).
 pub(super) fn check_chain(sum: &Ewald, direction: Option<Complex>) -> Result<(), TestCaseError> {
     skip_threshold_band(sum)?;
     let (k, rho) = (sum.k, sum.r[0].hypot(sum.r[1]));
@@ -76,7 +76,15 @@ pub(super) fn check_chain(sum: &Ewald, direction: Option<Complex>) -> Result<(),
         probes::spectral_sw1d_derivatives((l, m), k, &sum.lattice(), sum.r).unwrap()
     } else {
         let actual = sum.derivatives();
-        prop_assert_eq!(actual.value, sum.sum());
+        // Only on the spectral series are the value-only sum and the jet's value the same
+        // by construction (`spectral_sw1d`). The Ewald shells of both run the same
+        // arithmetic but stop once two add less than `SHELL_TOLERANCE` of the largest
+        // modulus of what they sum, the value alone or every component, so the two may
+        // sum different shells: 7 and 9 for a degree-23 chain, an ulp of Re S apart.
+        // 3 of 2e6 draws differed, all within an ulp, and none of 2e6 moved toward a
+        // threshold short of the band of `skip_threshold_band` by an ulp of `max(|S|, 1)`.
+        let tolerance = 4.0 * f64::EPSILON * actual.value.norm().max(1.0);
+        prop_assert_close!(sum.sum(), actual.value, tolerance, "value-only");
         (actual, value_only(Complex::default()))
     };
     let pairs = components(&actual).into_iter().zip(components(&expected));
