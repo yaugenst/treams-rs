@@ -1,9 +1,9 @@
 # Benchmarks
 
 The benchmark scripts compare treams-rs with the installed treams for speed, peak
-memory and agreement. [`scripts/README.md`](https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/scripts/README.md) lists every
+memory and agreement. [`scripts/README.md`](https://github.com/yaugenst/treams-rs/blob/8b442f18ec7a54787ffbc8fe8db0be4d137d89ef/scripts/README.md) lists every
 script with its purpose and its test, and
-[`benchmarks/README.md`](https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/benchmarks/README.md) lists the plans, manifests,
+[`benchmarks/README.md`](https://github.com/yaugenst/treams-rs/blob/8b442f18ec7a54787ffbc8fe8db0be4d137d89ef/benchmarks/README.md) lists the plans, manifests,
 summaries and raw results. The [performance](../performance/index.md) pages
 summarize the results.
 
@@ -19,7 +19,7 @@ just bench-performance   # one group: also bench-geometry, bench-lattice, bench-
 ```
 
 `just bench` builds the release extension, then reruns every case of
-[`benchmarks/complete-qualification.json`](https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/benchmarks/complete-qualification.json)
+[`benchmarks/complete-qualification.json`](https://github.com/yaugenst/treams-rs/blob/8b442f18ec7a54787ffbc8fe8db0be4d137d89ef/benchmarks/complete-qualification.json)
 with its recorded arguments, thread count and pass criteria. It writes to
 `benchmarks/results/local/`, which git ignores, continues after a failing case
 and exits with an error if any case failed.
@@ -44,7 +44,7 @@ on the same host:
 - Do not generalize a crossover measured at one size to every problem size.
 
 `just bench-compare [ref]` does this for changes to the Python sources:
-[`scripts/compare_builds.py`](https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/scripts/compare_builds.py) runs the
+[`scripts/compare_builds.py`](https://github.com/yaugenst/treams-rs/blob/8b442f18ec7a54787ffbc8fe8db0be4d137d89ef/scripts/compare_builds.py) runs the
 Python package of `ref` (default `main`) and of the working tree on the same
 release extension, alternating the two trees process by process. It first
 requires every call to agree to `rtol=1e-12`, then fails a call whose median
@@ -60,7 +60,7 @@ instead: `--baseline <dir>` names the directory that holds the other build's
 Everything under `benchmarks/results/` is archived evidence. Manifests,
 summaries, documentation and the audit cite these files by path and by SHA-256
 digest. Preserve numerical measurements and cited paths; privacy-only changes
-follow the [privacy and provenance rules](https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/benchmarks/README.md#privacy-and-provenance).
+follow the [privacy and provenance rules](https://github.com/yaugenst/treams-rs/blob/8b442f18ec7a54787ffbc8fe8db0be4d137d89ef/benchmarks/README.md#privacy-and-provenance).
 Write new runs to `benchmarks/results/local/`.
 
 The summaries and manifests record where each result came from: the source

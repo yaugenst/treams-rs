@@ -82,7 +82,7 @@ rewritten: personal details were removed, the 79 changes up to
 day 16 kept their dates and descriptions, and about 1,570 later
 changes were condensed into 8. About 210 changes that only coordinated the
 agents were not published.
-[`benchmarks/history-provenance.json`](https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/benchmarks/history-provenance.json)
+[`benchmarks/history-provenance.json`](https://github.com/yaugenst/treams-rs/blob/8b442f18ec7a54787ffbc8fe8db0be4d137d89ef/benchmarks/history-provenance.json)
 maps the old identifiers of the kept changes to the new ones. Identifiers quoted
 in replies carry their public counterpart, for example "552b672 (now 782d2ee)".
 

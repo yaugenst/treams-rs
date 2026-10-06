@@ -3649,6 +3649,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#020-2026-10-05" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.0 (2026-10-05)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#011-2026-10-04" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3766,6 +3777,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#020-2026-10-05" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.0 (2026-10-05)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#011-2026-10-04" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3869,9 +3891,11 @@
 <!-- The included changelog provides the heading. -->
 <h1 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Permanent link">&para;</a></h1>
 <h2 id="unreleased">Unreleased<a class="headerlink" href="#unreleased" title="Permanent link">&para;</a></h2>
+<h2 id="020-2026-10-05">0.2.0 (2026-10-05)<a class="headerlink" href="#020-2026-10-05" title="Permanent link">&para;</a></h2>
+<p>Forward-mode differentiation joins reverse mode across Advect, JAX, PyTorch and
+HIPS Autograd. Follow a few input changes through a large field map, compute
+reverse gradients for a scalar objective, or combine both at fixed inputs.</p>
 <ul>
-<li>Add a "How it was built" section to the documentation: the story, messages
-  and conversations of the AI coding agents that wrote treams-rs.</li>
 <li>Check analytic adjoint identities independently of finite-difference error,
   cover saved-state dimensions and multilayer pushforwards, and record final
   release-build comparisons with their remaining small-operation slowdowns.</li>
@@ -3909,6 +3933,15 @@
 <li>Preserve Clippy's default correctness errors and enable every Hypothesis
   health check on CI. Let Maturin configure Python extension linking and build
   source-distribution verification wheels through uv's default sdist rebuild.</li>
+<li>Enforce coverage in CI using cached base reports, with regeneration only when
+  both cache and artifact are missing. Codecov supplies the badge independently
+  of the required coverage checks.</li>
+<li>Record the remaining performance tradeoffs: all 25 established CPU physics
+  cases pass their speed budgets, while tiny JIT solve gradients and Wigner
+  value-plus-JVP calls remain slower. See the
+  <a href="https://github.com/yaugenst/treams-rs/blob/v0.2.0/benchmarks/forward-autodiff-final-20261005.json">final measurements</a>.</li>
+<li>Add a "How it was built" section to the documentation: the story, messages
+  and conversations of the AI coding agents that wrote treams-rs.</li>
 </ul>
 <h2 id="011-2026-10-04">0.1.1 (2026-10-04)<a class="headerlink" href="#011-2026-10-04" title="Permanent link">&para;</a></h2>
 <ul>

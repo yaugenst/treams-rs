@@ -62,7 +62,7 @@ The case budgets are constants of `test_support`:
 
 ### Helpers
 
-[`crates/treams-core/src/test_support.rs`](https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/crates/treams-core/src/test_support.rs)
+[`crates/treams-core/src/test_support.rs`](https://github.com/yaugenst/treams-rs/blob/8b442f18ec7a54787ffbc8fe8db0be4d137d89ef/crates/treams-core/src/test_support.rs)
 holds the shared helpers:
 
 - **Pairings.** `re_dot` is `Re Σ conj(a) b`, the pairing of a cotangent (the
@@ -123,7 +123,7 @@ a file for every property of its source file, before the random cases.
 
 Tests that compare with fixed values read them from committed tables:
 
-- [`crates/treams-core/references/`](https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/crates/treams-core/references/README.md)
+- [`crates/treams-core/references/`](https://github.com/yaugenst/treams-rs/blob/8b442f18ec7a54787ffbc8fe8db0be4d137d89ef/crates/treams-core/references/README.md)
   holds mpmath values at 30 to 100 digits. `scripts/generate_references.py`
   regenerates or checks each table, and CI only reads them. Never change a
   committed data line; add a new table or new rows.
@@ -164,7 +164,7 @@ renamed script needs their update too:
 Every test carries at least one marker, for a whole file with `pytestmark` or
 per test; `tests/test_suite_rules.py` fails on a test without one. Select tests
 with `-m`, for example `pytest -m gradients tests/tmatrix`. The descriptions are
-those that `CATEGORIES` in [`tests/conftest.py`](https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/tests/conftest.py)
+those that `CATEGORIES` in [`tests/conftest.py`](https://github.com/yaugenst/treams-rs/blob/8b442f18ec7a54787ffbc8fe8db0be4d137d89ef/tests/conftest.py)
 registers:
 
 | Marker | Description |
@@ -202,7 +202,7 @@ parallel run fails and reports as a serial one does.
 
 ### Helpers and imports
 
-[`tests/_support.py`](https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/tests/_support.py) holds what several test files
+[`tests/_support.py`](https://github.com/yaugenst/treams-rs/blob/8b442f18ec7a54787ffbc8fe8db0be4d137d89ef/tests/_support.py) holds what several test files
 share:
 
 - `assert_reusable_context`, which checks that repeated pullbacks agree and
@@ -215,7 +215,7 @@ share:
 - `assert_unitary_ports`, the `reciprocal` mode map, and `to_oracle` and
   `oracle_smatrix_array`, which build the matching treams objects.
 
-[`tests/_scripts.py`](https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/tests/_scripts.py) imports a script of `scripts/`
+[`tests/_scripts.py`](https://github.com/yaugenst/treams-rs/blob/8b442f18ec7a54787ffbc8fe8db0be4d137d89ef/tests/_scripts.py) imports a script of `scripts/`
 as a module for the tests in `tests/scripts/`.
 
 Test modules import `treams_rs` as `tr`, its namespaces by name

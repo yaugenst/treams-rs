@@ -47,7 +47,7 @@ sides, where faer takes no parallel branch, the call stays on the calling
 thread. The worker count changes the scheduling only, not the factorization or
 the pullback, so LU results are the same at every budget.
 
-The [scheduling probe](https://github.com/yaugenst/treams-rs/blob/efd6c03a87fd664d812af70521d999fc97a54d23/benchmarks/results/cpu-parallelism.json) measured
+The [scheduling probe](https://github.com/yaugenst/treams-rs/blob/8b442f18ec7a54787ffbc8fe8db0be4d137d89ef/benchmarks/results/cpu-parallelism.json) measured
 these medians on a Ryzen 9950X with one 16-worker pool pinned to physical cores
 0-15:
 
