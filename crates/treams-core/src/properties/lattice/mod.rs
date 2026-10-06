@@ -102,9 +102,9 @@ proptest! {
     /// 1D spherical sums at explicit splits (see `rotated_chain`) match the automatic
     /// split in value and every derivative, on both sides of `w = 2.5`, from which they
     /// try their spectral series first; their derivatives match central differences
-    /// inside the supported domain, and each part obeys the Euler identity. Gain
-    /// wavenumbers must be rejected. Draws next to a diffraction threshold are skipped
-    /// (see `skip_threshold_band`).
+    /// inside the supported domain (see `check_ewald_derivative`), and each part obeys
+    /// the Euler identity. Gain wavenumbers must be rejected. Draws next to a diffraction
+    /// threshold are skipped (see `skip_threshold_band`).
     #[test]
     fn chain_sums_do_not_depend_on_the_split(sum in rotated_chain()) {
         skip_threshold_band(&sum)?;
@@ -112,8 +112,8 @@ proptest! {
             check_rejected_wavenumber(&sum)?;
         } else {
             check_split(&sum.at(Complex::default()), sum.eta, 1e-10)?;
-            check_ewald_derivative(&sum)?;
             check_ewald_part_euler(&sum)?;
+            check_ewald_derivative(&sum)?;
         }
     }
 
@@ -185,9 +185,9 @@ proptest! {
         skip_threshold_band(&sum)?;
         check_ewald_derivative_identities(&sum)?;
         check_ewald_symmetries(&sum, 0, 0.7, 1.3)?;
-        check_ewald_derivative(&sum)?;
         check_ewald_forward_paths(&sum)?;
         check_ewald_part_euler(&sum)?;
+        check_ewald_derivative(&sum)?;
     }
 }
 

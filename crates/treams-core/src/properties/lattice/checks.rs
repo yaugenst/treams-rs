@@ -795,23 +795,43 @@ pub(super) fn check_forward_parts(sum: &Ewald) -> Result<(), TestCaseError> {
 }
 
 /// Ewald sums obey the Euler identity of joint position, lattice, wavenumber and
-/// Bloch scaling, and their complete derivative in every parameter matches the
-/// Richardson extrapolation of central differences along a direction inside the
-/// supported wavenumber domain.
+/// Bloch scaling, and their complete derivative in every parameter matches Ridders'
+/// extrapolation `D` of central differences ([`ridders`]) along a direction inside the
+/// supported wavenumber domain, within `2e-7 (1 + |D|)` plus twice its error estimate.
+/// Draws whose estimate exceeds half of that base, `1e-7 (1 + |D|)`, where the
+/// differences cannot resolve the derivative to it, are rejected, so properties check
+/// it last. Both bounds scale with `D`, not with the analytic derivative under test, so
+/// that a wrongly small one fails rather than being rejected; a moved sum that comes
+/// back non-finite fails too.
+///
+/// It checks the analytic derivative, not the values: values that are noisy or jump
+/// within the steps raise the estimate, and such draws are mostly rejected rather than
+/// failed. With relative noise of 1e-10 in the value-only sums it rejected 65% of
+/// `ewald_at` draws and failed none (a fixed step of 1e-5 failed 94%); the properties
+/// that compare value-only sums with jets or across splits failed from noise of 1e-11
+/// on. The steps keep clear of thresholds and images, but move `k` and the lattice by up
+/// to the longest step, [`FIRST_STEP`] along the direction, which turns `(k eta)^2` too:
+/// splits at the edge of the supported domain lie outside what the check can evaluate,
+/// and at the 89.9 degrees of a `SPLITS` row the moved sums do not converge. No property
+/// checks derivatives at such splits.
 pub(super) fn check_ewald_derivative(sum: &Ewald) -> Result<(), TestCaseError> {
     let d = sum.derivatives();
     let (lengths, spectral) = euler(sum, &d);
     prop_assert_close!(lengths, spectral, 1e-9 * (1.0 + d.value.norm()));
     let cylindrical = matches!(sum.wave, lattice::Family::Cylindrical { .. });
-    // The outer difference reaches 2h <= 2e-5. Keep each wavenumber component
-    // fixed near its domain boundary: Im(k) = 0, and Re(k) = 0 for spherical sums.
+    // The differences reach `FIRST_STEP`. Keep each wavenumber component fixed near its
+    // domain boundary: Im(k) = 0, and Re(k) = 0 for spherical sums.
     let dk = c(
-        if cylindrical || sum.k.re > 2e-6 {
+        if cylindrical || sum.k.re > 0.1 * FIRST_STEP {
             0.1
         } else {
             0.0
         },
-        if sum.k.im > 4e-6 { 0.2 } else { 0.0 },
+        if sum.k.im > 0.2 * FIRST_STEP {
+            0.2
+        } else {
+            0.0
+        },
     );
     // A sum at the origin leaves out the image there; any step in the shift brings it
     // back, so the shift stays fixed.
@@ -830,55 +850,133 @@ pub(super) fn check_ewald_derivative(sum: &Ewald) -> Result<(), TestCaseError> {
             .zip(&d.vectors)
             .map(|(a, g)| dot_c(a, g))
             .sum::<Complex>();
-    let along = |step: f64| {
-        Ewald {
-            k: sum.k + step * dk,
-            r: std::array::from_fn(|j| sum.r[j] + step * dr[j]),
-            kpar: std::array::from_fn(|j| sum.kpar[j] + step * dq[j]),
-            rows: std::array::from_fn(|i| {
-                std::array::from_fn(|j| sum.rows[i][j] + step * da[i][j])
-            }),
-            ..sum.clone()
-        }
-        .sum()
+    let moved = |step: f64| Ewald {
+        k: sum.k + step * dk,
+        r: std::array::from_fn(|j| sum.r[j] + step * dr[j]),
+        kpar: std::array::from_fn(|j| sum.kpar[j] + step * dq[j]),
+        rows: std::array::from_fn(|i| std::array::from_fn(|j| sum.rows[i][j] + step * da[i][j])),
+        ..sum.clone()
     };
-    // Next to a diffraction threshold the third derivative of a sum grows like
-    // `|k_q|^-6`, and a central difference with the step h = 1e-5 is off by up to 6.7e-6
-    // (1D, `|k_q| = 0.1`). The Richardson extrapolation `(4 D(h) - D(2h)) / 3` cancels the
-    // `h^2` term of that error and is 3.5e-11 off there.
-    // At the distance `rho` from an image, a sum varies like `rho^-p` (`p = l + 1` for
-    // spherical and `|m|` for cylindrical waves, at most 13 here), and the extrapolation
-    // is off by `(p + 1)(p + 2)(p + 3)(p + 4) / 30 (h |dr| / rho)^4`; steps of at most
-    // `rho / (400 |dr|)` keep that below 7.4e-8 and the rounding near `400 eps`.
-    let h = 1e-5_f64.min(nearest_image(sum) / (400.0 * dot(dr, dr).sqrt()));
-    let (near, far) = (central(h, along), central(2.0 * h, along));
-    let numerical = (4.0 * near - far) / 3.0;
-    prop_assert_close!(numerical, direction, 2e-7 * (1.0 + direction.norm()));
+    // Next to a diffraction threshold or an image a sum varies like `ln x` or `x^-p` in
+    // the distance `x` to it, and the central differences expand in powers of `(h / x)^2`
+    // (6.7e-6 off at h = 1e-5 on a chain at `|k_q| = 0.1`), a series that converges only
+    // for `h < x`. The steps start a quarter of the way to the nearest such point, so that
+    // even the longest lies well inside that radius, where the terms eventually fall by
+    // `(1 / 4)^2` per order, and the shortest 83 times inside. The quarter is a margin,
+    // not tuned; the draws below ran with it.
+    let first = FIRST_STEP.min(0.25 * singular_distance(moved));
+    let (numerical, error) = ridders(first, |step| {
+        let value = moved(step).sum();
+        // `ridders` would drop a NaN silently; the library returns `Error::NonFinite`.
+        assert!(value.is_finite(), "non-finite sum {value} at step {step}");
+        value
+    });
+    // Where the estimate exceeded 1e-8 of the scale, the error stayed within 2.5 times
+    // it, and elsewhere within 5e-8 of the scale: with twice the estimate on top of the
+    // base, the worst of 1.7e7 draws of `rotated_chain`, `far_chain` and `ewald_at`
+    // outside the band of `skip_threshold_band` (half of them moved toward thresholds or
+    // images) came to 0.32 of the tolerance. Draws whose estimate exceeds half the base
+    // are rejected: 2 of 8e6 `rotated_chain` draws outside that band, 1 of 2e6 `ewald_at`
+    // draws and none of 8e6 `far_chain` draws. On the scale of the analytic derivative
+    // instead, it rejected zeroed jets rather than failing them in 3.6% of the
+    // `rotated_chain` draws it checks.
+    let scale = 1.0 + numerical.norm();
+    prop_assume!(error <= 1e-7 * scale);
+    prop_assert_close!(numerical, direction, 2.0f64.mul_add(error, 2e-7 * scale));
     Ok(())
 }
 
-/// The distance from the shift of `sum` to the nearest image of the cells around the
-/// origin other than one at the shift (1D spherical lattices lie along z).
-fn nearest_image(sum: &Ewald) -> f64 {
-    let along_z = sum.dim == 1 && matches!(sum.wave, lattice::Family::Spherical { .. });
-    let span = |i: usize| if i < sum.dim { -1_i32..=1 } else { 0..=0 };
-    let mut nearest = f64::INFINITY;
-    for a in span(0) {
-        for b in span(1) {
-            for c in span(2) {
-                let n = [a, b, c].map(f64::from);
-                let point: [f64; 3] =
-                    std::array::from_fn(|j| (0..3).map(|i| n[i] * sum.rows[i][j]).sum());
-                let point = if along_z { [0.0, 0.0, point[0]] } else { point };
-                let offset: [f64; 3] = std::array::from_fn(|j| sum.r[j] - point[j]);
-                let distance = dot(offset, offset).sqrt();
-                if distance > 0.0 {
-                    nearest = nearest.min(distance);
-                }
+/// The longest first step of [`check_ewald_derivative`], which moves `k` by 2.2e-3: the
+/// sums round by up to 1.6e-11 of `|S|` (degree-8 chains at explicit splits), which its
+/// shortest step, 4.8e-4, turns into 3.3e-8 of `|S|`.
+const FIRST_STEP: f64 = 1e-2;
+
+/// Ridders' extrapolation of the central differences of `f` at 0 (Numerical Recipes,
+/// `dfridr`): the Neville tableau of `f'(0)` in powers of `h^2` over 10 steps from `h`,
+/// each 1.4 times shorter. Returns the entry that differs least from the two it
+/// extrapolates and, as its error estimate, the largest of that difference and its
+/// distances from the last diagonal entry and from the answer of `dfridr`, the best
+/// entry before the diagonal first moves by twice the difference.
+///
+/// Each guards against entries that agree by chance. Where the `h^2` and `h^4` terms of
+/// the longest steps still cancel, `dfridr`, which stops there and returns the
+/// difference alone, came back 7 times its estimate off for a sum 0.026 from an image
+/// and failed 351 of 1e6 sums 1e-7 to 0.1 from an image. Where the rounding of the
+/// shortest steps agrees, the whole tableau came back 120 times off for a degree-8 chain
+/// next to a threshold. Once both agreed on an answer 13 times their estimate off; the
+/// last diagonal entry did not. `f` must stay finite: the comparisons drop a NaN silently.
+fn ridders(h: f64, f: impl Fn(f64) -> Complex) -> (Complex, f64) {
+    let shrink = 1.4;
+    let (mut best, mut error) = (Complex::default(), f64::INFINITY);
+    let mut stopped = None;
+    let mut previous: Vec<Complex> = Vec::new();
+    let mut step = h;
+    for _ in 0..10 {
+        let mut column = vec![central(step, &f)];
+        let mut factor = shrink * shrink;
+        for (j, &left) in previous.iter().enumerate() {
+            let next = (column[j] * factor - left) / (factor - 1.0);
+            factor *= shrink * shrink;
+            let change = (next - column[j]).norm().max((next - left).norm());
+            if change <= error {
+                (best, error) = (next, change);
             }
+            column.push(next);
+        }
+        if let (Some(&last), Some(&diagonal)) = (column.last(), previous.last())
+            && (last - diagonal).norm() >= 2.0 * error
+        {
+            stopped.get_or_insert(best);
+        }
+        previous = column;
+        step /= shrink;
+    }
+    let last = *previous.last().expect("a column for every step");
+    let spread = [last, stopped.unwrap_or(best)].map(|other| (best - other).norm());
+    (best, error.max(spread[0]).max(spread[1]))
+}
+
+/// The distance along `moved`, in its parameter, to the nearest point where the sums are
+/// singular: a diffraction threshold or empty-lattice pole, where `k^2 - |q + G|^2`
+/// vanishes for a reciprocal vector `G` ([`order_gaps`]), or an image `R` of the cells
+/// around the origin other than one at the shift, where `r - R` vanishes. Each moves
+/// linearly at this scale, so its distance is its modulus over its rate of change.
+fn singular_distance(moved: impl Fn(f64) -> Ewald) -> f64 {
+    let delta = 1e-6;
+    let [sum, up, down] = [0.0, delta, -delta].map(moved);
+    let reach = order_reach(&sum);
+    let distance = |x: &[f64], rate: &[f64]| {
+        let size = x.iter().map(|x| x * x).sum::<f64>().sqrt();
+        size / (rate.iter().map(|x| x * x).sum::<f64>().sqrt() / (2.0 * delta))
+    };
+    let mut nearest = f64::INFINITY;
+    let gaps = [&sum, &up, &down].map(|sum| order_gaps(sum, reach));
+    for (((gap, _), (ahead, _)), (behind, _)) in gaps[0].iter().zip(&gaps[1]).zip(&gaps[2]) {
+        let rate = [ahead.re - behind.re, ahead.im - behind.im];
+        nearest = nearest.min(distance(&[gap.re, gap.im], &rate));
+    }
+    let offsets = [&sum, &up, &down].map(image_offsets);
+    for ((offset, ahead), behind) in offsets[0].iter().zip(&offsets[1]).zip(&offsets[2]) {
+        if offset.iter().any(|&x| x != 0.0) {
+            let rate: [f64; 3] = std::array::from_fn(|j| ahead[j] - behind[j]);
+            nearest = nearest.min(distance(offset, &rate));
         }
     }
     nearest
+}
+
+/// The offsets `r - R` of the shift of `sum` from the images `R` of the cells around the
+/// origin (1D spherical lattices lie along z).
+fn image_offsets(sum: &Ewald) -> Vec<[f64; 3]> {
+    let along_z = sum.dim == 1 && matches!(sum.wave, lattice::Family::Spherical { .. });
+    cells(sum.dim, 1)
+        .map(|n| {
+            let point: [f64; 3] =
+                std::array::from_fn(|j| (0..3).map(|i| n[i] * sum.rows[i][j]).sum());
+            let point = if along_z { [0.0, 0.0, point[0]] } else { point };
+            std::array::from_fn(|j| sum.r[j] - point[j])
+        })
+        .collect()
 }
 
 /// Each Ewald part at a fixed split, and each direct shell, obeys the Euler identity
