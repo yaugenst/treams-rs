@@ -57,8 +57,10 @@ pub(super) fn check_rejected_wavenumber(sum: &Ewald) -> Result<(), TestCaseError
 /// within 1e-11 of their scales plus twice its own rounding bound; without, the sum at
 /// the automatic split, from whichever of the two each component comes, within
 /// `CHAIN_TOLERANCE` of them, and its value equals the value-only sum. Gain
-/// wavenumbers must instead be rejected.
+/// wavenumbers must instead be rejected. Draws next to a diffraction threshold are
+/// skipped ([`skip_threshold_band`]).
 pub(super) fn check_chain(sum: &Ewald, direction: Option<Complex>) -> Result<(), TestCaseError> {
+    skip_threshold_band(sum)?;
     let (k, rho) = (sum.k, sum.r[0].hypot(sum.r[1]));
     let size = (1.5 / (k.norm() * rho)).min(1.5);
     let eta = direction.map_or_else(|| size * k.norm() / k, |direction| size * direction);
@@ -93,7 +95,8 @@ pub(super) fn check_chain(sum: &Ewald, direction: Option<Complex>) -> Result<(),
 }
 
 /// A degree-0 chain sum at the automatic split against `spectral_chain_sum` within
-/// `CHAIN_TOLERANCE` of `max(|S|, 1)`.
+/// `CHAIN_TOLERANCE` of `max(|S|, 1)`, skipped next to a diffraction threshold
+/// ([`skip_threshold_band`]).
 pub(super) fn check_off_axis_chain(
     k: f64,
     period: f64,
@@ -101,6 +104,7 @@ pub(super) fn check_off_axis_chain(
     r: [f64; 3],
 ) -> Result<(), TestCaseError> {
     let sum = Ewald::chain(sw(0, 0), period, kpar, r, c(k, 0.0), Complex::default());
+    skip_threshold_band(&sum)?;
     // With the automatic split, `w = sqrt(2 pi) rho / L max(|k| L / 8, 1)`.
     let w = TAU.sqrt() * r[0].hypot(r[1]) / period * (k * period / 8.0).max(1.0);
     let (actual, expected) = (sum.sum(), spectral_chain_sum(k, period, kpar, r));
@@ -109,6 +113,66 @@ pub(super) fn check_off_axis_chain(
         "w = {w}: {actual} against {expected}"
     );
     Ok(())
+}
+
+/// Rejects a chain draw next to a diffraction threshold, where `eps` times its
+/// [`conditioning`] exceeds 1e-12, so that every check of a property skips it. There the
+/// rounding of the order at the threshold reaches every sum the checks compare (at other
+/// splits, shifts and scales, and by other paths and series): draws moved toward
+/// thresholds failed them from 2.6e-12 on, where two orders reach a threshold together
+/// at an explicit split, and otherwise from 2e-11 on. 4.6e-4 to 1.5e-3 of the draws of
+/// each chain property lie in the band.
+pub(super) fn skip_threshold_band(sum: &Ewald) -> Result<(), TestCaseError> {
+    prop_assume!(f64::EPSILON * conditioning(sum) <= 1e-12);
+    Ok(())
+}
+
+/// The conditioning of `sum` next to a diffraction threshold: the largest rounding of
+/// `k_q^2` over `|k_q^2|` of its orders ([`order_gaps`]), the relative error that the
+/// rounded `k_q^2` of an order carries into its terms.
+fn conditioning(sum: &Ewald) -> f64 {
+    let gaps = order_gaps(sum, order_reach(sum));
+    gaps.iter()
+        .map(|(x, rounding)| rounding / x.norm())
+        .fold(0.0, f64::max)
+}
+
+/// `k_q^2 = k^2 - |q + G|^2` for the reciprocal vectors `G = n . b` of `sum` with
+/// `|n_i| <= reach`, which vanishes at the threshold of its diffraction order, and what
+/// it rounds by in units of `eps`: `|k|^2` for the squares, the constant of
+/// `eps k^2 / |k_q^2|` in "Near thresholds" of `docs/validation/numerical-limits.md`,
+/// plus `2 |q + G| (|q| + |G|)`, this test's extension for the rounded `q` and `G`.
+fn order_gaps(sum: &Ewald, reach: i32) -> Vec<(Complex, f64)> {
+    let b = sum.reciprocal();
+    let length = |v: [f64; 3]| dot(v, v).sqrt();
+    cells(sum.dim, reach)
+        .map(|n| {
+            let g: [f64; 3] = std::array::from_fn(|j| (0..3).map(|i| n[i] * b[i][j]).sum());
+            let shifted: [f64; 3] = std::array::from_fn(|j| sum.kpar[j] + g[j]);
+            let rounding =
+                sum.k.norm_sqr() + 2.0 * length(shifted) * (length(sum.kpar) + length(g));
+            (sum.k * sum.k - dot(shifted, shifted), rounding)
+        })
+        .collect()
+}
+
+/// The `reach` of [`order_gaps`] that holds every `G` with `|q + G| <= |k| + 1`, as
+/// `n_i = a_i . G / 2 pi`.
+fn order_reach(sum: &Ewald) -> i32 {
+    let length = |v: [f64; 3]| dot(v, v).sqrt();
+    let widest = sum.rows.map(length).into_iter().fold(0.0, f64::max);
+    let radius = sum.k.norm() + length(sum.kpar) + 1.0;
+    #[allow(clippy::cast_possible_truncation)] // A few cells.
+    let reach = (radius * widest / TAU).ceil() as i32;
+    reach
+}
+
+/// The integer points of the cube `[-reach, reach]^dim`, zero beyond `dim`.
+fn cells(dim: usize, reach: i32) -> impl Iterator<Item = [f64; 3]> {
+    let span = move |i: usize| if i < dim { -reach..=reach } else { 0..=0 };
+    span(0).flat_map(move |a| {
+        span(1).flat_map(move |b| span(2).map(move |c| [a, b, c].map(f64::from)))
+    })
 }
 
 /// The degree-0 sum of a chain along z from its spectral series,
