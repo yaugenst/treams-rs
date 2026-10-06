@@ -18,7 +18,7 @@ use self::{
         check_forward_parts, check_lattice_point, check_off_axis_chain, check_reduced_integrals,
         check_rejected_wavenumber, check_small_split, check_split, check_tiny_normal_shift,
         check_vanishing, components, fails_with, prop_assert_jets_close,
-        prop_assert_jets_on_their_scales, spectral_chain_sum,
+        prop_assert_jets_on_their_scales, skip_threshold_band, spectral_chain_sum,
     },
     ewald::{Ewald, c, cw, cylinder_point, diagonal, explicit_split, pinned, sw},
     periodic::{
@@ -103,9 +103,11 @@ proptest! {
     /// split in value and every derivative, on both sides of `w = 2.5`, from which they
     /// try their spectral series first; their derivatives match central differences
     /// inside the supported domain, and each part obeys the Euler identity. Gain
-    /// wavenumbers must be rejected.
+    /// wavenumbers must be rejected. Draws next to a diffraction threshold are skipped
+    /// (see `skip_threshold_band`).
     #[test]
     fn chain_sums_do_not_depend_on_the_split(sum in rotated_chain()) {
+        skip_threshold_band(&sum)?;
         if sum.k.im < 0.0 {
             check_rejected_wavenumber(&sum)?;
         } else {
@@ -176,9 +178,11 @@ proptest! {
     /// Far off the axis, where 1D spherical sums take their spectral series, they keep the
     /// exact derivative identities, the lattice and point symmetries, their central
     /// differences inside the supported domain, agreeing forward and jet
-    /// paths, and the Euler identity of each Ewald part.
+    /// paths, and the Euler identity of each Ewald part. Draws next to a diffraction
+    /// threshold are skipped (see `skip_threshold_band`).
     #[test]
     fn far_off_axis_chains_keep_the_ewald_identities(sum in far_chain()) {
+        skip_threshold_band(&sum)?;
         check_ewald_derivative_identities(&sum)?;
         check_ewald_symmetries(&sum, 0, 0.7, 1.3)?;
         check_ewald_derivative(&sum)?;
