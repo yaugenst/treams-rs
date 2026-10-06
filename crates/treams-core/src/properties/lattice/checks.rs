@@ -825,7 +825,12 @@ pub(super) fn check_forward_parts(sum: &Ewald) -> Result<(), TestCaseError> {
 pub(super) fn check_ewald_derivative(sum: &Ewald) -> Result<(), TestCaseError> {
     let d = sum.derivatives();
     let (lengths, spectral) = euler(sum, &d);
-    prop_assert_close!(lengths, spectral, 1e-9 * (1.0 + d.value.norm()));
+    // As in `check_ewald_derivative_identities`, the identity is compared on the size of
+    // its sides, `|k dS/dk + q . dS/dq|`, as well as of the sum: degree-7 and degree-8
+    // chains at explicit splits, whose sides reach 250 times `|S|`, came back 1.3 to 1.6
+    // times 1e-9 (1 + |S|) apart and within 2.3e-10 of 1 + |S| + that size.
+    let tolerance = 1e-9 * (1.0 + d.value.norm() + spectral.norm());
+    prop_assert_close!(lengths, spectral, tolerance, "Euler");
     let cylindrical = matches!(sum.wave, lattice::Family::Cylindrical { .. });
     // The differences reach `FIRST_STEP`. Keep each wavenumber component fixed near its
     // domain boundary: Im(k) = 0, and Re(k) = 0 for spherical sums.
@@ -988,12 +993,14 @@ fn image_offsets(sum: &Ewald) -> Vec<[f64; 3]> {
 }
 
 /// Each Ewald part at a fixed split, and each direct shell, obeys the Euler identity
-/// of joint length and inverse-length scaling on its own.
+/// of joint length and inverse-length scaling on its own, on the size of its sides as
+/// well as of the part (see [`check_ewald_derivative`]).
 pub(super) fn check_ewald_part_euler(sum: &Ewald) -> Result<(), TestCaseError> {
     for part in [SumPart::Real, SumPart::Reciprocal, SumPart::Direct(2)] {
         let d = sum.part_derivatives(part);
         let (lengths, spectral) = euler(sum, &d);
-        prop_assert_close!(lengths, spectral, 2e-9 * (1.0 + d.value.norm()), "{part:?}");
+        let tolerance = 2e-9 * (1.0 + d.value.norm() + spectral.norm());
+        prop_assert_close!(lengths, spectral, tolerance, "{part:?}");
     }
     Ok(())
 }
