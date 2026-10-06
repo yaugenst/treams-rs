@@ -70,7 +70,12 @@ The [publication workflow](../../.github/workflows/publish-release.yml)
 fixes the candidate to the current `main` commit and requires a successful
 `CI Success` from a push to that commit. It builds and checks the complete
 set of wheels and source distribution, checks metadata and local-path removal,
-publishes the candidate to TestPyPI, and tests a clean installation.
+and smoke-tests every distribution in clean environments. It then uploads the
+candidate to TestPyPI and tests a clean installation from there. That step is
+advisory: TestPyPI has no service-level agreement, so a failed upload or
+installation there is reported in the workflow summary but does not block
+promotion. To skip it, add `-f 'client_payload[skip_testpypi]=true'` to the
+dispatch.
 
 When `Approve production release` starts waiting, use the candidate revision
 in the workflow summary to create and push the annotated tag:
@@ -99,8 +104,10 @@ After the workflow finishes, confirm:
 - `/X.Y.Z/` and `/latest/` serve the released documentation, including rustdoc,
   and the site root opens the latest release.
 
-Never replace a published file or move a version tag. A failed candidate on
-TestPyPI also consumes its version: fix the issue and choose the next version.
+Never replace a published file or move a version tag. A candidate whose files
+reached TestPyPI consumes its version there too, since filenames cannot be
+reused: if it turns out faulty, fix the issue and choose the next version. A
+TestPyPI failure before any upload, such as an outage, consumes nothing.
 
 ## Documentation site
 

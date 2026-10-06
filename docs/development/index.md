@@ -108,7 +108,7 @@ exact source revision, as described in [releasing](releasing.md).
 | [Native Wheels](../../.github/workflows/native-wheels.yml) | called by CI and Release Candidate, or by hand | All [supported wheels](../getting-started/install.md#install-from-pypi), installed-wheel checks and a source-distribution rebuild |
 | [Docs](../../.github/workflows/docs.yml) | called by CI, publication and manual [Deploy docs](../../.github/workflows/deploy-docs.yml) | Strict Material site build and rustdoc; mike maintains `dev`, released versions and the `latest` alias, then the complete site is deployed through a GitHub Pages artifact |
 | [Release Candidate](../../.github/workflows/release-candidate.yml) | called by Publish Release | Verify the source revision and build distribution files that cannot change during publication |
-| [Publish Release](../../.github/workflows/publish-release.yml) | repository dispatch with event type `release` | Build and test the candidate, publish to TestPyPI, wait for the operator's tag and approval, then publish to PyPI and deploy release documentation |
+| [Publish Release](../../.github/workflows/publish-release.yml) | repository dispatch with event type `release` | Build and test the candidate, try it on TestPyPI (advisory), wait for the operator's tag and approval, then publish to PyPI and deploy release documentation |
 | [Formal](../../.github/workflows/formal.yml) | pull requests and pushes that change `formal/`, a Rust file with a Lean model, the `justfile` or the workflow | `just formal` |
 
 CI runs the complete reference suite on Python 3.12 and 3.13 and the available

@@ -54,6 +54,8 @@ reverse gradients for a scalar objective, or combine both at fixed inputs.
   [final measurements](https://github.com/yaugenst/treams-rs/blob/v0.2.0/benchmarks/forward-autodiff-final-20261005.json).
 - Add a "How it was built" section to the documentation: the story, messages
   and conversations of the AI coding agents that wrote treams-rs.
+- Make the TestPyPI step of the release workflow advisory, so an outage there
+  no longer blocks a release; `client_payload[skip_testpypi]` skips it.
 
 ## 0.1.1 (2026-10-04)
 
