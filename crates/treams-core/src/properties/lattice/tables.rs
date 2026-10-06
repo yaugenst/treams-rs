@@ -72,6 +72,10 @@ pub(super) const SPLITS: &str = "
     # phase and each part keeps the rounding of its compensated sum.
     s 0 0 3 1.267216528351176 0.0 -9.368968697897542e-5 -5.963162477517018e-6 -3.4448269144448136e-5 0.13 0.0 0.9785488446321685 0.0 0.0 -0.184589817889412 0.8062442062458293 0.0 0.16456364845188753 0.17393727628674394 0.8357180212769595 0.0 0.0 0.0 value 1e-4: # 1e-4 along (-0.9364, -0.0596, -0.3443)
     s 0 0 2 0.6649252047898351 0.0 -7.273182713808302e-6 6.863003221007559e-6 0.0 0.12 0.0 0.8097477035023664 0.0 0.17385500399637133 0.8954293680703219 0.0 0.0 value 1e-4: # 1e-5 along (-0.727, 0.686, 0)
+    # The shrunk failure of `near_point_sum` before its cap on `Im k`: 1e-3 from a lattice
+    # point at a split turned 90.3 degrees off 1 / k in (k eta)^2, where the Gaussians of
+    # both Ewald parts grow.
+    s 3 -2 2 0.5470215397042509 0.2933093930861418 0.0 0.0 -0.001 0.12943823857221848 0.039397659319937765 0.8 0.0 0.0 0.8 0.0 0.0 fails sum: non-finite Ewald summand
     # A 1D spherical sum without its spectral series (Re k = 0) whose automatic split
     # cancels beyond use.
     s 7 1 1 0.0 1.0 2.5 0.0 0.2 0.0 0.0 1.0 0.3 fails sum: lost its accuracy to cancelling Kambe integrals; reduce the split
