@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Shorten the issue and pull request templates. Bug and numerical reports
+  require a reproducer that fails on a stated version or commit, and accept shell
+  commands as well as Python.
+
 ## 0.2.0 (2026-10-05)
 
 Forward-mode differentiation joins reverse mode across Advect, JAX, PyTorch and

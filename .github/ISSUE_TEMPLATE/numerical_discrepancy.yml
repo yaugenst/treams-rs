@@ -8,60 +8,44 @@ body:
       label: Known differences
       options:
         - label: >-
-            I checked the
             [Differences from treams](https://yaugenst.github.io/treams-rs/latest/coming-from-treams/differences/)
-            page, and it does not explain this discrepancy.
+            does not explain this.
           required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What differs
+      description: One or two sentences naming the quantity, for example a T-matrix, a cross section or a lattice sum.
+    validations:
+      required: true
+  - type: textarea
+    id: reproducer
+    attributes:
+      label: Reproduce
+      description: >-
+        Exact shell commands or a minimal self-contained Python script that
+        computes both the treams-rs and the reference result.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: Expected vs actual
+      description: >-
+        The reference value and its source (treams version or independent
+        method), the treams-rs value, and the tolerance you expect.
+      placeholder: |
+        Expected: ... (treams 0.4.7), rtol 1e-12
+        Actual: ...
+    validations:
+      required: true
   - type: input
-    id: quantity
+    id: version
     attributes:
-      label: Quantity
-      description: The function or observable that differs, for example a T-matrix, cross sections, a lattice sum or a pullback.
-    validations:
-      required: true
-  - type: textarea
-    id: inputs
-    attributes:
-      label: Inputs
-      description: Wavenumber or frequency, materials, geometry, multipole orders, lattice and Bloch vector, polarization convention.
-    validations:
-      required: true
-  - type: textarea
-    id: result
-    attributes:
-      label: treams-rs result
-    validations:
-      required: true
-  - type: textarea
-    id: reference
-    attributes:
-      label: Reference result
-      description: The reference value and where it comes from, either the treams version or the independent method (analytic result, high-precision computation, other code).
-    validations:
-      required: true
-  - type: input
-    id: tolerance
-    attributes:
-      label: Expected tolerance
-      description: The relative or absolute agreement you expect, and why.
-    validations:
-      required: true
-  - type: textarea
-    id: script
-    attributes:
-      label: Script
-      description: A minimal script that computes both results.
-      render: python
-    validations:
-      required: true
-  - type: textarea
-    id: versions
-    attributes:
-      label: Versions
-      description: |
-        The treams-rs version
-        (`python -c "import importlib.metadata as m; print(m.version('treams-rs'))"`),
-        the treams version if you compare with treams, NumPy, Python, and the
-        operating system and CPU.
+      label: Fails on
+      description: >-
+        treams-rs version (`python -c "import treams_rs; print(treams_rs.__version__)"`)
+        or commit, plus NumPy, Python and OS.
     validations:
       required: true
