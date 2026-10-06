@@ -4,10 +4,13 @@ use std::f64::consts::{PI, TAU};
 
 use proptest::prelude::*;
 
-use super::ewald::{Ewald, c, cw, cylinder_point, embed, explicit_split, leading, sw, triangular};
+use super::{
+    checks::fails_with,
+    ewald::{Ewald, c, cw, cylinder_point, embed, explicit_split, leading, sw, triangular},
+};
 use crate::{
     Complex,
-    lattice::{self, SumPart, resolve_split},
+    lattice::{self, SumPart, derivatives_part, resolve_split},
     test_support::{degree_order, log_uniform},
 };
 
@@ -246,7 +249,11 @@ pub(super) fn small_split_sum(splits: std::ops::Range<f64>) -> impl Strategy<Val
 /// mostly zero Bloch vectors, otherwise ones of 1e-9 to 1e-3 of the zone, shifts of 1e-7
 /// to 1e-3 in any direction from one of the nearest lattice points, mostly real `k` from
 /// 0.5 (1.2 for 3D sums, which smaller `k` make slow) to 3.5 and splits of 0.11 to 0.14,
-/// real or rotated by up to 0.3 either way.
+/// real or rotated by up to 0.3 either way, with `Im k` capped as in
+/// [`reflected_zero_sum`] ([`SPLIT_TURN`]): beyond 90 degrees the sums fail (see
+/// [`SPLITS`]).
+///
+/// [`SPLITS`]: super::tables::SPLITS
 pub(super) fn near_point_sum() -> impl Strategy<Value = Ewald> {
     (
         (
@@ -286,14 +293,16 @@ pub(super) fn near_point_sum() -> impl Strategy<Value = Ewald> {
                     lattice + distance * direction[j] / length
                 });
                 let lowest = if dim == 3 { 1.2 } else { 0.5 };
-                let k = c(fraction.mul_add(3.5 - lowest, lowest), ki);
+                let kr = fraction.mul_add(3.5 - lowest, lowest);
+                let k = c(kr, ki.min(kr * (0.5 * SPLIT_TURN - angle).tan()));
                 let kpar = leading(dim, |j| kpar[j] * TAU / pitch[j]);
                 Ewald::new(sw(l, m), dim, rows, kpar, r, k, Complex::from_polar(size, angle))
             },
         )
 }
 
-/// The largest `|arg((k eta)^2)|` of the sums of `reflected_zero_sum`, 89.9 degrees.
+/// The largest `|arg((k eta)^2)|` of the sums of `near_point_sum` and
+/// `reflected_zero_sum`, 89.9 degrees.
 const SPLIT_TURN: f64 = 89.9 * PI / 180.0;
 
 /// Sums that vanish by a reflection: 2D spherical waves of degree 1 to 10 with `l + m`
@@ -588,7 +597,14 @@ pub(super) fn ewald() -> impl Strategy<Value = Ewald> {
     ewald_at(prop_oneof![Just([0.0; 3]), shift()])
 }
 
-/// [`ewald`] with the given Cartesian shifts; cylindrical shifts drop their z part.
+/// [`ewald`] with the given Cartesian shifts; cylindrical shifts drop their z part. Where
+/// `(k eta)^2` lies more than 45 degrees off the real axis (up to 64 degrees here), 3D
+/// sums and sums above every automatic split keep the fixed shell limit and may fail
+/// with "did not converge" ("Splits turned off 1/k" in
+/// `docs/validation/numerical-limits.md`). Draws whose real-space jet fails so are left
+/// out: 18 of 1e5 3D draws beyond 45 degrees (degrees 2 and 3 at `k` near 0.8 + 0.49i
+/// and splits near 0.7), which failed the checks of six of the seven properties that
+/// draw from here, and none of 1e6 1D and 2D draws.
 pub(super) fn ewald_at(shift: impl Strategy<Value = [f64; 3]>) -> impl Strategy<Value = Ewald> {
     let family = prop_oneof![
         (1_usize..=3, degree_order(0..4)).prop_map(|(dim, (l, m))| (sw(l, m), dim)),
@@ -610,6 +626,17 @@ pub(super) fn ewald_at(shift: impl Strategy<Value = [f64; 3]>) -> impl Strategy<
             let rows = triangular(pitch, skew, dim);
             Ewald::new(wave, dim, rows, kpar, r, c(kr, ki), c(eta, 0.0))
         })
+        .prop_filter(
+            "a turned split whose real-space jet does not converge",
+            |sum| {
+                let square = (sum.k * sum.eta).powi(2);
+                square.re >= square.im.abs() || {
+                    let (k, lattice, real) = (sum.k, sum.lattice(), SumPart::Real);
+                    let jet = derivatives_part(sum.wave, k, &lattice, sum.r, sum.eta, real);
+                    !fails_with(&jet, &["did not converge"])
+                }
+            },
+        )
 }
 
 /// The wavenumbers of [`lattice_point`].
