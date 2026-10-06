@@ -22,10 +22,17 @@ jobs:
       actions: read
       contents: read
 
+  # TestPyPI is advisory: it has no service-level agreement, so its steps continue on
+  # error and an outage there cannot block a release. The distributions were already
+  # smoke-tested in clean environments, and verify-pypi checks the real index. Dispatch
+  # with client_payload[skip_testpypi]=true to skip it. Jobs keep plain needs without
+  # conditions, so a real failure anywhere else still stops the release.
   testpypi:
     name: Publish candidate to TestPyPI
     needs: candidate
     runs-on: ubuntu-22.04
+    outputs:
+      upload: ${{ steps.publish.outcome }}
     environment:
       name: testpypi
       url: https://test.pypi.org/p/treams-rs
@@ -39,6 +46,12 @@ jobs:
           path: dist
 
       - name: Publish distributions with trusted publishing
+        id: publish
+        if: github.event.client_payload.skip_testpypi != 'true'
+        continue-on-error: true
+        # A hung upload would otherwise be cancelled at the job timeout, which
+        # continue-on-error does not cover; a step timeout counts as a failure.
+        timeout-minutes: 15
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         with:
           packages-dir: dist
@@ -60,6 +73,9 @@ jobs:
           version-file: pyproject.toml
 
       - name: Install and smoke-test the candidate
+        id: install
+        if: needs.testpypi.outputs.upload == 'success'
+        continue-on-error: true
         env:
           RELEASE_VERSION: ${{ needs.candidate.outputs.version }}
         run: |
@@ -87,10 +103,14 @@ jobs:
         env:
           RELEASE_TAG: ${{ needs.candidate.outputs.release_tag }}
           SOURCE_REVISION: ${{ needs.candidate.outputs.source_revision }}
+          TESTPYPI_UPLOAD: ${{ needs.testpypi.outputs.upload }}
+          TESTPYPI_INSTALL: ${{ steps.install.outcome }}
         run: |
-          echo "## Candidate ready for promotion" >> "$GITHUB_STEP_SUMMARY"
-          echo "Tag \`$RELEASE_TAG\` at \`$SOURCE_REVISION\`, then approve production." \
-            >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Candidate ready for promotion"
+            echo "Tag \`$RELEASE_TAG\` at \`$SOURCE_REVISION\`, then approve production."
+            echo "TestPyPI (advisory): upload $TESTPYPI_UPLOAD, installation $TESTPYPI_INSTALL."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   promote:
     name: Approve production release

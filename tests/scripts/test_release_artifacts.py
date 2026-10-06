@@ -1,7 +1,7 @@
 """Release artifacts are complete, attributable and free of local build paths.
 
 The release workflows build exactly that family and publish it to PyPI only
-after TestPyPI verification and operator approval.
+after the advisory TestPyPI check has run and the operator has approved.
 """
 
 import hashlib
