@@ -1,0 +1,19 @@
+{"lines":[
+[0,"ran","Read writing style rules and list package files"],
+[12,"ran","Extract docstrings/comments and count hits"],
+[16,"ran","Show non-term hits"],
+[19,"ran","Raw grep for VJP and history words"],
+[21,"ran","Inspect VJP hits and diff module docstring"],
+[24,"ran","Find plan section 4.1"],
+[27,"ran","Show residual/cotangent/pullback hits"],
+[29,"ran","Print module docstrings"],
+[35,"ran","Rerun with plural jargon and show module docstrings"],
+[44,"ran","Grep further style issues"],
+[45,"note","<p>Now reading context for the candidate findings.</p>"],
+[48,"ran","Read candidate contexts"],
+[49,"ran","Check whether Sphinx roles render raw in reference"],
+[55,"ran","Read diff.py docstring sections"],
+[63,"ran","Read more docstring contexts"],
+[78,"ran","Check for definitions of pullback/cotangent"],
+[82,"ran","List pyi comments and advect wrap docstring"]
+]}

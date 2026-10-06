@@ -1,0 +1,11 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g AGENTS.md -g README.md crates/treams-core/src/cluster crates/treams-core/src/s…"],
+[7,"ran","cat AGENTS.md crates/AGENTS.md crates/treams-core/src/cluster/README.md crates/treams-core/src/smat…"],
+[13,"ran","rg -n '^pub (struct|enum|fn)|^pub\\(crate\\) fn|struct .*Cache|pub use|factor|solve|gradient|vjp|forw…"],
+[13,"ran","sed -n '1,230p' crates/treams-core/src/cluster/mod.rs && sed -n '1,200p' crates/treams-core/src/sma…"],
+[24,"ran","sed -n '1,130p' docs/development/architecture.md && sed -n '1,135p' crates/treams-core/src/tmatrix/…"],
+[46,"changed","crates/treams-core/src/smatrix/README.md, crates/treams-core/src/tmatrix/README.md, crates/treams-c…"],
+[46,"ran","git diff --check -- crates/treams-core/src/cluster/README.md crates/treams-core/src/smatrix/README.…"],
+[56,"changed","crates/treams-core/src/cluster/README.md"],
+[62,"sent","1 message to Epicurus"]
+]}

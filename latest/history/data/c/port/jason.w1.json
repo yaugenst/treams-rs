@@ -1,0 +1,17 @@
+{"lines":[
+[0,"ran","pwd && cat AGENTS.md && cat docs/development.md && cat docs/benchmarks.md"],
+[7,"ran","wc -l docs/benchmarks.md && sed -n '1,210p' docs/benchmarks.md"],
+[14,"ran","sed -n '211,430p' docs/benchmarks.md"],
+[21,"ran","sed -n '431,650p' docs/benchmarks.md"],
+[26,"ran","sed -n '651,860p' docs/benchmarks.md"],
+[40,"ran","sed -n '861,1060p' docs/benchmarks.md && rg --files docs -g AGENTS.md && git status --short"],
+[53,"left","Left out: 2 commands whose search terms named private details."],
+[62,"ran","rg --files benchmarks/results -g '*fields*' -g '*release*' -g '*rotation*' -g '*periodic-n*' -g '*p…"],
+[73,"ran","python3 - <<'PY'"],
+[87,"ran","python3 - <<'PY'"],
+[97,"ran","python3 - <<'PY'"],
+[103,"sent","1 message to Mendel"],
+[225,"ran","python3 - <<'PY'"],
+[295,"ran","python3 - <<'PY'"],
+[308,"sent","1 message to Mendel"]
+]}

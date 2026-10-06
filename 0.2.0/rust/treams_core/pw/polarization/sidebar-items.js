@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["algebraic_norm","field_value","polarization","polarization_from_inputs","polarization_jet","transverse_values","wave_vector_z","wavenumbers"],"struct":["Direction"]};

@@ -1,0 +1,17 @@
+{"lines":[
+[0,"sent","1 message to Einstein"],
+[7,"ran","git status --short && git rev-parse HEAD && rg -n \"c_long|NPY_LONG|NPY_LONGLONG|npy_long|Int64|i64\"…"],
+[23,"left","Left out: 1 command that read the agent's own notes."],
+[23,"ran","sed -n '1,280p' crates/treams-py/src/ufunc/ffi.rs && sed -n '1,220p' crates/treams-py/src/ufunc/loo…"],
+[23,"ran","sed -n '1,220p' crates/treams-py/src/ufunc/fast_paths.rs && sed -n '1,230p' crates/treams-py/src/uf…"],
+[38,"ran","cat AGENTS.md crates/AGENTS.md && git diff -- crates/treams-py/src/ufunc/ffi.rs crates/treams-py/sr…"],
+[65,"ran","sed -n '340,620p' crates/treams-py/src/ufunc/ffi.rs && sed -n '235,415p' crates/treams-py/src/ufunc…"],
+[65,"ran","rg -n \"c_long|NPY_LONG|intc|intp|dtype=.l.|dtype=.q.|astype\\(.l.|astype\\(.q.|\\.types|REGISTRY_ROWS|…"],
+[65,"left","Left out: 1 command that read the agent's own settings."],
+[88,"ran","sed -n '305,370p' crates/treams-py/src/ufunc/ffi.rs && sed -n '450,565p' crates/treams-py/src/ufunc…"],
+[109,"ran","sed -n '885,926p' tests/bindings/test_ufunc_contract.py && sed -n '1020,1115p' tests/bindings/test_…"],
+[109,"ran","rg -n \"windows|macos|ubuntu|target:|python-version:|int64|NPY_INT64\" .github/workflows/ci.yml .gith…"],
+[129,"ran","sed -n '510,643p' tests/bindings/test_ufunc_contract.py && sed -n '310,359p' installed tools: num.r…"],
+[144,"ran","git diff -- crates/treams-py/src/ufunc/ffi.rs crates/treams-py/src/ufunc/fast_paths.rs crates/tream…"],
+[157,"sent","1 message to Einstein"]
+]}

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["add","dimensions","factor_size","invalid","matrix_size","mul","read_matrix","read_sizes"]};

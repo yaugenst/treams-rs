@@ -1,0 +1,9 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g 'AGENTS.md' -g 'REVIEW.md' -g '!target' treams-ci-speed [a private folder] 2>/…"],
+[15,"ran","cat AGENTS.md && git diff --stat 5947c78e5b88a364952fb554548e53b40321abe9 9ebfdea81ee77711c476c790e…"],
+[17,"left","Left out: 1 command whose search terms named private details."],
+[25,"ran","git diff 5947c78e5b88a364952fb554548e53b40321abe9 9ebfdea81ee77711c476c790ed28229610f933df -- .gith…"],
+[34,"ran","cat CONTRIBUTING.md && sed -n '1,235p' docs/development/index.md && sed -n '1,175p' justfile && sed…"],
+[58,"ran","rg -n 'check-static|just check|rayon_global_pool|pytest-xdist|sysmon|Intel|macos-15-intel' docs .gi…"],
+[58,"ran","nl -ba .github/workflows/native-wheels.yml | sed -n '35,280p' && nl -ba .github/workflows/ci.yml | …"]
+]}

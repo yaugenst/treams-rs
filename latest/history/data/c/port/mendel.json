@@ -1,0 +1,13 @@
+{"id":"port/mendel","helpers":[{"id":"port/jason","nick":"Jason","task":"benchmark prose","parent":"port/mendel","depth":2,"model":"gpt-6-astra","effort":"ultra","from":132931,"minutes":5}],"groups":[],"items":[
+{"t":"note","at":132841,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":132850,"to":133324,"commands":22,"files":0,"notes":0,"helpers":1,"groups":0,"searches":0,"helper_ids":["port/jason"],"group_ix":[],"lines":[[1,0,23]]},
+{"t":"relay","at":133340,"how":"report","from":null,"html":"<p>Polished 17 documentation files: neutral quickstart, consistent capability/adjoint limits, portable static deployment, and historical benchmark evidence clearly scoped. All tables, numerical caveats, and attribution preserved.</p>\n<p>Verified six executable doc tests, both README examples, 149 local links, 63 benchmark references, privacy scan, formatting, and whitespace. No commits or pushes.</p>"},
+{"t":"note","at":133409,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":133414,"to":133470,"commands":4,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,23,27]]},
+{"t":"note","at":133470,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":133529,"to":134129,"commands":17,"files":4,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,27,53]]},
+{"t":"relay","at":134158,"how":"report","from":null,"html":"<p>Added deterministic license bundling, Advanced/static-file copying, and navigation links; <code>npm run build</code> passes. Repeated notice generation is byte-identical.</p>\n<p>Documented redacted artifact digests, unchanged historical measurements, build-path remapping, and wheel SBOM limits. Final visual QA remains with root; no commits or pushes.</p>"},
+{"t":"note","at":134309,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":134314,"to":134583,"commands":11,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,53,65]]},
+{"t":"relay","at":134595,"how":"report","from":null,"html":"<p>Updated browser/WASM documentation for the bounded metasurface and crystal exports, current binary size, asynchronous interaction, and completed numerical qualification.</p>\n<p>Verified 153 local links, six executable documentation tests, formatting, and whitespace. No code changes, commits, or pushes.</p>"}
+]}

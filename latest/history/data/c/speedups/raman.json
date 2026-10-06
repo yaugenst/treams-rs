@@ -1,0 +1,5 @@
+{"id":"speedups/raman","helpers":[],"groups":[],"items":[
+{"t":"note","at":2001222,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":2001227,"to":2001345,"commands":8,"files":1,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,11]]},
+{"t":"relay","at":2001365,"how":"report","from":null,"html":"<p>Edited only <code>tests/tmatrix/test_iterative.py</code>:</p>\n<ul>\n<li><code>test_requested_illuminations_match_the_dense_binding</code>: adds seven-column forward/pullback coverage with zero adjoint columns across batches.</li>\n<li><code>test_mixed_scale_columns_keep_independent_convergence</code>: seven columns, mixed scales and zeros, restarted GMRES, relative-only/absolute-only tolerances, agreement and iteration counts versus independent solves.</li>\n</ul>\n<p>Ruff lint and formatting pass. Python tests await the rebuilt extension; no builds or timings run. System <code>uv</code> fails the project’s version requirement; direct existing-venv Ruff worked. No commits, pushes, or PR changes.</p>"}
+]}

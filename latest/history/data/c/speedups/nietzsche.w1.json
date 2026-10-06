@@ -1,0 +1,22 @@
+{"lines":[
+[0,"ran","pwd && git status --short && rg --files docs benchmarks .github python | rg '(releas|parallel|threa…"],
+[13,"ran","cat docs/development/releasing.md .github/scripts/verify-release-state.sh .github/workflows/release…"],
+[13,"ran","cat benchmarks/README.md docs/guide/threads.md docs/design/parallelism.md python/AGENTS.md && rg -n…"],
+[13,"ran","git diff --stat && git diff -- CHANGELOG.md benchmarks/README.md python/treams_rs/iterative.py docs…"],
+[27,"ran","cat benchmarks/README.md"],
+[27,"ran","cat docs/guide/threads.md docs/design/parallelism.md && rg -n 'batch|GMRES|matrix.free|restart|reus…"],
+[27,"ran","cat .github/workflows/publish-release.yml && cat .github/workflows/release-candidate.yml && cat jus…"],
+[43,"ran","cat docs/guide/large-clusters.md docs/performance/index.md docs/performance/evidence.md docs/guide/…"],
+[43,"ran","sed -n '65,170p' docs/design/parallelism.md; rg --files docs/guide docs/design docs/performance | s…"],
+[43,"ran","rg -n 'matrix.free|GMRES|batched|one.*column|column.*independ|thread.*count|parallel.*LU|2026|0\\.1\\…"],
+[72,"ran","sed -n '1,190p' docs/guide/large-clusters.md; sed -n '1,150p' docs/performance/large-problems.md; s…"],
+[72,"ran","cat docs/development/benchmarks.md; sed -n '1,75p' docs/performance/evidence.md; sed -n '1,150p' mk…"],
+[72,"ran","sed -n '1,220p' .github/workflows/ci.yml; sed -n '1,150p' .github/workflows/native-wheels.yml; sed …"],
+[94,"ran","git diff --numstat; rg -n 'DEFAULT_BATCH|BATCH|batch_size|MAX.*RHS|KRYLOV|chunk|pair_block|pair.*ma…"],
+[94,"ran","nl -ba docs/development/releasing.md | sed -n '39,107p'; nl -ba docs/guide/large-clusters.md | sed …"],
+[94,"ran","sed -n '1,28p' python/treams_rs/iterative.py; sed -n '170,194p' python/treams_rs/iterative.py; sed …"],
+[125,"sent","1 message to Halley"],
+[135,"ran","rg -n 'formal|licenses|deny|CI Success|needs:' .github/workflows/ci.yml; sed -n '1,180p' docs/devel…"],
+[143,"ran","sed -n '480,561p' .github/workflows/ci.yml; sed -n '105,125p' pyproject.toml; sed -n '1,115p' scrip…"],
+[152,"ran","rg --files .github/workflows; rg -n 'lake|Lean|formal' .github/workflows; rg -n 'readme|include|exc…"]
+]}

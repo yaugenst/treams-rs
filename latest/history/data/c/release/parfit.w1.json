@@ -1,0 +1,10 @@
+{"lines":[
+[0,"note","<p>I’ll inspect Warehouse’s current GitHub OIDC verification path and identify which repository claims it actually checks.</p>"],
+[5,"opened","https://raw.githubusercontent.com/pypi/warehouse/main/warehouse/oidc/models/github.py"],
+[13,"ran","gh api repos/pypi/warehouse/commits/main --jq '{sha:.sha,date:.commit.committer.date}'"],
+[15,"opened","https://raw.githubusercontent.com/pypi/warehouse/main/warehouse/oidc/models/_core.py"],
+[22,"ran","gh api 'repos/pypi/warehouse/contents/warehouse/oidc/models/github.py?ref=8f38ce5c45aef4f0370509d66…"],
+[22,"ran","gh api 'repos/pypi/warehouse/contents/warehouse/oidc/models/_core.py?ref=8f38ce5c45aef4f0370509d665…"],
+[22,"ran","gh api 'repos/pypi/warehouse/contents/warehouse/oidc/services.py?ref=8f38ce5c45aef4f0370509d6651551…"],
+[38,"sent","1 message to Franklin"]
+]}

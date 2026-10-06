@@ -1,0 +1,188 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/treams-core/src/lattice/real.rs`."><title>real.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="treams_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">treams_core/lattice/</div>real.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Real-space terms of the Ewald sum.
+<a href=#2 id=2 data-nosnippet>2</a>//!
+<a href=#3 id=3 data-nosnippet>3</a>//! Upstream: `_realsw*` and `_realcw*` of `lattice/_esum.pyx`. The bounded Kambe
+<a href=#4 id=4 data-nosnippet>4</a>//! integrals at small splits are a treams-rs extension.
+<a href=#5 id=5 data-nosnippet>5</a>
+<a href=#6 id=6 data-nosnippet>6</a></span><span class="kw">use </span>std::f64::consts::PI;
+<a href=#7 id=7 data-nosnippet>7</a>
+<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>super::{
+<a href=#9 id=9 data-nosnippet>9</a>    accuracy::Rounding,
+<a href=#10 id=10 data-nosnippet>10</a>    wave::{Family, azimuthal, negative_order_sign, solid_jet},
+<a href=#11 id=11 data-nosnippet>11</a>};
+<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>crate::{
+<a href=#13 id=13 data-nosnippet>13</a>    Complex,
+<a href=#14 id=14 data-nosnippet>14</a>    numerics::Jet,
+<a href=#15 id=15 data-nosnippet>15</a>    special::{<span class="self">self</span>, SmallSplitKambe, harmonic_normalization},
+<a href=#16 id=16 data-nosnippet>16</a>};
+<a href=#17 id=17 data-nosnippet>17</a>
+<a href=#18 id=18 data-nosnippet>18</a><span class="doccomment">/// How the real-space terms take their Kambe integrals ([`kambe_jet`]).
+<a href=#19 id=19 data-nosnippet>19</a></span><span class="attr">#[derive(Debug)]
+<a href=#20 id=20 data-nosnippet>20</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">enum </span>RealKambe&lt;<span class="lifetime">'a</span>, <span class="kw">const </span>N: usize&gt; {
+<a href=#21 id=21 data-nosnippet>21</a>    <span class="doccomment">/// The integrals of the recurrences, without bounds.
+<a href=#22 id=22 data-nosnippet>22</a>    </span>Plain,
+<a href=#23 id=23 data-nosnippet>23</a>    <span class="doccomment">/// Below every automatic split ([`below_automatic`]): the integrals of
+<a href=#24 id=24 data-nosnippet>24</a>    /// [`SmallSplitKambe`], which keep their closed forms below the rounding `largest`
+<a href=#25 id=25 data-nosnippet>25</a>    /// of the largest term so far in each component (see [`kambe_floor`]), storing the
+<a href=#26 id=26 data-nosnippet>26</a>    /// bounds [`cancellation`] reads in `bound`.
+<a href=#27 id=27 data-nosnippet>27</a>    ///
+<a href=#28 id=28 data-nosnippet>28</a>    /// [`below_automatic`]: super::accuracy::below_automatic
+<a href=#29 id=29 data-nosnippet>29</a>    /// [`cancellation`]: super::accuracy::cancellation
+<a href=#30 id=30 data-nosnippet>30</a>    </span>SmallSplit {
+<a href=#31 id=31 data-nosnippet>31</a>        kambe: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>SmallSplitKambe,
+<a href=#32 id=32 data-nosnippet>32</a>        largest: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Rounding&lt;N&gt;,
+<a href=#33 id=33 data-nosnippet>33</a>        bound: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>Rounding&lt;N&gt;,
+<a href=#34 id=34 data-nosnippet>34</a>    },
+<a href=#35 id=35 data-nosnippet>35</a>    <span class="doccomment">/// Only the `eta` derivative, in slot 0, for the split derivative.
+<a href=#36 id=36 data-nosnippet>36</a>    </span>EtaDerivative,
+<a href=#37 id=37 data-nosnippet>37</a>}
+<a href=#38 id=38 data-nosnippet>38</a>
+<a href=#39 id=39 data-nosnippet>39</a><span class="doccomment">/// Kambe integral of order `n` at `z` of a real-space term with the factor `factor`, with
+<a href=#40 id=40 data-nosnippet>40</a>/// its `z` derivative `-z I_(n+2)`, or its `eta` derivative alone.
+<a href=#41 id=41 data-nosnippet>41</a></span><span class="kw">fn </span>kambe_jet&lt;<span class="kw">const </span>N: usize&gt;(
+<a href=#42 id=42 data-nosnippet>42</a>    n: i32,
+<a href=#43 id=43 data-nosnippet>43</a>    z: Jet&lt;N&gt;,
+<a href=#44 id=44 data-nosnippet>44</a>    eta: Complex,
+<a href=#45 id=45 data-nosnippet>45</a>    mode: RealKambe&lt;<span class="lifetime">'_</span>, N&gt;,
+<a href=#46 id=46 data-nosnippet>46</a>    factor: <span class="kw-2">&amp;</span>Jet&lt;N&gt;,
+<a href=#47 id=47 data-nosnippet>47</a>) -&gt; Jet&lt;N&gt; {
+<a href=#48 id=48 data-nosnippet>48</a>    <span class="kw">let </span>(value, next) = <span class="kw">match </span>mode {
+<a href=#49 id=49 data-nosnippet>49</a>        RealKambe::EtaDerivative =&gt; {
+<a href=#50 id=50 data-nosnippet>50</a>            <span class="kw">let </span>derivative =
+<a href=#51 id=51 data-nosnippet>51</a>                -eta.powi(n) * (<span class="number">0.5 </span>* (<span class="number">1.0 </span>/ (eta * eta) - z.value * z.value * eta * eta)).exp();
+<a href=#52 id=52 data-nosnippet>52</a>            <span class="kw">let </span><span class="kw-2">mut </span>jet = Jet::default();
+<a href=#53 id=53 data-nosnippet>53</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(slot) = jet.derivative.first_mut() {
+<a href=#54 id=54 data-nosnippet>54</a>                <span class="kw-2">*</span>slot = derivative;
+<a href=#55 id=55 data-nosnippet>55</a>            }
+<a href=#56 id=56 data-nosnippet>56</a>            <span class="kw">return </span>jet;
+<a href=#57 id=57 data-nosnippet>57</a>        }
+<a href=#58 id=58 data-nosnippet>58</a>        RealKambe::Plain =&gt; {
+<a href=#59 id=59 data-nosnippet>59</a>            <span class="kw">let </span>next = (N &gt; <span class="number">0</span>).then(|| special::kambe(n + <span class="number">2</span>, z.value, eta));
+<a href=#60 id=60 data-nosnippet>60</a>            (special::kambe(n, z.value, eta), next)
+<a href=#61 id=61 data-nosnippet>61</a>        }
+<a href=#62 id=62 data-nosnippet>62</a>        RealKambe::SmallSplit {
+<a href=#63 id=63 data-nosnippet>63</a>            kambe,
+<a href=#64 id=64 data-nosnippet>64</a>            largest,
+<a href=#65 id=65 data-nosnippet>65</a>            bound,
+<a href=#66 id=66 data-nosnippet>66</a>        } =&gt; small_split_kambe(n, <span class="kw-2">&amp;</span>z, kambe, largest, bound, factor),
+<a href=#67 id=67 data-nosnippet>67</a>    };
+<a href=#68 id=68 data-nosnippet>68</a>    <span class="kw">let </span>derivative = next.map_or_else(Complex::default, |next| -z.value * next);
+<a href=#69 id=69 data-nosnippet>69</a>    z.chain(value, derivative)
+<a href=#70 id=70 data-nosnippet>70</a>}
+<a href=#71 id=71 data-nosnippet>71</a>
+<a href=#72 id=72 data-nosnippet>72</a><span class="doccomment">/// The radial integral shared by all spherical orders of one degree at a point.
+<a href=#73 id=73 data-nosnippet>73</a>/// Used only above the small-split cancellation regime, where the integral does not
+<a href=#74 id=74 data-nosnippet>74</a>/// depend on the harmonic's rounding budget.
+<a href=#75 id=75 data-nosnippet>75</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>spherical_radial&lt;<span class="kw">const </span>N: usize&gt;(
+<a href=#76 id=76 data-nosnippet>76</a>    l: i32,
+<a href=#77 id=77 data-nosnippet>77</a>    k: Jet&lt;N&gt;,
+<a href=#78 id=78 data-nosnippet>78</a>    r: [Jet&lt;N&gt;; <span class="number">3</span>],
+<a href=#79 id=79 data-nosnippet>79</a>    eta: Complex,
+<a href=#80 id=80 data-nosnippet>80</a>) -&gt; Jet&lt;N&gt; {
+<a href=#81 id=81 data-nosnippet>81</a>    <span class="kw">let </span>radius = r.into_iter().map(|r| r * r).sum::&lt;Jet&lt;N&gt;&gt;().sqrt();
+<a href=#82 id=82 data-nosnippet>82</a>    kambe_jet(<span class="number">2 </span>* l, k * radius, eta, RealKambe::Plain, <span class="kw-2">&amp;</span>Jet::default())
+<a href=#83 id=83 data-nosnippet>83</a>}
+<a href=#84 id=84 data-nosnippet>84</a>
+<a href=#85 id=85 data-nosnippet>85</a><span class="doccomment">/// A spherical real-space term from its already evaluated radial integral.
+<a href=#86 id=86 data-nosnippet>86</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>spherical_from_radial&lt;<span class="kw">const </span>N: usize&gt;(
+<a href=#87 id=87 data-nosnippet>87</a>    l: i32,
+<a href=#88 id=88 data-nosnippet>88</a>    m: i32,
+<a href=#89 id=89 data-nosnippet>89</a>    k: Jet&lt;N&gt;,
+<a href=#90 id=90 data-nosnippet>90</a>    r: [Jet&lt;N&gt;; <span class="number">3</span>],
+<a href=#91 id=91 data-nosnippet>91</a>    radial: Jet&lt;N&gt;,
+<a href=#92 id=92 data-nosnippet>92</a>) -&gt; Jet&lt;N&gt; {
+<a href=#93 id=93 data-nosnippet>93</a>    <span class="kw">let </span>harmonic = solid_jet(l, m, r) * harmonic_normalization(l, m);
+<a href=#94 id=94 data-nosnippet>94</a>    <span class="kw">let </span>factor = -Complex::i() * (<span class="number">2.0 </span>/ PI).sqrt() * k.powi(l) * harmonic;
+<a href=#95 id=95 data-nosnippet>95</a>    factor * radial
+<a href=#96 id=96 data-nosnippet>96</a>}
+<a href=#97 id=97 data-nosnippet>97</a>
+<a href=#98 id=98 data-nosnippet>98</a><span class="doccomment">/// `I_n` and, for jets, `I_(n+2)` at `z` in [`RealKambe::SmallSplit`], storing their
+<a href=#99 id=99 data-nosnippet>99</a>/// bounds in the term with the factor `factor` in `bound`.
+<a href=#100 id=100 data-nosnippet>100</a>///
+<a href=#101 id=101 data-nosnippet>101</a>/// Kept out of line, like [`Shells::add_compensated`], so the term loop at the other
+<a href=#102 id=102 data-nosnippet>102</a>/// splits stays small. Calibrated: inlined, it slows 3D jets at the automatic split by
+<a href=#103 id=103 data-nosnippet>103</a>/// 1% to 2.7%.
+<a href=#104 id=104 data-nosnippet>104</a>///
+<a href=#105 id=105 data-nosnippet>105</a>/// [`Shells::add_compensated`]: super::shells::Shells::add_compensated
+<a href=#106 id=106 data-nosnippet>106</a></span><span class="attr">#[inline(never)]
+<a href=#107 id=107 data-nosnippet>107</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>small_split_kambe&lt;<span class="kw">const </span>N: usize&gt;(
+<a href=#108 id=108 data-nosnippet>108</a>    n: i32,
+<a href=#109 id=109 data-nosnippet>109</a>    z: <span class="kw-2">&amp;</span>Jet&lt;N&gt;,
+<a href=#110 id=110 data-nosnippet>110</a>    kambe: <span class="kw-2">&amp;</span>SmallSplitKambe,
+<a href=#111 id=111 data-nosnippet>111</a>    largest: <span class="kw-2">&amp;</span>Rounding&lt;N&gt;,
+<a href=#112 id=112 data-nosnippet>112</a>    bound: <span class="kw-2">&amp;mut </span>Rounding&lt;N&gt;,
+<a href=#113 id=113 data-nosnippet>113</a>    factor: <span class="kw-2">&amp;</span>Jet&lt;N&gt;,
+<a href=#114 id=114 data-nosnippet>114</a>) -&gt; (Complex, <span class="prelude-ty">Option</span>&lt;Complex&gt;) {
+<a href=#115 id=115 data-nosnippet>115</a>    <span class="kw">let </span>floor = kambe_floor(largest, factor);
+<a href=#116 id=116 data-nosnippet>116</a>    <span class="kw">let </span>(value, value_bound, next) = <span class="kw">if </span>N == <span class="number">0 </span>{
+<a href=#117 id=117 data-nosnippet>117</a>        <span class="kw">let </span>[(value, value_bound)] = kambe.get([n], z.value, floor);
+<a href=#118 id=118 data-nosnippet>118</a>        (value, value_bound, <span class="prelude-val">None</span>)
+<a href=#119 id=119 data-nosnippet>119</a>    } <span class="kw">else </span>{
+<a href=#120 id=120 data-nosnippet>120</a>        <span class="kw">let </span>[(value, value_bound), next] = kambe.get([n, n + <span class="number">2</span>], z.value, floor);
+<a href=#121 id=121 data-nosnippet>121</a>        (value, value_bound, <span class="prelude-val">Some</span>(next))
+<a href=#122 id=122 data-nosnippet>122</a>    };
+<a href=#123 id=123 data-nosnippet>123</a>    <span class="kw">let </span>(next_bound, modulus) = (next.map_or(<span class="number">0.0</span>, |(<span class="kw">_</span>, bound)| bound), z.value.l1_norm());
+<a href=#124 id=124 data-nosnippet>124</a>    <span class="kw-2">*</span>bound = Rounding {
+<a href=#125 id=125 data-nosnippet>125</a>        value: value_bound,
+<a href=#126 id=126 data-nosnippet>126</a>        derivative: z.derivative.map(|d| next_bound * modulus * d.l1_norm()),
+<a href=#127 id=127 data-nosnippet>127</a>    }
+<a href=#128 id=128 data-nosnippet>128</a>    .times(factor);
+<a href=#129 id=129 data-nosnippet>129</a>    (value, next.map(|(next, <span class="kw">_</span>)| next))
+<a href=#130 id=130 data-nosnippet>130</a>}
+<a href=#131 id=131 data-nosnippet>131</a>
+<a href=#132 id=132 data-nosnippet>132</a><span class="doccomment">/// The error, in units of epsilon, up to which [`SmallSplitKambe::get`] keeps the closed
+<a href=#133 id=133 data-nosnippet>133</a>/// forms of the Kambe integral of a real-space term with the factor `factor`: what leaves
+<a href=#134 id=134 data-nosnippet>134</a>/// less in each component of the term than the rounding `largest` of the largest term so
+<a href=#135 id=135 data-nosnippet>135</a>/// far, carried by the value of the factor or, where that vanishes (off-axis orders on a
+<a href=#136 id=136 data-nosnippet>136</a>/// 1D spherical axis, odd `l + m` in a 2D plane), by its derivatives.
+<a href=#137 id=137 data-nosnippet>137</a></span><span class="kw">fn </span>kambe_floor&lt;<span class="kw">const </span>N: usize&gt;(largest: <span class="kw-2">&amp;</span>Rounding&lt;N&gt;, factor: <span class="kw-2">&amp;</span>Jet&lt;N&gt;) -&gt; f64 {
+<a href=#138 id=138 data-nosnippet>138</a>    <span class="kw">let </span>scale = factor.value.l1_norm();
+<a href=#139 id=139 data-nosnippet>139</a>    <span class="kw">if </span>scale &gt; <span class="number">0.0 </span>{
+<a href=#140 id=140 data-nosnippet>140</a>        <span class="kw">return </span>largest.value / scale;
+<a href=#141 id=141 data-nosnippet>141</a>    }
+<a href=#142 id=142 data-nosnippet>142</a>    largest
+<a href=#143 id=143 data-nosnippet>143</a>        .derivative
+<a href=#144 id=144 data-nosnippet>144</a>        .iter()
+<a href=#145 id=145 data-nosnippet>145</a>        .zip(<span class="kw-2">&amp;</span>factor.derivative)
+<a href=#146 id=146 data-nosnippet>146</a>        .filter(|<span class="kw-2">&amp;</span>(<span class="kw">_</span>, <span class="kw-2">&amp;</span>d)| <span class="macro">d !</span>= Complex::default())
+<a href=#147 id=147 data-nosnippet>147</a>        .map(|(largest, d)| largest / d.l1_norm())
+<a href=#148 id=148 data-nosnippet>148</a>        .fold(f64::INFINITY, f64::min)
+<a href=#149 id=149 data-nosnippet>149</a>}
+<a href=#150 id=150 data-nosnippet>150</a>
+<a href=#151 id=151 data-nosnippet>151</a><span class="doccomment">/// One real-space summand at the displacement `r = -shift - R`.
+<a href=#152 id=152 data-nosnippet>152</a>///
+<a href=#153 id=153 data-nosnippet>153</a>/// # Formula
+<a href=#154 id=154 data-nosnippet>154</a>///
+<a href=#155 id=155 data-nosnippet>155</a>/// Spherical: `-i sqrt(2 / pi) k^l |r|^l Y_lm(r / |r|) I_(2l)(k |r|, eta)`, where
+<a href=#156 id=156 data-nosnippet>156</a>/// `|r|^l Y_lm` is `harmonic_normalization(l, m)` times the solid harmonic. Cylindrical:
+<a href=#157 id=157 data-nosnippet>157</a>/// `-2 i / pi (-1)^m (k (x ± i y))^|m| I_(2|m| - 1)(k |r|, eta)`, with the sign `(-1)^m`
+<a href=#158 id=158 data-nosnippet>158</a>/// and `x - i y` for negative `m` only.
+<a href=#159 id=159 data-nosnippet>159</a>///
+<a href=#160 id=160 data-nosnippet>160</a>/// [`RealKambe::SmallSplit`] stores first-order bounds on the absolute rounding errors
+<a href=#161 id=161 data-nosnippet>161</a>/// that its Kambe integral leaves in its value and derivatives (see [`kambe_jet`]).
+<a href=#162 id=162 data-nosnippet>162</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>real_term&lt;<span class="kw">const </span>N: usize&gt;(
+<a href=#163 id=163 data-nosnippet>163</a>    wave: Family,
+<a href=#164 id=164 data-nosnippet>164</a>    k: Jet&lt;N&gt;,
+<a href=#165 id=165 data-nosnippet>165</a>    r: [Jet&lt;N&gt;; <span class="number">3</span>],
+<a href=#166 id=166 data-nosnippet>166</a>    eta: Complex,
+<a href=#167 id=167 data-nosnippet>167</a>    mode: RealKambe&lt;<span class="lifetime">'_</span>, N&gt;,
+<a href=#168 id=168 data-nosnippet>168</a>) -&gt; Jet&lt;N&gt; {
+<a href=#169 id=169 data-nosnippet>169</a>    <span class="kw">let </span>radius = r.into_iter().map(|r| r * r).sum::&lt;Jet&lt;N&gt;&gt;().sqrt();
+<a href=#170 id=170 data-nosnippet>170</a>    <span class="kw">let </span>(factor, order) = <span class="kw">match </span>wave {
+<a href=#171 id=171 data-nosnippet>171</a>        Family::Spherical { l, m } =&gt; {
+<a href=#172 id=172 data-nosnippet>172</a>            <span class="kw">let </span>harmonic = solid_jet(l, m, r) * harmonic_normalization(l, m);
+<a href=#173 id=173 data-nosnippet>173</a>            (
+<a href=#174 id=174 data-nosnippet>174</a>                -Complex::i() * (<span class="number">2.0 </span>/ PI).sqrt() * k.powi(l) * harmonic,
+<a href=#175 id=175 data-nosnippet>175</a>                <span class="number">2 </span>* l,
+<a href=#176 id=176 data-nosnippet>176</a>            )
+<a href=#177 id=177 data-nosnippet>177</a>        }
+<a href=#178 id=178 data-nosnippet>178</a>        Family::Cylindrical { m } =&gt; {
+<a href=#179 id=179 data-nosnippet>179</a>            <span class="kw">let </span>(xy, sign) = (azimuthal(r[<span class="number">0</span>], r[<span class="number">1</span>], m), negative_order_sign(m));
+<a href=#180 id=180 data-nosnippet>180</a>            (
+<a href=#181 id=181 data-nosnippet>181</a>                -<span class="number">2.0 </span>* Complex::i() / PI * sign * (k * xy).powi(m.abs()),
+<a href=#182 id=182 data-nosnippet>182</a>                <span class="number">2 </span>* m.abs() - <span class="number">1</span>,
+<a href=#183 id=183 data-nosnippet>183</a>            )
+<a href=#184 id=184 data-nosnippet>184</a>        }
+<a href=#185 id=185 data-nosnippet>185</a>    };
+<a href=#186 id=186 data-nosnippet>186</a>    factor * kambe_jet(order, k * radius, eta, mode, <span class="kw-2">&amp;</span>factor)
+<a href=#187 id=187 data-nosnippet>187</a>}
+</code></pre></div></section></main></body></html>

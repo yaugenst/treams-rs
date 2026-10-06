@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["basis_pair_size"]};

@@ -1,0 +1,13 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g AGENTS.md -g README.md crates/treams-core [a private folder] 2>/dev/null | hea…"],
+[11,"ran","cat AGENTS.md crates/AGENTS.md && for p in crates/treams-core/README.md crates/treams-core/src/{tma…"],
+[19,"helper","release/copernicus"],
+[30,"ran","sed -n '1,210p' crates/treams-core/src/lib.rs && sed -n '1,190p' crates/treams-core/src/lattice/mod…"],
+[47,"ran","sed -n '1,150p' crates/treams-core/src/linalg/mod.rs && rg -n 'pub (fn|struct)|fn pullback|solve_ad…"],
+[47,"ran","rg -n 'fn (sum|sum_part|derivatives|evaluate)|spectral|real::|reciprocal::|accuracy::' crates/tream…"],
+[116,"changed","crates/treams-core/README.md, crates/treams-core/src/sw/README.md, crates/treams-core/src/lattice/R…"],
+[116,"reported","release/copernicus"],
+[124,"ran","git diff -- crates/treams-core/README.md crates/treams-core/src/cluster/README.md crates/treams-cor…"],
+[160,"changed","crates/treams-core/src/sw/README.md, crates/treams-core/README.md, crates/treams-core/src/lattice/R…"],
+[160,"ran","git diff --check && rg -n '^```mermaid' crates/treams-core -g README.md"]
+]}

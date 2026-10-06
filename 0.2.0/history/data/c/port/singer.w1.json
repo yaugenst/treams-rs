@@ -1,0 +1,11 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g AGENTS.md -g '*development*' -g 'physics.ts' -g 'model.ts' -g 'package.json' -…"],
+[7,"ran","cat web/physics.ts web/model.ts web/check.mjs web/package.json"],
+[7,"ran","cat AGENTS.md docs/development.md"],
+[26,"ran","node --input-type=module <<'JS'"],
+[0,"ran","git diff -- web/app.ts web/worker.ts web/physics.ts web/model.ts && cat web/worker.ts"],
+[5,"ran","cat web/app.ts"],
+[49,"ran","node --input-type=module <<'JS'"],
+[85,"ran","sed -n '1,100p' web/ui-check.mjs && rg -n 'singleStep|wasOptimizing|activeElement|focus\\(' web/app.…"],
+[101,"ran","node --input-type=module <<'JS'"]
+]}

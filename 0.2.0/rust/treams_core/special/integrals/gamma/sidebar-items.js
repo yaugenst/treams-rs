@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["GAMMA_SERIES_RADIUS","LADDER_RUN","RECURRENCE_GROWTH","SERIES_PARABOLA"],"fn":["continued_fraction","downward_unstable","exp1","gamma_derivative","gamma_fraction","gamma_kummer","gamma_recurrence","gamma_series","half_power","inverse","normal","upper_gamma"],"struct":["ScaledGammaLadder"]};

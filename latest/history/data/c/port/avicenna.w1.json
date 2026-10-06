@@ -1,0 +1,12 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g AGENTS.md -g '*wasm*' treams-rs-author | head -30"],
+[6,"ran","cat AGENTS.md && .venv/bin/python - <<'PY'"],
+[11,"ran","cat docs/architecture.md && rg -n 'plane_wave|xs\\(' tests/test* | head -50 && cat pyproject.toml | …"],
+[20,"ran","sed -n '62,104p' tests/test_api.py && sed -n '65,96p' tests/test_plane.py && .venv/bin/python - <<'…"],
+[37,"sent","1 message to Averroes"],
+[47,"ran",".venv/bin/python - <<'PY'"],
+[58,"ran",".venv/bin/python - <<'PY'"],
+[116,"changed","scripts/generate_wasm_reference.py"],
+[124,"ran",".venv/bin/python scripts/generate_wasm_reference.py && .venv/bin/ruff check scripts/generate_wasm_r…"],
+[137,"sent","1 message to Averroes"]
+]}

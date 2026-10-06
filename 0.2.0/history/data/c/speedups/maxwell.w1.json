@@ -1,0 +1,15 @@
+{"lines":[
+[0,"ran","rg --files tests/scripts | sort"],
+[0,"ran","rg -n \"class Worker|def measure|Popen|terminate|kill|wait|OPENBLAS|def main|Worker\\(\" scripts/compa…"],
+[9,"ran","sed -n '960,1210p' scripts/compare_builds.py"],
+[9,"ran","sed -n '630,865p' scripts/compare_builds.py"],
+[9,"ran","cat tests/scripts/test_compare_builds.py"],
+[39,"ran","sed -n '1,100p' scripts/compare_builds.py"],
+[39,"ran","sed -n '890,961p' scripts/compare_builds.py"],
+[39,"ran","rg -n \"compare_builds|ABBA|warm|process|OPENBLAS\" docs benchmarks/README.md scripts/_harness.py"],
+[47,"sent","1 message to Halley"],
+[76,"ran","sed -n '500,642p' scripts/compare_builds.py"],
+[76,"ran","sed -n '1,58p' scripts/_harness.py"],
+[76,"ran","sed -n '60,90p' benchmarks/README.md"],
+[101,"sent","1 message to Halley"]
+]}

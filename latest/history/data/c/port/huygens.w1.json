@@ -1,0 +1,22 @@
+{"lines":[
+[0,"ran","sed -n '1,260p' treams-artifact-audit.py"],
+[4,"ran","sed -n '1,260p' scripts/run_benchmark_suite.py"],
+[10,"ran","sed -n '350,700p' scripts/run_benchmark_suite.py"],
+[22,"ran","python3 - <<'PY'"],
+[41,"ran","python3 - <<'PY'"],
+[56,"ran","on [computer name]: .venv/bin/python - <<'PY'"],
+[63,"ran","sed -n '1,330p' scripts/benchmark_gpu.py"],
+[73,"ran","rg -n 'assert!|max_abs_error|max_adjoint|normalized_pairing' crates/treams-cuda/examples/benchmark_…"],
+[83,"ran","sed -n '100,150p' scripts/benchmark_illumination.py; sed -n '170,210p' scripts/benchmark_illuminati…"],
+[98,"ran","python3 - <<'PY'"],
+[105,"ran","rg -n 'convergence|residual_norm|rhs_norm' python/treams_rs/iterative.py crates/treams-py/src/itera…"],
+[149,"ran","on [computer name]: .venv/bin/python - <<'PY'"],
+[163,"ran","rg -n 'collector_sha256|reference_harness_sha256|fixture_sha256|def fingerprints|ferrers_reference_…"],
+[168,"ran","sed -n '1,210p' scripts/qualify_papers.py"],
+[176,"ran","python3 - <<'PY'"],
+[344,"ran","cp treams-artifact-audit.py treams-artifact-audit-baseline.py"],
+[441,"ran","cat > treams-audit-smoke.py <<'PY'"],
+[455,"ran","python3 - <<'PY'"],
+[497,"ran","python3 - <<'PY'"],
+[529,"ran","python3 - <<'PY'"]
+]}

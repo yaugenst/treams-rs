@@ -1,0 +1,10 @@
+{"lines":[
+[0,"ran","cat AGENTS.md crates/AGENTS.md && git diff 8bbcb87aaeaccd9293fc8c09eecb8727c37c4970 -- crates/tream…"],
+[8,"ran","git diff 8bbcb87aaeaccd9293fc8c09eecb8727c37c4970 -- crates/treams-core/src/special/bessel.rs crate…"],
+[17,"ran","sed -n '400,790p' crates/treams-core/src/fields.rs; sed -n '380,480p' crates/treams-core/src/specia…"],
+[29,"ran","sed -n '1,180p' crates/treams-core/src/sw/mod.rs; sed -n '1,270p' crates/treams-core/src/sw/expansi…"],
+[29,"ran","sed -n '1,175p' crates/treams-core/src/special/bessel.rs; sed -n '450,490p' crates/treams-core/src/…"],
+[39,"ran","rg --files installed tools: src | rg 'complex-bessel.*/src/(lib|.*hankel|.*bessel).*rs$'; rg 'WaveS…"],
+[50,"ran","rg -n 'hankel1_seq|is_finite|is_nan|Input' installed tools: lib.rs | head -50; sed -n '470,570p' cr…"],
+[77,"sent","1 message to Leibniz"]
+]}

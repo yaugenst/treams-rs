@@ -1,0 +1,16 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g AGENTS.md -g REVIEW.md -g '!target' -g '!node_modules' [a private folder] [a p…"],
+[18,"ran","cat AGENTS.md && git diff 0e7a74b67b872f0ad3de0d47bb8822542dac9ab3..e3f7f03 --stat && git diff 0e7a…"],
+[18,"ran","cat AGENTS.md && git diff c4d9613f910bb25ca1e38302eb67763154424acc..da35ce0 --stat && git diff c4d9…"],
+[38,"ran","cat packages/advect-native/AGENTS.md && cat packages/advect-runtime/AGENTS.md && cat docs/AGENTS.md…"],
+[38,"ran","cat crates/AGENTS.md && cat CONTRIBUTING.md && sed -n '1,260p' docs/development/testing.md && cat C…"],
+[65,"left","Left out: 1 command that read the agent's own settings."],
+[65,"ran","rg --files --hidden -g AGENTS.md -g REVIEW.md -g '!target/**' -g '!.git/**' -g '!.venv/**' . && sed…"],
+[65,"ran","rg --files --hidden -g AGENTS.md -g REVIEW.md -g '!target/**' -g '!.git/**' -g '!.venv/**' . && sed…"],
+[87,"ran","git status --short && git rev-parse HEAD && nl -ba Cargo.toml | sed -n '16,48p' && nl -ba pyproject…"],
+[87,"ran","git status --short && git rev-parse HEAD && nl -ba Cargo.toml | sed -n '20,58p' && nl -ba pyproject…"],
+[87,"ran","for path in /REVIEW.md /home/REVIEW.md [a private folder] [a private folder] [a private folder] [a …"],
+[0,"ran","for path in /REVIEW.md /home/REVIEW.md [a private folder] [a private folder] [a private folder]; do…"],
+[0,"ran","git status --short && git rev-parse HEAD && git diff 3ce4d0b389a578ce9d4716480628c50829ec8c72..a335…"],
+[11,"ran","rg --files --hidden -g REVIEW.md -g '!target/**' -g '!.git/**' -g '!.venv/**' .; rg -n --hidden '0\\…"]
+]}

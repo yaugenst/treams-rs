@@ -1,0 +1,5 @@
+{"id":"port/avicenna","helpers":[],"groups":[],"items":[
+{"t":"note","at":116089,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":116094,"to":116231,"commands":7,"files":1,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,10]]},
+{"t":"relay","at":116237,"how":"report","from":null,"html":"<p>Generated upstream-only WASM fixtures and reproducible generator:</p>\n<ul>\n<li><code>crates/treams-wasm/tests/reference.json</code>: 209 KB, three cases with 30/60/48 modes.</li>\n<li><code>scripts/generate_wasm_reference.py</code>: pinned treams 0.4.5, NumPy 2.5.3, SciPy 1.16.3.</li>\n</ul>\n<p>Includes multilayer chiral sphere, two-sphere cluster, lossless sphere; full column-major T matrices, incident/scattered coefficients, scattered Cartesian fields, and cross sections. Physical checks and Ruff passed.</p>"}
+]}

@@ -1,0 +1,5 @@
+{"id":"port/erdos","helpers":[],"groups":[],"items":[
+{"t":"note","at":154549,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":154554,"to":154869,"commands":12,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,14]]},
+{"t":"relay","at":154878,"how":"report","from":null,"html":"<p>Implemented on Linux only:</p>\n<ul>\n<li>Dense pullbacks reuse existing buffers and release LU earlier. Expected N256 peak reduction: <strong>1,800 MiB</strong>, pending measurement.</li>\n<li>Benchmark parity checks use bounded chunks with unchanged tolerances and full element coverage.</li>\n<li>Three native adjoint properties, three Python validation tests, and Ruff passed.</li>\n</ul>\n<p>Files frozen; root owns subsequent integration and reruns. No Mac edits, commits, or pushes.</p>"}
+]}

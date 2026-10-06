@@ -1,0 +1,14 @@
+{"lines":[
+[0,"ran","rg -n 'pair_gradients|TranslationPlan|reverse|derivative|gradient' crates/treams-core/src/cluster/i…"],
+[11,"ran","sed -n '1,240p' crates/treams-core/src/sw/plan.rs"],
+[11,"ran","sed -n '340,377p' crates/treams-core/src/sw/plan.rs && sed -n '1,175p' crates/treams-core/src/sw/ca…"],
+[11,"ran","sed -n '1,245p' crates/treams-core/src/cluster/iterative.rs && sed -n '280,460p' crates/treams-core…"],
+[37,"ran","nl -ba crates/treams-core/src/cluster/iterative.rs | sed -n '285,395p'; nl -ba crates/treams-core/s…"],
+[37,"ran","sed -n '460,558p' crates/treams-core/src/sw/plan.rs && sed -n '1,260p' crates/treams-core/src/sw/co…"],
+[37,"ran","rg -n 'antipod|parity|reverse|reciproc|reflection|displacement.*neg|\\-displacement|symmetr' crates/…"],
+[46,"sent","1 message to Boole"],
+[76,"ran","sed -n '1,220p' crates/treams-core/src/special/solid.rs; sed -n '600,655p' crates/treams-core/src/p…"],
+[76,"ran","rg -n 'spherical_radial_sequence|spherical_hankels|RadialJet' crates/treams-core/src/special -g '*.…"],
+[82,"ran","rg --files crates/treams-core/src/special crates/treams-core/src/sw; sed -n '410,494p' crates/tream…"],
+[100,"sent","1 message to Boole"]
+]}

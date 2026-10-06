@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["mie","mie_cyl","real_refractive_indices"],"mod":["material","mie","mie_cyl"],"struct":["LayerGradient","Material","MieCylGradient","MieCylResidual","MieGradient","MieResidual"],"type":["Matrix2","Matrix4","Matrix42"]};

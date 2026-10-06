@@ -1,0 +1,13 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g 'AGENTS.md' -g 'pyproject.toml' -g 'test*autograd*' -g '*dispatch*' -g '*trans…"],
+[18,"ran","cat AGENTS.md python/AGENTS.md && sed -n '1,240p' tests/autodiff/test_autograd.py"],
+[18,"ran","sed -n '1,220p' pyproject.toml && sed -n '1,220p' tests/conftest.py && sed -n '1,200p' tests/autodi…"],
+[18,"ran",".venv/bin/python -c 'import sys, numpy, scipy, pytest, hypothesis, importlib.metadata as m; print(s…"],
+[39,"ran","rg -n 'autograd|params=' tests/autodiff/test_constant_promotion.py tests/autodiff/test_interaction_…"],
+[39,"ran","sed -n '1,160p' tests/autodiff/test_material_dispatch.py && sed -n '1,110p' tests/autodiff/test_tra…"],
+[65,"ran","mkdir -p release workspace: followups/autograd-floor && release workspace: bin/uv venv --python .ve…"],
+[82,"ran","release workspace: followups/autograd-floor/.venv/bin/python -m pytest tests/autodiff/test_autograd…"],
+[107,"ran","tail -n 35 release workspace: followups/autograd-floor/pytest.log && sed -n '1,100p' release worksp…"],
+[166,"changed","release workspace: followups/autograd-floor/record_evidence.py"],
+[166,"ran","release workspace: bin/uv run --script release workspace: followups/autograd-floor/record_evidence.…"]
+]}

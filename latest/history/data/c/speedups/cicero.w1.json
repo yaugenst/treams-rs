@@ -1,0 +1,18 @@
+{"lines":[
+[0,"ran","git status --short && git diff --stat && git diff --numstat"],
+[4,"ran","git diff -- scripts/compare_builds.py tests/scripts/test_compare_builds.py"],
+[4,"ran","cat AGENTS.md crates/AGENTS.md"],
+[4,"ran","git diff -- crates/treams-core/src/linalg/gmres.rs crates/treams-core/src/cluster/iterative.rs"],
+[6,"ran","sed -n '70,410p' crates/treams-core/src/linalg/gmres.rs"],
+[9,"ran","git diff -- crates/treams-core/src/fields.rs crates/treams-core/src/special/harmonics.rs crates/tre…"],
+[15,"ran","git diff -- crates/treams-core/src/lattice/ewald.rs crates/treams-core/src/lattice/mod.rs crates/tr…"],
+[19,"ran","sed -n '1,120p' crates/treams-core/src/lattice/real.rs; sed -n '100,300p' crates/treams-core/src/th…"],
+[25,"helper","speedups/mill"],
+[38,"ran","sed -n '120,270p' crates/treams-core/src/lattice/ewald.rs; sed -n '180,270p' crates/treams-core/src…"],
+[49,"ran","git diff -- crates/treams-core/src/threads.rs crates/treams-core/src/special/bessel.rs; sed -n '150…"],
+[59,"ran","cat docs/development/architecture.md docs/development/testing.md; rg --files -g REVIEW.md -g AGENTS…"],
+[69,"reported","speedups/mill"],
+[78,"ran","nl -ba scripts/compare_builds.py | sed -n '678,712p'; rg -n 'Worker\\(|\\.measure\\(|serve\\(' tests/sc…"],
+[0,"ran","git rev-parse HEAD && git status --short && git log -3 --oneline && git show aba7b877fcb5aea8439e77…"],
+[12,"ran","git diff 8bbcb87aaeaccd9293fc8c09eecb8727c37c4970 aba7b877fcb5aea8439e77ace8f92e5b250f2bae -- crate…"]
+]}

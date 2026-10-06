@@ -1,0 +1,11 @@
+{"id":"port/volta","helpers":[],"groups":[],"items":[
+{"t":"note","at":138356,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":138362,"to":138394,"commands":7,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,7]]},
+{"t":"relay","at":138406,"how":"report","from":null,"html":"<p>ZIP is ready: <strong>477,877 bytes</strong>, all <strong>19 runtime files</strong> match current build, including all eight examples and WASM. No personal paths or hostnames found in runtime JS/HTML/CSS.</p>\n<p>Clean <code>main</code> at <code>7421ca957b4e23818c1bb84ba6fd0a3d104e1926</code> <span class=\"note\">(now <a href=\"https://github.com/yaugenst/treams-rs/commit/5d7e06f7e71a6059c0c783f3cd6368f1b3da0403\">5d7e06f</a>)</span>; only <code>main</code> and <code>origin/main</code> remain. Read-only check; no modifications or tests rerun.</p>"},
+{"t":"note","at":138524,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":138535,"to":138550,"commands":2,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,7,9]]},
+{"t":"relay","at":138561,"how":"report","from":null,"html":"<p>Current <code>main</code> <strong>7421ca9 <span class=\"note\">(now <a href=\"https://github.com/yaugenst/treams-rs/commit/5d7e06f7e71a6059c0c783f3cd6368f1b3da0403\">5d7e06f</a>)</span> is green</strong>: Python 3.12, Python 3.13, and WASM jobs passed. (CI run)</p>\n<p>The older failure was trailing whitespace in <code>web/fonts/OFL.txt</code>, now resolved. No changes made.</p>"},
+{"t":"note","at":139199,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":139216,"to":139224,"commands":2,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,9,11]]},
+{"t":"relay","at":139235,"how":"report","from":null,"html":"<p>Public deployment verified: root and all 19 assets return <strong>200</strong> and match the ZIP and local build byte-for-byte. WASM uses the correct <code>application/wasm</code> MIME type.</p>\n<p>No injected HTML/badge detected. No changes made.</p>"}
+]}

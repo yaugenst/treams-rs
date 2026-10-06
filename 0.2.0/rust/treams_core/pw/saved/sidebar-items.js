@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["read_bool","read_points","read_polarizations","read_vectors","size","write_points","write_polarizations","write_vectors"]};

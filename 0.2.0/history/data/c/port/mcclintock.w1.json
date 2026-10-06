@@ -1,0 +1,16 @@
+{"lines":[
+[0,"ran","cat AGENTS.md && cat docs/architecture.md && rg -n \"check_gradient|check_pullback|directional|vdot|…"],
+[5,"ran","sed -n '1,210p' python/treams_rs/_adapters.py; sed -n '1,130p' python/treams_rs/diff.py; cat pyproj…"],
+[31,"sent","1 message to Leibniz"],
+[117,"ran","cat > python/treams_rs/testing.py <<'PY'"],
+[192,"ran","ls python/treams_rs/_native*; ls .venv/bin/{python,ruff,pyrefly}; cat > tests/test_testing.py <<'PY'"],
+[198,"ran",".venv/bin/ruff check python/treams_rs/testing.py tests/test_testing.py && .venv/bin/ruff format --c…"],
+[214,"ran","python3 - <<'PY'"],
+[226,"ran","python3 - <<'PY'"],
+[277,"ran","cat > docs/testing.md <<'MD'"],
+[289,"ran",".venv/bin/python - <<'PY'"],
+[296,"sent","1 message to Leibniz"],
+[0,"ran","sed -n '129,146p' python/treams_rs/testing.py; .venv/bin/pyrefly check --python-interpreter-path .v…"],
+[10,"ran","python3 - <<'PY'"],
+[14,"sent","1 message to Leibniz"]
+]}

@@ -1,0 +1,12 @@
+{"lines":[
+[0,"left","Left out: 1 command that read the agent's own settings."],
+[7,"ran","git diff f9b43088a34912002041901f4c606d2fcca5e051..86c4b2d498c3319ab466654b901cee0e8ee16f73 -- pyth…"],
+[17,"ran","sed -n '360,560p' python/treams_rs/_lattice.py && sed -n '1,230p' python/treams_rs/_framework_backe…"],
+[40,"ran","rg -n 'def plane_wave|real direction|def lattice_expansion|def solve_periodic|def _cell' python/tre…"],
+[67,"ran","sed -n '80,130p' python/treams_rs/_framework.py && sed -n '310,405p' python/treams_rs/_framework_wa…"],
+[116,"ran","rg -n 'lattice.*diagonal|sublattice|lattice.*shape|rectangle|rectangular|every.*lattice' docs/diffe…"],
+[150,"ran","sed -n '220,330p' python/treams_rs/_lattice.py && sed -n '150,185p' python/treams_rs/_records.py &&…"],
+[179,"ran","nl -ba python/treams_rs/_lattice.py | sed -n '504,543p' && nl -ba python/treams_rs/_framework_tmatr…"],
+[0,"ran","git diff 86c4b2d498c3319ab466654b901cee0e8ee16f73..f1fae3e8fdb39af84fbb3eb3843974a666ccd976 -- pyth…"],
+[8,"ran","sed -n '40,100p' tests/bindings/test_memory_errors.py && sed -n '302,359p' python/treams_rs/_framew…"]
+]}

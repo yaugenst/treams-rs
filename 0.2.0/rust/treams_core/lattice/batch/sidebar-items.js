@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["PARALLEL"],"fn":["sum_array"],"struct":["SumResidual"]};

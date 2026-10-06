@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["apply_columns","gmres","gmres_batch","norm"],"struct":["Convergence","GmresOptions","Krylov"]};

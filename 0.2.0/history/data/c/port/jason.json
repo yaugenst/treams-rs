@@ -1,0 +1,5 @@
+{"id":"port/jason","helpers":[],"groups":[],"items":[
+{"t":"note","at":132931,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":132942,"to":133250,"commands":14,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,15]]},
+{"t":"relay","at":133254,"how":"report","from":null,"html":"<p>Polished <code>docs/benchmarks.md</code>: neutral identifiers, explicit historical scope, and honest notes replacing 20 unarchived temporary paths. All tables and scientific caveats preserved.</p>\n<p>Verified 11 local links, 63 artifact references, unchanged tables, privacy scan and whitespace. No source edits or commits.</p>"}
+]}

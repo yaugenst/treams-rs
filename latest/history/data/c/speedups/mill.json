@@ -1,0 +1,5 @@
+{"id":"speedups/mill","helpers":[],"groups":[],"items":[
+{"t":"note","at":2012035,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":2012041,"to":2012065,"commands":3,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,3]]},
+{"t":"relay","at":2012073,"how":"report","from":null,"html":"<p>No blocking prune findings. The fresh-worker isolation, adaptive batch timing, VmHWM measurement, raw round data and targeted regressions are justified by the observed failures.</p>\n<p>One small cleanup: <code>scripts/compare_builds.py:692</code> retains a per-worker <code>functions</code> cache, but <code>run_round</code> now creates each worker for exactly one measurement. Delete that dictionary and replace lines 697–699 with <code>function = CALLSname</code>. This removes obsolete state without changing the current protocol or timed preparation boundary.</p>\n<p>I inspected the scoped diff and surrounding code only; no edits or execution.</p>"}
+]}

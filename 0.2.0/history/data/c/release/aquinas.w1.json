@@ -1,0 +1,20 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g AGENTS.md -g '*lattice*' -g '*TEST*' -g '*CONTRIBUT*'"],
+[5,"note","<p>I’ll align the lattice property tests with the supported wavenumber domain, preserving reference values and testing rejection explicitly.</p>"],
+[9,"left","Left out: 1 command that read the agent's own notes."],
+[14,"ran","cat CONTRIBUTING.md docs/development/testing.md docs/development/architecture.md && cat crates/trea…"],
+[21,"ran","wc -l crates/treams-core/src/properties/lattice/*.rs && cat crates/treams-core/src/properties/latti…"],
+[29,"ran","sed -n '1,240p' crates/treams-core/src/properties/lattice/strategies.rs && sed -n '420,682p' crates…"],
+[54,"ran","sed -n '1,270p' crates/treams-core/src/properties/lattice/checks.rs && cat crates/treams-core/src/p…"],
+[61,"ran","sed -n '280,470p' crates/treams-core/src/properties/lattice/checks.rs && sed -n '1,140p' crates/tre…"],
+[68,"sent","1 message to Goodall"],
+[79,"ran","rg -n 'enum Error|Domain|domain\\(' crates/treams-core/src/error.rs crates/treams-core/src/lattice/m…"],
+[89,"ran","rg -n 'enum Error|Domain|domain\\(' crates/treams-core/src/lib.rs crates/treams-core/src/lattice/mod…"],
+[114,"note","<p>The signed generators also replay past failures. I’m keeping them intact: gain cases will assert domain errors, while supported cases retain the same identities and tolerances. Derivative probes near real wavenumbers will stay inside the accepted domain.</p>"],
+[192,"changed","crates/treams-core/src/properties/lattice/mod.rs, crates/treams-core/src/properties/lattice/strateg…"],
+[216,"ran","rustfmt --edition 2024 --config skip_children=true crates/treams-core/src/properties/lattice/checks…"],
+[226,"sent","1 message to Goodall"],
+[296,"changed","crates/treams-core/src/properties/lattice/checks.rs"],
+[296,"ran","rustfmt --edition 2024 --config skip_children=true crates/treams-core/src/properties/lattice/checks…"],
+[304,"sent","1 message to Goodall"]
+]}

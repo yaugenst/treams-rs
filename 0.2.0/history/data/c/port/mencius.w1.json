@@ -1,0 +1,9 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g 'AGENTS.md' -g 'dev.md' -g 'DEVELOPMENT.md'"],
+[7,"left","Left out: 1 command whose search terms named private details."],
+[17,"ran","cat docs/development.md && sed -n '1,230p' crates/treams-core/src/layers.rs && sed -n '80,170p' cra…"],
+[25,"ran","sed -n '1,260p' crates/treams-core/src/coeffs.rs && rg -n 'collect::<Vec|collect\\(\\)|Vec::new|let _…"],
+[43,"ran","sed -n '1,180p' crates/treams-core/src/rotation.rs && sed -n '1,220p' crates/treams-core/src/transl…"],
+[51,"ran","rg -n 'evaluate_table\\(|evaluate_periodic\\(|\\.table\\(' crates/treams-core/src/translation_plan.rs c…"],
+[58,"sent","1 message to Mill"]
+]}

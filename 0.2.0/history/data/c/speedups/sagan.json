@@ -1,0 +1,5 @@
+{"id":"speedups/sagan","helpers":[],"groups":[],"items":[
+{"t":"note","at":2012008,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":2012016,"to":2012079,"commands":5,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,6]]},
+{"t":"relay","at":2012087,"how":"report","from":null,"html":"<p>No actionable correctness findings in the lattice changes or periodic pullback grouping.</p>\n<p>Checked cache validity across convergence prefixes, small-split and spectral paths, branch sheets, planar normal derivatives, and ordered gradient accumulation. Cache inputs remain invariant within each degree; scheduling preserves harmonic and block reduction order.</p>\n<p>Read-only inspection only; no tests or builds run.</p>"}
+]}

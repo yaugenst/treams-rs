@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["HALF_INTEGER_SERIES_T","SERIES_REACH","SERIES_T","SERIES_TERMS"],"fn":["gamma_limit","kambe_arguments","on_sheet","principal_phase","reduced_gamma","reduced_kambe","reduced_power","regular_bessel"],"struct":["Reduced"]};

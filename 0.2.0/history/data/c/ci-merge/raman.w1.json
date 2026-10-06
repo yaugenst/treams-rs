@@ -1,0 +1,17 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g 'AGENTS.md' -g 'REVIEW.md' -g 'CONTRIBUTING*' -g '*test*' -g '*release*' .gith…"],
+[16,"ran","rg --files -g AGENTS.md -g REVIEW.md -g 'CONTRIBUTING*' -g '*release*' -g '*testing*' && cat docs/d…"],
+[16,"ran","git diff --stat 5947c78e5b88a364952fb554548e53b40321abe9 9ebfdea81ee77711c476c790ed28229610f933df &…"],
+[16,"left","Left out: 2 commands that read the agent's own settings."],
+[31,"ran","nl -ba tests/conftest.py && nl -ba .github/workflows/native-wheels.yml && nl -ba .github/workflows/…"],
+[31,"ran","cat .github/workflows/release-candidate.yml .github/workflows/publish-release.yml .pre-commit-confi…"],
+[31,"ran","cat CONTRIBUTING.md docs/development/releasing.md && git diff 5947c78e5b88a364952fb554548e53b40321a…"],
+[43,"ran","nl -ba .github/workflows/native-wheels.yml | sed -n '1,285p'"],
+[43,"ran","nl -ba .github/workflows/release-candidate.yml | sed -n '1,165p'; nl -ba .github/workflows/ci.yml |…"],
+[43,"ran","nl -ba tests/conftest.py | sed -n '1,165p;270,460p'"],
+[52,"ran","rg --files .venv/lib -g remote.py -g dsession.py -g engine.py -g collector.py | head -25; sed -n '1…"],
+[78,"ran","rg -n 'subprocess\\.(run|Popen|check_)|\\.write_text\\(|\\.write_bytes\\(|os\\.chdir|chdir\\(' tests/api t…"],
+[78,"ran","find .venv -path '*xdist*' -o -path '*coverage*' | head -30; sed -n '1,90p' Cargo.toml; rg -n '\\[pr…"],
+[86,"ran","ls .venv/lib/python3.12/site-packages/xdist; sed -n '265,309p;518,554p' tests/api/test_support_cata…"],
+[94,"ran","rg -n -A 30 -B 8 'def pytest_sessionfinish|workeroutput|pytest_testnodedown|worker_workerfinished' …"]
+]}

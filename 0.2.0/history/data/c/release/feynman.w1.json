@@ -1,0 +1,20 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g AGENTS.md -g README.md crates/treams-py scripts formal [a private folder] 2>/d…"],
+[11,"helper","release/wegener"],
+[26,"ran","rg --files crates/treams-py scripts | head -n 100 && git status --short && git diff -- scripts/READ…"],
+[26,"ran","cat AGENTS.md crates/AGENTS.md crates/treams-py/README.md crates/treams-py/src/ufunc/README.md scri…"],
+[26,"ran","cat scripts/README.md"],
+[48,"ran","sed -n '1,220p' crates/treams-py/src/lib.rs && sed -n '1,230p' crates/treams-py/src/context.rs && s…"],
+[48,"ran","sed -n '1,210p' crates/treams-py/src/ufunc/fast_paths.rs && sed -n '1,140p' crates/treams-py/src/uf…"],
+[48,"ran","sed -n '1,210p' scripts/run_benchmark_suite.py && sed -n '1,115p' scripts/plot_benchmarks.py && sed…"],
+[68,"reported","release/wegener"],
+[77,"ran","rg -n 'pub.*record|fn record|record_held|#[[]pyfunction' crates/treams-py/src/special.rs | head -n …"],
+[120,"changed","crates/treams-py/src/ufunc/README.md, crates/treams-py/README.md"],
+[120,"ran","git diff --check && git diff --stat -- crates/treams-py formal/README.md"],
+[137,"changed","crates/treams-py/src/ufunc/README.md"],
+[274,"ran","sed -n '1,55p' scripts/README.md && rg -n 'manifest|atomic_json|subprocess.Popen' scripts/run_bench…"],
+[274,"changed","scripts/README.md"],
+[274,"ran","git diff --check && git diff --stat -- crates/treams-py scripts/README.md formal/README.md"],
+[285,"changed","scripts/README.md"],
+[285,"ran","git diff --check && git diff -- scripts/README.md"]
+]}

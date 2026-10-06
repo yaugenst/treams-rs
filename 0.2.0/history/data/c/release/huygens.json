@@ -1,0 +1,5 @@
+{"id":"release/huygens","helpers":[{"id":"release/averroes","nick":"Averroes","task":"verify settings api","parent":"release/huygens","depth":3,"model":"gpt-6-astra","effort":"ultra","from":1959460,"minutes":1}],"groups":[],"items":[
+{"t":"note","at":1959407,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1959415,"to":1959845,"commands":12,"files":0,"notes":4,"helpers":1,"groups":0,"searches":0,"helper_ids":["release/averroes"],"group_ix":[],"lines":[[1,0,29]]},
+{"t":"relay","at":1959852,"how":"report","from":null,"html":"<p>Settings restored and verified on new repository <strong>1403016742</strong>, including Actions enabled with the exact allowlist and SHA pinning.</p>\n<p>Final readback evidence. No remaining gaps in this scope; workflow execution remains untested.</p>\n<p>No pushes, PR changes, comments, visibility changes, or workflow dispatches.</p>"}
+]}

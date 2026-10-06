@@ -1,0 +1,5 @@
+{"id":"port/pauli","helpers":[],"groups":[],"items":[
+{"t":"note","at":154564,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":154570,"to":155576,"commands":25,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,31]]},
+{"t":"relay","at":155586,"how":"report","from":null,"html":"<p>Fixed Linux cylindrical-gradient regression: diagnostic <strong>2.087 ms native vs 3.278 ms exact upstream adjoint</strong> (1.57× faster; native baseline 4.609 ms).</p>\n<p>Changed <code>cylwaves.rs</code>, <code>jet.rs</code>, <code>fields.rs</code>, and <code>test_fields.py</code>. Shared scalar arithmetic and adjacent polarization reuse; unchanged API, precision, and benchmark scope.</p>\n<p>Verified 92 Rust tests, Clippy, and 141 Python tests. Gradient errors: FD 1.01e-13; exact adjoint 6.07e-16. Formal serialized Mac/Linux reruns remain. No commits or pushes.</p>"}
+]}
