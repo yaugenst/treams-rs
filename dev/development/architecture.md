@@ -82,7 +82,7 @@ These rules hold everywhere:
   objects compose records; adapter modules supply only their framework bridge.
   Keep native derivative formulas in Rust, not in a dispatcher or adapter.
 - **Recorded evidence.** Numerical measurements stay unchanged. Privacy-only
-  transformations follow [the evidence policy](https://github.com/yaugenst/treams-rs/blob/8b442f18ec7a54787ffbc8fe8db0be4d137d89ef/benchmarks/README.md#privacy-and-provenance).
+  transformations follow [the evidence policy](https://github.com/yaugenst/treams-rs/blob/4720870afb93d4ff1ac1f564834580c783715849/benchmarks/README.md#privacy-and-provenance).
 - **Renames.** Every public rename gets a bullet under "Unreleased" in
   `CHANGELOG.md`. A public name that differs from its treams counterpart also
   gets an entry in `python/treams_rs/_upstream.py`, which feeds the
@@ -92,7 +92,7 @@ These rules hold everywhere:
 ## Adding a binding
 
 The crate docs of `treams-py`, in
-[`crates/treams-py/src/lib.rs`](https://github.com/yaugenst/treams-rs/blob/8b442f18ec7a54787ffbc8fe8db0be4d137d89ef/crates/treams-py/src/lib.rs), hold the
+[`crates/treams-py/src/lib.rs`](https://github.com/yaugenst/treams-rs/blob/4720870afb93d4ff1ac1f564834580c783715849/crates/treams-py/src/lib.rs), hold the
 checklist under "Adding a binding". Start with the core function and its tests.
 Add the binding, context and `pullback` to the file for that core module.
 Then add the export, stub, Python caller and a `CASES` entry in
@@ -136,7 +136,7 @@ the bindings, Python and treams. The crate docs state the rules for each
 layer: "Names" in the
 [`treams-core` docs](../rust/treams_core/#names)
 and "Naming rules" in
-[`crates/treams-py/src/lib.rs`](https://github.com/yaugenst/treams-rs/blob/8b442f18ec7a54787ffbc8fe8db0be4d137d89ef/crates/treams-py/src/lib.rs). The rules
+[`crates/treams-py/src/lib.rs`](https://github.com/yaugenst/treams-rs/blob/4720870afb93d4ff1ac1f564834580c783715849/crates/treams-py/src/lib.rs). The rules
 that cross layers:
 
 - **Residuals and contexts.** The Rust function `X` returns `XResidual`, and its
