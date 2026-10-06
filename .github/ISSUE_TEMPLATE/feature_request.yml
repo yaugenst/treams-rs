@@ -6,23 +6,15 @@ body:
     id: problem
     attributes:
       label: Problem
-      description: What do you want to compute or do that treams-rs does not support well today?
+      description: >-
+        What you want to compute or do that treams-rs does not support well, in
+        one or two sentences. Name the treams counterpart if there is one.
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
       label: Proposal
-      description: The API or behaviour you have in mind, ideally with a short code sketch.
+      description: A short code sketch of the API you have in mind, in a fenced code block.
     validations:
       required: true
-  - type: input
-    id: treams
-    attributes:
-      label: treams counterpart
-      description: The corresponding treams function or class, if there is one.
-  - type: textarea
-    id: alternatives
-    attributes:
-      label: Alternatives
-      description: Workarounds you use now, or other designs you considered.

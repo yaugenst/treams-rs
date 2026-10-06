@@ -1,54 +1,48 @@
 name: Bug report
-description: treams-rs fails, crashes or behaves differently from its documentation.
+description: treams-rs crashes, errors or contradicts its documentation, or a test or CI job fails.
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        For a result that disagrees with treams or another reference, use the
-        numerical discrepancy form instead. Report security problems privately:
-        https://github.com/yaugenst/treams-rs/security/advisories/new
+        Wrong numbers against treams or a reference: use the numerical discrepancy form.
+        Security problems: [report privately](https://github.com/yaugenst/treams-rs/security/advisories/new).
   - type: textarea
     id: description
     attributes:
-      label: Description
-      description: What happened, and what were you trying to do?
+      label: What is wrong
+      description: One or two sentences.
     validations:
       required: true
   - type: textarea
     id: reproducer
     attributes:
-      label: Minimal reproducer
-      description: A short, self-contained script that shows the problem.
-      render: python
+      label: Reproduce
+      description: >-
+        Exact shell commands or a minimal self-contained Python script that fails
+        on the version below. For a test failure: the failing command and the
+        pinned seed or input.
+      render: text
+      placeholder: |
+        python -c "import treams_rs as tr; ..."
     validations:
       required: true
   - type: textarea
-    id: expected
+    id: expected-actual
     attributes:
-      label: Expected behaviour
+      label: Expected vs actual
+      description: One line each; paste only the decisive output lines.
+      placeholder: |
+        Expected: ...
+        Actual: ...
     validations:
       required: true
-  - type: textarea
-    id: actual
+  - type: input
+    id: version
     attributes:
-      label: Actual behaviour
-      description: The output, including the complete traceback if there is one.
-    validations:
-      required: true
-  - type: textarea
-    id: versions
-    attributes:
-      label: Versions
-      description: |
-        The treams-rs version
-        (`python -c "import importlib.metadata as m; print(m.version('treams-rs'))"`),
-        the operating system and CPU, the Python version, and the installed extras
-        (advect, jax, torch, io) with their versions.
-      value: |
-        treams-rs:
-        OS and CPU:
-        Python:
-        Extras:
+      label: Fails on
+      description: >-
+        treams-rs version (`python -c "import treams_rs; print(treams_rs.__version__)"`)
+        or commit, plus OS and Python if relevant.
     validations:
       required: true
