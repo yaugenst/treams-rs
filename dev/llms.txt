@@ -68,6 +68,39 @@ Use `--format json` or `--format markdown` to list all documented functions and 
 - [Custom records](differentiation/custom-records.md): Wrap records with analytic pushforwards and pullbacks for JAX, PyTorch or HIPS Autograd.
 - [Gradient checks](differentiation/gradient-checks.md): Check analytic JVPs, VJPs and objective gradients with finite differences and the adjoint identity.
 
+## Python API
+
+- [Python API](reference/python/index.md): Every public module of treams_rs, with signatures and docstrings generated from the source.
+- [`treams_rs`](reference/python/treams_rs.md): T-matrix scattering with Rust numerics and analytic first-order derivatives.
+- [`treams_rs.special`](reference/python/special.md): Special functions of multipole waves, with NumPy broadcasting.
+- [`treams_rs.sw`](reference/python/sw.md): Coefficients of spherical waves: translation, rotation and periodic arrays.
+- [`treams_rs.cw`](reference/python/cw.md): Coefficients of cylindrical waves: translation, rotation and periodic arrays.
+- [`treams_rs.pw`](reference/python/pw.md): Coefficients of plane waves: translation, expansion and axis permutation.
+- [`treams_rs.lattice`](reference/python/lattice.md): Lattice sums of spherical and cylindrical waves, and lattice geometry.
+- [`treams_rs.coeffs`](reference/python/coeffs.md): Mie and Fresnel coefficients in the helicity basis.
+- [`treams_rs.misc`](reference/python/misc.md): Refractive indices, normal wavenumbers, mode selection and Brillouin zones.
+- [`treams_rs.ebcm`](reference/python/ebcm.md): Surface integrals of the extended boundary condition method (EBCM).
+- [`treams_rs.io`](reference/python/io.md): T-matrix files in the tmat.h5 layout, and Gmsh meshes of sphere clusters.
+- [`treams_rs.operators`](reference/python/operators.md): Basis and field operators, as functions and as operator objects.
+- [`treams_rs.iterative`](reference/python/iterative.md): Matrix-free scattering by finite clusters of homogeneous spheres in vacuum.
+- [`treams_rs.parallel`](reference/python/parallel.md): CPU threads of the native numerical work.
+- [`treams_rs.diff`](reference/python/diff.md): Records: values with analytic first-order pushforward and pullback contexts.
+- [`treams_rs.testing`](reference/python/testing.md): Finite-difference checks of first-order gradients, pullbacks and pushforwards.
+- [`treams_rs.advect`](reference/python/advect.md): Advect adapter: physics objects and records differentiated by Advect, on the CPU and in first-order forward and reverse mode.
+- [`treams_rs.jax`](reference/python/jax.md): JAX adapter: physics objects and records on the CPU with first-order forward and reverse mode, jit and sequential vmap.
+- [`treams_rs.torch`](reference/python/torch.md): PyTorch adapter: physics objects and records as autograd operations on the CPU, in first-order forward and reverse mode.
+- [`treams_rs.autograd`](reference/python/autograd.md): HIPS Autograd adapter: physics objects and native records on the CPU.
+- [Returned types](reference/python/native-types.md): Objects that public records and solvers return: native contexts and factors, and Python helper objects.
+
+## Rust API
+
+- [Rust API](reference/rust.md): The rustdoc of treams-core, the internal Rust crate that holds the numerical code.
+
+## Reference
+
+- [Reference](reference/index.md): Where the Python and Rust API references come from and how to regenerate them.
+- [Glossary](reference/glossary.md): One name per concept, with the treams-rs Python name, the native name, the Rust name and the treams name side by side.
+
 ## Design
 
 - [Design](design/index.md): The layers of treams-rs, their responsibilities and their treams counterparts.
@@ -93,33 +126,6 @@ Use `--format json` or `--format markdown` to list all documented functions and 
 - [Requested illuminations and larger clusters](performance/large-problems.md): Measured time and memory of requested illuminations for large sphere clusters.
 - [Mac and Linux benchmark comparison](performance/platform-comparison.md): The Mac and Linux benchmark comparison of treams-rs and treams 0.4.5.
 - [Benchmark evidence](performance/evidence.md): Benchmark sources, methods and archived measurements of individual operations.
-
-## Reference
-
-- [Reference](reference/index.md): Where the Python and Rust API references come from and how to regenerate them.
-- [Python API](reference/python/index.md): Every public module of treams_rs, with signatures and docstrings generated from the source.
-- [`treams_rs`](reference/python/treams_rs.md): T-matrix scattering with Rust numerics and analytic first-order derivatives.
-- [`treams_rs.special`](reference/python/special.md): Special functions of multipole waves, with NumPy broadcasting.
-- [`treams_rs.sw`](reference/python/sw.md): Coefficients of spherical waves: translation, rotation and periodic arrays.
-- [`treams_rs.cw`](reference/python/cw.md): Coefficients of cylindrical waves: translation, rotation and periodic arrays.
-- [`treams_rs.pw`](reference/python/pw.md): Coefficients of plane waves: translation, expansion and axis permutation.
-- [`treams_rs.lattice`](reference/python/lattice.md): Lattice sums of spherical and cylindrical waves, and lattice geometry.
-- [`treams_rs.coeffs`](reference/python/coeffs.md): Mie and Fresnel coefficients in the helicity basis.
-- [`treams_rs.misc`](reference/python/misc.md): Refractive indices, normal wavenumbers, mode selection and Brillouin zones.
-- [`treams_rs.ebcm`](reference/python/ebcm.md): Surface integrals of the extended boundary condition method (EBCM).
-- [`treams_rs.io`](reference/python/io.md): T-matrix files in the tmat.h5 layout, and Gmsh meshes of sphere clusters.
-- [`treams_rs.operators`](reference/python/operators.md): Basis and field operators, as functions and as operator objects.
-- [`treams_rs.iterative`](reference/python/iterative.md): Matrix-free scattering by finite clusters of homogeneous spheres in vacuum.
-- [`treams_rs.parallel`](reference/python/parallel.md): CPU threads of the native numerical work.
-- [`treams_rs.diff`](reference/python/diff.md): Records: values with analytic first-order pushforward and pullback contexts.
-- [`treams_rs.testing`](reference/python/testing.md): Finite-difference checks of first-order gradients, pullbacks and pushforwards.
-- [`treams_rs.advect`](reference/python/advect.md): Advect adapter: physics objects and records differentiated by Advect, on the CPU and in first-order forward and reverse mode.
-- [`treams_rs.jax`](reference/python/jax.md): JAX adapter: physics objects and records on the CPU with first-order forward and reverse mode, jit and sequential vmap.
-- [`treams_rs.torch`](reference/python/torch.md): PyTorch adapter: physics objects and records as autograd operations on the CPU, in first-order forward and reverse mode.
-- [`treams_rs.autograd`](reference/python/autograd.md): HIPS Autograd adapter: physics objects and native records on the CPU.
-- [Returned types](reference/python/native-types.md): Objects that public records and solvers return: native contexts and factors, and Python helper objects.
-- [Rust crate](reference/rust.md): The rustdoc of treams-core, the internal Rust crate that holds the numerical code.
-- [Glossary](reference/glossary.md): One name per concept, with the treams-rs Python name, the native name, the Rust name and the treams name side by side.
 
 ## Development
 

@@ -2,7 +2,7 @@
 
 The site is built with [MkDocs](https://www.mkdocs.org/) and the Material
 theme from the Markdown files under `docs/`. The `nav` of
-[`mkdocs.yml`](https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/mkdocs.yml) is the one list of pages: it sets their order
+[`mkdocs.yml`](https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/mkdocs.yml) is the one list of pages: it sets their order
 on the site and in `llms.txt`.
 
 ## Build and preview
@@ -20,10 +20,15 @@ no extension build: the site holds only committed Markdown.
 
 The site uses the Material theme with its own colors, fonts and logo:
 `theme` in `mkdocs.yml`, `docs/stylesheets/extra.css` and `docs/assets/`.
+Sections are collapsed until opened; the active section stays expanded.
+Python and Rust API references have top-level entries. Keep `navigation.sections`
+disabled so the full page inventory does not fill the sidebar. The small
+`docs/javascripts/navigation.js` gives the theme's disclosure controls accessible
+names and state, and adds Space-key activation alongside Enter.
 The small `docs/javascripts/history-loader.js` loads the history stylesheet
 and interactive script only when their content is present, including after
-instant navigation. Its lifecycle checks run with
-`node --test tests/browser/history-assets.test.mjs`.
+instant navigation. The navigation and asset lifecycle checks run with
+`node --test tests/browser/*.test.mjs`.
 
 `just docs-rust` documents `treams-core` with its private items, which makes
 the rustdoc the reference for the numerical code. The site serves it at
@@ -84,7 +89,7 @@ changing one.
 ## Generated content
 
 `just docs` writes three kinds of files from
-[`scripts/generate_docs.py`](https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/scripts/generate_docs.py):
+[`scripts/generate_docs.py`](https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/scripts/generate_docs.py):
 
 - **The Python API reference** under `docs/reference/python/`: one page per
   public module and a page of returned native types, rendered from
@@ -123,7 +128,7 @@ files:
 | `docs/examples/upstream/<treams name>.py` | For a ported example only: the treams example with the same sizes, its source and its license. |
 | `docs/examples/<name>.md` | The page: the scripts in tabs, the output and the differences from treams. |
 
-[`tests/api/test_examples.py`](https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/tests/api/test_examples.py) runs every
+[`tests/api/test_examples.py`](https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/tests/api/test_examples.py) runs every
 script and compares the numbers it prints with `output/<name>.txt` to a
 relative tolerance of 1e-6. With treams installed, it also runs each treams
 script and compares the variables that its `ORACLE` entry names, to a relative
@@ -149,7 +154,7 @@ review the change in `output/`.
 
 ## Publishing
 
-The reusable [Docs workflow](https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/.github/workflows/docs.yml) builds the site
+The reusable [Docs workflow](https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/.github/workflows/docs.yml) builds the site
 and rustdoc for pull requests. Main publishes `dev`; a release publishes its
 version and updates `latest`. Mike keeps every version in `gh-pages`, and
 the workflow deploys the complete tree through GitHub Pages artifacts.

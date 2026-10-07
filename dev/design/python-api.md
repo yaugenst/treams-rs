@@ -105,7 +105,7 @@ framework arrays and its mutation rules; see [framework adapters](adapters.md).
 ## NumPy ufuncs
 
 Every native ufunc follows one rule set, checked by
-[`test_ufunc_contract.py`](https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/tests/bindings/test_ufunc_contract.py): a
+[`test_ufunc_contract.py`](https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/tests/bindings/test_ufunc_contract.py): a
 vectorized call equals the per-element calls bit for bit. Results do not depend on
 the memory layout of the operands (broadcast, reversed, strided, unaligned or
 Fortran-ordered), on masked or aliased outputs, on the number of threads, or on
