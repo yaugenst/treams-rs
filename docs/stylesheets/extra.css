@@ -100,3 +100,43 @@
   font-size: 1.15em;
   line-height: 1.5;
 }
+
+/* Keep the generated history table readable without changing its source data.
+   The site hook makes its scroll region keyboard-focusable and names it. */
+.history-models:focus-visible {
+  outline: 2px solid var(--md-accent-fg-color);
+  outline-offset: 2px;
+}
+
+@media screen and (max-width: 44.984em) {
+  .md-typeset .history-models {
+    overflow-x: auto;
+  }
+
+  .md-typeset .history-models .md-typeset__scrollwrap {
+    margin: 0;
+    overflow: visible;
+  }
+
+  .md-typeset .history-models .md-typeset__table {
+    display: block;
+    padding: 0;
+  }
+
+  .md-typeset .history-models table:not([class]) {
+    display: table;
+    max-width: none;
+  }
+
+  .md-typeset .history-models table :is(th, td:nth-child(2)) {
+    white-space: nowrap;
+  }
+
+  .md-typeset .history-models table:not([class]) td:nth-child(3) {
+    min-width: 7rem;
+  }
+
+  .md-typeset .history-models table:not([class]) td:nth-child(5) {
+    min-width: 14rem;
+  }
+}
