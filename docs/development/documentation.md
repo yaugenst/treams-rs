@@ -24,10 +24,15 @@ no extension build: the site holds only committed Markdown.
 
 The site uses the Material theme with its own colors, fonts and logo:
 `theme` in `mkdocs.yml`, `docs/stylesheets/extra.css` and `docs/assets/`.
+Sections are collapsed until opened; the active section stays expanded.
+Python and Rust API references have top-level entries. Keep `navigation.sections`
+disabled so the full page inventory does not fill the sidebar. The small
+`docs/javascripts/navigation.js` gives the theme's disclosure controls accessible
+names and state, and adds Space-key activation alongside Enter.
 The small `docs/javascripts/history-loader.js` loads the history stylesheet
 and interactive script only when their content is present, including after
-instant navigation. Its lifecycle checks run with
-`node --test tests/browser/history-assets.test.mjs`.
+instant navigation. The navigation and asset lifecycle checks run with
+`node --test tests/browser/*.test.mjs`.
 
 `just docs-rust` documents `treams-core` with its private items, which makes
 the rustdoc the reference for the numerical code. The site serves it at
