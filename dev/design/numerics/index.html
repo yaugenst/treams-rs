@@ -55,8 +55,6 @@
     
       <link rel="stylesheet" href="../../stylesheets/extra.css">
     
-      <link rel="stylesheet" href="../../history/history.css">
-    
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -3957,7 +3955,7 @@ change the last bits of the solution. Below 64 rows with at most 64 right-hand
 sides, where faer takes no parallel branch, the call stays on the calling
 thread. The worker count changes the scheduling only, not the factorization or
 the pullback, so LU results are the same at every budget.</p>
-<p>The <a href="https://github.com/yaugenst/treams-rs/blob/e2c1b97bb27da0e51a7eb7b3c8721db97b147295/benchmarks/results/cpu-parallelism.json">scheduling probe</a> measured
+<p>The <a href="https://github.com/yaugenst/treams-rs/blob/63b181ab6de15d3b3a359c46e3698905391dea57/benchmarks/results/cpu-parallelism.json">scheduling probe</a> measured
 these medians on a Ryzen 9950X with one 16-worker pool pinned to physical cores
 0-15:</p>
 <table>
@@ -4263,7 +4261,7 @@ so these gradients are the same bit for bit at every thread count.</p>
     
       <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
-        <script src="../../history/history.js"></script>
+        <script src="../../javascripts/history-loader.js"></script>
       
     
   </body>

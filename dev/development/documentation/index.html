@@ -55,8 +55,6 @@
     
       <link rel="stylesheet" href="../../stylesheets/extra.css">
     
-      <link rel="stylesheet" href="../../history/history.css">
-    
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -3900,7 +3898,7 @@
 <h1 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h1>
 <p>The site is built with <a href="https://www.mkdocs.org/">MkDocs</a> and the Material
 theme from the Markdown files under <code>docs/</code>. The <code>nav</code> of
-<a href="https://github.com/yaugenst/treams-rs/blob/e2c1b97bb27da0e51a7eb7b3c8721db97b147295/mkdocs.yml"><code>mkdocs.yml</code></a> is the one list of pages: it sets their order
+<a href="https://github.com/yaugenst/treams-rs/blob/63b181ab6de15d3b3a359c46e3698905391dea57/mkdocs.yml"><code>mkdocs.yml</code></a> is the one list of pages: it sets their order
 on the site and in <code>llms.txt</code>.</p>
 <h2 id="build-and-preview">Build and preview<a class="headerlink" href="#build-and-preview" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>just<span class="w"> </span>docs-serve<span class="w">   </span><span class="c1"># preview with live reload at http://127.0.0.1:8000</span>
@@ -3912,7 +3910,11 @@ isolated environment, so they leave <code>.venv</code> untouched. The strict bui
 on a warning, such as a broken link or a page missing from the nav. They need
 no extension build: the site holds only committed Markdown.</p>
 <p>The site uses the Material theme with its own colors, fonts and logo:
-<code>theme</code> in <code>mkdocs.yml</code>, <code>docs/stylesheets/extra.css</code> and <code>docs/assets/</code>.</p>
+<code>theme</code> in <code>mkdocs.yml</code>, <code>docs/stylesheets/extra.css</code> and <code>docs/assets/</code>.
+The small <code>docs/javascripts/history-loader.js</code> loads the history stylesheet
+and interactive script only when their content is present, including after
+instant navigation. Its lifecycle checks run with
+<code>node --test tests/browser/history-assets.test.mjs</code>.</p>
 <p><code>just docs-rust</code> documents <code>treams-core</code> with its private items, which makes
 the rustdoc the reference for the numerical code. The site serves it at
 <code>rust/treams_core/</code> within each documentation version.</p>
@@ -3986,7 +3988,7 @@ claimed result, and run <code>uv run --no-sync pytest tests/api/test_docs.py</co
 changing one.</p>
 <h2 id="generated-content">Generated content<a class="headerlink" href="#generated-content" title="Permanent link">&para;</a></h2>
 <p><code>just docs</code> writes three kinds of files from
-<a href="https://github.com/yaugenst/treams-rs/blob/e2c1b97bb27da0e51a7eb7b3c8721db97b147295/scripts/generate_docs.py"><code>scripts/generate_docs.py</code></a>:</p>
+<a href="https://github.com/yaugenst/treams-rs/blob/63b181ab6de15d3b3a359c46e3698905391dea57/scripts/generate_docs.py"><code>scripts/generate_docs.py</code></a>:</p>
 <ul>
 <li><strong>The Python API reference</strong> under <code>docs/reference/python/</code>: one page per
   public module and a page of returned native types, rendered from
@@ -4039,7 +4041,7 @@ files:</p>
 </tr>
 </tbody>
 </table>
-<p><a href="https://github.com/yaugenst/treams-rs/blob/e2c1b97bb27da0e51a7eb7b3c8721db97b147295/tests/api/test_examples.py"><code>tests/api/test_examples.py</code></a> runs every
+<p><a href="https://github.com/yaugenst/treams-rs/blob/63b181ab6de15d3b3a359c46e3698905391dea57/tests/api/test_examples.py"><code>tests/api/test_examples.py</code></a> runs every
 script and compares the numbers it prints with <code>output/&lt;name&gt;.txt</code> to a
 relative tolerance of 1e-6. With treams installed, it also runs each treams
 script and compares the variables that its <code>ORACLE</code> entry names, to a relative
@@ -4062,7 +4064,7 @@ a treams tab without a treams script or the other way round. Run
 <code>just docs-examples</code> again whenever a script changes what it prints, and
 review the change in <code>output/</code>.</p>
 <h2 id="publishing">Publishing<a class="headerlink" href="#publishing" title="Permanent link">&para;</a></h2>
-<p>The reusable <a href="https://github.com/yaugenst/treams-rs/blob/e2c1b97bb27da0e51a7eb7b3c8721db97b147295/.github/workflows/docs.yml">Docs workflow</a> builds the site
+<p>The reusable <a href="https://github.com/yaugenst/treams-rs/blob/63b181ab6de15d3b3a359c46e3698905391dea57/.github/workflows/docs.yml">Docs workflow</a> builds the site
 and rustdoc for pull requests. Main publishes <code>dev</code>; a release publishes its
 version and updates <code>latest</code>. Mike keeps every version in <code>gh-pages</code>, and
 the workflow deploys the complete tree through GitHub Pages artifacts.
@@ -4200,7 +4202,7 @@ to released documentation.</p>
     
       <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
-        <script src="../../history/history.js"></script>
+        <script src="../../javascripts/history-loader.js"></script>
       
     
   </body>

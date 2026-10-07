@@ -53,8 +53,6 @@
     
       <link rel="stylesheet" href="../stylesheets/extra.css">
     
-      <link rel="stylesheet" href="../history/history.css">
-    
     <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -3892,9 +3890,15 @@
 <h1 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Permanent link">&para;</a></h1>
 <h2 id="unreleased">Unreleased<a class="headerlink" href="#unreleased" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Shorten the issue and pull request templates. Bug and numerical reports
+<li>
+<p>Load the history stylesheet and interactive script only on pages that use
+  them, including visits through instant navigation.</p>
+</li>
+<li>
+<p>Shorten the issue and pull request templates. Bug and numerical reports
   require a reproducer that fails on a stated version or commit, and accept shell
-  commands as well as Python.</li>
+  commands as well as Python.</p>
+</li>
 </ul>
 <h2 id="020-2026-10-05">0.2.0 (2026-10-05)<a class="headerlink" href="#020-2026-10-05" title="Permanent link">&para;</a></h2>
 <p>Forward-mode differentiation joins reverse mode across Advect, JAX, PyTorch and
@@ -4313,7 +4317,7 @@ keywords, see the
     
       <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
-        <script src="../history/history.js"></script>
+        <script src="../javascripts/history-loader.js"></script>
       
     
   </body>
