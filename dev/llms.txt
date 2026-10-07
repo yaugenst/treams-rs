@@ -124,7 +124,7 @@ Use `--format json` or `--format markdown` to list all documented functions and 
 ## Development
 
 - [Development](development/index.md): Set up a development checkout, run the checks that hosted CI runs, and check a clean wheel.
-- [Source ownership](development/architecture.md): Which Rust module, binding file, Python module and test directory own each part of treams-rs, and the rules that hold across them.
+- [Source ownership](development/architecture.md): Which files own a change, the implementation rules, and the checks and open gaps across the Rust, binding and Python layers.
 - [Testing](development/testing.md): Where a Rust or Python test goes, the test domains, markers, Hypothesis profiles and shared helpers, and how to add a test.
 - [Documentation](development/documentation.md): Build and preview the site, add a page, regenerate the API reference, write tested examples and add a gallery example.
 - [Benchmarks](development/benchmarks.md): Run the benchmarks on an idle host, compare two builds and record new measurements next to the archived evidence.

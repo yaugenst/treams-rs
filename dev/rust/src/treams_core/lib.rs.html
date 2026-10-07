@@ -1,5 +1,5 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/treams-core/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="treams_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">treams_core/</div>lib.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! The numerical core of treams-rs: special functions, lattice sums, wave expansions,
-<a href=#2 id=2 data-nosnippet>2</a>//! T-matrices and S-matrices, each with an analytic pullback, in Rust and without Python.
+<a href=#2 id=2 data-nosnippet>2</a>//! T-matrices and S-matrices, with analytic derivatives, in Rust and without Python.
 <a href=#3 id=3 data-nosnippet>3</a>//!
 <a href=#4 id=4 data-nosnippet>4</a>//! A pullback turns the gradient of a real loss with respect to a result into the
 <a href=#5 id=5 data-nosnippet>5</a>//! gradients with respect to the inputs; the [glossary](#glossary) defines it with the
@@ -28,366 +28,396 @@
 <a href=#28 id=28 data-nosnippet>28</a>//! | L4 | [`coeffs`], [`tmatrix`], [`ebcm`], [`cluster`] | Scattering by particles |
 <a href=#29 id=29 data-nosnippet>29</a>//! | L5 | [`smatrix`] | Planar and periodic S-matrices |
 <a href=#30 id=30 data-nosnippet>30</a>//!
-<a href=#31 id=31 data-nosnippet>31</a>//! Production code of a module uses its own layer and the layers below it, never a
-<a href=#32 id=32 data-nosnippet>32</a>//! layer above. Modules of one layer may use each other: [`cw::to_sw()`] builds
-<a href=#33 id=33 data-nosnippet>33</a>//! spherical modes, and [`tmatrix::sphere()`] takes the Mie coefficients of [`coeffs`].
-<a href=#34 id=34 data-nosnippet>34</a>//! Any module may use the root items [`Complex`], [`Error`], [`Result`] and
-<a href=#35 id=35 data-nosnippet>35</a>//! [`MAX_DEGREE`]. Tests may use any module.
-<a href=#36 id=36 data-nosnippet>36</a>//!
-<a href=#37 id=37 data-nosnippet>37</a>//! [`rotation`] and [`channels`] share one residual or gradient type across both
-<a href=#38 id=38 data-nosnippet>38</a>//! multipole families ([`rotation::RotationResidual`], [`channels::ChannelGradient`]),
-<a href=#39 id=39 data-nosnippet>39</a>//! so they stay at the top level instead of inside [`sw`] and [`cw`].
-<a href=#40 id=40 data-nosnippet>40</a>//!
-<a href=#41 id=41 data-nosnippet>41</a>//! A directory module keeps its files private and re-exports their items, so callers
-<a href=#42 id=42 data-nosnippet>42</a>//! write `sw::expansion` and `smatrix::tr`. Three modules keep their own path:
-<a href=#43 id=43 data-nosnippet>43</a>//! [`special::coordinates`], `numerics::broadcast` and `numerics::parallel`.
-<a href=#44 id=44 data-nosnippet>44</a>//!
-<a href=#45 id=45 data-nosnippet>45</a>//! # Conventions
-<a href=#46 id=46 data-nosnippet>46</a>//!
-<a href=#47 id=47 data-nosnippet>47</a>//! ## Numbers and labels
-<a href=#48 id=48 data-nosnippet>48</a>//!
-<a href=#49 id=49 data-nosnippet>49</a>//! - [`Complex`] is `num_complex::Complex64`, which `NumPy` calls `complex128`. Every
-<a href=#50 id=50 data-nosnippet>50</a>//!   kernel takes and returns double precision.
-<a href=#51 id=51 data-nosnippet>51</a>//! - The degree is `l` and the order is `m`; `lmax` and `mmax` bound them. "Order" also
-<a href=#52 id=52 data-nosnippet>52</a>//!   names the order of a Bessel function, never a degree.
-<a href=#53 id=53 data-nosnippet>53</a>//! - [`MAX_DEGREE`] = 128 bounds the degree `l` and the size of cylindrical orders `m`.
-<a href=#54 id=54 data-nosnippet>54</a>//!   Translations couple degrees up to `special::MAX_ORDER` = 256, and Wigner and Kambe
-<a href=#55 id=55 data-nosnippet>55</a>//!   labels reach [`special::MAX_LABEL`] = 260. treams has no such limits.
-<a href=#56 id=56 data-nosnippet>56</a>//! - `pol: u8` is the polarization index, 0 or 1, and `helicity: bool` selects the
-<a href=#57 id=57 data-nosnippet>57</a>//!   convention that treams calls `poltype`. With `helicity` true, pol 1 is positive and
-<a href=#58 id=58 data-nosnippet>58</a>//!   pol 0 negative helicity; with `helicity` false, pol 1 is TM (the N multipoles) and
-<a href=#59 id=59 data-nosnippet>59</a>//!   pol 0 TE (the M multipoles). Bases list pol 1 before pol 0, as treams does.
-<a href=#60 id=60 data-nosnippet>60</a>//! - [`special::Radial`] is the treams `modetype`: `Regular` is `'regular'`, and
-<a href=#61 id=61 data-nosnippet>61</a>//!   `Singular` is `'singular'`, the outgoing Hankel function of the first kind. The
-<a href=#62 id=62 data-nosnippet>62</a>//!   bindings pass it as `singular: bool`.
-<a href=#63 id=63 data-nosnippet>63</a>//! - A basis entry `(pidx, mode)` holds the position index (treams `pidx`) and the mode
-<a href=#64 id=64 data-nosnippet>64</a>//!   label, [`sw::Mode`] or [`cw::Mode`]. `positions` are Cartesian expansion centres.
-<a href=#65 id=65 data-nosnippet>65</a>//! - A matrix between two bases maps coefficients of the `source` basis to the
-<a href=#66 id=66 data-nosnippet>66</a>//!   `destination` basis. Translations take the displacement `destination - source`;
-<a href=#67 id=67 data-nosnippet>67</a>//!   lattice sums run over `source - destination`, and each lattice path says where it
-<a href=#68 id=68 data-nosnippet>68</a>//!   negates the displacement.
-<a href=#69 id=69 data-nosnippet>69</a>//! - Lattice sums take the Bloch vector `kpar`, the Ewald split parameter `eta`, the
-<a href=#70 id=70 data-nosnippet>70</a>//!   lattice `vectors` (treams `a`) and the `shift` (treams `r`).
-<a href=#71 id=71 data-nosnippet>71</a>//! - Planar inputs: `ks` holds the two helicity wavenumbers of each medium, `kzs` the
-<a href=#72 id=72 data-nosnippet>72</a>//!   normal wavenumbers, `zs` the impedances and `q` the transverse wavevectors.
-<a href=#73 id=73 data-nosnippet>73</a>//!   [`smatrix::chirality_density`] and [`smatrix::oriented_chirality`] use the
-<a href=#74 id=74 data-nosnippet>74</a>//!   argument names of their native functions: `normal` for the normal wavenumbers
-<a href=#75 id=75 data-nosnippet>75</a>//!   and, in [`smatrix::oriented_chirality`], `transverse` for the transverse
-<a href=#76 id=76 data-nosnippet>76</a>//!   wavevectors. The [`smatrix`] module docs give the order of the sides and of the
-<a href=#77 id=77 data-nosnippet>77</a>//!   four S-matrix blocks.
-<a href=#78 id=78 data-nosnippet>78</a>//!
-<a href=#79 id=79 data-nosnippet>79</a>//! ## Names
-<a href=#80 id=80 data-nosnippet>80</a>//!
-<a href=#81 id=81 data-nosnippet>81</a>//! - Items inside [`sw`], [`cw`] and [`pw`] carry no family prefix; other modules name
-<a href=#82 id=82 data-nosnippet>82</a>//!   them by path, as in `sw::Mode`, `cw::Basis` and `pw::expansion`. A module that
-<a href=#83 id=83 data-nosnippet>83</a>//!   serves both families prefixes the family: `rotation::sw_rotate`,
-<a href=#84 id=84 data-nosnippet>84</a>//!   `channels::cw_periodic_to_pw`.
-<a href=#85 id=85 data-nosnippet>85</a>//! - A forward function carries the treams name or the name of its operation:
-<a href=#86 id=86 data-nosnippet>86</a>//!   `coeffs::mie`, `cluster::interaction`, `smatrix::tr`. Suffixes mark the variants:
-<a href=#87 id=87 data-nosnippet>87</a>//!   `_array` for an elementwise forward over arrays that returns a residual
-<a href=#88 id=88 data-nosnippet>88</a>//!   (`special::bessel_array`), `_matrix` for a matrix that changes the wave family
-<a href=#89 id=89 data-nosnippet>89</a>//!   (`cw::to_sw_matrix`), and `_value` for the forward that returns only the value of
-<a href=#90 id=90 data-nosnippet>90</a>//!   a forward with a residual (`smatrix::tr_value`). Matrices between two bases of one
-<a href=#91 id=91 data-nosnippet>91</a>//!   family are nouns: `sw::expansion`, `sw::lattice_expansion`, `rotation::sw_rotation`.
-<a href=#92 id=92 data-nosnippet>92</a>//! - A forward `X` that supports gradients returns `(value, XResidual)` when its
-<a href=#93 id=93 data-nosnippet>93</a>//!   pullback does not read the value. When the pullback reads it, the forward returns
-<a href=#94 id=94 data-nosnippet>94</a>//!   only the residual, which lends the value through an accessor such as `value()`:
-<a href=#95 id=95 data-nosnippet>95</a>//!   [`coeffs::mie`], [`smatrix::tr`] and [`linalg::solve`] work this way.
-<a href=#96 id=96 data-nosnippet>96</a>//!   `XResidual::pullback(&amp;self, cotangent)` returns an `XGradient` with one field per
-<a href=#97 id=97 data-nosnippet>97</a>//!   differentiable input, or an array of gradients in argument order. The residual
-<a href=#98 id=98 data-nosnippet>98</a>//!   name drops the suffixes `_array`, `_matrix` and `_value`:
-<a href=#99 id=99 data-nosnippet>99</a>//!   `sw::polar_translation_array` returns a [`sw::PolarTranslationResidual`], and
-<a href=#100 id=100 data-nosnippet>100</a>//!   `cw::to_sw_matrix` a [`cw::ToSwResidual`].
-<a href=#101 id=101 data-nosnippet>101</a>//! - The `record` methods of [`cluster::InteractionFactor`] and
-<a href=#102 id=102 data-nosnippet>102</a>//!   [`cluster::IterativeSphereCluster`] return residuals named after their native
-<a href=#103 id=103 data-nosnippet>103</a>//!   context classes. [`cluster::IlluminateResidual`] matches `IlluminateContext`, which
-<a href=#104 id=104 data-nosnippet>104</a>//!   `diff.illuminate` also returns. [`cluster::IterativeResidual`] matches
-<a href=#105 id=105 data-nosnippet>105</a>//!   `IterativeContext`.
-<a href=#106 id=106 data-nosnippet>106</a>//! - Family twins share one residual: [`rotation::sw_rotation`] and
-<a href=#107 id=107 data-nosnippet>107</a>//!   [`rotation::cw_rotation`] return [`rotation::RotationResidual`], and
-<a href=#108 id=108 data-nosnippet>108</a>//!   [`cluster::particle_cluster`] and [`cluster::cylindrical_particle_cluster`] return
-<a href=#109 id=109 data-nosnippet>109</a>//!   [`cluster::ParticleClusterResidual`]. [`linalg::solve_owned`], which reuses the
-<a href=#110 id=110 data-nosnippet>110</a>//!   operator's buffer, returns the [`linalg::SolveResidual`] of [`linalg::solve`].
-<a href=#111 id=111 data-nosnippet>111</a>//! - The pullbacks of [`linalg::EigResidual`] and [`smatrix::BandsResidual`] take one
-<a href=#112 id=112 data-nosnippet>112</a>//!   cotangent per output and name each after its output: `values` and `vectors`, and
-<a href=#113 id=113 data-nosnippet>113</a>//!   `wavenumbers` and `vectors`.
-<a href=#114 id=114 data-nosnippet>114</a>//!
-<a href=#115 id=115 data-nosnippet>115</a>//! ## Gradients of complex values
-<a href=#116 id=116 data-nosnippet>116</a>//!
-<a href=#117 id=117 data-nosnippet>117</a>//! A loss `L` changes by `dL = Re Σ conj(g)·dx` when a value changes by `dx`, where `g`
-<a href=#118 id=118 data-nosnippet>118</a>//! is the cotangent of that value. For a complex value `x = a + i b`, the cotangent is
-<a href=#119 id=119 data-nosnippet>119</a>//! `∂L/∂a + i ∂L/∂b`, and real inputs get real gradients. A pullback through a
-<a href=#120 id=120 data-nosnippet>120</a>//! holomorphic map `y = f(x)` therefore multiplies by the conjugate derivative:
-<a href=#121 id=121 data-nosnippet>121</a>//! `g_x = conj(f'(x)) g_y`.
-<a href=#122 id=122 data-nosnippet>122</a>//!
-<a href=#123 id=123 data-nosnippet>123</a>//! ## Errors
-<a href=#124 id=124 data-nosnippet>124</a>//!
-<a href=#125 id=125 data-nosnippet>125</a>//! Every fallible function returns [`Result`], whose [`Error`] says why it failed:
-<a href=#126 id=126 data-nosnippet>126</a>//! [`InvalidInput`](Error::InvalidInput) for input outside the domain,
-<a href=#127 id=127 data-nosnippet>127</a>//! [`SpecialFunction`](Error::SpecialFunction), [`NonFinite`](Error::NonFinite) and
-<a href=#128 id=128 data-nosnippet>128</a>//! [`NotConverged`](Error::NotConverged) for numerical failures,
-<a href=#129 id=129 data-nosnippet>129</a>//! [`Singular`](Error::Singular) for a singular linear system, and
-<a href=#130 id=130 data-nosnippet>130</a>//! [`OutOfMemory`](Error::OutOfMemory) when the system refuses the memory of a large
-<a href=#131 id=131 data-nosnippet>131</a>//! output or workspace. The bindings raise `OutOfMemory` as Python `MemoryError` and
-<a href=#132 id=132 data-nosnippet>132</a>//! every other variant as `ValueError`, with the displayed message. treams returns NaN
-<a href=#133 id=133 data-nosnippet>133</a>//! or emits `NumPy` warnings in the numerical cases.
-<a href=#134 id=134 data-nosnippet>134</a>//!
-<a href=#135 id=135 data-nosnippet>135</a>//! Dense coupling, T-matrix, expansion and field outputs, decomposition vectors,
-<a href=#136 id=136 data-nosnippet>136</a>//! and LU, SVD and eigenvalue workspaces are reserved fallibly, through
-<a href=#137 id=137 data-nosnippet>137</a>//! `numerics::zeros`, `numerics::filled`, `numerics::reserve` and the LU workspace of
-<a href=#138 id=138 data-nosnippet>138</a>//! [`linalg`], so a refused request returns `OutOfMemory` instead of aborting the
-<a href=#139 id=139 data-nosnippet>139</a>//! process. This is not a process-wide guarantee: input copies, matrix products,
-<a href=#140 id=140 data-nosnippet>140</a>//! gradient buffers and other allocations can still abort when refused.
+<a href=#31 id=31 data-nosnippet>31</a>//! Production code should use its own layer and the layers below it, never a
+<a href=#32 id=32 data-nosnippet>32</a>//! layer above.
+<a href=#33 id=33 data-nosnippet>33</a>//! Modules of one layer may use each other: [`cw::to_sw()`] builds
+<a href=#34 id=34 data-nosnippet>34</a>//! spherical modes, and [`tmatrix::sphere()`] takes the Mie coefficients of [`coeffs`].
+<a href=#35 id=35 data-nosnippet>35</a>//! Any module may use the root items [`Complex`], [`Error`], [`Result`] and
+<a href=#36 id=36 data-nosnippet>36</a>//! [`MAX_DEGREE`]. Tests may use any module.
+<a href=#37 id=37 data-nosnippet>37</a>//!
+<a href=#38 id=38 data-nosnippet>38</a>//! [`rotation`] and [`channels`] share one residual or gradient type across both
+<a href=#39 id=39 data-nosnippet>39</a>//! multipole families ([`rotation::RotationResidual`], [`channels::ChannelGradient`]),
+<a href=#40 id=40 data-nosnippet>40</a>//! so they stay at the top level instead of inside [`sw`] and [`cw`].
+<a href=#41 id=41 data-nosnippet>41</a>//!
+<a href=#42 id=42 data-nosnippet>42</a>//! A directory module keeps its files private and re-exports their items, so callers
+<a href=#43 id=43 data-nosnippet>43</a>//! write `sw::expansion` and `smatrix::tr`. Three modules keep their own path:
+<a href=#44 id=44 data-nosnippet>44</a>//! [`special::coordinates`], `numerics::broadcast` and `numerics::parallel`.
+<a href=#45 id=45 data-nosnippet>45</a>//!
+<a href=#46 id=46 data-nosnippet>46</a>//! # Conventions
+<a href=#47 id=47 data-nosnippet>47</a>//!
+<a href=#48 id=48 data-nosnippet>48</a>//! The contributor-facing [implementation rules](https://yaugenst.github.io/treams-rs/latest/development/architecture/#rules)
+<a href=#49 id=49 data-nosnippet>49</a>//! are the common home for ownership, validation and evidence requirements.
+<a href=#50 id=50 data-nosnippet>50</a>//! The conventions below define the core's terms.
+<a href=#51 id=51 data-nosnippet>51</a>//!
+<a href=#52 id=52 data-nosnippet>52</a>//! ## Numbers and labels
+<a href=#53 id=53 data-nosnippet>53</a>//!
+<a href=#54 id=54 data-nosnippet>54</a>//! - [`Complex`] is `num_complex::Complex64`, which `NumPy` calls `complex128`. Every
+<a href=#55 id=55 data-nosnippet>55</a>//!   kernel takes and returns double precision.
+<a href=#56 id=56 data-nosnippet>56</a>//! - The degree is `l` and the order is `m`; `lmax` and `mmax` bound them. "Order" also
+<a href=#57 id=57 data-nosnippet>57</a>//!   names the order of a Bessel function, never a degree.
+<a href=#58 id=58 data-nosnippet>58</a>//! - [`MAX_DEGREE`] = 128 bounds the degree `l` and the size of cylindrical orders `m`.
+<a href=#59 id=59 data-nosnippet>59</a>//!   Translations couple degrees up to `special::MAX_ORDER` = 256, and Wigner and Kambe
+<a href=#60 id=60 data-nosnippet>60</a>//!   labels reach [`special::MAX_LABEL`] = 260. treams has no such limits.
+<a href=#61 id=61 data-nosnippet>61</a>//! - `pol: u8` is the polarization index, 0 or 1, and `helicity: bool` selects the
+<a href=#62 id=62 data-nosnippet>62</a>//!   convention that treams calls `poltype`. With `helicity` true, pol 1 is positive and
+<a href=#63 id=63 data-nosnippet>63</a>//!   pol 0 negative helicity; with `helicity` false, pol 1 is TM (the N multipoles) and
+<a href=#64 id=64 data-nosnippet>64</a>//!   pol 0 TE (the M multipoles). Bases list pol 1 before pol 0, as treams does.
+<a href=#65 id=65 data-nosnippet>65</a>//! - [`special::Radial`] is the treams `modetype`: `Regular` is `'regular'`, and
+<a href=#66 id=66 data-nosnippet>66</a>//!   `Singular` is `'singular'`, the outgoing Hankel function of the first kind. The
+<a href=#67 id=67 data-nosnippet>67</a>//!   bindings pass it as `singular: bool`.
+<a href=#68 id=68 data-nosnippet>68</a>//! - A basis entry `(pidx, mode)` holds the position index (treams `pidx`) and the mode
+<a href=#69 id=69 data-nosnippet>69</a>//!   label, [`sw::Mode`] or [`cw::Mode`]. `positions` are Cartesian expansion centres.
+<a href=#70 id=70 data-nosnippet>70</a>//! - A matrix between two bases maps coefficients of the `source` basis to the
+<a href=#71 id=71 data-nosnippet>71</a>//!   `destination` basis. Translations take the displacement `destination - source`;
+<a href=#72 id=72 data-nosnippet>72</a>//!   lattice sums run over `source - destination`, and each lattice path says where it
+<a href=#73 id=73 data-nosnippet>73</a>//!   negates the displacement.
+<a href=#74 id=74 data-nosnippet>74</a>//! - Lattice sums take the Bloch vector `kpar`, the Ewald split parameter `eta`, the
+<a href=#75 id=75 data-nosnippet>75</a>//!   lattice `vectors` (treams `a`) and the `shift` (treams `r`).
+<a href=#76 id=76 data-nosnippet>76</a>//! - Planar inputs: `ks` holds the two helicity wavenumbers of each medium, `kzs` the
+<a href=#77 id=77 data-nosnippet>77</a>//!   normal wavenumbers, `zs` the impedances and `q` the transverse wavevectors.
+<a href=#78 id=78 data-nosnippet>78</a>//!   [`smatrix::chirality_density`] and [`smatrix::oriented_chirality`] use the
+<a href=#79 id=79 data-nosnippet>79</a>//!   argument names of their native functions: `normal` for the normal wavenumbers
+<a href=#80 id=80 data-nosnippet>80</a>//!   and, in [`smatrix::oriented_chirality`], `transverse` for the transverse
+<a href=#81 id=81 data-nosnippet>81</a>//!   wavevectors. The [`smatrix`] module docs give the order of the sides and of the
+<a href=#82 id=82 data-nosnippet>82</a>//!   four S-matrix blocks.
+<a href=#83 id=83 data-nosnippet>83</a>//!
+<a href=#84 id=84 data-nosnippet>84</a>//! ## Names
+<a href=#85 id=85 data-nosnippet>85</a>//!
+<a href=#86 id=86 data-nosnippet>86</a>//! - Items inside [`sw`], [`cw`] and [`pw`] carry no family prefix; other modules name
+<a href=#87 id=87 data-nosnippet>87</a>//!   them by path, as in `sw::Mode`, `cw::Basis` and `pw::expansion`. A module that
+<a href=#88 id=88 data-nosnippet>88</a>//!   serves both families prefixes the family: `rotation::sw_rotate`,
+<a href=#89 id=89 data-nosnippet>89</a>//!   `channels::cw_periodic_to_pw`.
+<a href=#90 id=90 data-nosnippet>90</a>//! - A forward function carries the treams name or the name of its operation:
+<a href=#91 id=91 data-nosnippet>91</a>//!   `coeffs::mie`, `cluster::interaction`, `smatrix::tr`. Suffixes mark the variants:
+<a href=#92 id=92 data-nosnippet>92</a>//!   `_array` for an elementwise forward over arrays that returns a residual
+<a href=#93 id=93 data-nosnippet>93</a>//!   (`special::bessel_array`), `_matrix` for a matrix that changes the wave family
+<a href=#94 id=94 data-nosnippet>94</a>//!   (`cw::to_sw_matrix`), and `_value` for the forward that returns only the value of
+<a href=#95 id=95 data-nosnippet>95</a>//!   a forward with a residual (`smatrix::tr_value`). Matrices between two bases of one
+<a href=#96 id=96 data-nosnippet>96</a>//!   family are nouns: `sw::expansion`, `sw::lattice_expansion`, `rotation::sw_rotation`.
+<a href=#97 id=97 data-nosnippet>97</a>//! - A forward `X` that supports gradients returns `(value, XResidual)` when its
+<a href=#98 id=98 data-nosnippet>98</a>//!   pullback does not read the value. When the pullback reads it, the forward returns
+<a href=#99 id=99 data-nosnippet>99</a>//!   only the residual, which lends the value through an accessor such as `value()`:
+<a href=#100 id=100 data-nosnippet>100</a>//!   [`coeffs::mie`], [`smatrix::tr`] and [`linalg::solve`] work this way.
+<a href=#101 id=101 data-nosnippet>101</a>//!   `XResidual::pullback(&amp;self, cotangent)` returns an `XGradient` with one field per
+<a href=#102 id=102 data-nosnippet>102</a>//!   differentiable input, or an array of gradients in argument order. The residual
+<a href=#103 id=103 data-nosnippet>103</a>//!   name drops the suffixes `_array`, `_matrix` and `_value`:
+<a href=#104 id=104 data-nosnippet>104</a>//!   `sw::polar_translation_array` returns a [`sw::PolarTranslationResidual`], and
+<a href=#105 id=105 data-nosnippet>105</a>//!   `cw::to_sw_matrix` a [`cw::ToSwResidual`].
+<a href=#106 id=106 data-nosnippet>106</a>//! - The `record` methods of [`cluster::InteractionFactor`] and
+<a href=#107 id=107 data-nosnippet>107</a>//!   [`cluster::IterativeSphereCluster`] return residuals named after their native
+<a href=#108 id=108 data-nosnippet>108</a>//!   context classes. [`cluster::IlluminateResidual`] matches `IlluminateContext`, which
+<a href=#109 id=109 data-nosnippet>109</a>//!   `diff.illuminate` also returns. [`cluster::IterativeResidual`] matches
+<a href=#110 id=110 data-nosnippet>110</a>//!   `IterativeContext`.
+<a href=#111 id=111 data-nosnippet>111</a>//! - Family twins share one residual: [`rotation::sw_rotation`] and
+<a href=#112 id=112 data-nosnippet>112</a>//!   [`rotation::cw_rotation`] return [`rotation::RotationResidual`], and
+<a href=#113 id=113 data-nosnippet>113</a>//!   [`cluster::particle_cluster`] and [`cluster::cylindrical_particle_cluster`] return
+<a href=#114 id=114 data-nosnippet>114</a>//!   [`cluster::ParticleClusterResidual`]. [`linalg::solve_owned`], which reuses the
+<a href=#115 id=115 data-nosnippet>115</a>//!   operator's buffer, returns the [`linalg::SolveResidual`] of [`linalg::solve`].
+<a href=#116 id=116 data-nosnippet>116</a>//! - The pullbacks of [`linalg::EigResidual`] and [`smatrix::BandsResidual`] take one
+<a href=#117 id=117 data-nosnippet>117</a>//!   cotangent per output and name each after its output: `values` and `vectors`, and
+<a href=#118 id=118 data-nosnippet>118</a>//!   `wavenumbers` and `vectors`.
+<a href=#119 id=119 data-nosnippet>119</a>//!
+<a href=#120 id=120 data-nosnippet>120</a>//! ## Gradients of complex values
+<a href=#121 id=121 data-nosnippet>121</a>//!
+<a href=#122 id=122 data-nosnippet>122</a>//! A loss `L` changes by `dL = Re Σ conj(g)·dx` when a value changes by `dx`, where `g`
+<a href=#123 id=123 data-nosnippet>123</a>//! is the cotangent of that value. For a complex value `x = a + i b`, the cotangent is
+<a href=#124 id=124 data-nosnippet>124</a>//! `∂L/∂a + i ∂L/∂b`, and real inputs get real gradients. A pullback through a
+<a href=#125 id=125 data-nosnippet>125</a>//! holomorphic map `y = f(x)` therefore multiplies by the conjugate derivative:
+<a href=#126 id=126 data-nosnippet>126</a>//! `g_x = conj(f'(x)) g_y`.
+<a href=#127 id=127 data-nosnippet>127</a>//!
+<a href=#128 id=128 data-nosnippet>128</a>//! ## Reusable derivatives and saved state
+<a href=#129 id=129 data-nosnippet>129</a>//!
+<a href=#130 id=130 data-nosnippet>130</a>//! A residual represents fixed primal inputs. Its `pushforward(&amp;self, tangent)`
+<a href=#131 id=131 data-nosnippet>131</a>//! maps input directions to output directions; `pullback(&amp;self, cotangent)` maps
+<a href=#132 id=132 data-nosnippet>132</a>//! an output cotangent to input gradients. Both borrow the residual, so repeated
+<a href=#133 id=133 data-nosnippet>133</a>//! calls can reuse recorded values and factorizations. [`linalg::SolveResidual`]
+<a href=#134 id=134 data-nosnippet>134</a>//! is an example. These are first-order actions; their presence does not imply
+<a href=#135 id=135 data-nosnippet>135</a>//! support for differentiating the derivative implementation itself.
+<a href=#136 id=136 data-nosnippet>136</a>//!
+<a href=#137 id=137 data-nosnippet>137</a>//! Keep invariant-bearing residual fields private and retain only data needed by
+<a href=#138 id=138 data-nosnippet>138</a>//! those actions. Returned gradient records may expose plain data. Prefer moving
+<a href=#139 id=139 data-nosnippet>139</a>//! owned buffers when the caller has no further use for them, as
+<a href=#140 id=140 data-nosnippet>140</a>//! [`linalg::solve_owned`] does, over cloning to satisfy a borrowed interface.
 <a href=#141 id=141 data-nosnippet>141</a>//!
-<a href=#142 id=142 data-nosnippet>142</a>//! ## Parallelism and reproducibility
-<a href=#143 id=143 data-nosnippet>143</a>//!
-<a href=#144 id=144 data-nosnippet>144</a>//! Rayon runs independent items in parallel, on the pool of [`threads`], once their
-<a href=#145 id=145 data-nosnippet>145</a>//! number reaches a threshold; [`numerics::parallel`](numerics/parallel/index.html)
-<a href=#146 id=146 data-nosnippet>146</a>//! lists every threshold. The elementwise evaluations and the helpers there keep every
-<a href=#147 id=147 data-nosnippet>147</a>//! output in index order. A pullback that adds over items splits them into chunks
-<a href=#148 id=148 data-nosnippet>148</a>//! fixed by the item count, or into blocks fixed by the shape, and adds the partial
-<a href=#149 id=149 data-nosnippet>149</a>//! sums in order, so the thread count sets how many workers run the chunks but never
-<a href=#150 id=150 data-nosnippet>150</a>//! the order of the additions. The docs of these residuals, and of
-<a href=#151 id=151 data-nosnippet>151</a>//! `numerics::broadcast` for the elementwise ones, say how they add; the thread count
-<a href=#152 id=152 data-nosnippet>152</a>//! changes the result of none of them:
-<a href=#153 id=153 data-nosnippet>153</a>//!
-<a href=#154 id=154 data-nosnippet>154</a>//! - Outputs in index order, or sums in a fixed order: the elementwise residuals of
-<a href=#155 id=155 data-nosnippet>155</a>//!   [`special`] and [`lattice::SumResidual`], [`sw::PolarTranslationResidual`],
-<a href=#156 id=156 data-nosnippet>156</a>//!   [`sw::ExpansionResidual`], [`sw::LatticeExpansionFromTableResidual`],
-<a href=#157 id=157 data-nosnippet>157</a>//!   [`cw::PolarTranslationResidual`], [`cw::ExpansionResidual`],
-<a href=#158 id=158 data-nosnippet>158</a>//!   [`cw::LatticeExpansionResidual`], [`rotation::RotationResidual`],
-<a href=#159 id=159 data-nosnippet>159</a>//!   [`pw::PhasesResidual`], [`pw::PermutationResidual`],
-<a href=#160 id=160 data-nosnippet>160</a>//!   [`vectorwaves::VectorWaveResidual`], [`ebcm::QmatResidual`],
-<a href=#161 id=161 data-nosnippet>161</a>//!   [`coeffs::MieResidual`], [`coeffs::MieCylResidual`],
-<a href=#162 id=162 data-nosnippet>162</a>//!   [`tmatrix::SphereResidual`], [`tmatrix::CylinderResidual`],
-<a href=#163 id=163 data-nosnippet>163</a>//!   [`tmatrix::MetricResidual`], [`cluster::InteractionResidual`],
-<a href=#164 id=164 data-nosnippet>164</a>//!   [`cluster::IlluminateResidual`] and [`cluster::SphereClusterResidual`].
-<a href=#165 id=165 data-nosnippet>165</a>//! - Partial sums over fixed chunks or blocks, added in order:
-<a href=#166 id=166 data-nosnippet>166</a>//!   [`sw::LatticeExpansionResidual`], [`sw::PeriodicToCwResidual`],
-<a href=#167 id=167 data-nosnippet>167</a>//!   [`cw::ToSwResidual`], [`pw::ExpansionResidual`], [`pw::FieldResidual`],
-<a href=#168 id=168 data-nosnippet>168</a>//!   [`channels::SphericalChannelsResidual`], [`channels::CylindricalChannelsResidual`],
-<a href=#169 id=169 data-nosnippet>169</a>//!   [`fields::FieldResidual`], [`fields::OperatorResidual`],
-<a href=#170 id=170 data-nosnippet>170</a>//!   [`cluster::IterativeResidual`] and [`smatrix::LayerStackResidual`].
-<a href=#171 id=171 data-nosnippet>171</a>//!
-<a href=#172 id=172 data-nosnippet>172</a>//! These residuals give the same bits at every thread budget. With a budget of one
-<a href=#173 id=173 data-nosnippet>173</a>//! thread ([`threads::set_num_threads`] or `TREAMS_RS_NUM_THREADS=1`), every result
-<a href=#174 id=174 data-nosnippet>174</a>//! repeats bit for bit.
-<a href=#175 id=175 data-nosnippet>175</a>//!
-<a href=#176 id=176 data-nosnippet>176</a>//! ## Floating-point environment
-<a href=#177 id=177 data-nosnippet>177</a>//!
-<a href=#178 id=178 data-nosnippet>178</a>//! The kernels assume IEEE 754 gradual underflow: subnormal numbers stay subnormal.
-<a href=#179 id=179 data-nosnippet>179</a>//! JAX (through XLA) and `torch.set_flush_denormal(True)` make the calling thread flush
-<a href=#180 id=180 data-nosnippet>180</a>//! them to zero, which breaks algorithms that scale through the subnormal range, such
-<a href=#181 id=181 data-nosnippet>181</a>//! as faer's complex reciprocal of an LU pivot. [`fpenv::ieee`] runs a closure with
-<a href=#182 id=182 data-nosnippet>182</a>//! subnormals on the calling thread and restores the caller's mode afterwards. Its name
-<a href=#183 id=183 data-nosnippet>183</a>//! says what the closure gets, the IEEE 754 default arithmetic, and stays short because
-<a href=#184 id=184 data-nosnippet>184</a>//! the bindings wrap the body of every Python entry point in it: `ieee(|| ...)`.
-<a href=#185 id=185 data-nosnippet>185</a>//! `fpenv::flushing` does the opposite, for tests. The [`fpenv`] module docs explain
-<a href=#186 id=186 data-nosnippet>186</a>//! the control registers and why the guard is sound.
-<a href=#187 id=187 data-nosnippet>187</a>//!
-<a href=#188 id=188 data-nosnippet>188</a>//! ## Lints
-<a href=#189 id=189 data-nosnippet>189</a>//!
-<a href=#190 id=190 data-nosnippet>190</a>//! The workspace keeps clippy's default lints, adds `pedantic` and `nursery`, requires
-<a href=#191 id=191 data-nosnippet>191</a>//! docs on every public item, and the checks treat every warning as an error.
-<a href=#192 id=192 data-nosnippet>192</a>//! `clippy::indexing_slicing` stays on, so new code indexes through iterators or checked
-<a href=#193 id=193 data-nosnippet>193</a>//! access. A numerical module that validates its indices on entry opts out once, with
-<a href=#194 id=194 data-nosnippet>194</a>//! `#![allow(clippy::indexing_slicing)] // &lt;why the indices are in range&gt;`; the reason
-<a href=#195 id=195 data-nosnippet>195</a>//! comment is required. Tests may index freely (`clippy.toml`).
-<a href=#196 id=196 data-nosnippet>196</a>//!
-<a href=#197 id=197 data-nosnippet>197</a>//! # Glossary
-<a href=#198 id=198 data-nosnippet>198</a>//!
-<a href=#199 id=199 data-nosnippet>199</a>//! A record is a function that returns a value and a reusable context. The context stores what is needed to compute derivatives later: `context.pullback(g)` takes the gradient `g` of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.
+<a href=#142 id=142 data-nosnippet>142</a>//! [`saved::SavedState`] carries numerical state through array-only callbacks.
+<a href=#143 id=143 data-nosnippet>143</a>//! Its bytes belong to one invocation of the current extension, not a persistent
+<a href=#144 id=144 data-nosnippet>144</a>//! file format. Keep shape-derived sizes, tags, writes and restores synchronized;
+<a href=#145 id=145 data-nosnippet>145</a>//! validate lengths, domains and allocation sizes before numerical work. Tests
+<a href=#146 id=146 data-nosnippet>146</a>//! should produce state through the public operation, then check repeated round
+<a href=#147 id=147 data-nosnippet>147</a>//! trips, both derivative directions, deferred errors and zero directions.
+<a href=#148 id=148 data-nosnippet>148</a>//! A layout-preserving cleanup retains every byte; removing payload or padding is
+<a href=#149 id=149 data-nosnippet>149</a>//! a separate compatibility decision.
+<a href=#150 id=150 data-nosnippet>150</a>//!
+<a href=#151 id=151 data-nosnippet>151</a>//! ## Errors
+<a href=#152 id=152 data-nosnippet>152</a>//!
+<a href=#153 id=153 data-nosnippet>153</a>//! Every fallible function returns [`Result`], whose [`Error`] says why it failed:
+<a href=#154 id=154 data-nosnippet>154</a>//! [`InvalidInput`](Error::InvalidInput) for input outside the domain,
+<a href=#155 id=155 data-nosnippet>155</a>//! [`SpecialFunction`](Error::SpecialFunction), [`NonFinite`](Error::NonFinite) and
+<a href=#156 id=156 data-nosnippet>156</a>//! [`NotConverged`](Error::NotConverged) for numerical failures,
+<a href=#157 id=157 data-nosnippet>157</a>//! [`Singular`](Error::Singular) for a singular linear system, and
+<a href=#158 id=158 data-nosnippet>158</a>//! [`OutOfMemory`](Error::OutOfMemory) when the system refuses the memory of a large
+<a href=#159 id=159 data-nosnippet>159</a>//! output or workspace. The bindings raise `OutOfMemory` as Python `MemoryError` and
+<a href=#160 id=160 data-nosnippet>160</a>//! every other variant as `ValueError`, with the displayed message. treams returns NaN
+<a href=#161 id=161 data-nosnippet>161</a>//! or emits `NumPy` warnings in the numerical cases.
+<a href=#162 id=162 data-nosnippet>162</a>//!
+<a href=#163 id=163 data-nosnippet>163</a>//! Reserve advertised large outputs and workspaces fallibly, through
+<a href=#164 id=164 data-nosnippet>164</a>//! `numerics::zeros`, `numerics::filled`, `numerics::reserve` and the LU workspace of
+<a href=#165 id=165 data-nosnippet>165</a>//! [`linalg`], so a refused request returns `OutOfMemory` instead of aborting the
+<a href=#166 id=166 data-nosnippet>166</a>//! process. This is not a process-wide guarantee: input copies, matrix products,
+<a href=#167 id=167 data-nosnippet>167</a>//! gradient buffers and other allocations can still abort when refused.
+<a href=#168 id=168 data-nosnippet>168</a>//! Branch on typed error identity, not display text, and propagate resource and
+<a href=#169 id=169 data-nosnippet>169</a>//! programming errors through numerical fallback.
+<a href=#170 id=170 data-nosnippet>170</a>//!
+<a href=#171 id=171 data-nosnippet>171</a>//! ## Parallelism and reproducibility
+<a href=#172 id=172 data-nosnippet>172</a>//!
+<a href=#173 id=173 data-nosnippet>173</a>//! Rayon runs independent items in parallel, on the pool of [`threads`], once their
+<a href=#174 id=174 data-nosnippet>174</a>//! number reaches a threshold; [`numerics::parallel`](numerics/parallel/index.html)
+<a href=#175 id=175 data-nosnippet>175</a>//! lists every threshold. The elementwise evaluations and the helpers there keep every
+<a href=#176 id=176 data-nosnippet>176</a>//! output in index order. A pullback that adds over items splits them into chunks
+<a href=#177 id=177 data-nosnippet>177</a>//! fixed by the item count, or into blocks fixed by the shape, and adds the partial
+<a href=#178 id=178 data-nosnippet>178</a>//! sums in order, so the thread count sets how many workers run the chunks but never
+<a href=#179 id=179 data-nosnippet>179</a>//! the order of the additions. The docs of these residuals, and of
+<a href=#180 id=180 data-nosnippet>180</a>//! `numerics::broadcast` for the elementwise ones, say how they add; the thread count
+<a href=#181 id=181 data-nosnippet>181</a>//! changes the result of none of them:
+<a href=#182 id=182 data-nosnippet>182</a>//!
+<a href=#183 id=183 data-nosnippet>183</a>//! - Outputs in index order, or sums in a fixed order: the elementwise residuals of
+<a href=#184 id=184 data-nosnippet>184</a>//!   [`special`] and [`lattice::SumResidual`], [`sw::PolarTranslationResidual`],
+<a href=#185 id=185 data-nosnippet>185</a>//!   [`sw::ExpansionResidual`], [`sw::LatticeExpansionFromTableResidual`],
+<a href=#186 id=186 data-nosnippet>186</a>//!   [`cw::PolarTranslationResidual`], [`cw::ExpansionResidual`],
+<a href=#187 id=187 data-nosnippet>187</a>//!   [`cw::LatticeExpansionResidual`], [`rotation::RotationResidual`],
+<a href=#188 id=188 data-nosnippet>188</a>//!   [`pw::PhasesResidual`], [`pw::PermutationResidual`],
+<a href=#189 id=189 data-nosnippet>189</a>//!   [`vectorwaves::VectorWaveResidual`], [`ebcm::QmatResidual`],
+<a href=#190 id=190 data-nosnippet>190</a>//!   [`coeffs::MieResidual`], [`coeffs::MieCylResidual`],
+<a href=#191 id=191 data-nosnippet>191</a>//!   [`tmatrix::SphereResidual`], [`tmatrix::CylinderResidual`],
+<a href=#192 id=192 data-nosnippet>192</a>//!   [`tmatrix::MetricResidual`], [`cluster::InteractionResidual`],
+<a href=#193 id=193 data-nosnippet>193</a>//!   [`cluster::IlluminateResidual`] and [`cluster::SphereClusterResidual`].
+<a href=#194 id=194 data-nosnippet>194</a>//! - Partial sums over fixed chunks or blocks, added in order:
+<a href=#195 id=195 data-nosnippet>195</a>//!   [`sw::LatticeExpansionResidual`], [`sw::PeriodicToCwResidual`],
+<a href=#196 id=196 data-nosnippet>196</a>//!   [`cw::ToSwResidual`], [`pw::ExpansionResidual`], [`pw::FieldResidual`],
+<a href=#197 id=197 data-nosnippet>197</a>//!   [`channels::SphericalChannelsResidual`], [`channels::CylindricalChannelsResidual`],
+<a href=#198 id=198 data-nosnippet>198</a>//!   [`fields::FieldResidual`], [`fields::OperatorResidual`],
+<a href=#199 id=199 data-nosnippet>199</a>//!   [`cluster::IterativeResidual`] and [`smatrix::LayerStackResidual`].
 <a href=#200 id=200 data-nosnippet>200</a>//!
-<a href=#201 id=201 data-nosnippet>201</a>//! In the Rust core, a function returns `(value, XResidual)`, and `XResidual::pullback(&amp;self, cotangent)` returns the input gradients as `XGradient`.
-<a href=#202 id=202 data-nosnippet>202</a>//!
-<a href=#203 id=203 data-nosnippet>203</a>//! | Term | Meaning |
-<a href=#204 id=204 data-nosnippet>204</a>//! |---|---|
-<a href=#205 id=205 data-nosnippet>205</a>//! | forward | A function that computes a value. One that supports gradients returns a residual, beside the value or holding it. |
-<a href=#206 id=206 data-nosnippet>206</a>//! | residual | What a forward saves for its pullback: `XResidual` for the forward `X`. Not the `b - A x` of a linear system, which the GMRES solver of [`linalg`] calls the residual. |
-<a href=#207 id=207 data-nosnippet>207</a>//! | pullback | `XResidual::pullback`: turns the gradient with respect to the value into the gradients with respect to the inputs. It borrows the reusable residual. |
-<a href=#208 id=208 data-nosnippet>208</a>//! | cotangent | The gradient of a real-valued loss with respect to one value: the `g` of the definition above. |
-<a href=#209 id=209 data-nosnippet>209</a>//! | gradient | `XGradient`: the input gradients that a pullback returns, in the order of the forward's arguments. |
-<a href=#210 id=210 data-nosnippet>210</a>//! | record | The Python name of a forward with a residual: a function of `treams_rs.diff` that returns `(value, context)`. |
-<a href=#211 id=211 data-nosnippet>211</a>//! | context | The Python object that holds a residual, named after its record: `MieContext` for `diff.mie`. |
-<a href=#212 id=212 data-nosnippet>212</a>//! | jet | A value carried through the arithmetic with its first derivatives along `N` directions (`numerics::Jet&lt;N&gt;`). |
-<a href=#213 id=213 data-nosnippet>213</a>//! | [`RadialJet`](special::RadialJet) | A radial function with its first and second derivatives in its one complex argument. |
-<a href=#214 id=214 data-nosnippet>214</a>//! | split (`eta`) | The Ewald split parameter, which divides a lattice sum into a real-space and a reciprocal-space part; `eta = 0` selects it automatically. |
-<a href=#215 id=215 data-nosnippet>215</a>//! | Bloch vector (`kpar`) | The wavevector components along a lattice: the term of lattice point `R` carries the phase `exp(i kpar · R)`. |
-<a href=#216 id=216 data-nosnippet>216</a>//! | sheet | The branch of the complex logarithm on which a reciprocal-space term of a lattice sum is evaluated. |
+<a href=#201 id=201 data-nosnippet>201</a>//! The intended contract is identical bits at every thread budget, including one
+<a href=#202 id=202 data-nosnippet>202</a>//! thread ([`threads::set_num_threads`] or `TREAMS_RS_NUM_THREADS=1`).
+<a href=#203 id=203 data-nosnippet>203</a>//!
+<a href=#204 id=204 data-nosnippet>204</a>//! ## Floating-point environment
+<a href=#205 id=205 data-nosnippet>205</a>//!
+<a href=#206 id=206 data-nosnippet>206</a>//! The kernels assume IEEE 754 gradual underflow: subnormal numbers stay subnormal.
+<a href=#207 id=207 data-nosnippet>207</a>//! JAX (through XLA) and `torch.set_flush_denormal(True)` make the calling thread flush
+<a href=#208 id=208 data-nosnippet>208</a>//! them to zero, which breaks algorithms that scale through the subnormal range, such
+<a href=#209 id=209 data-nosnippet>209</a>//! as faer's complex reciprocal of an LU pivot. [`fpenv::ieee`] runs a closure with
+<a href=#210 id=210 data-nosnippet>210</a>//! subnormals on the calling thread and restores the caller's mode afterwards. Its name
+<a href=#211 id=211 data-nosnippet>211</a>//! says what the closure gets, the IEEE 754 default arithmetic, and stays short because
+<a href=#212 id=212 data-nosnippet>212</a>//! the bindings wrap the body of every Python entry point in it: `ieee(|| ...)`.
+<a href=#213 id=213 data-nosnippet>213</a>//! `fpenv::flushing` does the opposite, for tests. The [`fpenv`] module docs explain
+<a href=#214 id=214 data-nosnippet>214</a>//! the control registers and why the guard is sound.
+<a href=#215 id=215 data-nosnippet>215</a>//!
+<a href=#216 id=216 data-nosnippet>216</a>//! ## Lints
 <a href=#217 id=217 data-nosnippet>217</a>//!
-<a href=#218 id=218 data-nosnippet>218</a>//! The [`lattice`](lattice#glossary) module docs define the other terms of the lattice
-<a href=#219 id=219 data-nosnippet>219</a>//! sums.
-<a href=#220 id=220 data-nosnippet>220</a>//!
-<a href=#221 id=221 data-nosnippet>221</a>//! # Tests
-<a href=#222 id=222 data-nosnippet>222</a>//!
-<a href=#223 id=223 data-nosnippet>223</a>//! The tests have two tiers:
+<a href=#218 id=218 data-nosnippet>218</a>//! The workspace keeps clippy's default lints, adds `pedantic` and `nursery`, requires
+<a href=#219 id=219 data-nosnippet>219</a>//! docs on every public item, and the checks treat every warning as an error.
+<a href=#220 id=220 data-nosnippet>220</a>//! `clippy::indexing_slicing` stays on, so new code indexes through iterators or checked
+<a href=#221 id=221 data-nosnippet>221</a>//! access. A numerical module that validates its indices on entry opts out once, with
+<a href=#222 id=222 data-nosnippet>222</a>//! `#![allow(clippy::indexing_slicing)] // &lt;why the indices are in range&gt;`; the reason
+<a href=#223 id=223 data-nosnippet>223</a>//! comment is required. Tests may index freely (`clippy.toml`).
 <a href=#224 id=224 data-nosnippet>224</a>//!
-<a href=#225 id=225 data-nosnippet>225</a>//! - A module's inline `tests` module checks how that module computes its results:
-<a href=#226 id=226 data-nosnippet>226</a>//!   fast paths against reference paths, tables and plans, dispatch thresholds, error
-<a href=#227 id=227 data-nosnippet>227</a>//!   paths, accuracy against reference tables, and private helpers.
-<a href=#228 id=228 data-nosnippet>228</a>//! - `src/properties/&lt;domain&gt;.rs` checks what the public operations of one domain
-<a href=#229 id=229 data-nosnippet>229</a>//!   promise: physical laws, analytic identities, and pullbacks against finite
-<a href=#230 id=230 data-nosnippet>230</a>//!   differences and adjoint pairings. The domains are `special`, `linalg`, `lattice`,
-<a href=#231 id=231 data-nosnippet>231</a>//!   `waves`, `plane`, `smatrix` and `tmatrix`, as in the Python suite; `lattice` is
-<a href=#232 id=232 data-nosnippet>232</a>//!   the directory `src/properties/lattice/`.
-<a href=#233 id=233 data-nosnippet>233</a>//!
-<a href=#234 id=234 data-nosnippet>234</a>//! A test of one module's implementation goes inline; a physical, analytic or adjoint
-<a href=#235 id=235 data-nosnippet>235</a>//! identity goes into its domain file. Both tiers use crate-private items, so the crate
-<a href=#236 id=236 data-nosnippet>236</a>//! has no `tests/` directory. `cargo test -p treams-core` runs both.
-<a href=#237 id=237 data-nosnippet>237</a>//! [Testing](https://yaugenst.github.io/treams-rs/latest/development/testing/) on the docs site
-<a href=#238 id=238 data-nosnippet>238</a>//! gives the helpers and conventions of both tiers.
-<a href=#239 id=239 data-nosnippet>239</a>//!
-<a href=#240 id=240 data-nosnippet>240</a>//! # Module map
-<a href=#241 id=241 data-nosnippet>241</a>//!
-<a href=#242 id=242 data-nosnippet>242</a>//! Each module mirrors one treams namespace where one exists. A dash marks a module
-<a href=#243 id=243 data-nosnippet>243</a>//! without a counterpart.
-<a href=#244 id=244 data-nosnippet>244</a>//!
-<a href=#245 id=245 data-nosnippet>245</a>//! &lt;!-- crosswalk:start --&gt;
-<a href=#246 id=246 data-nosnippet>246</a>//! | Rust module | treams_rs namespace | treams | Contents |
-<a href=#247 id=247 data-nosnippet>247</a>//! |---|---|---|---|
-<a href=#248 id=248 data-nosnippet>248</a>//! | [`special`] | `treams_rs.special` | `treams.special` | Bessel, Legendre and Wigner functions, coordinate transforms, incomplete gamma and Kambe integrals |
-<a href=#249 id=249 data-nosnippet>249</a>//! | [`lattice`] | `treams_rs.lattice`, `treams_rs.misc.firstbrillouin*` | `treams.lattice`, `treams.misc.firstbrillouin*` | Lattice sums and lattice geometry |
-<a href=#250 id=250 data-nosnippet>250</a>//! | [`sw`] | `treams_rs.sw`, `treams_rs.special.tl_vsw_*` | `treams.sw`, `treams.special.tl_vsw_*` | Spherical modes, translation coefficients, expansion matrices and the conversion of chains to cylindrical waves |
-<a href=#251 id=251 data-nosnippet>251</a>//! | [`cw`] | `treams_rs.cw`, `treams_rs.special.tl_vcw` | `treams.cw`, `treams.special.tl_vcw` | Cylindrical modes, translation coefficients, expansion matrices and the conversion to spherical waves |
-<a href=#252 id=252 data-nosnippet>252</a>//! | [`pw`] | `treams_rs.pw`, `treams_rs.misc.wave_vec_z` | `treams.pw`, `treams.misc.wave_vec_z` | Plane-wave polarizations, fields and multipole expansions |
-<a href=#253 id=253 data-nosnippet>253</a>//! | [`basis`] | `treams_rs.SphericalBasis`, `treams_rs.CylindricalBasis` | `treams.SphericalWaveBasis`, `treams.CylindricalWaveBasis` | Multipole bases and the expansion gradients that both families share |
-<a href=#254 id=254 data-nosnippet>254</a>//! | [`rotation`] | `treams_rs.sw.rotate`, `treams_rs.cw.rotate`, `treams_rs.operators.Rotate` | `treams.sw.rotate`, `treams.cw.rotate`, `treams.Rotate` | Rotation coefficients and rotation matrices of multipole bases |
-<a href=#255 id=255 data-nosnippet>255</a>//! | [`channels`] | `treams_rs.sw.periodic_to_pw`, `treams_rs.cw.periodic_to_pw` | `treams.sw.periodic_to_pw`, `treams.cw.periodic_to_pw` | Plane-wave channels of periodic arrays |
-<a href=#256 id=256 data-nosnippet>256</a>//! | [`vectorwaves`] | `treams_rs.special.vsh_*`, `vsw_*`, `vcw_*`, `vpw_*`, `sph_harm` | `treams.special.vsh_*`, `vsw_*`, `vcw_*`, `vpw_*`, `sph_harm` | Vector spherical harmonics and vector spherical, cylindrical and plane waves |
-<a href=#257 id=257 data-nosnippet>257</a>//! | [`fields`] | `treams_rs.operators.efield` | `treams.efield` | Electric fields of multipole expansions at sample points |
-<a href=#258 id=258 data-nosnippet>258</a>//! | [`coeffs`] | `treams_rs.coeffs`, `treams_rs.Material`, `treams_rs.misc.refractive_index` | `treams.coeffs`, `treams.Material`, `treams.misc.refractive_index` | Mie coefficients of multilayer spheres and cylinders, and materials |
-<a href=#259 id=259 data-nosnippet>259</a>//! | [`tmatrix`] | `treams_rs.TMatrix`, `treams_rs.CylindricalTMatrix` | `treams.TMatrix`, `treams.TMatrixC` | T-matrices of single spheres and cylinders, and the cd, db and chi metrics |
-<a href=#260 id=260 data-nosnippet>260</a>//! | [`ebcm`] | `treams_rs.ebcm` | `treams.ebcm` | Q-matrices of the extended boundary condition method |
-<a href=#261 id=261 data-nosnippet>261</a>//! | [`cluster`] | `treams_rs.Cluster`, `treams_rs.iterative` | `treams.TMatrix.cluster`, `treams.TMatrix.interaction` | Multiple scattering in particle clusters, dense and matrix-free |
-<a href=#262 id=262 data-nosnippet>262</a>//! | [`smatrix`] | `treams_rs.SMatrix`, `treams_rs.coeffs.fresnel` | `treams.SMatrices`, `treams.coeffs.fresnel` | Planar S-matrices: interfaces, layer stacks, composition, illumination, transmittance and bands |
-<a href=#263 id=263 data-nosnippet>263</a>//! | [`linalg`] | `treams_rs.diff.solve`, `svdvals`, `eig` | - | Dense LU, SVD and eigensystems with pullbacks, and restarted GMRES |
-<a href=#264 id=264 data-nosnippet>264</a>//! | `numerics` | - | - | Forward-mode jets, broadcasting and parallel thresholds |
-<a href=#265 id=265 data-nosnippet>265</a>//! | [`fpenv`] | - | - | A guard that keeps subnormal numbers when the caller flushes them to zero |
-<a href=#266 id=266 data-nosnippet>266</a>//! | [`threads`] | `treams_rs.set_num_threads`, `threads`, `thread_info` | - | The thread budget and the fork-safe pool that runs every parallel region |
-<a href=#267 id=267 data-nosnippet>267</a>//! &lt;!-- crosswalk:end --&gt;
-<a href=#268 id=268 data-nosnippet>268</a>
-<a href=#269 id=269 data-nosnippet>269</a></span><span class="comment">// The crosswalk table ends the crate docs: its header names treams_rs without backticks,
-<a href=#270 id=270 data-nosnippet>270</a>// as the docs generator expects, and clippy's doc_markdown lint flags that header when
-<a href=#271 id=271 data-nosnippet>271</a>// a paragraph follows the table.
-<a href=#272 id=272 data-nosnippet>272</a>
-<a href=#273 id=273 data-nosnippet>273</a>// Modules by layer; production code imports only from its own and lower layers.
-<a href=#274 id=274 data-nosnippet>274</a>
-<a href=#275 id=275 data-nosnippet>275</a>// L0: numerical support.
-<a href=#276 id=276 data-nosnippet>276</a></span><span class="kw">pub mod </span>fpenv;
-<a href=#277 id=277 data-nosnippet>277</a><span class="kw">pub mod </span>linalg;
-<a href=#278 id=278 data-nosnippet>278</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>numerics;
-<a href=#279 id=279 data-nosnippet>279</a><span class="kw">pub mod </span>threads;
-<a href=#280 id=280 data-nosnippet>280</a>
-<a href=#281 id=281 data-nosnippet>281</a><span class="comment">// L1: special functions (treams.special).
-<a href=#282 id=282 data-nosnippet>282</a></span><span class="kw">pub mod </span>special;
-<a href=#283 id=283 data-nosnippet>283</a>
-<a href=#284 id=284 data-nosnippet>284</a><span class="comment">// L2: lattice sums and lattice geometry (treams.lattice).
-<a href=#285 id=285 data-nosnippet>285</a></span><span class="kw">pub mod </span>lattice;
-<a href=#286 id=286 data-nosnippet>286</a>
-<a href=#287 id=287 data-nosnippet>287</a><span class="comment">// L3: wave families (bases, translations, conversions, rotations, channels, fields).
-<a href=#288 id=288 data-nosnippet>288</a></span><span class="kw">pub mod </span>basis;
-<a href=#289 id=289 data-nosnippet>289</a><span class="kw">pub mod </span>channels;
-<a href=#290 id=290 data-nosnippet>290</a><span class="kw">pub mod </span>cw;
-<a href=#291 id=291 data-nosnippet>291</a><span class="kw">pub mod </span>fields;
-<a href=#292 id=292 data-nosnippet>292</a><span class="kw">pub mod </span>pw;
-<a href=#293 id=293 data-nosnippet>293</a><span class="kw">pub mod </span>rotation;
-<a href=#294 id=294 data-nosnippet>294</a><span class="kw">pub mod </span>sw;
-<a href=#295 id=295 data-nosnippet>295</a><span class="kw">pub mod </span>vectorwaves;
-<a href=#296 id=296 data-nosnippet>296</a>
-<a href=#297 id=297 data-nosnippet>297</a><span class="comment">// L4: scattering (Mie coefficients, T-matrices, EBCM, clusters).
-<a href=#298 id=298 data-nosnippet>298</a></span><span class="kw">pub mod </span>cluster;
-<a href=#299 id=299 data-nosnippet>299</a><span class="kw">pub mod </span>coeffs;
-<a href=#300 id=300 data-nosnippet>300</a><span class="kw">pub mod </span>ebcm;
-<a href=#301 id=301 data-nosnippet>301</a><span class="kw">pub mod </span>saved;
-<a href=#302 id=302 data-nosnippet>302</a><span class="kw">pub mod </span>tmatrix;
-<a href=#303 id=303 data-nosnippet>303</a>
-<a href=#304 id=304 data-nosnippet>304</a><span class="comment">// L5: planar and periodic S-matrices (treams SMatrices).
-<a href=#305 id=305 data-nosnippet>305</a></span><span class="kw">pub mod </span>smatrix;
-<a href=#306 id=306 data-nosnippet>306</a>
-<a href=#307 id=307 data-nosnippet>307</a><span class="doccomment">/// Property tests by domain. An inline `tests` module checks how one module computes;
-<a href=#308 id=308 data-nosnippet>308</a>/// a file here checks a physical, analytic or adjoint identity of a domain's public
-<a href=#309 id=309 data-nosnippet>309</a>/// operations.
-<a href=#310 id=310 data-nosnippet>310</a></span><span class="attr">#[cfg(test)]
-<a href=#311 id=311 data-nosnippet>311</a></span><span class="kw">mod </span>properties;
-<a href=#312 id=312 data-nosnippet>312</a><span class="doccomment">/// Case budgets, pairings, finite differences, strategies and fixtures that the tests
-<a href=#313 id=313 data-nosnippet>313</a>/// share.
-<a href=#314 id=314 data-nosnippet>314</a></span><span class="attr">#[cfg(test)]
-<a href=#315 id=315 data-nosnippet>315</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>test_support;
+<a href=#225 id=225 data-nosnippet>225</a>//! # Glossary
+<a href=#226 id=226 data-nosnippet>226</a>//!
+<a href=#227 id=227 data-nosnippet>227</a>//! A record is a function that returns a value and a reusable context. The context stores what is needed to compute derivatives later: `context.pullback(g)` takes the gradient `g` of a real-valued loss with respect to the value and returns the gradients with respect to the inputs, one for each differentiable input, in the order of the arguments. Gradients follow the convention dL = Re Σ conj(g)·dx.
+<a href=#228 id=228 data-nosnippet>228</a>//!
+<a href=#229 id=229 data-nosnippet>229</a>//! In the Rust core, a function returns `(value, XResidual)`, and `XResidual::pullback(&amp;self, cotangent)` returns the input gradients as `XGradient`.
+<a href=#230 id=230 data-nosnippet>230</a>//!
+<a href=#231 id=231 data-nosnippet>231</a>//! | Term | Meaning |
+<a href=#232 id=232 data-nosnippet>232</a>//! |---|---|
+<a href=#233 id=233 data-nosnippet>233</a>//! | forward | A function that computes a value. One that supports gradients returns a residual, beside the value or holding it. |
+<a href=#234 id=234 data-nosnippet>234</a>//! | residual | What a forward saves for its pushforward and pullback: `XResidual` for the forward `X`. Not the `b - A x` of a linear system, which the GMRES solver of [`linalg`] calls the residual. |
+<a href=#235 id=235 data-nosnippet>235</a>//! | tangent | An input or output direction at the recorded primal inputs. |
+<a href=#236 id=236 data-nosnippet>236</a>//! | pushforward | `XResidual::pushforward`: maps input tangents to output tangents while borrowing the reusable residual. |
+<a href=#237 id=237 data-nosnippet>237</a>//! | pullback | `XResidual::pullback`: turns the gradient with respect to the value into the gradients with respect to the inputs. It borrows the reusable residual. |
+<a href=#238 id=238 data-nosnippet>238</a>//! | cotangent | The gradient of a real-valued loss with respect to one value: the `g` of the definition above. |
+<a href=#239 id=239 data-nosnippet>239</a>//! | gradient | `XGradient`: the input gradients that a pullback returns, in the order of the forward's arguments. |
+<a href=#240 id=240 data-nosnippet>240</a>//! | record | The Python name of a forward with a residual: a function of `treams_rs.diff` that returns `(value, context)`. |
+<a href=#241 id=241 data-nosnippet>241</a>//! | context | The Python object that holds a residual, named after its record: `MieContext` for `diff.mie`. |
+<a href=#242 id=242 data-nosnippet>242</a>//! | jet | A value carried through the arithmetic with its first derivatives along `N` directions (`numerics::Jet&lt;N&gt;`). |
+<a href=#243 id=243 data-nosnippet>243</a>//! | [`RadialJet`](special::RadialJet) | A radial function with its first and second derivatives in its one complex argument. |
+<a href=#244 id=244 data-nosnippet>244</a>//! | split (`eta`) | The Ewald split parameter, which divides a lattice sum into a real-space and a reciprocal-space part; `eta = 0` selects it automatically. |
+<a href=#245 id=245 data-nosnippet>245</a>//! | Bloch vector (`kpar`) | The wavevector components along a lattice: the term of lattice point `R` carries the phase `exp(i kpar · R)`. |
+<a href=#246 id=246 data-nosnippet>246</a>//! | sheet | The branch of the complex logarithm on which a reciprocal-space term of a lattice sum is evaluated. |
+<a href=#247 id=247 data-nosnippet>247</a>//!
+<a href=#248 id=248 data-nosnippet>248</a>//! The [`lattice`](lattice#glossary) module docs define the other terms of the lattice
+<a href=#249 id=249 data-nosnippet>249</a>//! sums.
+<a href=#250 id=250 data-nosnippet>250</a>//!
+<a href=#251 id=251 data-nosnippet>251</a>//! # Tests
+<a href=#252 id=252 data-nosnippet>252</a>//!
+<a href=#253 id=253 data-nosnippet>253</a>//! The tests have two tiers:
+<a href=#254 id=254 data-nosnippet>254</a>//!
+<a href=#255 id=255 data-nosnippet>255</a>//! - A module's inline `tests` module checks how that module computes its results:
+<a href=#256 id=256 data-nosnippet>256</a>//!   fast paths against reference paths, tables and plans, dispatch thresholds, error
+<a href=#257 id=257 data-nosnippet>257</a>//!   paths, accuracy against reference tables, and private helpers.
+<a href=#258 id=258 data-nosnippet>258</a>//! - `src/properties/&lt;domain&gt;.rs` checks what the public operations of one domain
+<a href=#259 id=259 data-nosnippet>259</a>//!   promise: physical laws, analytic identities, and pullbacks against finite
+<a href=#260 id=260 data-nosnippet>260</a>//!   differences and adjoint pairings. The domains are `special`, `linalg`, `lattice`,
+<a href=#261 id=261 data-nosnippet>261</a>//!   `waves`, `plane`, `smatrix` and `tmatrix`, as in the Python suite; `lattice` is
+<a href=#262 id=262 data-nosnippet>262</a>//!   the directory `src/properties/lattice/`.
+<a href=#263 id=263 data-nosnippet>263</a>//!
+<a href=#264 id=264 data-nosnippet>264</a>//! A test of one module's implementation goes inline; a physical, analytic or adjoint
+<a href=#265 id=265 data-nosnippet>265</a>//! identity goes into its domain file. Both tiers use crate-private items, so the crate
+<a href=#266 id=266 data-nosnippet>266</a>//! has no `tests/` directory. `cargo test -p treams-core` runs both.
+<a href=#267 id=267 data-nosnippet>267</a>//! [Testing](https://yaugenst.github.io/treams-rs/latest/development/testing/) on the docs site
+<a href=#268 id=268 data-nosnippet>268</a>//! gives the helpers and conventions of both tiers.
+<a href=#269 id=269 data-nosnippet>269</a>//!
+<a href=#270 id=270 data-nosnippet>270</a>//! # Module map
+<a href=#271 id=271 data-nosnippet>271</a>//!
+<a href=#272 id=272 data-nosnippet>272</a>//! Each module mirrors one treams namespace where one exists. A dash marks a module
+<a href=#273 id=273 data-nosnippet>273</a>//! without a counterpart.
+<a href=#274 id=274 data-nosnippet>274</a>//!
+<a href=#275 id=275 data-nosnippet>275</a>//! &lt;!-- crosswalk:start --&gt;
+<a href=#276 id=276 data-nosnippet>276</a>//! | Rust module | treams_rs namespace | treams | Contents |
+<a href=#277 id=277 data-nosnippet>277</a>//! |---|---|---|---|
+<a href=#278 id=278 data-nosnippet>278</a>//! | [`special`] | `treams_rs.special` | `treams.special` | Bessel, Legendre and Wigner functions, coordinate transforms, incomplete gamma and Kambe integrals |
+<a href=#279 id=279 data-nosnippet>279</a>//! | [`lattice`] | `treams_rs.lattice`, `treams_rs.misc.firstbrillouin*` | `treams.lattice`, `treams.misc.firstbrillouin*` | Lattice sums and lattice geometry |
+<a href=#280 id=280 data-nosnippet>280</a>//! | [`sw`] | `treams_rs.sw`, `treams_rs.special.tl_vsw_*` | `treams.sw`, `treams.special.tl_vsw_*` | Spherical modes, translation coefficients, expansion matrices and the conversion of chains to cylindrical waves |
+<a href=#281 id=281 data-nosnippet>281</a>//! | [`cw`] | `treams_rs.cw`, `treams_rs.special.tl_vcw` | `treams.cw`, `treams.special.tl_vcw` | Cylindrical modes, translation coefficients, expansion matrices and the conversion to spherical waves |
+<a href=#282 id=282 data-nosnippet>282</a>//! | [`pw`] | `treams_rs.pw`, `treams_rs.misc.wave_vec_z` | `treams.pw`, `treams.misc.wave_vec_z` | Plane-wave polarizations, fields and multipole expansions |
+<a href=#283 id=283 data-nosnippet>283</a>//! | [`basis`] | `treams_rs.SphericalBasis`, `treams_rs.CylindricalBasis` | `treams.SphericalWaveBasis`, `treams.CylindricalWaveBasis` | Multipole bases and the expansion gradients that both families share |
+<a href=#284 id=284 data-nosnippet>284</a>//! | [`rotation`] | `treams_rs.sw.rotate`, `treams_rs.cw.rotate`, `treams_rs.operators.Rotate` | `treams.sw.rotate`, `treams.cw.rotate`, `treams.Rotate` | Rotation coefficients and rotation matrices of multipole bases |
+<a href=#285 id=285 data-nosnippet>285</a>//! | [`channels`] | `treams_rs.sw.periodic_to_pw`, `treams_rs.cw.periodic_to_pw` | `treams.sw.periodic_to_pw`, `treams.cw.periodic_to_pw` | Plane-wave channels of periodic arrays |
+<a href=#286 id=286 data-nosnippet>286</a>//! | [`vectorwaves`] | `treams_rs.special.vsh_*`, `vsw_*`, `vcw_*`, `vpw_*`, `sph_harm` | `treams.special.vsh_*`, `vsw_*`, `vcw_*`, `vpw_*`, `sph_harm` | Vector spherical harmonics and vector spherical, cylindrical and plane waves |
+<a href=#287 id=287 data-nosnippet>287</a>//! | [`fields`] | `treams_rs.operators.efield` | `treams.efield` | Electric fields of multipole expansions at sample points |
+<a href=#288 id=288 data-nosnippet>288</a>//! | [`coeffs`] | `treams_rs.coeffs`, `treams_rs.Material`, `treams_rs.misc.refractive_index` | `treams.coeffs`, `treams.Material`, `treams.misc.refractive_index` | Mie coefficients of multilayer spheres and cylinders, and materials |
+<a href=#289 id=289 data-nosnippet>289</a>//! | [`tmatrix`] | `treams_rs.TMatrix`, `treams_rs.CylindricalTMatrix` | `treams.TMatrix`, `treams.TMatrixC` | T-matrices of single spheres and cylinders, and the cd, db and chi metrics |
+<a href=#290 id=290 data-nosnippet>290</a>//! | [`ebcm`] | `treams_rs.ebcm` | `treams.ebcm` | Q-matrices of the extended boundary condition method |
+<a href=#291 id=291 data-nosnippet>291</a>//! | [`cluster`] | `treams_rs.Cluster`, `treams_rs.iterative` | `treams.TMatrix.cluster`, `treams.TMatrix.interaction` | Multiple scattering in particle clusters, dense and matrix-free |
+<a href=#292 id=292 data-nosnippet>292</a>//! | [`smatrix`] | `treams_rs.SMatrix`, `treams_rs.coeffs.fresnel` | `treams.SMatrices`, `treams.coeffs.fresnel` | Planar S-matrices: interfaces, layer stacks, composition, illumination, transmittance and bands |
+<a href=#293 id=293 data-nosnippet>293</a>//! | [`linalg`] | `treams_rs.diff.solve`, `svdvals`, `eig` | - | Dense LU, SVD and eigensystems with pullbacks, and restarted GMRES |
+<a href=#294 id=294 data-nosnippet>294</a>//! | `numerics` | - | - | Forward-mode jets, broadcasting and parallel thresholds |
+<a href=#295 id=295 data-nosnippet>295</a>//! | [`fpenv`] | - | - | A guard that keeps subnormal numbers when the caller flushes them to zero |
+<a href=#296 id=296 data-nosnippet>296</a>//! | [`threads`] | `treams_rs.set_num_threads`, `threads`, `thread_info` | - | The thread budget and the fork-safe pool that runs every parallel region |
+<a href=#297 id=297 data-nosnippet>297</a>//! &lt;!-- crosswalk:end --&gt;
+<a href=#298 id=298 data-nosnippet>298</a>
+<a href=#299 id=299 data-nosnippet>299</a></span><span class="comment">// The crosswalk table ends the crate docs: its header names treams_rs without backticks,
+<a href=#300 id=300 data-nosnippet>300</a>// as the docs generator expects, and clippy's doc_markdown lint flags that header when
+<a href=#301 id=301 data-nosnippet>301</a>// a paragraph follows the table.
+<a href=#302 id=302 data-nosnippet>302</a>
+<a href=#303 id=303 data-nosnippet>303</a>// Modules by layer; production code imports only from its own and lower layers.
+<a href=#304 id=304 data-nosnippet>304</a>
+<a href=#305 id=305 data-nosnippet>305</a>// L0: numerical support.
+<a href=#306 id=306 data-nosnippet>306</a></span><span class="kw">pub mod </span>fpenv;
+<a href=#307 id=307 data-nosnippet>307</a><span class="kw">pub mod </span>linalg;
+<a href=#308 id=308 data-nosnippet>308</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>numerics;
+<a href=#309 id=309 data-nosnippet>309</a><span class="kw">pub mod </span>threads;
+<a href=#310 id=310 data-nosnippet>310</a>
+<a href=#311 id=311 data-nosnippet>311</a><span class="comment">// L1: special functions (treams.special).
+<a href=#312 id=312 data-nosnippet>312</a></span><span class="kw">pub mod </span>special;
+<a href=#313 id=313 data-nosnippet>313</a>
+<a href=#314 id=314 data-nosnippet>314</a><span class="comment">// L2: lattice sums and lattice geometry (treams.lattice).
+<a href=#315 id=315 data-nosnippet>315</a></span><span class="kw">pub mod </span>lattice;
 <a href=#316 id=316 data-nosnippet>316</a>
-<a href=#317 id=317 data-nosnippet>317</a><span class="doccomment">/// Complex double precision used throughout the numerical core.
-<a href=#318 id=318 data-nosnippet>318</a></span><span class="kw">pub type </span>Complex = num_complex::Complex64;
-<a href=#319 id=319 data-nosnippet>319</a>
-<a href=#320 id=320 data-nosnippet>320</a><span class="doccomment">/// The largest multipole degree `l`, and the largest `|m|` of a cylindrical mode.
-<a href=#321 id=321 data-nosnippet>321</a>///
-<a href=#322 id=322 data-nosnippet>322</a>/// Translations couple degrees up to `2 MAX_DEGREE` (`special::MAX_ORDER`): the
-<a href=#323 id=323 data-nosnippet>323</a>/// log-factorial cache, the AMOS Bessel orders and the solid-harmonic tables cover that
-<a href=#324 id=324 data-nosnippet>324</a>/// range. treams has no such limit.
-<a href=#325 id=325 data-nosnippet>325</a>///
-<a href=#326 id=326 data-nosnippet>326</a>/// Error messages write the numbers out, with a comment naming the constant: the checks
-<a href=#327 id=327 data-nosnippet>327</a>/// run once per element, and a literal message keeps formatting code out of them.
-<a href=#328 id=328 data-nosnippet>328</a></span><span class="kw">pub const </span>MAX_DEGREE: i32 = <span class="number">128</span>;
-<a href=#329 id=329 data-nosnippet>329</a>
-<a href=#330 id=330 data-nosnippet>330</a><span class="doccomment">/// A numerical failure, invalid physical input or refused memory.
-<a href=#331 id=331 data-nosnippet>331</a>///
-<a href=#332 id=332 data-nosnippet>332</a>/// The Python bindings raise [`OutOfMemory`](Self::OutOfMemory) as `MemoryError` and
-<a href=#333 id=333 data-nosnippet>333</a>/// every other variant as `ValueError`, each with the displayed message.
-<a href=#334 id=334 data-nosnippet>334</a></span><span class="attr">#[derive(Clone, Debug, thiserror::Error)]
-<a href=#335 id=335 data-nosnippet>335</a></span><span class="kw">pub enum </span>Error {
-<a href=#336 id=336 data-nosnippet>336</a>    <span class="doccomment">/// The operation does not accept the input, for example a negative degree or a
-<a href=#337 id=337 data-nosnippet>337</a>    /// non-finite wavenumber.
-<a href=#338 id=338 data-nosnippet>338</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
-<a href=#339 id=339 data-nosnippet>339</a>    </span>InvalidInput(String),
-<a href=#340 id=340 data-nosnippet>340</a>    <span class="doccomment">/// An AMOS Bessel, Legendre, Ferrers, Wigner, incomplete gamma or Kambe evaluation
-<a href=#341 id=341 data-nosnippet>341</a>    /// failed.
-<a href=#342 id=342 data-nosnippet>342</a>    </span><span class="attr">#[error(<span class="string">"special-function evaluation failed: {0}"</span>)]
-<a href=#343 id=343 data-nosnippet>343</a>    </span>SpecialFunction(String),
-<a href=#344 id=344 data-nosnippet>344</a>    <span class="doccomment">/// A finite input produced a non-finite value, for example an overflowing phase.
-<a href=#345 id=345 data-nosnippet>345</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
-<a href=#346 id=346 data-nosnippet>346</a>    </span>NonFinite(String),
-<a href=#347 id=347 data-nosnippet>347</a>    <span class="doccomment">/// A sum, series, iteration or decomposition did not reach its tolerance, or
-<a href=#348 id=348 data-nosnippet>348</a>    /// cancellation lost the accuracy.
-<a href=#349 id=349 data-nosnippet>349</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
-<a href=#350 id=350 data-nosnippet>350</a>    </span>NotConverged(String),
-<a href=#351 id=351 data-nosnippet>351</a>    <span class="doccomment">/// A linear system (an LU solve, a 2 x 2 Mie inverse or an S-matrix solve) is
-<a href=#352 id=352 data-nosnippet>352</a>    /// singular at the supplied parameters.
-<a href=#353 id=353 data-nosnippet>353</a>    </span><span class="attr">#[error(<span class="string">"singular linear system"</span>)]
-<a href=#354 id=354 data-nosnippet>354</a>    </span>Singular,
-<a href=#355 id=355 data-nosnippet>355</a>    <span class="doccomment">/// The system refused memory for an output or workspace. The bindings raise it as
-<a href=#356 id=356 data-nosnippet>356</a>    /// `MemoryError`.
-<a href=#357 id=357 data-nosnippet>357</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
-<a href=#358 id=358 data-nosnippet>358</a>    </span>OutOfMemory(String),
-<a href=#359 id=359 data-nosnippet>359</a>}
-<a href=#360 id=360 data-nosnippet>360</a>
-<a href=#361 id=361 data-nosnippet>361</a><span class="kw">impl </span>Error {
-<a href=#362 id=362 data-nosnippet>362</a>    <span class="doccomment">/// [`OutOfMemory`](Self::OutOfMemory) for `count` elements of `element_bytes` bytes
-<a href=#363 id=363 data-nosnippet>363</a>    /// each: "cannot allocate 4096 bytes", or "cannot allocate more than
-<a href=#364 id=364 data-nosnippet>364</a>    /// 18446744073709551615 bytes" (`usize::MAX` on 64-bit targets) when the product
-<a href=#365 id=365 data-nosnippet>365</a>    /// overflows.
-<a href=#366 id=366 data-nosnippet>366</a>    </span><span class="attr">#[must_use]
-<a href=#367 id=367 data-nosnippet>367</a>    </span><span class="kw">pub fn </span>out_of_memory(count: usize, element_bytes: usize) -&gt; <span class="self">Self </span>{
-<a href=#368 id=368 data-nosnippet>368</a>        <span class="self">Self</span>::OutOfMemory(count.checked_mul(element_bytes).map_or_else(
-<a href=#369 id=369 data-nosnippet>369</a>            || <span class="macro">format!</span>(<span class="string">"cannot allocate more than {} bytes"</span>, usize::MAX),
-<a href=#370 id=370 data-nosnippet>370</a>            |bytes| <span class="macro">format!</span>(<span class="string">"cannot allocate {bytes} bytes"</span>),
-<a href=#371 id=371 data-nosnippet>371</a>        ))
-<a href=#372 id=372 data-nosnippet>372</a>    }
-<a href=#373 id=373 data-nosnippet>373</a>
-<a href=#374 id=374 data-nosnippet>374</a>    <span class="doccomment">/// Whether the evaluation failed numerically ([`SpecialFunction`], [`NonFinite`] or
-<a href=#375 id=375 data-nosnippet>375</a>    /// [`NotConverged`]) rather than on its input, a singular system or memory.
-<a href=#376 id=376 data-nosnippet>376</a>    ///
-<a href=#377 id=377 data-nosnippet>377</a>    /// Another method may succeed where one fails numerically: the one-dimensional
-<a href=#378 id=378 data-nosnippet>378</a>    /// spherical lattice sums then fall back to their spectral series.
-<a href=#379 id=379 data-nosnippet>379</a>    ///
-<a href=#380 id=380 data-nosnippet>380</a>    /// [`SpecialFunction`]: Self::SpecialFunction
-<a href=#381 id=381 data-nosnippet>381</a>    /// [`NonFinite`]: Self::NonFinite
-<a href=#382 id=382 data-nosnippet>382</a>    /// [`NotConverged`]: Self::NotConverged
-<a href=#383 id=383 data-nosnippet>383</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const fn </span>is_numerical(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#384 id=384 data-nosnippet>384</a>        <span class="macro">matches!</span>(
-<a href=#385 id=385 data-nosnippet>385</a>            <span class="self">self</span>,
-<a href=#386 id=386 data-nosnippet>386</a>            <span class="self">Self</span>::SpecialFunction(<span class="kw">_</span>) | <span class="self">Self</span>::NonFinite(<span class="kw">_</span>) | <span class="self">Self</span>::NotConverged(<span class="kw">_</span>)
-<a href=#387 id=387 data-nosnippet>387</a>        )
-<a href=#388 id=388 data-nosnippet>388</a>    }
+<a href=#317 id=317 data-nosnippet>317</a><span class="comment">// L3: wave families (bases, translations, conversions, rotations, channels, fields).
+<a href=#318 id=318 data-nosnippet>318</a></span><span class="kw">pub mod </span>basis;
+<a href=#319 id=319 data-nosnippet>319</a><span class="kw">pub mod </span>channels;
+<a href=#320 id=320 data-nosnippet>320</a><span class="kw">pub mod </span>cw;
+<a href=#321 id=321 data-nosnippet>321</a><span class="kw">pub mod </span>fields;
+<a href=#322 id=322 data-nosnippet>322</a><span class="kw">pub mod </span>pw;
+<a href=#323 id=323 data-nosnippet>323</a><span class="kw">pub mod </span>rotation;
+<a href=#324 id=324 data-nosnippet>324</a><span class="kw">pub mod </span>sw;
+<a href=#325 id=325 data-nosnippet>325</a><span class="kw">pub mod </span>vectorwaves;
+<a href=#326 id=326 data-nosnippet>326</a>
+<a href=#327 id=327 data-nosnippet>327</a><span class="comment">// L4: scattering (Mie coefficients, T-matrices, EBCM, clusters).
+<a href=#328 id=328 data-nosnippet>328</a></span><span class="kw">pub mod </span>cluster;
+<a href=#329 id=329 data-nosnippet>329</a><span class="kw">pub mod </span>coeffs;
+<a href=#330 id=330 data-nosnippet>330</a><span class="kw">pub mod </span>ebcm;
+<a href=#331 id=331 data-nosnippet>331</a><span class="kw">pub mod </span>saved;
+<a href=#332 id=332 data-nosnippet>332</a><span class="kw">pub mod </span>tmatrix;
+<a href=#333 id=333 data-nosnippet>333</a>
+<a href=#334 id=334 data-nosnippet>334</a><span class="comment">// L5: planar and periodic S-matrices (treams SMatrices).
+<a href=#335 id=335 data-nosnippet>335</a></span><span class="kw">pub mod </span>smatrix;
+<a href=#336 id=336 data-nosnippet>336</a>
+<a href=#337 id=337 data-nosnippet>337</a><span class="doccomment">/// Property tests by domain. An inline `tests` module checks how one module computes;
+<a href=#338 id=338 data-nosnippet>338</a>/// a file here checks a physical, analytic or adjoint identity of a domain's public
+<a href=#339 id=339 data-nosnippet>339</a>/// operations.
+<a href=#340 id=340 data-nosnippet>340</a></span><span class="attr">#[cfg(test)]
+<a href=#341 id=341 data-nosnippet>341</a></span><span class="kw">mod </span>properties;
+<a href=#342 id=342 data-nosnippet>342</a><span class="doccomment">/// Case budgets, pairings, finite differences, strategies and fixtures that the tests
+<a href=#343 id=343 data-nosnippet>343</a>/// share.
+<a href=#344 id=344 data-nosnippet>344</a></span><span class="attr">#[cfg(test)]
+<a href=#345 id=345 data-nosnippet>345</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>test_support;
+<a href=#346 id=346 data-nosnippet>346</a>
+<a href=#347 id=347 data-nosnippet>347</a><span class="doccomment">/// Complex double precision used throughout the numerical core.
+<a href=#348 id=348 data-nosnippet>348</a></span><span class="kw">pub type </span>Complex = num_complex::Complex64;
+<a href=#349 id=349 data-nosnippet>349</a>
+<a href=#350 id=350 data-nosnippet>350</a><span class="doccomment">/// The largest multipole degree `l`, and the largest `|m|` of a cylindrical mode.
+<a href=#351 id=351 data-nosnippet>351</a>///
+<a href=#352 id=352 data-nosnippet>352</a>/// Translations couple degrees up to `2 MAX_DEGREE` (`special::MAX_ORDER`): the
+<a href=#353 id=353 data-nosnippet>353</a>/// log-factorial cache, the AMOS Bessel orders and the solid-harmonic tables cover that
+<a href=#354 id=354 data-nosnippet>354</a>/// range. treams has no such limit.
+<a href=#355 id=355 data-nosnippet>355</a>///
+<a href=#356 id=356 data-nosnippet>356</a>/// Error messages write the numbers out, with a comment naming the constant: the checks
+<a href=#357 id=357 data-nosnippet>357</a>/// run once per element, and a literal message keeps formatting code out of them.
+<a href=#358 id=358 data-nosnippet>358</a></span><span class="kw">pub const </span>MAX_DEGREE: i32 = <span class="number">128</span>;
+<a href=#359 id=359 data-nosnippet>359</a>
+<a href=#360 id=360 data-nosnippet>360</a><span class="doccomment">/// A numerical failure, invalid physical input or refused memory.
+<a href=#361 id=361 data-nosnippet>361</a>///
+<a href=#362 id=362 data-nosnippet>362</a>/// The Python bindings raise [`OutOfMemory`](Self::OutOfMemory) as `MemoryError` and
+<a href=#363 id=363 data-nosnippet>363</a>/// every other variant as `ValueError`, each with the displayed message.
+<a href=#364 id=364 data-nosnippet>364</a></span><span class="attr">#[derive(Clone, Debug, thiserror::Error)]
+<a href=#365 id=365 data-nosnippet>365</a></span><span class="kw">pub enum </span>Error {
+<a href=#366 id=366 data-nosnippet>366</a>    <span class="doccomment">/// The operation does not accept the input, for example a negative degree or a
+<a href=#367 id=367 data-nosnippet>367</a>    /// non-finite wavenumber.
+<a href=#368 id=368 data-nosnippet>368</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
+<a href=#369 id=369 data-nosnippet>369</a>    </span>InvalidInput(String),
+<a href=#370 id=370 data-nosnippet>370</a>    <span class="doccomment">/// An AMOS Bessel, Legendre, Ferrers, Wigner, incomplete gamma or Kambe evaluation
+<a href=#371 id=371 data-nosnippet>371</a>    /// failed.
+<a href=#372 id=372 data-nosnippet>372</a>    </span><span class="attr">#[error(<span class="string">"special-function evaluation failed: {0}"</span>)]
+<a href=#373 id=373 data-nosnippet>373</a>    </span>SpecialFunction(String),
+<a href=#374 id=374 data-nosnippet>374</a>    <span class="doccomment">/// A finite input produced a non-finite value, for example an overflowing phase.
+<a href=#375 id=375 data-nosnippet>375</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
+<a href=#376 id=376 data-nosnippet>376</a>    </span>NonFinite(String),
+<a href=#377 id=377 data-nosnippet>377</a>    <span class="doccomment">/// A sum, series, iteration or decomposition did not reach its tolerance, or
+<a href=#378 id=378 data-nosnippet>378</a>    /// cancellation lost the accuracy.
+<a href=#379 id=379 data-nosnippet>379</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
+<a href=#380 id=380 data-nosnippet>380</a>    </span>NotConverged(String),
+<a href=#381 id=381 data-nosnippet>381</a>    <span class="doccomment">/// A linear system (an LU solve, a 2 x 2 Mie inverse or an S-matrix solve) is
+<a href=#382 id=382 data-nosnippet>382</a>    /// singular at the supplied parameters.
+<a href=#383 id=383 data-nosnippet>383</a>    </span><span class="attr">#[error(<span class="string">"singular linear system"</span>)]
+<a href=#384 id=384 data-nosnippet>384</a>    </span>Singular,
+<a href=#385 id=385 data-nosnippet>385</a>    <span class="doccomment">/// The system refused memory for an output or workspace. The bindings raise it as
+<a href=#386 id=386 data-nosnippet>386</a>    /// `MemoryError`.
+<a href=#387 id=387 data-nosnippet>387</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
+<a href=#388 id=388 data-nosnippet>388</a>    </span>OutOfMemory(String),
 <a href=#389 id=389 data-nosnippet>389</a>}
 <a href=#390 id=390 data-nosnippet>390</a>
-<a href=#391 id=391 data-nosnippet>391</a><span class="doccomment">/// Numerical result with a typed error.
-<a href=#392 id=392 data-nosnippet>392</a></span><span class="kw">pub type </span><span class="prelude-ty">Result</span>&lt;T&gt; = std::result::Result&lt;T, Error&gt;;
+<a href=#391 id=391 data-nosnippet>391</a><span class="kw">impl </span>Error {
+<a href=#392 id=392 data-nosnippet>392</a>    <span class="doccomment">/// [`OutOfMemory`](Self::OutOfMemory) for `count` elements of `element_bytes` bytes
+<a href=#393 id=393 data-nosnippet>393</a>    /// each: "cannot allocate 4096 bytes", or "cannot allocate more than
+<a href=#394 id=394 data-nosnippet>394</a>    /// 18446744073709551615 bytes" (`usize::MAX` on 64-bit targets) when the product
+<a href=#395 id=395 data-nosnippet>395</a>    /// overflows.
+<a href=#396 id=396 data-nosnippet>396</a>    </span><span class="attr">#[must_use]
+<a href=#397 id=397 data-nosnippet>397</a>    </span><span class="kw">pub fn </span>out_of_memory(count: usize, element_bytes: usize) -&gt; <span class="self">Self </span>{
+<a href=#398 id=398 data-nosnippet>398</a>        <span class="self">Self</span>::OutOfMemory(count.checked_mul(element_bytes).map_or_else(
+<a href=#399 id=399 data-nosnippet>399</a>            || <span class="macro">format!</span>(<span class="string">"cannot allocate more than {} bytes"</span>, usize::MAX),
+<a href=#400 id=400 data-nosnippet>400</a>            |bytes| <span class="macro">format!</span>(<span class="string">"cannot allocate {bytes} bytes"</span>),
+<a href=#401 id=401 data-nosnippet>401</a>        ))
+<a href=#402 id=402 data-nosnippet>402</a>    }
+<a href=#403 id=403 data-nosnippet>403</a>
+<a href=#404 id=404 data-nosnippet>404</a>    <span class="doccomment">/// Whether the evaluation failed numerically ([`SpecialFunction`], [`NonFinite`] or
+<a href=#405 id=405 data-nosnippet>405</a>    /// [`NotConverged`]) rather than on its input, a singular system or memory.
+<a href=#406 id=406 data-nosnippet>406</a>    ///
+<a href=#407 id=407 data-nosnippet>407</a>    /// Another method may succeed where one fails numerically: the one-dimensional
+<a href=#408 id=408 data-nosnippet>408</a>    /// spherical lattice sums then fall back to their spectral series.
+<a href=#409 id=409 data-nosnippet>409</a>    ///
+<a href=#410 id=410 data-nosnippet>410</a>    /// [`SpecialFunction`]: Self::SpecialFunction
+<a href=#411 id=411 data-nosnippet>411</a>    /// [`NonFinite`]: Self::NonFinite
+<a href=#412 id=412 data-nosnippet>412</a>    /// [`NotConverged`]: Self::NotConverged
+<a href=#413 id=413 data-nosnippet>413</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const fn </span>is_numerical(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#414 id=414 data-nosnippet>414</a>        <span class="macro">matches!</span>(
+<a href=#415 id=415 data-nosnippet>415</a>            <span class="self">self</span>,
+<a href=#416 id=416 data-nosnippet>416</a>            <span class="self">Self</span>::SpecialFunction(<span class="kw">_</span>) | <span class="self">Self</span>::NonFinite(<span class="kw">_</span>) | <span class="self">Self</span>::NotConverged(<span class="kw">_</span>)
+<a href=#417 id=417 data-nosnippet>417</a>        )
+<a href=#418 id=418 data-nosnippet>418</a>    }
+<a href=#419 id=419 data-nosnippet>419</a>}
+<a href=#420 id=420 data-nosnippet>420</a>
+<a href=#421 id=421 data-nosnippet>421</a><span class="doccomment">/// Numerical result with a typed error.
+<a href=#422 id=422 data-nosnippet>422</a></span><span class="kw">pub type </span><span class="prelude-ty">Result</span>&lt;T&gt; = std::result::Result&lt;T, Error&gt;;
 </code></pre></div></section></main></body></html>

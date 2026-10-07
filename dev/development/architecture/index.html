@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Which Rust module, binding file, Python module and test directory own each part of treams-rs, and the rules that hold across them.">
+        <meta name="description" content="Which files own a change, the implementation rules, and the checks and open gaps across the Rust, binding and Python layers.">
       
       
       
@@ -3348,6 +3348,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Rules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#one-source-and-its-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One source and its checks
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -3748,6 +3765,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Rules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#one-source-and-its-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One source and its checks
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -3990,56 +4024,129 @@ module's Rust tests and its Python test directory. The Python tests check what
 the Rust tests cannot: broadcasting, memory layouts, argument checks and
 complete workflows through the public API.</p>
 <h2 id="rules">Rules<a class="headerlink" href="#rules" title="Permanent link">&para;</a></h2>
-<p>These rules hold everywhere:</p>
+<p>Use these rules for new and changed code. They describe the intended contracts;
+the checks and open gaps below distinguish what is enforced today. The core's
+<a href="https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/crates/treams-core/src/lib.rs">conventions</a> define names, numerical
+conventions and derivative state in more detail.</p>
 <ul>
-<li><strong>Floating-point guard.</strong> The whole body of every <code>#[pyfunction]</code> and
-  <code>#[pymethods]</code> function is one <code>treams_core::fpenv::ieee(|| ...)</code> call. It
-  keeps subnormal numbers when the caller flushes them to zero, as JAX does.
-  <code>tests/bindings/test_float_environment.py</code> checks every body
-  (<a href="../../design/floating-point/">floating-point environment</a>).</li>
-<li><strong>One thread pool.</strong> Every Rayon parallel iterator, <code>rayon::join</code> and faer
-  call with parallelism runs inside <code>treams_core::threads::install</code> (or its
-  <code>join</code>, <code>dense</code> and <code>product</code> helpers), on a pool that treams-rs owns, never
-  on Rayon's global pool. The pool starts lazily, is rebuilt in a forked child,
-  and its workers keep subnormals.
-  <code>tests/bindings/test_thread_pool.py</code> rejects other parallel code in <code>crates/</code>,
-  and <code>tests/conftest.py</code> fails the session if any test started Rayon's global
-  pool (<a href="../../design/parallelism/">parallelism</a>).</li>
-<li><strong>Unsafe code.</strong> The workspace denies <code>unsafe_code</code>. Only
-  <code>treams_core::fpenv</code> (the floating-point control register) and the NumPy
-  ufunc code of <code>treams-py</code> (<code>ufunc/ffi.rs</code> and <code>ufunc/loops.rs</code>) allow it,
-  with a <code>SAFETY</code> comment on every block. <code>treams-py</code>'s <code>threads.rs</code> allows it
-  for one item, the unmangled <code>treams_rs_num_threads</code> that threadpoolctl looks
-  up.</li>
-<li><strong>Analytic gradients.</strong> Every derivative is computed analytically in Rust.
-  Finite differences appear only in tests and in <code>treams_rs.testing</code>.</li>
-<li><strong>The stub.</strong> <code>python/treams_rs/_native.pyi</code> declares every name of
-  <code>treams_rs._native</code> with its parameters.
-  <code>tests/bindings/test_native_contexts.py</code> and
-  <code>tests/bindings/test_ufunc_contract.py</code> compare the stub with the module.</li>
-<li><strong>One API catalog.</strong> <code>treams_rs.support_catalog()</code> reads the public modules
-  and their docstrings. The reference pages, the generated tables and
-  <code>llms.txt</code> come from it through <code>just docs</code>; never edit them by hand, and
-  keep no second list of capabilities.</li>
-<li><strong>One derivative boundary.</strong> Ordinary constructors and methods select an
-  optional adapter in <code>_dispatch.py</code> before array coercion. <code>_promotion.py</code>
-  converts constant physics objects, and <code>_autodiff_functions.py</code> preserves the
-  NumPy callable contract for numerical functions. Shared <code>_framework*.py</code>
-  objects compose records; adapter modules supply only their framework bridge.
-  Keep native derivative formulas in Rust, not in a dispatcher or adapter.</li>
-<li><strong>Recorded evidence.</strong> Numerical measurements stay unchanged. Privacy-only
-  transformations follow <a href="https://github.com/yaugenst/treams-rs/blob/59cce80ceb81827faf6672b0fc528f9fd80b3ab5/benchmarks/README.md#privacy-and-provenance">the evidence policy</a>.</li>
-<li><strong>Renames.</strong> Every public rename gets a bullet under "Unreleased" in
-  <code>CHANGELOG.md</code>. A public name that differs from its treams counterpart also
-  gets an entry in <code>python/treams_rs/_upstream.py</code>, which feeds the
-  <a href="../../coming-from-treams/names/">name map</a> and the <code>AttributeError</code> for the
-  treams name.</li>
+<li><strong>Keep formulas in the core.</strong> Rust owns numerical values, analytic
+  pushforwards and pullbacks. Bindings and frameworks adapt ownership, arrays
+  and execution. Finite differences belong only in tests and <code>treams_rs.testing</code>.</li>
+<li><strong>Follow the dependency layers.</strong> Production code uses its own or lower
+  layers in the core's module table; tests may cross layers. Keep one numerical
+  core crate until measured build or distribution needs justify a split.</li>
+<li><strong>Establish invariants at boundaries.</strong> Validate public inputs and restored
+  state before indexing, allocating or computing. Prefer constructors and
+  private fields that preserve validated domains over repeated checks or
+  combinations of policy booleans. Bindings still validate their array shapes
+  and Python still provides messages in treams terms; those are distinct duties.</li>
+<li><strong>Own only useful derivative state.</strong> A residual keeps what later derivative
+  calls need, with private invariant-bearing fields. Both <code>pushforward(&amp;self, …)</code>
+  and <code>pullback(&amp;self, …)</code> borrow it for repeated calls at fixed primal inputs.
+  Returned gradient records may be plain data. Consume an owned argument when
+  its caller no longer needs it, as <code>linalg::solve_owned</code> does, and reuse its
+  storage where possible; do not clone merely to fit an interface.</li>
+<li><strong>Keep saved state coherent.</strong> Shape-derived sizes, writing and restoration
+  must agree. Restore validates lengths, tags, domains and allocation sizes;
+  round trips preserve derivatives and deferred errors, including zero
+  directions. These bytes are private invocation state, not a persistent file
+  format. A mechanical refactor preserves the layout; changing a payload or
+  padding requires an explicit compatibility decision and matching <code>state_spec</code>.</li>
+<li><strong>Share concrete work.</strong> Use the smallest helper or closure that removes
+  actual duplicated assembly or numerical work. Avoid a generic residual
+  hierarchy, speculative extension points or a second framework implementation
+  of a core derivative.</li>
+<li><strong>Branch on error identity.</strong> Use a typed reason when code branches on an
+  error or encodes it; display wording must not decide behavior. Numerical
+  fallback catches only the failures it can repair and propagates resource
+  and programming errors. Document which failures leave partial output.</li>
+<li><strong>Specify parallel arithmetic.</strong> Route parallel work through the owned
+  <code>threads</code> pool. Define reduction chunks and accumulation order independently
+  of the worker count. Wrap Python entry-point bodies in <code>fpenv::ieee</code>, and
+  preserve the caller's floating-point mode, including failure and single-thread
+  paths. Benchmark before changing thresholds or regrouping sums.</li>
+<li><strong>Make unsafe obligations local.</strong> Keep unsafe code in the existing allowed
+  modules, with minimal blocks and <code>SAFETY</code> comments. Express operand lifetimes,
+  read/write ownership, aliasing and dtype layout in types where possible.
+  Contain panics before they can cross a C ABI boundary; do not disguise them
+  as numerical failures.</li>
+<li><strong>State numerical and resource limits.</strong> Reserve advertised large outputs
+  and workspaces fallibly with the existing <code>numerics</code> helpers. Define finite
+  output and accuracy contracts, check both value and derivative paths, and
+  return an appropriate error when a result cannot meet them. This is not a
+  promise that every internal allocation is fallible.</li>
+<li><strong>Require evidence.</strong> Start a numerical repair with a reproducible failing
+  case and an independent reference or physical identity. Check adjoint
+  pairings separately from finite differences, cover both sides of thresholds,
+  and record measured reasons for tuning constants. Never loosen a tolerance
+  to hide a failure. Measure proposed caches, allocation tradeoffs and numerical
+  regrouping before adopting them; preserve archived measurements under the
+  <a href="https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/benchmarks/README.md#privacy-and-provenance">evidence policy</a>.</li>
 </ul>
+<h3 id="one-source-and-its-checks">One source and its checks<a class="headerlink" href="#one-source-and-its-checks" title="Permanent link">&para;</a></h3>
+<p>Each formula, layout, capability and shared limit has one owner. Generate other
+representations from it, or check their agreement when generation would obscure
+the code. Do not add a second hand-maintained registry to make a check pass.</p>
+<table>
+<thead>
+<tr>
+<th>Contract</th>
+<th>Existing example or check</th>
+<th>Open work</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Core layers and saved state</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/crates/treams-core/src/saved.rs"><code>SavedState</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/crates/treams-core/src/linalg/saved.rs"><code>linalg</code> codecs</a>, <a href="https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/tests/bindings/test_native_contexts.py"><code>test_native_contexts.py</code></a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/issues/30">#30</a>: codec composition, fallible writer and Rust-only layer/codec checks; <a href="https://github.com/yaugenst/treams-rs/issues/27">#27</a>: deferred metric errors</td>
+</tr>
+<tr>
+<td>Validated domains and shared label bounds</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/crates/treams-core/src/lattice/cell.rs"><code>BlochLattice</code></a> validates construction</td>
+<td><a href="https://github.com/yaugenst/treams-rs/issues/32">#32</a>: basis/residual invariants and Python/Rust bound agreement</td>
+</tr>
+<tr>
+<td>Error identity, finite outputs and allocation</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/crates/treams-core/src/lib.rs"><code>Error</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/crates/treams-core/src/numerics/memory.rs"><code>numerics::memory</code></a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/issues/33">#33</a>: typed reasons and deterministic errors; <a href="https://github.com/yaugenst/treams-rs/issues/29">#29</a>: output/fallback gaps</td>
+</tr>
+<tr>
+<td>Owned pool, IEEE mode and reduction order</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/tests/bindings/test_thread_pool.py"><code>test_thread_pool.py</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/tests/bindings/test_float_environment.py"><code>test_float_environment.py</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/crates/treams-core/src/numerics/parallel.rs"><code>parallel</code></a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/issues/11">#11</a>, <a href="https://github.com/yaugenst/treams-rs/issues/35">#35</a>: one-thread, failure, foreign-pool and extraction paths; <a href="https://github.com/yaugenst/treams-rs/issues/34">#34</a>: ufunc ownership and reduction aliasing</td>
+</tr>
+<tr>
+<td>Native names, contexts and ufunc signatures</td>
+<td><code>_native.pyi</code> checked against the module by <a href="https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/tests/bindings/test_native_contexts.py"><code>test_native_contexts.py</code></a> and <a href="https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/tests/bindings/test_ufunc_contract.py"><code>test_ufunc_contract.py</code></a></td>
+<td>Extend these checks with each binding</td>
+</tr>
+<tr>
+<td>Public API and page inventory</td>
+<td><code>support_catalog()</code> reads modules/docstrings; <code>mkdocs.yml</code> owns page order. <code>just docs</code> generates reference pages, tables and <code>llms.txt</code>; <code>just docs-check</code> checks them</td>
+<td>Never edit generated output by hand</td>
+</tr>
+<tr>
+<td>Shared metadata and reference evidence</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/scripts/generate_references.py"><code>generate_references.py</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/crates/treams-core/src/test_support.rs"><code>test_support</code></a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/issues/40">#40</a>: coverage, determinism/default metadata agreement and fixture provenance enforcement</td>
+</tr>
+</tbody>
+</table>
+<p>The ordinary Python API selects an optional adapter in <code>_dispatch.py</code> before
+array coercion. <code>_promotion.py</code> converts constant physics objects,
+<code>_autodiff_functions.py</code> preserves NumPy callable contracts, and <code>_framework*.py</code>
+objects compose records; adapters supply the framework bridge. Keep this map
+current as part of <a href="https://github.com/yaugenst/treams-rs/issues/9">#9</a>, which owns
+package restructuring and import checks.</p>
+<p>Every public rename gets a bullet under "Unreleased" in <code>CHANGELOG.md</code>. A name
+that differs from treams also gets an entry in <code>_upstream.py</code>, which owns the
+<a href="../../coming-from-treams/names/">name map</a> and the treams-name <code>AttributeError</code>.</p>
 <h2 id="adding-a-binding">Adding a binding<a class="headerlink" href="#adding-a-binding" title="Permanent link">&para;</a></h2>
 <p>The crate docs of <code>treams-py</code>, in
-<a href="https://github.com/yaugenst/treams-rs/blob/59cce80ceb81827faf6672b0fc528f9fd80b3ab5/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>, hold the
+<a href="https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>, hold the
 checklist under "Adding a binding". Start with the core function and its tests.
-Add the binding, context and <code>pullback</code> to the file for that core module.
+Add the binding, context, <code>pushforward</code> and <code>pullback</code> to the file for that core module.
 Then add the export, stub, Python caller and a <code>CASES</code> entry in
 <code>tests/bindings/test_native_contexts.py</code> (or a <code>REGISTRY_ROWS</code> row for a ufunc).
 Finish with <code>just docs</code>.</p>
@@ -4048,12 +4155,13 @@ Finish with <code>just docs</code>.</p>
 <ol>
 <li><strong>Rust.</strong> Write <code>X</code> in the relevant <code>treams-core</code> module. If it
    supports gradients, it returns <code>(value, XResidual)</code>, where the residual
-   holds what the gradient needs. When the pullback reads the value, it
+   holds what both derivative directions need. When the pullback reads the value, it
    returns only <code>XResidual</code> with a <code>value()</code> accessor, as <code>coeffs::mie</code> does
    (see 'Names' in the crate docs). Its pullback,
    <code>XResidual::pullback(&amp;self, cotangent)</code>, turns the cotangent (the gradient of
    a real loss with respect to the value) into the input gradients <code>XGradient</code>
-   (<a href="../../reference/glossary/#records-and-gradients">glossary</a>). Test the
+   (<a href="../../reference/glossary/#records-and-gradients">glossary</a>). Add the
+   pushforward with the matching input tangents as well. Test the
    implementation in the module's inline <code>tests</code> module and the physics in
    <code>properties/&lt;domain&gt;.rs</code>.</li>
 <li><strong>Binding.</strong> Follow the checklist above.</li>
@@ -4065,8 +4173,8 @@ Finish with <code>just docs</code>.</p>
 <li><strong>Framework adapters.</strong> If a physics object exposes the feature, route it
    through <code>_framework_*.py</code>, so that Advect, JAX, PyTorch and HIPS Autograd differentiate it.</li>
 <li><strong>Tests.</strong> Add tests to <code>tests/&lt;domain&gt;/</code>: a comparison with the pinned
-   treams version or another reference, a physical identity, and <code>check_pullback</code> for the
-   gradients (<a href="../testing/#adding-a-test">adding a test</a>).</li>
+   treams version or another reference, a physical identity, and <code>check_pushforward</code>/<code>check_pullback</code>
+   for the derivatives (<a href="../testing/#adding-a-test">adding a test</a>).</li>
 <li><strong>Docs.</strong> Write the docstring with units, shapes and conventions, add a
    runnable example to the matching guide page, update
    <a href="../../validation/capabilities/">capabilities</a>, run <code>just docs</code> and add a
@@ -4078,7 +4186,7 @@ the bindings, Python and treams. The crate docs state the rules for each
 layer: "Names" in the
 <a href="../../rust/treams_core/#names"><code>treams-core</code> docs</a>
 and "Naming rules" in
-<a href="https://github.com/yaugenst/treams-rs/blob/59cce80ceb81827faf6672b0fc528f9fd80b3ab5/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>. The rules
+<a href="https://github.com/yaugenst/treams-rs/blob/7361a5877c73c43ddc8364028a3a16fdeb3d4f68/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>. The rules
 that cross layers:</p>
 <ul>
 <li><strong>Residuals and contexts.</strong> The Rust function <code>X</code> returns <code>XResidual</code>, and its
