@@ -42,8 +42,9 @@ The development pages on the site cover the rest:
 - [Development](https://yaugenst.github.io/treams-rs/latest/development/): setup,
   checks, CI workflows and the clean-wheel check.
 - [Source ownership](https://yaugenst.github.io/treams-rs/latest/development/architecture/):
-  which files own a change, the rules that always hold, and how to add a
-  binding or a physics feature.
+  which files own a change and how to add a binding or a physics feature.
+  Its [implementation rules](docs/development/architecture.md#rules) name the
+  intended contracts, their checks and the remaining gaps.
 - [Testing](https://yaugenst.github.io/treams-rs/latest/development/testing/): where a
   test goes, markers, Hypothesis profiles and helpers.
 - [Documentation](https://yaugenst.github.io/treams-rs/latest/development/documentation/):

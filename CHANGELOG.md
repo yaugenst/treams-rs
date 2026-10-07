@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Document implementation rules for numerical code and bindings, including
+  reusable derivative state, saved-state compatibility and tracked contract gaps.
+
 - Keep the history models table readable on phones, with intact model names
   and a labelled, keyboard-scrollable region for its five columns.
 

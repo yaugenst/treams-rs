@@ -1,5 +1,5 @@
 //! The numerical core of treams-rs: special functions, lattice sums, wave expansions,
-//! T-matrices and S-matrices, each with an analytic pullback, in Rust and without Python.
+//! T-matrices and S-matrices, with analytic derivatives, in Rust and without Python.
 //!
 //! A pullback turns the gradient of a real loss with respect to a result into the
 //! gradients with respect to the inputs; the [glossary](#glossary) defines it with the
@@ -28,8 +28,9 @@
 //! | L4 | [`coeffs`], [`tmatrix`], [`ebcm`], [`cluster`] | Scattering by particles |
 //! | L5 | [`smatrix`] | Planar and periodic S-matrices |
 //!
-//! Production code of a module uses its own layer and the layers below it, never a
-//! layer above. Modules of one layer may use each other: [`cw::to_sw()`] builds
+//! Production code should use its own layer and the layers below it, never a
+//! layer above.
+//! Modules of one layer may use each other: [`cw::to_sw()`] builds
 //! spherical modes, and [`tmatrix::sphere()`] takes the Mie coefficients of [`coeffs`].
 //! Any module may use the root items [`Complex`], [`Error`], [`Result`] and
 //! [`MAX_DEGREE`]. Tests may use any module.
@@ -43,6 +44,10 @@
 //! [`special::coordinates`], `numerics::broadcast` and `numerics::parallel`.
 //!
 //! # Conventions
+//!
+//! The contributor-facing [implementation rules](https://yaugenst.github.io/treams-rs/latest/development/architecture/#rules)
+//! are the common home for ownership, validation and evidence requirements.
+//! The conventions below define the core's terms.
 //!
 //! ## Numbers and labels
 //!
@@ -120,6 +125,29 @@
 //! holomorphic map `y = f(x)` therefore multiplies by the conjugate derivative:
 //! `g_x = conj(f'(x)) g_y`.
 //!
+//! ## Reusable derivatives and saved state
+//!
+//! A residual represents fixed primal inputs. Its `pushforward(&self, tangent)`
+//! maps input directions to output directions; `pullback(&self, cotangent)` maps
+//! an output cotangent to input gradients. Both borrow the residual, so repeated
+//! calls can reuse recorded values and factorizations. [`linalg::SolveResidual`]
+//! is an example. These are first-order actions; their presence does not imply
+//! support for differentiating the derivative implementation itself.
+//!
+//! Keep invariant-bearing residual fields private and retain only data needed by
+//! those actions. Returned gradient records may expose plain data. Prefer moving
+//! owned buffers when the caller has no further use for them, as
+//! [`linalg::solve_owned`] does, over cloning to satisfy a borrowed interface.
+//!
+//! [`saved::SavedState`] carries numerical state through array-only callbacks.
+//! Its bytes belong to one invocation of the current extension, not a persistent
+//! file format. Keep shape-derived sizes, tags, writes and restores synchronized;
+//! validate lengths, domains and allocation sizes before numerical work. Tests
+//! should produce state through the public operation, then check repeated round
+//! trips, both derivative directions, deferred errors and zero directions.
+//! A layout-preserving cleanup retains every byte; removing payload or padding is
+//! a separate compatibility decision.
+//!
 //! ## Errors
 //!
 //! Every fallible function returns [`Result`], whose [`Error`] says why it failed:
@@ -132,12 +160,13 @@
 //! every other variant as `ValueError`, with the displayed message. treams returns NaN
 //! or emits `NumPy` warnings in the numerical cases.
 //!
-//! Dense coupling, T-matrix, expansion and field outputs, decomposition vectors,
-//! and LU, SVD and eigenvalue workspaces are reserved fallibly, through
+//! Reserve advertised large outputs and workspaces fallibly, through
 //! `numerics::zeros`, `numerics::filled`, `numerics::reserve` and the LU workspace of
 //! [`linalg`], so a refused request returns `OutOfMemory` instead of aborting the
 //! process. This is not a process-wide guarantee: input copies, matrix products,
 //! gradient buffers and other allocations can still abort when refused.
+//! Branch on typed error identity, not display text, and propagate resource and
+//! programming errors through numerical fallback.
 //!
 //! ## Parallelism and reproducibility
 //!
@@ -169,9 +198,8 @@
 //!   [`fields::FieldResidual`], [`fields::OperatorResidual`],
 //!   [`cluster::IterativeResidual`] and [`smatrix::LayerStackResidual`].
 //!
-//! These residuals give the same bits at every thread budget. With a budget of one
-//! thread ([`threads::set_num_threads`] or `TREAMS_RS_NUM_THREADS=1`), every result
-//! repeats bit for bit.
+//! The intended contract is identical bits at every thread budget, including one
+//! thread ([`threads::set_num_threads`] or `TREAMS_RS_NUM_THREADS=1`).
 //!
 //! ## Floating-point environment
 //!
@@ -203,7 +231,9 @@
 //! | Term | Meaning |
 //! |---|---|
 //! | forward | A function that computes a value. One that supports gradients returns a residual, beside the value or holding it. |
-//! | residual | What a forward saves for its pullback: `XResidual` for the forward `X`. Not the `b - A x` of a linear system, which the GMRES solver of [`linalg`] calls the residual. |
+//! | residual | What a forward saves for its pushforward and pullback: `XResidual` for the forward `X`. Not the `b - A x` of a linear system, which the GMRES solver of [`linalg`] calls the residual. |
+//! | tangent | An input or output direction at the recorded primal inputs. |
+//! | pushforward | `XResidual::pushforward`: maps input tangents to output tangents while borrowing the reusable residual. |
 //! | pullback | `XResidual::pullback`: turns the gradient with respect to the value into the gradients with respect to the inputs. It borrows the reusable residual. |
 //! | cotangent | The gradient of a real-valued loss with respect to one value: the `g` of the definition above. |
 //! | gradient | `XGradient`: the input gradients that a pullback returns, in the order of the forward's arguments. |
