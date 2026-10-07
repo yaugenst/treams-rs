@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Keep the history models table readable on phones, with intact model names
+  and a labelled, keyboard-scrollable region for its five columns.
+
 - Load the history stylesheet and interactive script only on pages that use
   them, including visits through instant navigation.
 

@@ -145,6 +145,17 @@ def on_page_markdown(markdown, page, config, files):
     return result
 
 
+def on_page_content(html, page, config, files):
+    """Make the generated models table's scroll region keyboard-accessible."""
+    if page.file.src_uri == "history/index.md":
+        html = html.replace(
+            '<div class="history-models">',
+            '<div class="history-models" tabindex="0" role="region" '
+            'aria-labelledby="models">',
+        )
+    return html
+
+
 def on_post_page(output, page, config):
     """Keep links to this project's latest docs inside the displayed version."""
 
