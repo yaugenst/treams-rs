@@ -161,10 +161,9 @@ theme:
 
 extra_css:
   - stylesheets/extra.css
-  - history/history.css
 
 extra_javascript:
-  - history/history.js
+  - javascripts/history-loader.js
 
 extra:
   version:

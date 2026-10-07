@@ -24,6 +24,10 @@ no extension build: the site holds only committed Markdown.
 
 The site uses the Material theme with its own colors, fonts and logo:
 `theme` in `mkdocs.yml`, `docs/stylesheets/extra.css` and `docs/assets/`.
+The small `docs/javascripts/history-loader.js` loads the history stylesheet
+and interactive script only when their content is present, including after
+instant navigation. Its lifecycle checks run with
+`node --test tests/browser/history-assets.test.mjs`.
 
 `just docs-rust` documents `treams-core` with its private items, which makes
 the rustdoc the reference for the numerical code. The site serves it at
