@@ -1,9 +1,11 @@
+import { layoutAxisLabels } from "./history-axis.mjs";
+
 // The history section (docs/history/): the day strip and the four drawings of the
 // story page, the owner's messages and the conversations. Material swaps the page
 // content without running this file again, so every mount starts from its document$,
 // which also emits for the first page.
 (() => {
-  const DATA = new URL("data/", document.currentScript.src);
+  const DATA = new URL("../history/data/", import.meta.url);
   const GH = "https://github.com/yaugenst/treams-rs/commit/";
   const ABOUT = "../about/#what-is-left-out";
   const TITLE = "history-title";
@@ -459,15 +461,42 @@
     }
   }).observe(box);
 
+  const fitAxis = (box, axis, signal) => {
+    const fit = () => {
+      if (signal.aborted || !box.isConnected) return;
+      const labels = [...box.children], bounds = box.getBoundingClientRect();
+      for (const label of labels) label.style.removeProperty("--axis-shift");
+      const measured = labels.map((label, i) => {
+        const rect = label.firstElementChild.getBoundingClientRect();
+        return { left: rect.left - bounds.left, width: rect.width,
+          required: i === 0 || !!axis[i].required,
+          priority: axis[i].mid ? 0 : i === axis.length - 1 ? 2 : 1 };
+      });
+      const placed = layoutAxisLabels(measured, bounds.width);
+      labels.forEach((label, i) => {
+        const place = placed[i];
+        label.style.visibility = place ? "" : "hidden";
+        label.style.setProperty("--axis-shift", `${place ? place.left - measured[i].left : 0}px`);
+        label.style.setProperty("--axis-row", place?.row || 0);
+      });
+      box.closest(".map").style.setProperty("--axis-extra", `${Math.max(0, ...placed.map((p) => p?.row || 0))}rem`);
+    };
+    const resize = new ResizeObserver(fit);
+    resize.observe(box);
+    document.fonts?.ready.then(fit);
+    document.fonts?.addEventListener("loadingdone", fit, { signal });
+    signal.addEventListener("abort", () => resize.disconnect(), { once: true });
+  };
+
   // The hairlines span rows `top` to `top + n` (all of the same height).
-  const chart = (cls, { label, axis, bands = [], rows, paths = [], top = 0, n = rows.length }) => {
+  const chart = (cls, { label, axis, bands = [], rows, paths = [], top = 0, n = rows.length }, signal) => {
     const readout = h("p.readout", null, hint());
     const svg = document.createElementNS(SVG, "svg");
     svg.setAttribute("viewBox", `0 0 100 ${n}`);
     svg.setAttribute("preserveAspectRatio", "none");
     if (top || n < rows.length) svg.style.cssText = `top:calc(var(--rh) * ${top});height:calc(var(--rh) * ${n})`;
     for (const d of paths) add(svg, "path", { d });
-    const ticks = h("span.tr", null, axis.map((l) => h(`span${l.mid ? ".mid" : ""}`, { style: pos(l.x) }, l.text)));
+    const ticks = h("span.tr", null, axis.map((l) => h(`span${l.mid ? ".mid" : ""}`, { style: pos(l.x) }, h("span", null, l.text))));
     const map = h(`div.map.${cls}${bands.some((b) => b.text) ? ".gaps" : ""}`, { role: "group", "aria-label": label }, h("div.mrow.axis", { "aria-hidden": "true" }, h("span"), ticks),
       h("div.body", null,
         h("div.under", { "aria-hidden": "true" }, bands.map((b) => h(`span.band${b.line ? ".line" : ""}`, { style: pos(b.x, b.w) }, b.text && h("span", null, b.text))), svg),
@@ -512,12 +541,12 @@
       e.preventDefault();
       if (to) map.move(to);
     };
-    declutter(ticks);
+    fitAxis(ticks, axis, signal);
     return [map, readout];
   };
 
   // The axis of one conversation: its active spans; gaps over 2 h become a narrow break.
-  const timeAxis = (intervals) => {
+  const timeAxis = (intervals, phaseStarts) => {
     const segs = [];
     for (const [a, b] of intervals.toSorted((p, q) => p[0] - q[0])) {
       const last = segs.at(-1);
@@ -537,11 +566,12 @@
       if (j) {
         const p = segs[j - 1][1], bx = starts[j] - gap;
         bands.push({ x: bx, w: gap });
-        axis.push({ x: bx + gap / 2, mid: 1, text: dn(a) > dn(p) ? `Day ${dn(a)}` : `${Math.round((a - p) / 3600)} h later` });
+        axis.push({ x: bx + gap / 2, mid: 1, required: dn(a) > dn(p) && phaseStarts.has(dn(a)),
+          text: dn(a) > dn(p) ? `Day ${dn(a)}` : `${Math.round((a - p) / 3600)} h later` });
       }
       for (let m = day0 + Math.ceil((a - day0) / DAY) * DAY; m < b; m += DAY) {
         if (m <= a) continue;
-        axis.push({ x: x(m), text: `Day ${dn(m)}` });
+        axis.push({ x: x(m), text: `Day ${dn(m)}`, required: phaseStarts.has(dn(m)) });
         bands.push({ x: x(m), line: 1 });
       }
     });
@@ -805,10 +835,10 @@
       const starts = new Set(ph ? ds.filter((d) => !d.quiet).map((d) => d.n) : index.phases.map((x) => x.day_from));
       return [...chart("all", {
         label: "Map of all conversations, day by day; the arrow keys move between marks; the list of conversations has the same entries",
-        axis: parts.filter((q) => !q.gap && starts.has(q.n)).map((q) => ({ x: q.x / W, text: `Day ${q.n}` })),
+        axis: parts.filter((q) => !q.gap && starts.has(q.n)).map((q) => ({ x: q.x / W, text: `Day ${q.n}`, required: !ph })),
         bands: parts.flatMap((q, k) => (q.gap ? [{ x: q.x / W, w: q.w / W, text: quietText(q) }] : k && !parts[k - 1].gap ? [{ x: q.x / W, line: 1 }] : [])),
         rows: lines, paths,
-      }), legend([["tick", "human"], ["bar", "agents working"], ["hd", "helper agent started"], ["link", "a conversation started or messaged another"]])];
+      }, signal), legend([["tick", "human"], ["bar", "agents working"], ["hd", "helper agent started"], ["link", "a conversation started or messaged another"]])];
     };
 
     // Nothing open.
@@ -901,7 +931,8 @@
       const relays = x ? file.items.filter((it) => it.how === "task" || it.how === "report") : []; // a helper's tasks and reports
       if (!hs.length && !gs.length && !links.length) return h("p.alone", null, "One agent worked alone.");
       const { x: X, axis, bands } = timeAxis([...(x ? agent : c.spans), ...hs.map((y) => [y.from, end(y)]),
-        ...gs.map((g) => [g.from, end(g)]), ...[...owners, ...relays].map((o) => [o.at, o.at]), ...links.flatMap((r) => r.at.map((a, k) => (r.how === "sent" ? r.sent?.[k] ?? a : a)).map((a) => [a, a]))]);
+        ...gs.map((g) => [g.from, end(g)]), ...[...owners, ...relays].map((o) => [o.at, o.at]), ...links.flatMap((r) => r.at.map((a, k) => (r.how === "sent" ? r.sent?.[k] ?? a : a)).map((a) => [a, a]))],
+      new Set(index.phases.map((p) => p.day_from)));
       const lanes = (list, a, b, under) => { // first fit by start time; a helper sits below its parent
         const ends = [], lane = new Map();
         for (const y of list) {
@@ -954,7 +985,7 @@
             })) });
         }
         const [map, readout] = chart("conv", { axis, bands, rows, paths, top: base, n: hRows,
-          label: "Map of this conversation's work; the arrow keys move between marks; the list after it has the same content" });
+          label: "Map of this conversation's work; the arrow keys move between marks; the list after it has the same content" }, signal);
         put(box, map, readout, legend([owners.length && ["tick", "human"], relays.length && ["hd", "reports back"], ["bar", "agent"],
           hs.length && ["hbar", "helper agents"], gs.length && ["grp", "planned groups"], others.length && ["ring", "other conversations"]].filter(Boolean)));
         return map;

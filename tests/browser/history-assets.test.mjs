@@ -30,7 +30,7 @@ function browser(page = "ordinary") {
 
 test("ordinary pages do not request history assets", () => {
   const config = readFileSync(new URL("mkdocs.yml", root), "utf8");
-  assert.doesNotMatch(config, /^\s*- history\/history\.(css|js)\s*$/m);
+  assert.doesNotMatch(config, /^\s*- (history|stylesheets|javascripts)\/history(-axis)?\.(css|js|mjs)\s*$/m);
   assert.match(config, /^\s*- javascripts\/history-loader\.js\s*$/m);
   const b = browser();
   b.visit("ordinary");
@@ -43,11 +43,12 @@ test("direct and instant visits load each asset once, inside the site version", 
     b.visit("interactive");
     b.visit("interactive");
     assert.equal(b.assets.length, 1);
-    assert.equal(b.assets[0].href, "https://example.test/project/0.2.0/history/history.css");
+    assert.equal(b.assets[0].href, "https://example.test/project/0.2.0/stylesheets/history.css");
     b.assets[0].onload();
     await tick();
     assert.equal(b.assets.length, 2);
-    assert.equal(b.assets[1].src, "https://example.test/project/0.2.0/history/history.js");
+    assert.equal(b.assets[1].src, "https://example.test/project/0.2.0/javascripts/history.js");
+    assert.equal(b.assets[1].type, "module");
     b.assets[1].onload();
     b.visit("ordinary");
     b.visit("interactive");
