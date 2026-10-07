@@ -165,9 +165,10 @@ body:has([data-history], .history-r) .md-content__inner > p a:not(.md-button) { 
 .history-app .tr { height: 100%; position: relative; }
 .history-app .tr > * { position: absolute; }
 .history-app .tr > a::before { content: ""; inset: -4px -2px; position: absolute; }
-.history-app .map .axis { color: var(--history-muted); height: 1.1rem; }
+.history-app .map .axis { color: var(--history-muted); height: calc(1.1rem + var(--axis-extra, 0rem)); }
 .history-app .map .axis .tr { overflow-x: clip; }
 .history-app .map .axis .tr > span { bottom: 0.15rem; padding-left: 3px; white-space: nowrap; }
+.history-app .map .axis .tr > span > span { display: inline-block; transform: translate(var(--axis-shift, 0px), calc(var(--axis-row, 0) * -1rem)); }
 .history-app .map .axis .tr > span::before { border-left: 1px solid var(--history-rule); bottom: -0.15rem; content: ""; height: 0.4rem; left: 0; position: absolute; }
 .history-app .map .axis .tr > .mid { padding: 0; transform: translateX(-50%); }
 .history-app .map .axis .tr > .mid::before { display: none; }
@@ -332,8 +333,8 @@ body:has([data-history="conversations"]) .md-path { margin-inline: 0.8rem; }
   .history-app .map.all .mrow > :first-child { line-height: 0.8rem; }
   .history-app .map.all .under svg { top: 0.4rem; }
   /* Quiet gaps: their labels move up into a taller axis row, clear of the titles. */
-  .history-app .map.all.gaps .mrow.axis { height: 4.2rem; }
-  .history-app .map.all .band > span { bottom: calc(100% + 1.2rem); top: auto; }
+  .history-app .map.all.gaps .mrow.axis { height: calc(4.2rem + var(--axis-extra, 0rem)); }
+  .history-app .map.all .band > span { bottom: calc(100% + 1.2rem + var(--axis-extra, 0rem)); top: auto; }
 }
 
 @media (prefers-reduced-motion: no-preference) {

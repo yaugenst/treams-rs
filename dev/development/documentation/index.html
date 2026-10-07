@@ -3835,7 +3835,7 @@
 <h1 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h1>
 <p>The site is built with <a href="https://www.mkdocs.org/">MkDocs</a> and the Material
 theme from the Markdown files under <code>docs/</code>. The <code>nav</code> of
-<a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/mkdocs.yml"><code>mkdocs.yml</code></a> is the one list of pages: it sets their order
+<a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/mkdocs.yml"><code>mkdocs.yml</code></a> is the one list of pages: it sets their order
 on the site and in <code>llms.txt</code>.</p>
 <h2 id="build-and-preview">Build and preview<a class="headerlink" href="#build-and-preview" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>just<span class="w"> </span>docs-serve<span class="w">   </span><span class="c1"># preview with live reload at http://127.0.0.1:8000</span>
@@ -3930,7 +3930,7 @@ claimed result, and run <code>uv run --no-sync pytest tests/api/test_docs.py</co
 changing one.</p>
 <h2 id="generated-content">Generated content<a class="headerlink" href="#generated-content" title="Permanent link">&para;</a></h2>
 <p><code>just docs</code> writes three kinds of files from
-<a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/scripts/generate_docs.py"><code>scripts/generate_docs.py</code></a>:</p>
+<a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/scripts/generate_docs.py"><code>scripts/generate_docs.py</code></a>:</p>
 <ul>
 <li><strong>The Python API reference</strong> under <code>docs/reference/python/</code>: one page per
   public module and a page of returned native types, rendered from
@@ -3950,9 +3950,13 @@ as mkdocstrings. One source then serves the site, <code>llms.txt</code> and
 <code>python -m treams_rs --format markdown</code>. The catalog reads the installed
 package, so it includes native ufuncs, whose signatures exist only at run time,
 and the adapter modules without their optional frameworks installed.</p>
-<p><code>docs/history/</code> is written by a private history build from the archived
-conversation records. Do not edit it by hand; it has a typos exclusion for its
-data and keeps every file under the 1,000 KB limit.</p>
+<p>The pages and data in <code>docs/history/</code> are written by a private history build
+from archived conversation records. Do not edit them by hand; the data has a
+typos exclusion and every file stays under the 1,000 KB limit. The interactive
+code in <code>docs/javascripts/history.js</code>, its axis layout in <code>history-axis.mjs</code>,
+and <code>docs/stylesheets/history.css</code> are maintained here, separately from that
+export. Re-exporting records must preserve these presentation assets.
+Run <code>node --test tests/browser/*.test.mjs</code> to check asset loading and axis layout.</p>
 <h2 id="examples-gallery">Examples gallery<a class="headerlink" href="#examples-gallery" title="Permanent link">&para;</a></h2>
 <p>The gallery in <code>docs/examples/</code> repeats the examples of the treams
 documentation and adds two gradient examples. An example <code>&lt;name&gt;</code> has these
@@ -3983,7 +3987,7 @@ files:</p>
 </tr>
 </tbody>
 </table>
-<p><a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/tests/api/test_examples.py"><code>tests/api/test_examples.py</code></a> runs every
+<p><a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/tests/api/test_examples.py"><code>tests/api/test_examples.py</code></a> runs every
 script and compares the numbers it prints with <code>output/&lt;name&gt;.txt</code> to a
 relative tolerance of 1e-6. With treams installed, it also runs each treams
 script and compares the variables that its <code>ORACLE</code> entry names, to a relative
@@ -4006,7 +4010,7 @@ a treams tab without a treams script or the other way round. Run
 <code>just docs-examples</code> again whenever a script changes what it prints, and
 review the change in <code>output/</code>.</p>
 <h2 id="publishing">Publishing<a class="headerlink" href="#publishing" title="Permanent link">&para;</a></h2>
-<p>The reusable <a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/.github/workflows/docs.yml">Docs workflow</a> builds the site
+<p>The reusable <a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/.github/workflows/docs.yml">Docs workflow</a> builds the site
 and rustdoc for pull requests. Main publishes <code>dev</code>; a release publishes its
 version and updates <code>latest</code>. Mike keeps every version in <code>gh-pages</code>, and
 the workflow deploys the complete tree through GitHub Pages artifacts.

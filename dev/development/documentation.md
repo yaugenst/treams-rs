@@ -2,7 +2,7 @@
 
 The site is built with [MkDocs](https://www.mkdocs.org/) and the Material
 theme from the Markdown files under `docs/`. The `nav` of
-[`mkdocs.yml`](https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/mkdocs.yml) is the one list of pages: it sets their order
+[`mkdocs.yml`](https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/mkdocs.yml) is the one list of pages: it sets their order
 on the site and in `llms.txt`.
 
 ## Build and preview
@@ -89,7 +89,7 @@ changing one.
 ## Generated content
 
 `just docs` writes three kinds of files from
-[`scripts/generate_docs.py`](https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/scripts/generate_docs.py):
+[`scripts/generate_docs.py`](https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/scripts/generate_docs.py):
 
 - **The Python API reference** under `docs/reference/python/`: one page per
   public module and a page of returned native types, rendered from
@@ -111,9 +111,13 @@ as mkdocstrings. One source then serves the site, `llms.txt` and
 package, so it includes native ufuncs, whose signatures exist only at run time,
 and the adapter modules without their optional frameworks installed.
 
-`docs/history/` is written by a private history build from the archived
-conversation records. Do not edit it by hand; it has a typos exclusion for its
-data and keeps every file under the 1,000 KB limit.
+The pages and data in `docs/history/` are written by a private history build
+from archived conversation records. Do not edit them by hand; the data has a
+typos exclusion and every file stays under the 1,000 KB limit. The interactive
+code in `docs/javascripts/history.js`, its axis layout in `history-axis.mjs`,
+and `docs/stylesheets/history.css` are maintained here, separately from that
+export. Re-exporting records must preserve these presentation assets.
+Run `node --test tests/browser/*.test.mjs` to check asset loading and axis layout.
 
 ## Examples gallery
 
@@ -128,7 +132,7 @@ files:
 | `docs/examples/upstream/<treams name>.py` | For a ported example only: the treams example with the same sizes, its source and its license. |
 | `docs/examples/<name>.md` | The page: the scripts in tabs, the output and the differences from treams. |
 
-[`tests/api/test_examples.py`](https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/tests/api/test_examples.py) runs every
+[`tests/api/test_examples.py`](https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/tests/api/test_examples.py) runs every
 script and compares the numbers it prints with `output/<name>.txt` to a
 relative tolerance of 1e-6. With treams installed, it also runs each treams
 script and compares the variables that its `ORACLE` entry names, to a relative
@@ -154,7 +158,7 @@ review the change in `output/`.
 
 ## Publishing
 
-The reusable [Docs workflow](https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/.github/workflows/docs.yml) builds the site
+The reusable [Docs workflow](https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/.github/workflows/docs.yml) builds the site
 and rustdoc for pull requests. Main publishes `dev`; a release publishes its
 version and updates `latest`. Mike keeps every version in `gh-pages`, and
 the workflow deploys the complete tree through GitHub Pages artifacts.

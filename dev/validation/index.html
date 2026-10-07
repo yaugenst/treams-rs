@@ -3753,55 +3753,55 @@ belong to those measurements, not automatically to a later release build.</p>
 <td>Rust property tests</td>
 <td>Physical, analytic and adjoint identities above, on bounded random domains with saved regressions</td>
 <td>Pass in CI</td>
-<td><a href="https://github.com/yaugenst/treams-rs/tree/217cbe646cd70276ad1622fc61178b512b7faaae/crates/treams-core/src/properties"><code>crates/treams-core/src/properties/</code></a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/tree/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/crates/treams-core/src/properties"><code>crates/treams-core/src/properties/</code></a></td>
 </tr>
 <tr>
 <td>Python Hypothesis and reference tests</td>
 <td>Broadcasting, strides, validation, derivative contexts and workflows through the installed extension, against SciPy, treams and mpmath</td>
 <td>Pass in CI on Python 3.12 and 3.13</td>
-<td><a href="https://github.com/yaugenst/treams-rs/tree/217cbe646cd70276ad1622fc61178b512b7faaae/tests/special"><code>tests/special/</code></a>, <a href="https://github.com/yaugenst/treams-rs/tree/217cbe646cd70276ad1622fc61178b512b7faaae/tests/lattice"><code>tests/lattice/</code></a>, <a href="https://github.com/yaugenst/treams-rs/tree/217cbe646cd70276ad1622fc61178b512b7faaae/tests/waves"><code>tests/waves/</code></a>, <a href="https://github.com/yaugenst/treams-rs/tree/217cbe646cd70276ad1622fc61178b512b7faaae/tests/tmatrix"><code>tests/tmatrix/</code></a>, <a href="https://github.com/yaugenst/treams-rs/tree/217cbe646cd70276ad1622fc61178b512b7faaae/tests/smatrix"><code>tests/smatrix/</code></a>, <a href="https://github.com/yaugenst/treams-rs/tree/217cbe646cd70276ad1622fc61178b512b7faaae/tests/plane"><code>tests/plane/</code></a>, <a href="https://github.com/yaugenst/treams-rs/tree/217cbe646cd70276ad1622fc61178b512b7faaae/tests/autodiff"><code>tests/autodiff/</code></a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/tree/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/tests/special"><code>tests/special/</code></a>, <a href="https://github.com/yaugenst/treams-rs/tree/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/tests/lattice"><code>tests/lattice/</code></a>, <a href="https://github.com/yaugenst/treams-rs/tree/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/tests/waves"><code>tests/waves/</code></a>, <a href="https://github.com/yaugenst/treams-rs/tree/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/tests/tmatrix"><code>tests/tmatrix/</code></a>, <a href="https://github.com/yaugenst/treams-rs/tree/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/tests/smatrix"><code>tests/smatrix/</code></a>, <a href="https://github.com/yaugenst/treams-rs/tree/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/tests/plane"><code>tests/plane/</code></a>, <a href="https://github.com/yaugenst/treams-rs/tree/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/tests/autodiff"><code>tests/autodiff/</code></a></td>
 </tr>
 <tr>
 <td>High precision: incomplete gamma</td>
 <td>1494 40-digit mpmath values; 60-digit sweeps over |n| &lt;= 128</td>
 <td>Within 1e-13 relative; sweeps within 1.5e-13</td>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/crates/treams-core/references/incgamma.txt"><code>incgamma.txt</code></a>, <a href="numerical-limits/#special-functions-and-waves">limits</a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/crates/treams-core/references/incgamma.txt"><code>incgamma.txt</code></a>, <a href="numerical-limits/#special-functions-and-waves">limits</a></td>
 </tr>
 <tr>
 <td>High precision: Kambe integrals</td>
 <td>181 quadrature values; 1249 70-digit values at the lattice-sum arguments</td>
 <td>1e-13 relative; even orders within 1e-11</td>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/crates/treams-core/references/kambe.txt"><code>kambe.txt</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/crates/treams-core/references/kambe_lattice.txt"><code>kambe_lattice.txt</code></a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/crates/treams-core/references/kambe.txt"><code>kambe.txt</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/crates/treams-core/references/kambe_lattice.txt"><code>kambe_lattice.txt</code></a></td>
 </tr>
 <tr>
 <td>High precision: lattice sums</td>
 <td>Ewald sums and derivatives against mpmath, near and off the plane or axis</td>
 <td>Values within 5e-14 to 2e-13 near the plane or axis; 1D spherical sums off the axis within 1.4e-13</td>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/crates/treams-core/references/lattice_sums.txt"><code>lattice_sums.txt</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/crates/treams-core/references/lattice_chain.txt"><code>lattice_chain.txt</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/scripts/generate_references.py"><code>generate_references.py</code></a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/crates/treams-core/references/lattice_sums.txt"><code>lattice_sums.txt</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/crates/treams-core/references/lattice_chain.txt"><code>lattice_chain.txt</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/scripts/generate_references.py"><code>generate_references.py</code></a></td>
 </tr>
 <tr>
 <td>High precision: fractional Legendre, archived pre-release implementation</td>
 <td>530 finite value and derivative cases and two expected overflows against 70-digit hypergeometric values</td>
 <td>Largest relative error 2.17e-13 in that record</td>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/scripts/qualify_legendre.py"><code>qualify_legendre.py</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/benchmarks/results/fractional-legendre-physical.json">record</a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/scripts/qualify_legendre.py"><code>qualify_legendre.py</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/benchmarks/results/fractional-legendre-physical.json">record</a></td>
 </tr>
 <tr>
 <td>High precision: reference collector</td>
 <td>2,032 finite-output reference cases, including a metallic sphere of size parameter 80; 18 inputs beyond the float64 range are excluded</td>
 <td>All pass</td>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/scripts/qualify_references.py"><code>qualify_references.py</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/benchmarks/linux-core-qualification.json"><code>linux-core-qualification.json</code></a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/scripts/qualify_references.py"><code>qualify_references.py</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/benchmarks/linux-core-qualification.json"><code>linux-core-qualification.json</code></a></td>
 </tr>
 <tr>
 <td>treams workflow comparisons</td>
 <td>527 complete workflows against treams 0.4.5, plus 51 complete-gradient cases</td>
 <td>All pass</td>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/scripts/qualify_upstream.py"><code>qualify_upstream.py</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/benchmarks/linux-core-qualification.json"><code>linux-core-qualification.json</code></a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/scripts/qualify_upstream.py"><code>qualify_upstream.py</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/benchmarks/linux-core-qualification.json"><code>linux-core-qualification.json</code></a></td>
 </tr>
 <tr>
 <td>Published applications</td>
 <td>Electron-beam spectra, treams paper spectra and thermal radiation</td>
 <td>Within the stated tolerances of the author data, for example all 300 thermal absorption values within 0.577%</td>
-<td><a href="published-applications/">Published applications</a>, <a href="https://github.com/yaugenst/treams-rs/tree/217cbe646cd70276ad1622fc61178b512b7faaae/benchmarks/papers"><code>benchmarks/papers/</code></a></td>
+<td><a href="published-applications/">Published applications</a>, <a href="https://github.com/yaugenst/treams-rs/tree/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/benchmarks/papers"><code>benchmarks/papers/</code></a></td>
 </tr>
 <tr>
 <td>Lean proofs</td>
@@ -3813,13 +3813,13 @@ belong to those measurements, not automatically to a later release build.</p>
 <td>Floating-point environment</td>
 <td>Every scalar binding and ufunc loop, records with their pullbacks, solves and a slab on a thread that flushes subnormals to zero</td>
 <td>Equal to the results of an IEEE thread, bit for bit</td>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/tests/bindings/test_float_environment.py"><code>test_float_environment.py</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/scripts/float_environment.py"><code>float_environment.py</code></a>, <a href="../design/floating-point/">floating-point environment</a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/tests/bindings/test_float_environment.py"><code>test_float_environment.py</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/scripts/float_environment.py"><code>float_environment.py</code></a>, <a href="../design/floating-point/">floating-point environment</a></td>
 </tr>
 <tr>
 <td>Thread count</td>
 <td>Values and gradients of every parallel reduction, dense solves and decompositions, a cluster solve and ufuncs at one, two and three threads; the Python suite on one thread and on every CPU</td>
 <td>Equal at every thread count, bit for bit</td>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/217cbe646cd70276ad1622fc61178b512b7faaae/tests/bindings/test_thread_pool.py"><code>test_thread_pool.py</code></a>, <a href="../design/parallelism/">parallelism</a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/tests/bindings/test_thread_pool.py"><code>test_thread_pool.py</code></a>, <a href="../design/parallelism/">parallelism</a></td>
 </tr>
 </tbody>
 </table>
