@@ -49,6 +49,7 @@ nav:
       - examples/array_transmission_gradient.md
       - examples/forward_field_sensitivity.md
       - examples/reverse_cluster_gradient.md
+      - examples/gauss_newton_fit.md
   - Differentiation:
       - differentiation/index.md
       - differentiation/frameworks.md

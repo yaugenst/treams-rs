@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a gallery example that fits sphere radii with Gauss–Newton steps. Its
+  products `JᵀJ v` combine forward and reverse mode without forming `J`.
 - Shorten the issue and pull request templates. Bug and numerical reports
   require a reproducer that fails on a stated version or commit, and accept shell
   commands as well as Python.

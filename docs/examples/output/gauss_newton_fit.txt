@@ -1,0 +1,10 @@
+Fit 8 sphere radii to 48 detector intensities
+ step        misfit  largest error/nm  products
+    0  8.147034e+01      7.274379e+00         9
+    1  4.373811e+00      7.815546e+00         9
+    2  4.824934e-01      2.686086e+00         9
+    3  1.123001e-02      4.021861e-01         9
+    4  5.445358e-06      8.576179e-03         9
+    5  1.175501e-12      4.607710e-06         9
+After 6 steps every radius is within 1e-9 nm of the true radius.
+Fitted radii in nm: 52.364162 57.274379 45.761311 43.817884 55.831752 54.679338 42.962434 47.134166

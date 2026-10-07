@@ -37,6 +37,7 @@ against central differences.
 | [Array transmission gradient](array_transmission_gradient.md) | The derivatives of the transmission of a sphere array on a slab with respect to the sphere radius and the slab thickness | JAX |
 | [Changes across a field map](forward_field_sensitivity.md) | Forward-mode changes at every field point when the wavelength or common sphere radius changes | JAX |
 | [Cluster scattering gradient](reverse_cluster_gradient.md) | Reverse-mode changes in one scattering cross section with respect to eight radii and all particle positions | JAX |
+| [Gauss–Newton fit](gauss_newton_fit.md) | Eight sphere radii fitted to scattered intensities, with steps from forward- and reverse-mode products | JAX |
 
 [Choosing a differentiation mode](../differentiation/choosing-a-mode.md) compares
 both modes on the same results, with a runnable timing script.

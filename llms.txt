@@ -59,6 +59,7 @@ Use `--format json` or `--format markdown` to list all documented functions and 
 - [Array transmission gradient](docs/examples/array_transmission_gradient.md): jax.grad of the transmission of a sphere array on a slab with respect to the sphere radius and slab thickness, next to central differences.
 - [Changes across a field map](docs/examples/forward_field_sensitivity.md): How every scattered electric-field value above three spheres changes when their common radius or the illumination wavelength changes.
 - [Cluster scattering gradient](docs/examples/reverse_cluster_gradient.md): How changing eight sphere radii and their positions affects one scattering cross section, with a gradient from JAX.
+- [Gauss–Newton fit](docs/examples/gauss_newton_fit.md): Fit eight sphere radii to measured intensities with Gauss–Newton steps built from forward- and reverse-mode products.
 
 ## Differentiation
 

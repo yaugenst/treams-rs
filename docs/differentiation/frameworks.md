@@ -180,7 +180,9 @@ assert result.shape == parameters.shape
 These are two first-order actions at the same parameters. The result is useful
 for least-squares fitting, but is not a general second derivative: it leaves
 out how `J` itself changes with the parameters. General Hessians and nested
-higher derivatives remain unsupported. PyTorch also rejects differentiating
+higher derivatives remain unsupported. The
+[Gauss–Newton fit](../examples/gauss_newton_fit.md) uses these products to fit
+eight sphere radii to scattered intensities. PyTorch also rejects differentiating
 the tangent directly; use the original `value` as above.
 
 ## Automatic selection and constants
