@@ -115,9 +115,13 @@ as mkdocstrings. One source then serves the site, `llms.txt` and
 package, so it includes native ufuncs, whose signatures exist only at run time,
 and the adapter modules without their optional frameworks installed.
 
-`docs/history/` is written by a private history build from the archived
-conversation records. Do not edit it by hand; it has a typos exclusion for its
-data and keeps every file under the 1,000 KB limit.
+The pages and data in `docs/history/` are written by a private history build
+from archived conversation records. Do not edit them by hand; the data has a
+typos exclusion and every file stays under the 1,000 KB limit. The interactive
+code in `docs/javascripts/history.js`, its axis layout in `history-axis.mjs`,
+and `docs/stylesheets/history.css` are maintained here, separately from that
+export. Re-exporting records must preserve these presentation assets.
+Run `node --test tests/browser/*.test.mjs` to check asset loading and axis layout.
 
 ## Examples gallery
 

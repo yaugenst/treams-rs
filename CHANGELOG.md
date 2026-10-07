@@ -11,6 +11,9 @@
 - Keep the history models table readable on phones, with intact model names
   and a labelled, keyboard-scrollable region for its five columns.
 
+- Keep the first day and phase starts labelled on history maps, separate nearby
+  axis labels, and fit end labels within the map at desktop and phone widths.
+
 - Load the history stylesheet and interactive script only on pages that use
   them, including visits through instant navigation.
 

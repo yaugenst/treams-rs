@@ -10,6 +10,7 @@
       element.rel = "stylesheet";
       element.href = url;
     } else {
+      element.type = "module";
       element.src = url;
     }
     element.onload = resolve;
@@ -25,7 +26,7 @@
   document$.subscribe(() => {
     // The records' About page uses redaction styles without interactive content.
     if (!document.querySelector("[data-history], .history-r")) return;
-    styles ??= load("link", "history.css").catch((error) => {
+    styles ??= load("link", "../stylesheets/history.css").catch((error) => {
       styles = null;
       throw error;
     });
@@ -34,7 +35,7 @@
       if (!document.querySelector("[data-history]")) return;
       // history.js subscribes to Material's replayed document$ itself, including
       // the current page, and cleans up its mounts on subsequent navigation.
-      script ??= load("script", "history.js").catch((error) => {
+      script ??= load("script", "../javascripts/history.js").catch((error) => {
         script = null;
         throw error;
       });
