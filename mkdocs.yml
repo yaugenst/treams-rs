@@ -55,6 +55,32 @@ nav:
       - differentiation/choosing-a-mode.md
       - differentiation/custom-records.md
       - differentiation/gradient-checks.md
+  - Python API:
+      - reference/python/index.md
+      - reference/python/treams_rs.md
+      - reference/python/special.md
+      - reference/python/sw.md
+      - reference/python/cw.md
+      - reference/python/pw.md
+      - reference/python/lattice.md
+      - reference/python/coeffs.md
+      - reference/python/misc.md
+      - reference/python/ebcm.md
+      - reference/python/io.md
+      - reference/python/operators.md
+      - reference/python/iterative.md
+      - reference/python/parallel.md
+      - reference/python/diff.md
+      - reference/python/testing.md
+      - reference/python/advect.md
+      - reference/python/jax.md
+      - reference/python/torch.md
+      - reference/python/autograd.md
+      - reference/python/native-types.md
+  - Rust API: reference/rust.md
+  - Reference:
+      - reference/index.md
+      - reference/glossary.md
   - Design:
       - design/index.md
       - design/python-api.md
@@ -75,32 +101,6 @@ nav:
       - performance/large-problems.md
       - performance/platform-comparison.md
       - performance/evidence.md
-  - Reference:
-      - reference/index.md
-      - Python API:
-          - reference/python/index.md
-          - reference/python/treams_rs.md
-          - reference/python/special.md
-          - reference/python/sw.md
-          - reference/python/cw.md
-          - reference/python/pw.md
-          - reference/python/lattice.md
-          - reference/python/coeffs.md
-          - reference/python/misc.md
-          - reference/python/ebcm.md
-          - reference/python/io.md
-          - reference/python/operators.md
-          - reference/python/iterative.md
-          - reference/python/parallel.md
-          - reference/python/diff.md
-          - reference/python/testing.md
-          - reference/python/advect.md
-          - reference/python/jax.md
-          - reference/python/torch.md
-          - reference/python/autograd.md
-          - reference/python/native-types.md
-      - Rust crate: reference/rust.md
-      - reference/glossary.md
   - Development:
       - development/index.md
       - development/architecture.md
@@ -148,7 +148,6 @@ theme:
     - navigation.instant
     - navigation.instant.progress
     - navigation.tracking
-    - navigation.sections
     - navigation.indexes
     - navigation.path
     - navigation.footer
@@ -163,6 +162,7 @@ extra_css:
   - stylesheets/extra.css
 
 extra_javascript:
+  - javascripts/navigation.js
   - javascripts/history-loader.js
 
 extra:

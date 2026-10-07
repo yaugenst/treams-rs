@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Collapse documentation navigation sections and expose Python and Rust API
+  entries near the guides, keeping existing page URLs and versioned links.
+
 - Document implementation rules for numerical code and bindings, including
   reusable derivative state, saved-state compatibility and tracked contract gaps.
 
