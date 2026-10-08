@@ -8,6 +8,8 @@
 - Preserve IEEE subnormals in maps, chunk fills and ordered reductions, including
   one-thread execution and foreign or fallback workers, while restoring each
   executing thread's floating-point mode.
+- Preserve relative accuracy of `Gamma(2, z)` and its scaled recurrence near
+  `z = -1`, using the factored closed form and reseeding descending ladders.
 
 - Collapse documentation navigation sections and expose Python and Rust API
   entries near the guides, keeping existing page URLs and versioned links.
