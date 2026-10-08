@@ -311,8 +311,8 @@
 <a href=#311 id=311 data-nosnippet>311</a>    <span class="kw">let </span>value = contrast / matrix.norm_squared().sqrt();
 <a href=#312 id=312 data-nosnippet>312</a>    <span class="comment">// The value stays available where the gradient is undefined.
 <a href=#313 id=313 data-nosnippet>313</a>    </span><span class="kw">let </span>gradient = <span class="kw">if </span>contrast == <span class="number">0.0 </span>{
-<a href=#314 id=314 data-nosnippet>314</a>        <span class="prelude-val">Err</span>(Error::InvalidInput(
-<a href=#315 id=315 data-nosnippet>315</a>            <span class="string">"chirality is not differentiable at zero contrast"</span>.into(),
+<a href=#314 id=314 data-nosnippet>314</a>        <span class="prelude-val">Err</span>(Error::Derivative(
+<a href=#315 id=315 data-nosnippet>315</a>            <span class="kw">crate</span>::DerivativeError::ZeroChiralityContrast,
 <a href=#316 id=316 data-nosnippet>316</a>        ))
 <a href=#317 id=317 data-nosnippet>317</a>    } <span class="kw">else </span>{
 <a href=#318 id=318 data-nosnippet>318</a>        chirality_gradient(matrix, <span class="kw-2">&amp;</span>indices, spectra, <span class="kw-2">&amp;</span>differences, contrast)

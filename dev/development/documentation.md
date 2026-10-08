@@ -2,7 +2,7 @@
 
 The site is built with [MkDocs](https://www.mkdocs.org/) and the Material
 theme from the Markdown files under `docs/`. The `nav` of
-[`mkdocs.yml`](https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/mkdocs.yml) is the one list of pages: it sets their order
+[`mkdocs.yml`](https://github.com/yaugenst/treams-rs/blob/1f3deb62d763a664f7e85b836fa2501c18a51442/mkdocs.yml) is the one list of pages: it sets their order
 on the site and in `llms.txt`.
 
 ## Build and preview
@@ -89,7 +89,7 @@ changing one.
 ## Generated content
 
 `just docs` writes three kinds of files from
-[`scripts/generate_docs.py`](https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/scripts/generate_docs.py):
+[`scripts/generate_docs.py`](https://github.com/yaugenst/treams-rs/blob/1f3deb62d763a664f7e85b836fa2501c18a51442/scripts/generate_docs.py):
 
 - **The Python API reference** under `docs/reference/python/`: one page per
   public module and a page of returned native types, rendered from
@@ -132,7 +132,7 @@ files:
 | `docs/examples/upstream/<treams name>.py` | For a ported example only: the treams example with the same sizes, its source and its license. |
 | `docs/examples/<name>.md` | The page: the scripts in tabs, the output and the differences from treams. |
 
-[`tests/api/test_examples.py`](https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/tests/api/test_examples.py) runs every
+[`tests/api/test_examples.py`](https://github.com/yaugenst/treams-rs/blob/1f3deb62d763a664f7e85b836fa2501c18a51442/tests/api/test_examples.py) runs every
 script and compares the numbers it prints with `output/<name>.txt` to a
 relative tolerance of 1e-6. With treams installed, it also runs each treams
 script and compares the variables that its `ORACLE` entry names, to a relative
@@ -158,7 +158,7 @@ review the change in `output/`.
 
 ## Publishing
 
-The reusable [Docs workflow](https://github.com/yaugenst/treams-rs/blob/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/.github/workflows/docs.yml) builds the site
+The reusable [Docs workflow](https://github.com/yaugenst/treams-rs/blob/1f3deb62d763a664f7e85b836fa2501c18a51442/.github/workflows/docs.yml) builds the site
 and rustdoc for pull requests. Main publishes `dev`; a release publishes its
 version and updates `latest`. Mike keeps every version in `gh-pages`, and
 the workflow deploys the complete tree through GitHub Pages artifacts.

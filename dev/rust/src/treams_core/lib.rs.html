@@ -357,67 +357,89 @@
 <a href=#357 id=357 data-nosnippet>357</a>/// run once per element, and a literal message keeps formatting code out of them.
 <a href=#358 id=358 data-nosnippet>358</a></span><span class="kw">pub const </span>MAX_DEGREE: i32 = <span class="number">128</span>;
 <a href=#359 id=359 data-nosnippet>359</a>
-<a href=#360 id=360 data-nosnippet>360</a><span class="doccomment">/// A numerical failure, invalid physical input or refused memory.
+<a href=#360 id=360 data-nosnippet>360</a><span class="doccomment">/// A stable reason why a requested derivative is unavailable.
 <a href=#361 id=361 data-nosnippet>361</a>///
-<a href=#362 id=362 data-nosnippet>362</a>/// The Python bindings raise [`OutOfMemory`](Self::OutOfMemory) as `MemoryError` and
-<a href=#363 id=363 data-nosnippet>363</a>/// every other variant as `ValueError`, each with the displayed message.
-<a href=#364 id=364 data-nosnippet>364</a></span><span class="attr">#[derive(Clone, Debug, thiserror::Error)]
-<a href=#365 id=365 data-nosnippet>365</a></span><span class="kw">pub enum </span>Error {
-<a href=#366 id=366 data-nosnippet>366</a>    <span class="doccomment">/// The operation does not accept the input, for example a negative degree or a
-<a href=#367 id=367 data-nosnippet>367</a>    /// non-finite wavenumber.
-<a href=#368 id=368 data-nosnippet>368</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
-<a href=#369 id=369 data-nosnippet>369</a>    </span>InvalidInput(String),
-<a href=#370 id=370 data-nosnippet>370</a>    <span class="doccomment">/// An AMOS Bessel, Legendre, Ferrers, Wigner, incomplete gamma or Kambe evaluation
-<a href=#371 id=371 data-nosnippet>371</a>    /// failed.
-<a href=#372 id=372 data-nosnippet>372</a>    </span><span class="attr">#[error(<span class="string">"special-function evaluation failed: {0}"</span>)]
-<a href=#373 id=373 data-nosnippet>373</a>    </span>SpecialFunction(String),
-<a href=#374 id=374 data-nosnippet>374</a>    <span class="doccomment">/// A finite input produced a non-finite value, for example an overflowing phase.
-<a href=#375 id=375 data-nosnippet>375</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
-<a href=#376 id=376 data-nosnippet>376</a>    </span>NonFinite(String),
-<a href=#377 id=377 data-nosnippet>377</a>    <span class="doccomment">/// A sum, series, iteration or decomposition did not reach its tolerance, or
-<a href=#378 id=378 data-nosnippet>378</a>    /// cancellation lost the accuracy.
-<a href=#379 id=379 data-nosnippet>379</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
-<a href=#380 id=380 data-nosnippet>380</a>    </span>NotConverged(String),
-<a href=#381 id=381 data-nosnippet>381</a>    <span class="doccomment">/// A linear system (an LU solve, a 2 x 2 Mie inverse or an S-matrix solve) is
-<a href=#382 id=382 data-nosnippet>382</a>    /// singular at the supplied parameters.
-<a href=#383 id=383 data-nosnippet>383</a>    </span><span class="attr">#[error(<span class="string">"singular linear system"</span>)]
-<a href=#384 id=384 data-nosnippet>384</a>    </span>Singular,
-<a href=#385 id=385 data-nosnippet>385</a>    <span class="doccomment">/// The system refused memory for an output or workspace. The bindings raise it as
-<a href=#386 id=386 data-nosnippet>386</a>    /// `MemoryError`.
+<a href=#362 id=362 data-nosnippet>362</a>/// Saved metric states encode these reasons independently of their display text.
+<a href=#363 id=363 data-nosnippet>363</a></span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+<a href=#364 id=364 data-nosnippet>364</a></span><span class="kw">pub enum </span>DerivativeError {
+<a href=#365 id=365 data-nosnippet>365</a>    <span class="doccomment">/// The norm of the helicity contrast is not differentiable at zero.
+<a href=#366 id=366 data-nosnippet>366</a>    </span><span class="attr">#[error(<span class="string">"chirality is not differentiable at zero contrast"</span>)]
+<a href=#367 id=367 data-nosnippet>367</a>    </span>ZeroChiralityContrast,
+<a href=#368 id=368 data-nosnippet>368</a>    <span class="doccomment">/// Singular-value weights have the wrong length or contain non-finite values.
+<a href=#369 id=369 data-nosnippet>369</a>    </span><span class="attr">#[error(<span class="string">"invalid singular-value cotangent"</span>)]
+<a href=#370 id=370 data-nosnippet>370</a>    </span>InvalidSingularValueCotangent,
+<a href=#371 id=371 data-nosnippet>371</a>    <span class="doccomment">/// A nonzero weight requests the derivative of an unresolved singular value.
+<a href=#372 id=372 data-nosnippet>372</a>    </span><span class="attr">#[error(<span class="string">"nonzero singular-value weight at zero or below numerical resolution is not supported"</span>)]
+<a href=#373 id=373 data-nosnippet>373</a>    </span>UnresolvedSingularValue,
+<a href=#374 id=374 data-nosnippet>374</a>    <span class="doccomment">/// Unequal weights at a repeated singular value depend on singular vectors.
+<a href=#375 id=375 data-nosnippet>375</a>    </span><span class="attr">#[error(<span class="string">"repeated singular values require equal cotangent weights"</span>)]
+<a href=#376 id=376 data-nosnippet>376</a>    </span>UnequalSingularValueWeights,
+<a href=#377 id=377 data-nosnippet>377</a>}
+<a href=#378 id=378 data-nosnippet>378</a>
+<a href=#379 id=379 data-nosnippet>379</a><span class="doccomment">/// A numerical failure, invalid physical input or refused memory.
+<a href=#380 id=380 data-nosnippet>380</a>///
+<a href=#381 id=381 data-nosnippet>381</a>/// The Python bindings raise [`OutOfMemory`](Self::OutOfMemory) as `MemoryError` and
+<a href=#382 id=382 data-nosnippet>382</a>/// every other variant as `ValueError`, each with the displayed message.
+<a href=#383 id=383 data-nosnippet>383</a></span><span class="attr">#[derive(Clone, Debug, thiserror::Error)]
+<a href=#384 id=384 data-nosnippet>384</a></span><span class="kw">pub enum </span>Error {
+<a href=#385 id=385 data-nosnippet>385</a>    <span class="doccomment">/// The operation does not accept the input, for example a negative degree or a
+<a href=#386 id=386 data-nosnippet>386</a>    /// non-finite wavenumber.
 <a href=#387 id=387 data-nosnippet>387</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
-<a href=#388 id=388 data-nosnippet>388</a>    </span>OutOfMemory(String),
-<a href=#389 id=389 data-nosnippet>389</a>}
-<a href=#390 id=390 data-nosnippet>390</a>
-<a href=#391 id=391 data-nosnippet>391</a><span class="kw">impl </span>Error {
-<a href=#392 id=392 data-nosnippet>392</a>    <span class="doccomment">/// [`OutOfMemory`](Self::OutOfMemory) for `count` elements of `element_bytes` bytes
-<a href=#393 id=393 data-nosnippet>393</a>    /// each: "cannot allocate 4096 bytes", or "cannot allocate more than
-<a href=#394 id=394 data-nosnippet>394</a>    /// 18446744073709551615 bytes" (`usize::MAX` on 64-bit targets) when the product
-<a href=#395 id=395 data-nosnippet>395</a>    /// overflows.
-<a href=#396 id=396 data-nosnippet>396</a>    </span><span class="attr">#[must_use]
-<a href=#397 id=397 data-nosnippet>397</a>    </span><span class="kw">pub fn </span>out_of_memory(count: usize, element_bytes: usize) -&gt; <span class="self">Self </span>{
-<a href=#398 id=398 data-nosnippet>398</a>        <span class="self">Self</span>::OutOfMemory(count.checked_mul(element_bytes).map_or_else(
-<a href=#399 id=399 data-nosnippet>399</a>            || <span class="macro">format!</span>(<span class="string">"cannot allocate more than {} bytes"</span>, usize::MAX),
-<a href=#400 id=400 data-nosnippet>400</a>            |bytes| <span class="macro">format!</span>(<span class="string">"cannot allocate {bytes} bytes"</span>),
-<a href=#401 id=401 data-nosnippet>401</a>        ))
-<a href=#402 id=402 data-nosnippet>402</a>    }
-<a href=#403 id=403 data-nosnippet>403</a>
-<a href=#404 id=404 data-nosnippet>404</a>    <span class="doccomment">/// Whether the evaluation failed numerically ([`SpecialFunction`], [`NonFinite`] or
-<a href=#405 id=405 data-nosnippet>405</a>    /// [`NotConverged`]) rather than on its input, a singular system or memory.
-<a href=#406 id=406 data-nosnippet>406</a>    ///
-<a href=#407 id=407 data-nosnippet>407</a>    /// Another method may succeed where one fails numerically: the one-dimensional
-<a href=#408 id=408 data-nosnippet>408</a>    /// spherical lattice sums then fall back to their spectral series.
-<a href=#409 id=409 data-nosnippet>409</a>    ///
-<a href=#410 id=410 data-nosnippet>410</a>    /// [`SpecialFunction`]: Self::SpecialFunction
-<a href=#411 id=411 data-nosnippet>411</a>    /// [`NonFinite`]: Self::NonFinite
-<a href=#412 id=412 data-nosnippet>412</a>    /// [`NotConverged`]: Self::NotConverged
-<a href=#413 id=413 data-nosnippet>413</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const fn </span>is_numerical(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#414 id=414 data-nosnippet>414</a>        <span class="macro">matches!</span>(
-<a href=#415 id=415 data-nosnippet>415</a>            <span class="self">self</span>,
-<a href=#416 id=416 data-nosnippet>416</a>            <span class="self">Self</span>::SpecialFunction(<span class="kw">_</span>) | <span class="self">Self</span>::NonFinite(<span class="kw">_</span>) | <span class="self">Self</span>::NotConverged(<span class="kw">_</span>)
-<a href=#417 id=417 data-nosnippet>417</a>        )
-<a href=#418 id=418 data-nosnippet>418</a>    }
-<a href=#419 id=419 data-nosnippet>419</a>}
-<a href=#420 id=420 data-nosnippet>420</a>
-<a href=#421 id=421 data-nosnippet>421</a><span class="doccomment">/// Numerical result with a typed error.
-<a href=#422 id=422 data-nosnippet>422</a></span><span class="kw">pub type </span><span class="prelude-ty">Result</span>&lt;T&gt; = std::result::Result&lt;T, Error&gt;;
+<a href=#388 id=388 data-nosnippet>388</a>    </span>InvalidInput(String),
+<a href=#389 id=389 data-nosnippet>389</a>    <span class="doccomment">/// A derivative is unavailable at the supplied inputs or weights.
+<a href=#390 id=390 data-nosnippet>390</a>    </span><span class="attr">#[error(transparent)]
+<a href=#391 id=391 data-nosnippet>391</a>    </span>Derivative(DerivativeError),
+<a href=#392 id=392 data-nosnippet>392</a>    <span class="doccomment">/// An AMOS Bessel, Legendre, Ferrers, Wigner, incomplete gamma or Kambe evaluation
+<a href=#393 id=393 data-nosnippet>393</a>    /// failed.
+<a href=#394 id=394 data-nosnippet>394</a>    </span><span class="attr">#[error(<span class="string">"special-function evaluation failed: {0}"</span>)]
+<a href=#395 id=395 data-nosnippet>395</a>    </span>SpecialFunction(String),
+<a href=#396 id=396 data-nosnippet>396</a>    <span class="doccomment">/// A finite input produced a non-finite value, for example an overflowing phase.
+<a href=#397 id=397 data-nosnippet>397</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
+<a href=#398 id=398 data-nosnippet>398</a>    </span>NonFinite(String),
+<a href=#399 id=399 data-nosnippet>399</a>    <span class="doccomment">/// A sum, series, iteration or decomposition did not reach its tolerance, or
+<a href=#400 id=400 data-nosnippet>400</a>    /// cancellation lost the accuracy.
+<a href=#401 id=401 data-nosnippet>401</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
+<a href=#402 id=402 data-nosnippet>402</a>    </span>NotConverged(String),
+<a href=#403 id=403 data-nosnippet>403</a>    <span class="doccomment">/// A linear system (an LU solve, a 2 x 2 Mie inverse or an S-matrix solve) is
+<a href=#404 id=404 data-nosnippet>404</a>    /// singular at the supplied parameters.
+<a href=#405 id=405 data-nosnippet>405</a>    </span><span class="attr">#[error(<span class="string">"singular linear system"</span>)]
+<a href=#406 id=406 data-nosnippet>406</a>    </span>Singular,
+<a href=#407 id=407 data-nosnippet>407</a>    <span class="doccomment">/// The system refused memory for an output or workspace. The bindings raise it as
+<a href=#408 id=408 data-nosnippet>408</a>    /// `MemoryError`.
+<a href=#409 id=409 data-nosnippet>409</a>    </span><span class="attr">#[error(<span class="string">"{0}"</span>)]
+<a href=#410 id=410 data-nosnippet>410</a>    </span>OutOfMemory(String),
+<a href=#411 id=411 data-nosnippet>411</a>}
+<a href=#412 id=412 data-nosnippet>412</a>
+<a href=#413 id=413 data-nosnippet>413</a><span class="kw">impl </span>Error {
+<a href=#414 id=414 data-nosnippet>414</a>    <span class="doccomment">/// [`OutOfMemory`](Self::OutOfMemory) for `count` elements of `element_bytes` bytes
+<a href=#415 id=415 data-nosnippet>415</a>    /// each: "cannot allocate 4096 bytes", or "cannot allocate more than
+<a href=#416 id=416 data-nosnippet>416</a>    /// 18446744073709551615 bytes" (`usize::MAX` on 64-bit targets) when the product
+<a href=#417 id=417 data-nosnippet>417</a>    /// overflows.
+<a href=#418 id=418 data-nosnippet>418</a>    </span><span class="attr">#[must_use]
+<a href=#419 id=419 data-nosnippet>419</a>    </span><span class="kw">pub fn </span>out_of_memory(count: usize, element_bytes: usize) -&gt; <span class="self">Self </span>{
+<a href=#420 id=420 data-nosnippet>420</a>        <span class="self">Self</span>::OutOfMemory(count.checked_mul(element_bytes).map_or_else(
+<a href=#421 id=421 data-nosnippet>421</a>            || <span class="macro">format!</span>(<span class="string">"cannot allocate more than {} bytes"</span>, usize::MAX),
+<a href=#422 id=422 data-nosnippet>422</a>            |bytes| <span class="macro">format!</span>(<span class="string">"cannot allocate {bytes} bytes"</span>),
+<a href=#423 id=423 data-nosnippet>423</a>        ))
+<a href=#424 id=424 data-nosnippet>424</a>    }
+<a href=#425 id=425 data-nosnippet>425</a>
+<a href=#426 id=426 data-nosnippet>426</a>    <span class="doccomment">/// Whether the evaluation failed numerically ([`SpecialFunction`], [`NonFinite`] or
+<a href=#427 id=427 data-nosnippet>427</a>    /// [`NotConverged`]) rather than on its input, a singular system or memory.
+<a href=#428 id=428 data-nosnippet>428</a>    ///
+<a href=#429 id=429 data-nosnippet>429</a>    /// Another method may succeed where one fails numerically: the one-dimensional
+<a href=#430 id=430 data-nosnippet>430</a>    /// spherical lattice sums then fall back to their spectral series.
+<a href=#431 id=431 data-nosnippet>431</a>    ///
+<a href=#432 id=432 data-nosnippet>432</a>    /// [`SpecialFunction`]: Self::SpecialFunction
+<a href=#433 id=433 data-nosnippet>433</a>    /// [`NonFinite`]: Self::NonFinite
+<a href=#434 id=434 data-nosnippet>434</a>    /// [`NotConverged`]: Self::NotConverged
+<a href=#435 id=435 data-nosnippet>435</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const fn </span>is_numerical(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#436 id=436 data-nosnippet>436</a>        <span class="macro">matches!</span>(
+<a href=#437 id=437 data-nosnippet>437</a>            <span class="self">self</span>,
+<a href=#438 id=438 data-nosnippet>438</a>            <span class="self">Self</span>::SpecialFunction(<span class="kw">_</span>) | <span class="self">Self</span>::NonFinite(<span class="kw">_</span>) | <span class="self">Self</span>::NotConverged(<span class="kw">_</span>)
+<a href=#439 id=439 data-nosnippet>439</a>        )
+<a href=#440 id=440 data-nosnippet>440</a>    }
+<a href=#441 id=441 data-nosnippet>441</a>}
+<a href=#442 id=442 data-nosnippet>442</a>
+<a href=#443 id=443 data-nosnippet>443</a><span class="doccomment">/// Numerical result with a typed error.
+<a href=#444 id=444 data-nosnippet>444</a></span><span class="kw">pub type </span><span class="prelude-ty">Result</span>&lt;T&gt; = std::result::Result&lt;T, Error&gt;;
 </code></pre></div></section></main></body></html>

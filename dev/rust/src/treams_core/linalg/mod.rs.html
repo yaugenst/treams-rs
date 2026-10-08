@@ -591,8 +591,8 @@
 <a href=#591 id=591 data-nosnippet>591</a>    /// is not smooth there. Both tests use relative tolerance `64 ε`.
 <a href=#592 id=592 data-nosnippet>592</a>    </span><span class="kw">pub fn </span>pullback(<span class="kw-2">&amp;</span><span class="self">self</span>, cotangent: <span class="kw-2">&amp;</span>[f64]) -&gt; <span class="prelude-ty">Result</span>&lt;DMatrix&lt;Complex&gt;&gt; {
 <a href=#593 id=593 data-nosnippet>593</a>        <span class="kw">if </span>cotangent.len() != <span class="self">self</span>.values.len() || cotangent.iter().any(|x| !x.is_finite()) {
-<a href=#594 id=594 data-nosnippet>594</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidInput(
-<a href=#595 id=595 data-nosnippet>595</a>                <span class="string">"invalid singular-value cotangent"</span>.into(),
+<a href=#594 id=594 data-nosnippet>594</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::Derivative(
+<a href=#595 id=595 data-nosnippet>595</a>                <span class="kw">crate</span>::DerivativeError::InvalidSingularValueCotangent,
 <a href=#596 id=596 data-nosnippet>596</a>            ));
 <a href=#597 id=597 data-nosnippet>597</a>        }
 <a href=#598 id=598 data-nosnippet>598</a>        <span class="kw">let </span>tolerance = <span class="number">64.0 </span>* f64::EPSILON * <span class="self">self</span>.values[<span class="number">0</span>];
@@ -600,8 +600,8 @@
 <a href=#600 id=600 data-nosnippet>600</a>            <span class="number">64.0 </span>* f64::EPSILON * cotangent.iter().map(|x| x.abs()).fold(<span class="number">0.0</span>, f64::max);
 <a href=#601 id=601 data-nosnippet>601</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..cotangent.len() {
 <a href=#602 id=602 data-nosnippet>602</a>            <span class="kw">if </span><span class="self">self</span>.values[i] &lt;= tolerance &amp;&amp; cotangent[i].abs() &gt; weight_tolerance {
-<a href=#603 id=603 data-nosnippet>603</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidInput(
-<a href=#604 id=604 data-nosnippet>604</a>                    <span class="string">"nonzero singular-value weight at zero or below numerical resolution is not supported"</span>.into(),
+<a href=#603 id=603 data-nosnippet>603</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::Derivative(
+<a href=#604 id=604 data-nosnippet>604</a>                    <span class="kw">crate</span>::DerivativeError::UnresolvedSingularValue,
 <a href=#605 id=605 data-nosnippet>605</a>                ));
 <a href=#606 id=606 data-nosnippet>606</a>            }
 <a href=#607 id=607 data-nosnippet>607</a>            <span class="kw">if </span>i &gt; <span class="number">0
@@ -610,8 +610,8 @@
 <a href=#610 id=610 data-nosnippet>610</a>                &amp;&amp; (cotangent[i - <span class="number">1</span>] - cotangent[i]).abs()
 <a href=#611 id=611 data-nosnippet>611</a>                    &gt; <span class="number">64.0 </span>* f64::EPSILON * cotangent[i - <span class="number">1</span>].abs().max(cotangent[i].abs())
 <a href=#612 id=612 data-nosnippet>612</a>            {
-<a href=#613 id=613 data-nosnippet>613</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidInput(
-<a href=#614 id=614 data-nosnippet>614</a>                    <span class="string">"repeated singular values require equal cotangent weights"</span>.into(),
+<a href=#613 id=613 data-nosnippet>613</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::Derivative(
+<a href=#614 id=614 data-nosnippet>614</a>                    <span class="kw">crate</span>::DerivativeError::UnequalSingularValueWeights,
 <a href=#615 id=615 data-nosnippet>615</a>                ));
 <a href=#616 id=616 data-nosnippet>616</a>            }
 <a href=#617 id=617 data-nosnippet>617</a>        }

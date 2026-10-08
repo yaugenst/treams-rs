@@ -74,7 +74,7 @@ to a length and 1 / |k| for derivatives with respect to an inverse length.
 - **Kambe integrals** are checked against 181 quadrature values of orders -14 to 7
   with real eta at 1e-13 relative. They are also checked against 1249 70-digit
   values at the arguments of the lattice sums, x = sqrt(-2 v w^2) and eta = -i/w
-  with |w| in [0.5, 6] ([references](https://github.com/yaugenst/treams-rs/tree/a2e66b9c60f9aa26cc602847e9bf1ae761fab0c3/crates/treams-core/references)).
+  with |w| in [0.5, 6] ([references](https://github.com/yaugenst/treams-rs/tree/1f3deb62d763a664f7e85b836fa2501c18a51442/crates/treams-core/references)).
     - Even orders stay within 1e-11 there.
     - Odd orders keep what the gamma series keeps of their base pair, which
       cancels by up to e^(|w|^2). Over a 20808-value grid, at |w| near 3, 4, 5
