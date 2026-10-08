@@ -402,11 +402,10 @@ impl ScaledGammaLadder {
         if self.reflected {
             value -= 2.0 * libm::tgamma(degree);
         }
-        // The factored Gamma(2, -1) zero is exact, not an underflowed seed.
-        // Keep it out of the continued fraction's tiny-denominator clamps.
-        let representable = (normal(value)
-            || (degree == 2.0 && self.argument == Complex::new(-1.0, 0.0)))
-            && normal(power);
+        // Near Gamma(2, -1), a finite factored value can be zero or subnormal.
+        // Divide it directly when the power is normal, without the continued
+        // fraction's tiny-denominator clamps.
+        let representable = (normal(value) || (degree == 2.0 && finite(value))) && normal(power);
         if !(self.reflected || representable)
             && let (fraction, true) = continued_fraction(degree, self.argument)
         {
@@ -598,11 +597,18 @@ mod tests {
             "/references/incgamma_zero.txt"
         ))) {
             let (degree, z) = (key[0], Complex::new(key[1], key[2]));
-            let tolerance = 1e-13 * expected.norm() + f64::MIN_POSITIVE;
+            // The smallest subnormal bounds rounding without hiding small seeds.
+            let tolerance = 1e-13 * expected.norm() + f64::from_bits(1);
             let actual = incgamma(degree, z).unwrap();
             assert!(
                 (actual - expected).norm() <= tolerance,
                 "Gamma({degree}, {z}) = {actual}, expected {expected}"
+            );
+            let seed =
+                ScaledGammaLadder::new(degree, z, false).seed(degree) * half_power(z, degree);
+            assert!(
+                (seed - expected).norm() <= tolerance,
+                "seed({degree}, {z}) = {seed}, expected {expected}"
             );
             for top in [3, 16] {
                 let mut ladder = ScaledGammaLadder::new(f64::from(top), z, false);
