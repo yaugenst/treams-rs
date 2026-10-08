@@ -4,6 +4,8 @@
 
 - Preserve deferred chirality derivative errors through native and JAX saved
   state, using stable error reasons without changing state tags or layout.
+- Preserve IEEE subnormals in serial maps, chunk fills and ordered reductions,
+  including one-thread execution, while restoring the caller's floating-point mode.
 
 - Collapse documentation navigation sections and expose Python and Rust API
   entries near the guides, keeping existing page URLs and versioned links.
