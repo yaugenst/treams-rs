@@ -357,6 +357,25 @@ pub type Complex = num_complex::Complex64;
 /// run once per element, and a literal message keeps formatting code out of them.
 pub const MAX_DEGREE: i32 = 128;
 
+/// A stable reason why a requested derivative is unavailable.
+///
+/// Saved metric states encode these reasons independently of their display text.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum DerivativeError {
+    /// The norm of the helicity contrast is not differentiable at zero.
+    #[error("chirality is not differentiable at zero contrast")]
+    ZeroChiralityContrast,
+    /// Singular-value weights have the wrong length or contain non-finite values.
+    #[error("invalid singular-value cotangent")]
+    InvalidSingularValueCotangent,
+    /// A nonzero weight requests the derivative of an unresolved singular value.
+    #[error("nonzero singular-value weight at zero or below numerical resolution is not supported")]
+    UnresolvedSingularValue,
+    /// Unequal weights at a repeated singular value depend on singular vectors.
+    #[error("repeated singular values require equal cotangent weights")]
+    UnequalSingularValueWeights,
+}
+
 /// A numerical failure, invalid physical input or refused memory.
 ///
 /// The Python bindings raise [`OutOfMemory`](Self::OutOfMemory) as `MemoryError` and
@@ -367,6 +386,9 @@ pub enum Error {
     /// non-finite wavenumber.
     #[error("{0}")]
     InvalidInput(String),
+    /// A derivative is unavailable at the supplied inputs or weights.
+    #[error(transparent)]
+    Derivative(DerivativeError),
     /// An AMOS Bessel, Legendre, Ferrers, Wigner, incomplete gamma or Kambe evaluation
     /// failed.
     #[error("special-function evaluation failed: {0}")]

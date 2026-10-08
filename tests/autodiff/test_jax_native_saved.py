@@ -8,7 +8,7 @@ from weakref import ref
 
 import numpy as np
 import pytest
-from numpy.testing import assert_allclose
+from numpy.testing import assert_allclose, assert_array_equal
 
 pytestmark = pytest.mark.gradients
 
@@ -391,3 +391,44 @@ def test_value_dependent_context_mapping_retains_its_primals(x64):
         ):
             assert actual.dtype == jnp.float32
             assert_allclose(actual, expected, rtol=5e-7)
+
+
+@pytest.mark.parametrize(
+    ("matrix", "expected", "message"),
+    [
+        (np.eye(2) * 0.5, 0.0, "zero contrast"),
+        (np.diag([0.0, 0.5]), 1.0, "below numerical resolution"),
+        (
+            np.array([[0.3, 0.0], [0.1, 0.2]]),
+            np.sqrt(1 / 7),
+            "below numerical resolution",
+        ),
+    ],
+)
+@pytest.mark.parametrize("compiled", [False, True])
+def test_chirality_keeps_primal_and_deferred_error_in_saved_maps(
+    matrix, expected, message, compiled
+):
+    with jax_x64(True):
+        matrix = jnp.asarray(matrix)
+
+        ks = jnp.ones(2)
+        wrapped = tj.wrap(
+            partial(diff.tmatrix_metric, polarizations=[0, 1], metric="chi"), matrix, ks
+        )
+
+        def metric(operator):
+            return wrapped(operator, ks)
+
+        function = jax.jit(metric) if compiled else metric
+        value, pullback = jax.vjp(function, matrix)
+        assert_allclose(value, expected, rtol=1e-14, atol=1e-15)
+        # Recording/saving succeeds; only a nonzero derivative request fails.
+        assert_array_equal(pullback(jnp.zeros_like(value))[0], np.zeros_like(matrix))
+        with pytest.raises((ValueError, jax.errors.JaxRuntimeError), match=message):
+            jax.block_until_ready(pullback(jnp.ones_like(value)))
+        value, pushforward = jax.linearize(function, matrix)
+        assert_allclose(value, expected, rtol=1e-14, atol=1e-15)
+        assert_array_equal(pushforward(jnp.zeros_like(matrix)), 0.0)
+        with pytest.raises((ValueError, jax.errors.JaxRuntimeError), match=message):
+            jax.block_until_ready(pushforward(jnp.ones_like(matrix)))

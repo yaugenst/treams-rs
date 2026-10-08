@@ -3,16 +3,17 @@
 
 use super::MetricResidual;
 use crate::saved::{Reader, SavedState, Writer, invalid};
-use crate::{Complex, Error, Result};
+use crate::{Complex, DerivativeError, Error, Result};
 use nalgebra::DMatrix;
 
 // Status zero means a saved gradient; the remaining tags identify the only
 // errors chirality and SvdvalsResidual::pullback can save in MetricResidual.
-const GRADIENT_ERRORS: [&str; 4] = [
-    "chirality is not differentiable at zero contrast",
-    "invalid singular-value cotangent",
-    "nonzero singular-value weight at zero is not differentiable",
-    "repeated singular values require equal cotangent weights",
+// Keep the existing tags 1..=4 and payload layout when wording changes.
+const GRADIENT_ERRORS: [DerivativeError; 4] = [
+    DerivativeError::ZeroChiralityContrast,
+    DerivativeError::InvalidSingularValueCotangent,
+    DerivativeError::UnresolvedSingularValue,
+    DerivativeError::UnequalSingularValueWeights,
 ];
 
 impl MetricResidual {
@@ -33,10 +34,10 @@ impl SavedState for MetricResidual {
     fn save_state(&self) -> Result<Vec<u8>> {
         let status = match &self.gradient {
             Ok(_) => 0,
-            Err(Error::InvalidInput(message)) => GRADIENT_ERRORS
+            Err(Error::Derivative(reason)) => GRADIENT_ERRORS
                 .iter()
                 .zip(1_u8..)
-                .find_map(|(&known, status)| (known == message).then_some(status))
+                .find_map(|(known, status)| (known == reason).then_some(status))
                 .ok_or_else(invalid)?,
             Err(_) => return Err(invalid()),
         };
@@ -80,13 +81,13 @@ impl SavedState for MetricResidual {
             )
         };
         let ks_gradient = [reader.f64()?, reader.f64()?];
-        let gradient = if let Some(message) = error {
+        let gradient = if let Some(reason) = error {
             for _ in 0..dimension * dimension {
                 if reader.complex()? != Complex::default() {
                     return Err(invalid());
                 }
             }
-            Err(Error::InvalidInput(message.into()))
+            Err(Error::Derivative(reason))
         } else {
             let values = (0..dimension * dimension)
                 .map(|_| reader.complex())
@@ -148,9 +149,10 @@ mod tests {
 
     #[test]
     fn roundtrip_preserves_deferred_errors_and_zero_directions() {
-        for message in GRADIENT_ERRORS {
+        for reason in GRADIENT_ERRORS {
+            let message = reason.to_string();
             let residual = MetricResidual {
-                gradient: Err(Error::InvalidInput(message.into())),
+                gradient: Err(Error::Derivative(reason)),
                 ks_gradient: [0.0; 2],
                 dimension: 2,
             };
@@ -175,6 +177,43 @@ mod tests {
                     0.0
                 );
             }
+        }
+    }
+
+    #[test]
+    fn metric_errors_survive_roundtrip() {
+        for (entries, expected_value, message) in [
+            ([0.5, 0.0, 0.0, 0.5], 0.0, "zero contrast"),
+            ([0.0, 0.0, 0.0, 0.5], 1.0, "below numerical resolution"),
+            (
+                [0.3, 0.0, 0.1, 0.2],
+                (1.0_f64 / 7.0).sqrt(),
+                "below numerical resolution",
+            ),
+        ] {
+            let matrix = DMatrix::from_row_slice(2, 2, &entries.map(|x| Complex::new(x, 0.0)));
+            let (value, residual) = metric(&matrix, &[0, 1], [1.0; 2], Metric::Chirality).unwrap();
+            assert!((value - expected_value).abs() < 1e-15);
+            let expected = residual.pullback(1.0).unwrap_err().to_string();
+            assert!(expected.contains(message), "{expected}");
+            let bytes = residual.save_state().unwrap();
+            let restored = MetricResidual::from_state(&bytes).unwrap();
+            assert_eq!(restored.pullback(1.0).unwrap_err().to_string(), expected);
+            assert_eq!(
+                restored
+                    .pushforward(&matrix, [0.0; 2])
+                    .unwrap_err()
+                    .to_string(),
+                expected
+            );
+            assert_eq!(restored.pullback(0.0).unwrap().matrix, DMatrix::zeros(2, 2));
+            assert_eq!(
+                restored
+                    .pushforward(&DMatrix::zeros(2, 2), [0.0; 2])
+                    .unwrap(),
+                0.0
+            );
+            assert_eq!(restored.save_state().unwrap(), bytes);
         }
     }
 

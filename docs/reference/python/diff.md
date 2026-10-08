@@ -1502,7 +1502,8 @@ tmatrix_metric(operator: ArrayLike, ks: ArrayLike=(1.0, 1.0), *, polarizations: 
 Global helicity metric of a T-matrix: cd, db or chi.
 
 A zero scattering norm, or zero total absorption for cd, has no defined
-metric. At zero contrast, chi has a value and a zero gradient.
+metric. At zero contrast, chi has a value but its derivative is undefined;
+only zero tangent and cotangent requests return zero.
 
 **Returns**
 
