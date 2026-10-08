@@ -745,6 +745,26 @@ mod tests {
         }
     }
 
+    #[test]
+    fn expansion_pullback_near_coaxial_pair() -> Result<(), TestCaseError> {
+        check_expansion_pullback(
+            2,
+            [0.0, 0.35],
+            [
+                [0.885_096_859_301_242_2, 0.389_709_429_113_160_26, 0.0],
+                [
+                    0.886_584_657_828_228_6,
+                    0.390_127_017_402_346_07,
+                    -0.441_485_675_024_714_25,
+                ],
+                [0.0, 0.0, 0.0],
+            ],
+            false,
+            Radial::Singular,
+            0.0,
+        )
+    }
+
     /// Expansion values are the pairwise translation coefficients, and both pullbacks
     /// are the pairwise sums `Σ_ij Re(conj(g_ij) ∂T_ij)` into positions, wavenumbers and
     /// the sorted axial groups `kzs`, including zero-displacement outgoing self blocks.
@@ -788,6 +808,11 @@ mod tests {
             [Complex::default(); 2],
         );
         let mut axial = [0.0; 2];
+        // Bounds on the absolute products, before cancellation in either the
+        // complex pairing or the sum. Position derivatives of singular terms
+        // grow like T/rho, so the norm of T cannot bound their rounding error.
+        let mut magnitude = (vec![[0.0; 3]; 2], vec![[0.0; 3]; 2], [0.0; 2]);
+        let mut axial_magnitude = [0.0; 2];
         for (j, &(q, from)) in source.modes.iter().enumerate() {
             for (i, &(p, to)) in destination.modes.iter().enumerate() {
                 let position =
@@ -796,15 +821,27 @@ mod tests {
                 let jet = cartesian_translation(to, from, ks[pol], position, radial).unwrap();
                 expected[(i, j)] = jet.value;
                 gradient.2[pol] += jet.k.conj() * g[(i, j)];
+                let weight = g[(i, j)].norm();
+                magnitude.2[pol] += weight * jet.k.norm();
                 axial[usize::from(from.kz == kzs[1])] += re_dot([g[(i, j)]], [jet.kz]);
+                axial_magnitude[usize::from(from.kz == kzs[1])] += weight * jet.kz.norm();
                 for axis in 0..3 {
                     let derivative = re_dot([g[(i, j)]], [jet.position[axis]]);
                     gradient.0[p][axis] += derivative;
                     gradient.1[q][axis] -= derivative;
+                    let product = weight * jet.position[axis].norm();
+                    magnitude.0[p][axis] += product;
+                    magnitude.1[q][axis] += product;
                 }
             }
         }
-        let scale = 1e-12 * (1.0 + expected.norm());
+        // Compare two ways of grouping the same products. Each reduction path
+        // has at most N additions; eight extra roundings cover complex products
+        // and evaluation of the magnitude bound. Both paths contribute gamma_n
+        // = n*eps/(1-n*eps). This remains sensitive to cancellation: the scale is
+        // the sum of absolute products, not the possibly vanishing final sum.
+        let n = f64::from(u32::try_from(g.len()).unwrap()) + 8.0;
+        let roundoff = 2.0 * n * f64::EPSILON / (1.0 - n * f64::EPSILON);
         let (value, residual) = expansion(destination.clone(), source.clone(), ks, radial).unwrap();
         prop_assert_close!(&value, &expected, 1e-14 * expected.norm());
         let actual = residual.pullback(&g).unwrap();
@@ -814,11 +851,26 @@ mod tests {
             .pullback_axial(&g)
             .unwrap();
         for actual in [actual, with_axial] {
-            prop_assert_close!(&actual.destination, &gradient.0, scale);
-            prop_assert_close!(&actual.source, &gradient.1, scale);
-            prop_assert_close!(actual.ks, gradient.2, scale);
+            for (actual, expected, magnitude) in [
+                (&actual.destination, &gradient.0, &magnitude.0),
+                (&actual.source, &gradient.1, &magnitude.1),
+            ] {
+                for ((a, e), m) in actual
+                    .iter()
+                    .flatten()
+                    .zip(expected.iter().flatten())
+                    .zip(magnitude.iter().flatten())
+                {
+                    prop_assert_close!(*a, *e, roundoff * m + f64::MIN_POSITIVE);
+                }
+            }
+            for ((a, e), m) in actual.ks.into_iter().zip(gradient.2).zip(magnitude.2) {
+                prop_assert_close!(a, e, roundoff * m + f64::MIN_POSITIVE);
+            }
         }
-        prop_assert_close!(actual_axial, axial.to_vec(), scale);
+        for ((a, e), m) in actual_axial.into_iter().zip(axial).zip(axial_magnitude) {
+            prop_assert_close!(a, e, roundoff * m + f64::MIN_POSITIVE);
+        }
         Ok(())
     }
 }
