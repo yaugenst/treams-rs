@@ -11,7 +11,7 @@
 
 - Preserve relative accuracy of `Gamma(2, z)` and its scaled recurrence near
   `z = -1`, using the factored closed form and reseeding descending ladders,
-  including the exact zero.
+  including the exact zero and subnormal perturbations.
 
 - Collapse documentation navigation sections and expose Python and Rust API
   entries near the guides, keeping existing page URLs and versioned links.

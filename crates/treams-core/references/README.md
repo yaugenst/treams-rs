@@ -20,7 +20,7 @@ Two terms appear below:
 | --- | --- | --- | --- | --- |
 | [`spherical_hankel.txt`](spherical_hankel.txt) | Outgoing spherical Hankel functions at the real recurrence boundaries and turning points | 90 digits; terminating polynomial agrees to 1e-70 | `spherical-hankel` | `real_hankel_sequences_match_high_precision` |
 | [`incgamma.txt`](incgamma.txt) | Upper incomplete gamma function `Gamma(n, z)` on a grid of degrees and arguments, on both sides of the cut | 40 digits | `incgamma` | `incgamma_matches_reference_table` |
-| [`incgamma_zero.txt`](incgamma_zero.txt) | Degrees 1–3 around the zero at `Gamma(2, -1)`, with real and complex perturbations | 40 digits | `incgamma-zero` | `gamma_and_ladder_keep_accuracy_near_degree_two_zero` |
+| [`incgamma_zero.txt`](incgamma_zero.txt) | Degrees 1–3 around the zero at `Gamma(2, -1)`, including subnormal offsets and finite degree-two seed extremes | 40 digits | `incgamma-zero` | `gamma_and_ladder_keep_accuracy_near_degree_two_zero` |
 | [`kambe.txt`](kambe.txt) | Kambe integral `I_n(z, eta)` at a real split `eta` | 40 digits; Gauss-Legendre agrees with tanh-sinh to 1e-15 | `kambe` | `intkambe_matches_quadrature` |
 | [`kambe_lattice.txt`](kambe_lattice.txt) | `I_n(x, eta)` at the complex arguments the lattice sums pass to it | 70 digits; 100 digits agree to 1e-48 | `kambe-lattice` | `intkambe_at_lattice_arguments` |
 | [`lattice_sums.txt`](lattice_sums.txt) | Ewald lattice sums, their real-space and reciprocal parts, and their `k` and Bloch-vector derivatives | 30 to 60 digits, by section | `lattice-sums` | `sums_match_high_precision_references` |

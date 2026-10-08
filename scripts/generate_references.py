@@ -112,12 +112,19 @@ def incgamma_zero_rows() -> list[Key]:
         -1.0 + 1e-9,
         -0.9990444624841922,
     ]
-    return [
+    nearby = [
         (n, re, im)
         for n in (1.0, 2.0, 3.0)
         for re in real
         for im in (0.0, -0.0, 1e-9, -1e-9)
     ]
+    small = [
+        (2.0, -1.0, sign * magnitude)
+        for magnitude in (1e-289, 1e-291, 1e-300, 1e-310, math.ulp(0.0))
+        for sign in (1.0, -1.0)
+    ]
+    extremes = [(2.0, re, im) for re in (-700.0, 700.0) for im in (0.0, 1.0)]
+    return nearby + small + extremes
 
 
 # Kambe integral by quadrature ----------------------------------------------------
@@ -831,6 +838,7 @@ TABLES = {
 # Generated with mpmath 1.3.0 at 40 digits from mp.gammainc at exact binary64
 # inputs, conjugated on the lower side. Degrees 1, 2 and 3 test the ladder and
 # the recurrence on both sides of the zero, with real and complex perturbations.
+# Degree-two cases also cover subnormal offsets and extreme finite seed values.
 """,
         lambda _: incgamma_zero_rows(),
         incgamma,
