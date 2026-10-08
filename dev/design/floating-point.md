@@ -65,9 +65,9 @@ mode:
 | Test | What it checks |
 |---|---|
 | `guarded_register_arithmetic_stays_inside` in `fpenv` | Fails at opt-level 1 when either pointer operand is removed |
-| [`test_float_environment.py`](https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/tests/bindings/test_float_environment.py) | Every binding body is one guard call; the first native call on a flushing thread keeps subnormals; forked children keep a working pool |
-| [`float_environment.py`](https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/scripts/float_environment.py), run by the test above and by `just check-wheel` | Every scalar binding, every ufunc loop, records with their pullbacks, solves and a slab give the same bits on a flushing thread as on an IEEE thread |
-| `test_callbacks_keep_subnormals_and_restore_the_xla_mode` in [`test_jax.py`](https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/tests/autodiff/test_jax.py) | Native calls inside JAX callbacks keep subnormals and leave XLA's mode as they found it |
+| [`test_float_environment.py`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/tests/bindings/test_float_environment.py) | Every binding body is one guard call; the first native call on a flushing thread keeps subnormals; forked children keep a working pool |
+| [`float_environment.py`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/scripts/float_environment.py), run by the test above and by `just check-wheel` | Every scalar binding, every ufunc loop, records with their pullbacks, solves and a slab give the same bits on a flushing thread as on an IEEE thread |
+| `test_callbacks_keep_subnormals_and_restore_the_xla_mode` in [`test_jax.py`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/tests/autodiff/test_jax.py) | Native calls inside JAX callbacks keep subnormals and leave XLA's mode as they found it |
 
 The script draws operands until each binding and loop with a float or complex
 operand has a call whose result flushing would change. Array bindings of
