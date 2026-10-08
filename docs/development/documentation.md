@@ -122,6 +122,10 @@ code in `docs/javascripts/history.js`, its axis layout in `history-axis.mjs`,
 and `docs/stylesheets/history.css` are maintained here, separately from that
 export. Re-exporting records must preserve these presentation assets.
 Run `node --test tests/browser/*.test.mjs` to check asset loading and axis layout.
+The reader's `history-text.mjs` also handles existing command excerpts that end
+inside a plain-text redaction marker, cutting before the marker in both folded
+and expanded views. It leaves complete markers and the archived JSON intact.
+New exports should truncate commands at marker boundaries too.
 
 ## Examples gallery
 

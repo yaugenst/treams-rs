@@ -1,4 +1,5 @@
 import { layoutAxisLabels } from "./history-axis.mjs";
+import { commandText } from "./history-text.mjs";
 
 // The history section (docs/history/): the day strip and the four drawings of the
 // story page, the owner's messages and the conversations. Material swaps the page
@@ -1077,6 +1078,7 @@ import { layoutAxisLabels } from "./history-axis.mjs";
     };
     const stamp = (at, prev) => dn(at) !== dn(prev) && h("span.t", null, when(at)); // the day where it changes
     const act = ([at, verb, text], t0) => {
+      if (verb === "ran") text = commandText(text);
       const x = text.startsWith(`${verb} `) ? text.slice(verb.length + 1) : text, to = verb === "sent" && x.match(/^(.*? to )(.+)$/);
       return h("li", null, button({ class: "act", "aria-expanded": "false", onclick() {
         this.setAttribute("aria-expanded", this.classList.toggle("wrap"));
