@@ -576,6 +576,22 @@ mod tests {
         std::env::var(CHILD).is_ok_and(|child| child == name)
     }
 
+    fn check_child(name: &str, threads: &str) {
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args([&format!("fpenv::tests::{name}"), "--exact", "--ignored"])
+            .args(["--test-threads=1"])
+            .env(CHILD, name)
+            .env("TREAMS_RS_NUM_THREADS", threads)
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            output.status.success() && stdout.contains(" 1 passed"),
+            "{name}, {threads} threads\n{stdout}\n{}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+    }
+
     #[test]
     fn fresh_pools_keep_subnormals_whatever_their_first_caller() {
         for threads in ["1", "4"] {
@@ -584,21 +600,57 @@ mod tests {
                 "pool_started_without_a_guard",
                 "helpers_keep_subnormals_and_restore_the_caller",
             ] {
-                let output = Command::new(std::env::current_exe().unwrap())
-                    .args([&format!("fpenv::tests::{name}"), "--exact", "--ignored"])
-                    .args(["--test-threads=1"])
-                    .env(CHILD, name)
-                    .env("TREAMS_RS_NUM_THREADS", threads)
-                    .output()
-                    .unwrap();
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                assert!(
-                    output.status.success() && stdout.contains(" 1 passed"),
-                    "{name}, {threads} threads\n{stdout}\n{}",
-                    String::from_utf8_lossy(&output.stderr),
-                );
+                check_child(name, threads);
             }
         }
+        for name in [
+            "map_keeps_subnormals_when_pool_is_unavailable",
+            "fill_keeps_subnormals_when_pool_is_unavailable",
+        ] {
+            check_child(name, "4");
+        }
+    }
+
+    /// The unavailable owned pool lets Rayon initialize its fallback workers.
+    /// Each helper must guard that first call and restore the flushing caller.
+    fn check_unavailable_pool(name: &str, map: bool) -> crate::Result<()> {
+        if !is_child(name) {
+            return Ok(());
+        }
+        assert_eq!(crate::threads::current_num_threads(), 4);
+        let expected = bits(&reciprocals_on_this_thread()?);
+        let (values, restored) = crate::threads::with_unavailable_pool(|| {
+            flushing(|| {
+                let caller = control_bits();
+                let values = if map {
+                    parallel::try_map(64, true, |i| reciprocal(BAND[i % BAND.len()]))
+                } else {
+                    let mut values = vec![Complex::default(); 64];
+                    parallel::try_fill_chunks(&mut values, 1, true, |i, chunk| {
+                        chunk[0] = reciprocal(BAND[i % BAND.len()])?;
+                        Ok::<_, Error>(())
+                    })
+                    .map(|()| values)
+                };
+                (values, control_bits() == caller)
+            })
+        });
+        assert!(restored, "the fallback restores the caller's mode");
+        assert!(crate::threads::info().pool_threads.is_none());
+        assert_eq!(bits(&values?), expected);
+        Ok(())
+    }
+
+    #[test]
+    #[ignore = "run in a fresh process by its parent test"]
+    fn map_keeps_subnormals_when_pool_is_unavailable() -> crate::Result<()> {
+        check_unavailable_pool("map_keeps_subnormals_when_pool_is_unavailable", true)
+    }
+
+    #[test]
+    #[ignore = "run in a fresh process by its parent test"]
+    fn fill_keeps_subnormals_when_pool_is_unavailable() -> crate::Result<()> {
+        check_unavailable_pool("fill_keeps_subnormals_when_pool_is_unavailable", false)
     }
 
     /// Exercise maps, chunk fills, ordered combines and nested calls on both
