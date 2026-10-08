@@ -19,8 +19,8 @@
 //! on side 1 it travels down.
 //!
 //! Both families share [`ChannelGradient`], input checks and matrix assembly. Each
-//! evaluates its own channel type and jet size; pullbacks retain their family-specific
-//! reductions.
+//! evaluates its own channel type and jet size; pullbacks share an ordered traversal
+//! while keeping the family-specific transverse-wavevector rules explicit.
 //!
 //! The inline `tests` module checks the error paths; the reciprocity, scaling and
 //! adjoint identities of the channels are in `properties/plane.rs`.
@@ -333,21 +333,17 @@ pub struct ChannelGradient {
     pub measure: f64,
 }
 impl ChannelGradient {
-    fn zeros(positions: usize, planes: usize) -> Self {
+    fn zeros(positions: usize) -> Self {
         Self {
             positions: vec![[0.0; 3]; positions],
             ks: [Complex::default(); 2],
-            q: vec![[0.0; 2]; planes],
+            q: Vec::new(),
             measure: 0.0,
         }
     }
+    // Transverse gradients belong to individual columns, not these partial sums.
     fn add(&mut self, other: Self) {
         for (a, b) in self.positions.iter_mut().zip(other.positions) {
-            for (a, b) in a.iter_mut().zip(b) {
-                *a += b;
-            }
-        }
-        for (a, b) in self.q.iter_mut().zip(other.q) {
             for (a, b) in a.iter_mut().zip(b) {
                 *a += b;
             }
@@ -358,6 +354,63 @@ impl ChannelGradient {
         self.measure += other.measure;
     }
 }
+/// Reverse the shared matrix assembly in fixed column, side and multipole order.
+/// Each column writes its own transverse gradient; only the shared gradients enter
+/// the ordered reduction. Construct channels before skipping zero-weight entries,
+/// preserving validation and avoiding evaluation of unused, possibly overflowing jets.
+fn channel_pullback<M: Copy + Sync, const N: usize, E: Fn(M, [f64; 3]) -> [Jet<N>; 2]>(
+    basis: &crate::basis::Basis<M>,
+    polarizations: &[u8],
+    cotangent: &DMatrix<Complex>,
+    entries: impl Fn(usize, usize) -> Result<E> + Sync,
+    add_q: impl Fn(&mut [f64; 2], &[Complex; N]) + Sync,
+) -> Result<ChannelGradient> {
+    let d = basis.modes.len();
+    let mut q_gradients = vec![[0.0; 2]; polarizations.len()];
+    let columns: Vec<_> = q_gradients.iter_mut().collect();
+    let mut result = try_fold_ordered(
+        columns,
+        true,
+        || ChannelGradient::zeros(basis.positions.len()),
+        |mut result, j, q_gradient| -> Result<_> {
+            let pol = usize::from(polarizations[j]);
+            for side in 0..2 {
+                let entry = entries(j, side)?;
+                for (i, &(p, mode)) in basis.modes.iter().enumerate() {
+                    let weights = [
+                        cotangent[(side * d + i, j)],
+                        cotangent[((2 + side) * d + i, j)],
+                    ];
+                    if weights.iter().all(|&z| z == Complex::default()) {
+                        continue;
+                    }
+                    let pair = entry(mode, basis.positions[p]);
+                    let gradient: [Complex; N] = std::array::from_fn(|a| {
+                        weights[0] * pair[0].derivative[a].conj()
+                            + weights[1] * pair[1].derivative[a].conj()
+                    });
+                    for (a, g) in result.positions[p]
+                        .iter_mut()
+                        .zip(&gradient[POSITION..POSITION + 3])
+                    {
+                        *a += g.re;
+                    }
+                    result.ks[pol] += gradient[K];
+                    add_q(q_gradient, &gradient);
+                    result.measure += gradient[N - 1].re;
+                }
+            }
+            Ok(result)
+        },
+        |mut total, partial| {
+            total.add(partial);
+            total
+        },
+    )?;
+    result.q = q_gradients;
+    Ok(result)
+}
+
 impl SphericalChannelsResidual {
     /// Bytes of saved derivative state for the fixed basis and channel counts.
     pub fn state_size(multipoles: usize, positions: usize, channels: usize) -> Result<usize> {
@@ -423,68 +476,34 @@ impl SphericalChannelsResidual {
 
     /// Gradients of the positions, the two medium wavenumbers, the transverse wavevectors
     /// (zero with `fixed_q`) and the area, for a `cotangent` of the channel matrix's
-    /// shape. The loops mirror [`CylindricalChannelsResidual::pullback`].
+    /// shape. Both families traverse columns, sides and multipoles in the same order.
     pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<ChannelGradient> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&z| !finite(z)) {
             return Err(Error::InvalidInput("invalid channel cotangent".into()));
         }
-        let fixed_q = self.fixed_q;
-        let d = self.basis.modes.len();
-        // Each column writes its own `q` gradient in place; the partial sums carry only
-        // the gradients that all columns share.
-        let mut q_gradients = vec![[0.0; 2]; self.q.len()];
-        let columns: Vec<_> = self.q.iter().zip(&mut q_gradients).collect();
-        let mut result = try_fold_ordered(
-            columns,
-            true,
-            || ChannelGradient::zeros(self.basis.positions.len(), 0),
-            |mut result, j, (&q, q_gradient)| -> Result<_> {
+        channel_pullback(
+            &self.basis,
+            &self.polarizations,
+            cotangent,
+            |j, side| {
                 let pol = self.polarizations[j];
-                for side in 0..2 {
-                    let channel = SphericalChannel::<SPHERICAL_SLOTS>::new(
-                        self.ks[usize::from(pol)],
-                        q,
-                        side,
-                        self.area,
-                        fixed_q,
-                    )?;
-                    for (i, &(p, mode)) in self.basis.modes.iter().enumerate() {
-                        let weights = [
-                            cotangent[(side * d + i, j)],
-                            cotangent[((2 + side) * d + i, j)],
-                        ];
-                        if weights.iter().all(|&z| z == Complex::default()) {
-                            continue;
-                        }
-                        let pair = channel.entry(mode, pol, self.basis.positions[p], self.helicity);
-                        let gradient: [Complex; SPHERICAL_SLOTS] = std::array::from_fn(|a| {
-                            weights[0] * pair[0].derivative[a].conj()
-                                + weights[1] * pair[1].derivative[a].conj()
-                        });
-                        for (a, g) in result.positions[p]
-                            .iter_mut()
-                            .zip(&gradient[POSITION..POSITION + 3])
-                        {
-                            *a += g.re;
-                        }
-                        result.ks[usize::from(pol)] += gradient[K];
-                        if !fixed_q {
-                            for (a, g) in q_gradient.iter_mut().zip(&gradient[Q..Q + 2]) {
-                                *a += g.re;
-                            }
-                        }
-                        result.measure += gradient[SPHERICAL_MEASURE].re;
+                let channel = SphericalChannel::<SPHERICAL_SLOTS>::new(
+                    self.ks[usize::from(pol)],
+                    self.q[j],
+                    side,
+                    self.area,
+                    self.fixed_q,
+                )?;
+                Ok(move |mode, position| channel.entry(mode, pol, position, self.helicity))
+            },
+            |q_gradient, gradient| {
+                if !self.fixed_q {
+                    for (a, g) in q_gradient.iter_mut().zip(&gradient[Q..Q + 2]) {
+                        *a += g.re;
                     }
                 }
-                Ok(result)
             },
-            |mut total, partial| {
-                total.add(partial);
-                total
-            },
-        )?;
-        result.q = q_gradients;
-        Ok(result)
+        )
     }
 }
 
@@ -625,7 +644,7 @@ fn validate_channel_tangent(
 /// One diffraction channel of a 1D array of cylinders along x in one direction: the plane
 /// wave `(kx, ±ky, kz)`, as jets in the slots above. The axial `kz` is a fixed label.
 ///
-/// The drivers of this channel repeat those of [`SphericalChannel`] with this jet size.
+/// Its assembly and pullback traversal are shared with [`SphericalChannel`].
 struct CylindricalChannel<const N: usize> {
     /// The plane wavevector `(kx, ±ky, kz)`: `+ky` on side 0, `-ky` on side 1.
     vector: [Jet<N>; 3],
@@ -652,8 +671,8 @@ impl<const N: usize> CylindricalChannel<N> {
             Jet::variable(q[1], Q)
         };
         let mut transverse = (k * k - kz * kz).sqrt();
-        let mut normal = (k * k - kz * kz - kx * kx).sqrt();
-        if transverse.value == Complex::default() || normal.value == Complex::default() {
+        let normal = (k * k - kz * kz - kx * kx).sqrt();
+        if transverse.value == Complex::default() {
             return Err(Error::InvalidInput(
                 "cylindrical plane channel is at a cutoff or diffraction threshold".into(),
             ));
@@ -661,11 +680,30 @@ impl<const N: usize> CylindricalChannel<N> {
         if transverse.value.im < 0.0 {
             transverse = -transverse;
         }
+        let mut channel = Self::from_vector([kx, normal, kz], transverse, period)?;
+        channel.vector[1] = if side == 0 {
+            channel.normal
+        } else {
+            -channel.normal
+        };
+        Ok(channel)
+    }
+
+    /// Preserve a supplied vector, including its propagation direction and the
+    /// scalar API's zero-transverse-wavenumber convention. Matrix channels check
+    /// that additional cutoff above because their derivatives are undefined there.
+    fn from_vector(vector: [Jet<N>; 3], transverse: Jet<N>, period: f64) -> Result<Self> {
+        let mut normal = vector[1];
+        if normal.value == Complex::default() {
+            return Err(Error::InvalidInput(
+                "plane channel is at a diffraction threshold".into(),
+            ));
+        }
         if normal.value.im < 0.0 || (normal.value.im == 0.0 && normal.value.re < 0.0) {
             normal = -normal;
         }
         Ok(Self {
-            vector: [kx, if side == 0 { normal } else { -normal }, kz],
+            vector,
             transverse,
             normal,
             period: Jet::variable(period, CYLINDRICAL_MEASURE),
@@ -734,23 +772,13 @@ pub fn cw_periodic_to_pw(
     if mode.kz != vector[2].re || mode.pol != pol {
         return Ok(Complex::default());
     }
-    let mut normal = vector[1];
-    if normal == Complex::default() {
-        return Err(Error::InvalidInput(
-            "plane channel is at a diffraction threshold".into(),
-        ));
-    }
-    if normal.im < 0.0 || (normal.im == 0.0 && normal.re < 0.0) {
-        normal = -normal;
-    }
-    let channel = CylindricalChannel::<0> {
-        vector: vector.map(Jet::constant),
-        transverse: Jet::constant(crate::numerics::complex_sqrt(
+    let channel = CylindricalChannel::<0>::from_vector(
+        vector.map(Jet::constant),
+        Jet::constant(crate::numerics::complex_sqrt(
             vector[0] * vector[0] + vector[1] * vector[1],
         )),
-        normal: Jet::constant(normal),
-        period: Jet::constant(period.abs()),
-    };
+        period.abs(),
+    )?;
     let value = channel.entry(mode, pol, [0.0; 3])[1].value;
     if !finite(value) {
         return Err(Error::NonFinite(
@@ -897,65 +925,30 @@ impl CylindricalChannelsResidual {
     /// Gradients of the positions, the two medium wavenumbers, the `kx` components and the
     /// period, for a `cotangent` of the channel matrix's shape. The axial `kz = q[j][0]`
     /// is a fixed label with a zero gradient, and `measure` holds the period gradient. The
-    /// loops mirror [`SphericalChannelsResidual::pullback`].
+    /// traversal is shared with [`SphericalChannelsResidual::pullback`].
     pub fn pullback(&self, cotangent: &DMatrix<Complex>) -> Result<ChannelGradient> {
         if cotangent.shape() != self.shape() || cotangent.iter().any(|&v| !finite(v)) {
             return Err(Error::InvalidInput(
                 "invalid cylindrical channel cotangent".into(),
             ));
         }
-        let fixed_q = self.fixed_q;
-        let d = self.basis.modes.len();
-        // As in the spherical pullback, each column writes its own `q` gradient.
-        let mut q_gradients = vec![[0.0; 2]; self.q.len()];
-        let columns: Vec<_> = self.q.iter().zip(&mut q_gradients).collect();
-        let mut result = try_fold_ordered(
-            columns,
-            true,
-            || ChannelGradient::zeros(self.basis.positions.len(), 0),
-            |mut result, j, (&q, q_gradient)| -> Result<_> {
+        channel_pullback(
+            &self.basis,
+            &self.polarizations,
+            cotangent,
+            |j, side| {
                 let pol = self.polarizations[j];
-                for side in 0..2 {
-                    let channel = CylindricalChannel::<CYLINDRICAL_SLOTS>::new(
-                        self.ks[usize::from(pol)],
-                        q,
-                        side,
-                        self.period,
-                        fixed_q,
-                    )?;
-                    for (i, &(p, mode)) in self.basis.modes.iter().enumerate() {
-                        let weights = [
-                            cotangent[(side * d + i, j)],
-                            cotangent[((2 + side) * d + i, j)],
-                        ];
-                        if weights.iter().all(|&v| v == Complex::default()) {
-                            continue;
-                        }
-                        let pair = channel.entry(mode, pol, self.basis.positions[p]);
-                        let gradient: [Complex; CYLINDRICAL_SLOTS] = std::array::from_fn(|a| {
-                            weights[0] * pair[0].derivative[a].conj()
-                                + weights[1] * pair[1].derivative[a].conj()
-                        });
-                        for (g, v) in result.positions[p]
-                            .iter_mut()
-                            .zip(&gradient[POSITION..POSITION + 3])
-                        {
-                            *g += v.re;
-                        }
-                        result.ks[usize::from(pol)] += gradient[K];
-                        q_gradient[1] += gradient[Q].re;
-                        result.measure += gradient[CYLINDRICAL_MEASURE].re;
-                    }
-                }
-                Ok(result)
+                let channel = CylindricalChannel::<CYLINDRICAL_SLOTS>::new(
+                    self.ks[usize::from(pol)],
+                    self.q[j],
+                    side,
+                    self.period,
+                    self.fixed_q,
+                )?;
+                Ok(move |mode, position| channel.entry(mode, pol, position))
             },
-            |mut total, partial| {
-                total.add(partial);
-                total
-            },
-        )?;
-        result.q = q_gradients;
-        Ok(result)
+            |q_gradient, gradient| q_gradient[1] += gradient[Q].re,
+        )
     }
 }
 
@@ -1006,6 +999,78 @@ impl SavedState for CylindricalChannelsResidual {
 mod tests {
     use super::*;
     use crate::test_support::{assert_same_bits_on_pools, bits, cylindrical_basis, patterned};
+
+    /// The direct-vector API preserves the supplied normal component and the
+    /// upstream zero-transverse convention, while rejecting a zero normal component.
+    #[test]
+    fn cylindrical_scalar_channels_preserve_the_supplied_vector() {
+        let mode = crate::cw::Mode {
+            kz: 0.2,
+            m: 2,
+            pol: 1,
+        };
+        for normal in [Complex::i(), -Complex::i()] {
+            let vector = [Complex::from(1.0), normal, Complex::from(mode.kz)];
+            let channel = CylindricalChannel::<0>::from_vector(
+                vector.map(Jet::constant),
+                Jet::default(),
+                2.0,
+            )
+            .unwrap();
+            assert_eq!(channel.vector.map(|v| v.value), vector);
+            assert_eq!(channel.normal.value, Complex::i());
+            assert_eq!(
+                cw_periodic_to_pw(mode, vector, 1, -2.0).unwrap(),
+                Complex::i()
+            );
+        }
+        let vector = [
+            Complex::from(1.0),
+            Complex::default(),
+            Complex::from(mode.kz),
+        ];
+        assert!(matches!(
+            cw_periodic_to_pw(mode, vector, 1, 2.0),
+            Err(Error::InvalidInput(_))
+        ));
+        // A mismatched polarization has no radiation even at the threshold.
+        assert_eq!(
+            cw_periodic_to_pw(mode, vector, 0, 2.0).unwrap(),
+            Complex::default()
+        );
+    }
+
+    /// Zero weights must skip entry evaluation, including unused jets that would
+    /// overflow. Channel validation still runs once on each side.
+    #[test]
+    fn channel_pullbacks_skip_zero_weight_entries_after_channel_validation() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let basis = cylindrical_basis(1, 0.2, [0.0; 3]);
+        let weights = DMatrix::zeros(4 * basis.modes.len(), 1);
+        let visits = AtomicUsize::new(0);
+        let gradient = channel_pullback(
+            &basis,
+            &[1],
+            &weights,
+            |_, _| {
+                visits.fetch_add(1, Ordering::Relaxed);
+                Ok(|_, _| -> [Jet<CYLINDRICAL_SLOTS>; 2] { panic!("unused entry evaluated") })
+            },
+            |_, _| panic!("unused gradient accumulated"),
+        )
+        .unwrap();
+        assert_eq!(visits.load(Ordering::Relaxed), 2);
+        assert!(
+            bits(&[
+                &gradient.positions,
+                &gradient.ks,
+                &gradient.q,
+                &gradient.measure,
+            ])
+            .iter()
+            .all(|&bit| bit == 0)
+        );
+    }
 
     fn roundtrip<R: SavedState>(residual: &R, expected_size: usize) -> R {
         let mut bytes = residual.save_state().unwrap();
