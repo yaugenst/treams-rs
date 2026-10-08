@@ -3908,7 +3908,7 @@ independent reference.</p>
   treams projects at each interface instead, discarding internal reflections
   through unrepresented polarizations. Selected outgoing powers need not sum to
   one even for a lossless slab: power in omitted external channels is not counted.
-  <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/smatrix/test_layers.py">Layer tests</a> compare with the projection of
+  <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/smatrix/test_layers.py">Layer tests</a> compare with the projection of
   a complete treams response and bound each selected power by its complete value.</li>
 <li><strong>Gain media and planar material branches.</strong> High-level interfaces and slabs
   match tangential electric and magnetic fields in the same plane-wave convention.
@@ -3916,7 +3916,7 @@ independent reference.</p>
   gain media. Plane-wave polarizations use the principal norm <code>sqrt(k dot k)</code>,
   including exactly axial waves. Electric displacement and magnetic induction
   follow the constitutive equations instead of a signed-index shortcut.
-  <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/smatrix/test_smatrix.py">Layer physics tests</a> check boundary
+  <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/smatrix/test_smatrix.py">Layer physics tests</a> check boundary
   continuity, Maxwell's curl equations, constitutive relations and an independent
   TE admittance solution; framework tests also check their gradients.
   Material and normal wavenumbers retain their nonnegative-imaginary-part
@@ -3959,42 +3959,42 @@ independent reference.</p>
 <tr>
 <td>S-matrix plane rotation fails during annotation propagation</td>
 <td>Rotating a two-polarization xy S-matrix by 0.3 radians gives incompatible input and output basis annotations; the reconstruction raises <code>AttributeError: 'tuple' object has no attribute 'bycomp'</code>. The plane-wave coefficient transform is the identity while both channel bases rotate.</td>
-<td><code>test_smatrix_sparse_coordinate_transforms</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/api/test_matrix_methods.py">matrix-method tests</a> checks unchanged coefficients and the inverse basis rotation.</td>
+<td><code>test_smatrix_sparse_coordinate_transforms</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/api/test_matrix_methods.py">matrix-method tests</a> checks unchanged coefficients and the inverse basis rotation.</td>
 </tr>
 <tr>
 <td>Bound G/F field operators miss a constructor parameter</td>
 <td><code>GField</code> and <code>FField</code> inherit the one-argument <code>FieldOperator(r)</code> constructor, although their functions need both the helicity and the coordinates. <code>tm.gfield(1, r)</code> and <code>tm.ffield(1, r)</code> raise <code>TypeError</code>.</td>
-<td>The G/F cases in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/api/test_matrix_methods.py">matrix-method tests</a> compare the treams-rs bound methods with the free treams functions followed by T-matrix multiplication.</td>
+<td>The G/F cases in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/api/test_matrix_methods.py">matrix-method tests</a> compare the treams-rs bound methods with the free treams functions followed by T-matrix multiplication.</td>
 </tr>
 <tr>
 <td>Saved operator attributes change owner</td>
 <td>Save <code>a.rotate</code> from a degree-1 <code>PhysicsArray</code>, then access <code>b.rotate</code> of a degree-2 array. The saved attribute then returns a 16-by-16 operator instead of the 6-by-6 one: the shared descriptor overwrites its bound object.</td>
-<td><code>test_physics_array_bound_attribute_ownership_and_keyword_arguments</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/api/test_operators.py">operator tests</a> checks independent bindings and numerical transformation identities.</td>
+<td><code>test_physics_array_bound_attribute_ownership_and_keyword_arguments</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/api/test_operators.py">operator tests</a> checks independent bindings and numerical transformation identities.</td>
 </tr>
 <tr>
 <td>Gmsh physical surface groups use volume tags</td>
 <td>In a model that already holds a box with volume tag 101 and surface tags 1 to 6, treams creates sphere volumes 1 and 2 but assigns their physical surface groups to box surfaces 1 and 2. Reproduced with Gmsh 4.15.2. treams-rs reads the boundary surfaces of each sphere and lets Gmsh allocate tags.</td>
-<td><code>test_gmsh_helper_actual_surface_tags_and_complete_geometry</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/api/test_io.py">I/O tests</a>, plus a surface-mesh generation check in a populated model.</td>
+<td><code>test_gmsh_helper_actual_surface_tags_and_complete_geometry</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/api/test_io.py">I/O tests</a>, plus a surface-mesh generation check in a populated model.</td>
 </tr>
 <tr>
 <td>Computation metadata without a mesh raises NameError</td>
 <td><code>_save_computation_hdf5</code> refers to <code>issues</code>, which exists only in its caller. A computation dictionary without a mesh or the semi-analytical keyword raises <code>NameError: name 'issues' is not defined</code>. treams-rs writes the available metadata and omits the v1 version marker in that case.</td>
-<td><code>test_mesh_and_reproducibility_files</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/api/test_io.py">I/O tests</a> covers mesh paths, inline meshes, named source files and the case without a mesh.</td>
+<td><code>test_mesh_and_reproducibility_files</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/api/test_io.py">I/O tests</a> covers mesh paths, inline meshes, named source files and the case without a mesh.</td>
 </tr>
 <tr>
 <td>Tiny nonzero Bloch vectors in axial reciprocal sums</td>
 <td><code>recsumcw1d</code> divides by beta squared in its coefficient recurrence. With k = 2+0.15i and kpar = 1e-240, beta is nonzero but its square underflows, and treams raises <code>ZeroDivisionError</code>, also at order zero. treams-rs uses nonnegative powers of beta and never divides by it.</td>
-<td><code>test_axial_reciprocal_tiny_bloch_has_the_zero_bloch_limit</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/lattice/test_lattice_decomposition.py">lattice tests</a> checks the finite limit at q = 0 up to order 12. Random comparisons with treams stay where treams is defined.</td>
+<td><code>test_axial_reciprocal_tiny_bloch_has_the_zero_bloch_limit</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/lattice/test_lattice_decomposition.py">lattice tests</a> checks the finite limit at q = 0 up to order 12. Random comparisons with treams stay where treams is defined.</td>
 </tr>
 <tr>
 <td>Direct spherical 1D axis shortcut</td>
 <td><code>dsumsw1d_shift</code> tests y = z = 0 and treats x as an axial displacement, although its lattice runs along z. With l = 2, m = -1, k = 2.1+0.2i, kpar = 0.13, a = 1.7, r = (0.2, 0, 0) and shell 2, treams returns zero instead of -0.00110290923-0.00270676694i. The scalar 1D half-cell branch also discards the sign of negative shifts, which breaks the reflection symmetry. treams-rs pairs equidistant images in half-cell shells and keeps the shift and Bloch phase; at exactly half a cell the grouping changes, so the sum has no derivative there.</td>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/lattice/test_lattice_decomposition.py">Direct-shell tests</a> compare with independent Cartesian shell sums and check the reflection at negative half cells.</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/lattice/test_lattice_decomposition.py">Direct-shell tests</a> compare with independent Cartesian shell sums and check the reflection at negative half cells.</td>
 </tr>
 <tr>
 <td>HDF5 embedding chirality is lost</td>
 <td><code>save_hdf5</code> writes <code>embedding/chirality</code> and <code>load_hdf5</code> reads <code>embedding/chirality_parameter</code>. A medium with kappa = 0.08 reloads with kappa = 0. treams-rs writes hard links to one dataset under both names.</td>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/api/test_io.py">HDF5 tests</a> check chirality round trips and the treams names; see the <a href="#hdf5-reproducer">reproducer</a>.</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/api/test_io.py">HDF5 tests</a> check chirality round trips and the treams names; see the <a href="#hdf5-reproducer">reproducer</a>.</td>
 </tr>
 <tr>
 <td>HDF5 single-matrix save fails</td>
@@ -4004,52 +4004,52 @@ independent reference.</p>
 <tr>
 <td>HDF5 positions and local-mode indices</td>
 <td>The treams loader discards positions when it forms the union of the incident and scattered bases: a position (0.7, 0.2, 0.1) reloads as (0, 0, 0). Its writer and reader also disagree on the name of the local-mode index (<code>index</code> against <code>position_index</code>), so files with several positions can fail to load.</td>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/api/test_io.py">HDF5 tests</a> cover several positions, the treams index names, rectangular mode sets and unit conversion. treams reads treams-rs files of global matrices at the origin; its local-basis union fails even with corrected index names.</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/api/test_io.py">HDF5 tests</a> cover several positions, the treams index names, rectangular mode sets and unit conversion. treams reads treams-rs files of global matrices at the origin; its local-basis union fails even with corrected index names.</td>
 </tr>
 <tr>
 <td>Plane-wave chirality interval</td>
 <td>For one propagating vacuum wave with transverse k = (0.2, 0.3) and k0 = 1.3, the positive-helicity coefficient must stay 2 under averaging. treams returns 2 on z = (0, 0), 2.56210 on (0, 1) and 4.83423 on (0, 2): its hyperbolic average uses Re(kz) instead of Im(kz). It also drops the complex up/down interference phase for shifted intervals and ignores the position of a zero-width interval.</td>
-<td><code>test_chirality_interval_average_is_invariant_unlike_upstream</code> and the other <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/smatrix/test_chirality_density.py">chirality-density tests</a> check direct Cartesian E/H quadrature, single-wave invariance, interval additivity and the gradients with respect to k, the normal and the endpoints.</td>
+<td><code>test_chirality_interval_average_is_invariant_unlike_upstream</code> and the other <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/smatrix/test_chirality_density.py">chirality-density tests</a> check direct Cartesian E/H quadrature, single-wave invariance, interval additivity and the gradients with respect to k, the normal and the endpoints.</td>
 </tr>
 <tr>
 <td>EBCM radial area factor</td>
 <td><code>ebcm.qmat</code> uses <code>sin(theta) * [r, -dr, 0]</code>; the surface element needs another factor r. For r = 0.3 (1 + 0.23 cos²(theta)), lossless eps = 3.1, kappa = 0.07 and k0 = 1.3, max abs(SᴴS - I) stays about 0.00135 at degrees 2, 4 and 6. With the factor it is 6.39e-6, 2.02e-7 and 1.22e-8. With equal vacuum inside and outside, degree 2 gives a spurious max abs(T) = 5.88e-4; the corrected integral gives 8.41e-18.</td>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/tmatrix/test_ebcm.py">EBCM tests</a> cover sphere/Mie agreement, lossless convergence, Hypothesis checks at zero contrast and both gradients. The default includes r; <code>radial_area_factor=False</code> reproduces treams.</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/tmatrix/test_ebcm.py">EBCM tests</a> cover sphere/Mie agreement, lossless convergence, Hypothesis checks at zero contrast and both gradients. The default includes r; <code>radial_area_factor=False</code> reproduces treams.</td>
 </tr>
 <tr>
 <td>Complex plane-wave branch</td>
 <td>For k = (0.2+i, 0.1+0.3i, 1.3-0.8i), an extra principal square root in the angular coefficients can disagree with the branch of the Cartesian polarization. Reconstructed fields differ by about 1.25 on the recorded samples; the treams-rs expansion is accurate to about 1e-13.</td>
-<td><code>test_complex_transverse_branch_reconstruction_and_gradient</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/plane/test_plane_expansion.py">plane-expansion tests</a>.</td>
+<td><code>test_complex_transverse_branch_reconstruction_and_gradient</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/plane/test_plane_expansion.py">plane-expansion tests</a>.</td>
 </tr>
 <tr>
 <td>Missing skew-cell diffraction orders (#14)</td>
 <td>For lattice rows (2, -3) and (0, 1.7), a zero Bloch vector and cutoff 4, treams omits the reciprocal orders (-2, 1) and (2, -1). Both lie inside the cutoff.</td>
-<td><code>test_diffraction_basis_skew_completeness</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/plane/test_diffraction_channels.py">diffraction-channel tests</a> compares with an independent integer enumeration.</td>
+<td><code>test_diffraction_basis_skew_completeness</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/plane/test_diffraction_channels.py">diffraction-channel tests</a> compares with an independent integer enumeration.</td>
 </tr>
 <tr>
 <td>Evanescent cylindrical scattering widths (#20)</td>
 <td>Closed outgoing orders count as radiated power. For a lossless eps = 3.1 sphere of radius 0.2, z period 1.7, k0 = 1.3 and axial orders 0 and ±2π/period, the scattering width is 0.00409310 against an extinction width of 0.000248301. Without the closed orders, scattering equals extinction. Averaged widths must also exclude evanescent incident channels and normalize by the remaining ones. treams-rs excludes closed channels in illuminated and averaged widths.</td>
-<td><code>test_array_cross_width_with_evanescent_orders</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/lattice/test_periodic_conversion.py">periodic-conversion tests</a> checks passivity, lossless conservation, explicit angular averages, chiral helicity cutoffs and invariance to closed channels.</td>
+<td><code>test_array_cross_width_with_evanescent_orders</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/lattice/test_periodic_conversion.py">periodic-conversion tests</a> checks passivity, lossless conservation, explicit angular averages, chiral helicity cutoffs and invariance to closed channels.</td>
 </tr>
 <tr>
 <td>Chiral sphere in the parity basis (#27)</td>
 <td>The parity construction drops the magnetoelectric blocks of a chiral sphere. For radius 0.2, k0 = 1.3, eps = 3.1, mu = 1 and kappa = 0.12 in vacuum, it differs by 2.86987e-4 from the helicity construction followed by a change to parity.</td>
-<td><code>test_chiral_sphere_parity_retains_magnetoelectric_coupling</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/tmatrix/test_sphere.py">sphere tests</a> checks the converted treams reference and the lossless optical theorem.</td>
+<td><code>test_chiral_sphere_parity_retains_magnetoelectric_coupling</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/tmatrix/test_sphere.py">sphere tests</a> checks the converted treams reference and the lossless optical theorem.</td>
 </tr>
 <tr>
 <td>Brillouin reduction rejects hexagonal cells</td>
 <td><code>firstbrillouin2d</code> requires a minimal reciprocal basis and compares squared lengths with an absolute tolerance of 1e-14. A hexagonal basis ties exactly (the sum or difference of its rows is as long as the rows), so rounding decides. For reciprocal rows <code>pitch * [[1, 0], [0.5, sqrt(3)/2]]</code>, treams raises "Lattice vectors are not of minimal length" at pitch 0.3. treams-rs compares relative to the row lengths and keeps the absolute floor, so the reduction is the same at every scale.</td>
-<td><code>hexagonal_brillouin_zones_are_accepted_at_every_scale</code> and <code>brillouin_reduction_is_a_covariant_voronoi_projection</code> (scales 1e-3 to 1e8) in <code>lattice/geometry.rs</code>, and <code>test_brillouin_accepts_hexagonal_lattices_at_any_pitch</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/api/test_misc.py">misc tests</a>.</td>
+<td><code>hexagonal_brillouin_zones_are_accepted_at_every_scale</code> and <code>brillouin_reduction_is_a_covariant_voronoi_projection</code> (scales 1e-3 to 1e8) in <code>lattice/geometry.rs</code>, and <code>test_brillouin_accepts_hexagonal_lattices_at_any_pitch</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/api/test_misc.py">misc tests</a>.</td>
 </tr>
 <tr>
 <td>Plane-to-plane expansion mixes polarizations</td>
 <td>Expanding a two-polarization basis into itself returns a 2-by-2 matrix of ones instead of the identity: the matching mask compares wavevectors but not polarizations. Reproduced for unit-vector and component bases in vacuum with k0 = 1.3.</td>
-<td><code>test_plane_basis_conversion_and_translation_preserve_fields</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/waves/test_translation.py">translation tests</a> checks the identity, the inverse conversion, polarization preservation and Cartesian field reconstruction for propagating and evanescent modes in both conventions; see the <a href="#plane-expansion-reproducer">reproducer</a>.</td>
+<td><code>test_plane_basis_conversion_and_translation_preserve_fields</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/waves/test_translation.py">translation tests</a> checks the identity, the inverse conversion, polarization preservation and Cartesian field reconstruction for propagating and evanescent modes in both conventions; see the <a href="#plane-expansion-reproducer">reproducer</a>.</td>
 </tr>
 <tr>
 <td>Component-plane slicing loses alignment</td>
 <td>Slicing a yz or zx <code>PlaneWaveBasisByComp</code> builds a new basis with the default xy alignment. The stored transverse components then refer to other axes.</td>
-<td><code>test_component_selection_keeps_alignment_unlike_upstream</code> and the Hypothesis field-column reconstruction for all families in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/api/test_basis.py">basis tests</a>.</td>
+<td><code>test_component_selection_keeps_alignment_unlike_upstream</code> and the Hypothesis field-column reconstruction for all families in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/api/test_basis.py">basis tests</a>.</td>
 </tr>
 </tbody>
 </table>
@@ -4069,52 +4069,52 @@ a double.</p>
 <tr>
 <td>Exact periodic diffraction poles</td>
 <td>At the 350 nm end of the spectrum of the companion array, treams substitutes <code>1e-20+1e-20j</code> for a zero radiation denominator and <code>1e-7</code> in the singular lattice expression. Its finite value there is a regularized number, not a reference at the threshold. The mathematical pole itself is no defect.</td>
-<td>The <a href="../../validation/published-applications/">published-application checks</a> exclude the endpoint and approach it from one side at four points, including power conservation. <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/plane/test_diffraction_threshold.py">Threshold tests</a> check finite tangential interfaces without changing the wavelength or adding a pseudoinverse.</td>
+<td>The <a href="../../validation/published-applications/">published-application checks</a> exclude the endpoint and approach it from one side at four points, including power conservation. <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/plane/test_diffraction_threshold.py">Threshold tests</a> check finite tangential interfaces without changing the wavelength or adding a pseudoinverse.</td>
 </tr>
 <tr>
 <td>Fractional Legendre cutoff, kept for compatibility</td>
 <td>The docstring of the real-argument <code>lpmv</code> says that it calls SciPy, but treams first returns zero when abs(m) &gt; degree. For m = 4, degree 2.3 and x = 0.3 it returns 0; SciPy and an independent 70-digit hypergeometric evaluation give about -1.9871849213085072.</td>
-<td>treams-rs keeps this zero, as <code>test_real_degree_broadcast_poles_and_owned_pullback</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/special/test_fractional_legendre.py">fractional Legendre tests</a> checks. Its tested Ferrers domain is abs(m) &lt;= degree; the function beyond it is not implemented. The <code>ferrers</code> reference in the <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/scripts/qualify_legendre.py">high-precision reproducer</a> evaluates the unrestricted value.</td>
+<td>treams-rs keeps this zero, as <code>test_real_degree_broadcast_poles_and_owned_pullback</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/special/test_fractional_legendre.py">fractional Legendre tests</a> checks. Its tested Ferrers domain is abs(m) &lt;= degree; the function beyond it is not implemented. The <code>ferrers</code> reference in the <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/scripts/qualify_legendre.py">high-precision reproducer</a> evaluates the unrestricted value.</td>
 </tr>
 <tr>
 <td>Fractional-degree Legendre accuracy</td>
 <td>For a fractional degree and real x, treams calls SciPy's <code>lpmv</code>. In the archived comparison, m = 11, degree 20.0625 and x = -0.875 gives 412007816248.8; a 50-digit mpmath value is 412007810333.4865, a relative error of 1.4e-8. treams-rs uses an original implementation of DLMF hypergeometric series, degree and order recurrences, and connection formulas, with scaled arithmetic for large intermediate values. It follows independent high-precision references where SciPy loses accuracy.</td>
-<td><code>test_real_degree_reference_and_advect</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/special/test_fractional_legendre.py">fractional Legendre tests</a> includes this comparison. <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/crates/treams-core/src/special/ferrers.rs">Native Ferrers tests</a> check high-precision values, endpoint limits and recurrences across the numerical methods.</td>
+<td><code>test_real_degree_reference_and_advect</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/special/test_fractional_legendre.py">fractional Legendre tests</a> includes this comparison. <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/crates/treams-core/src/special/ferrers.rs">Native Ferrers tests</a> check high-precision values, endpoint limits and recurrences across the numerical methods.</td>
 </tr>
 <tr>
 <td>Subnormal Hankel orders in dependencies</td>
 <td>With order = 5e-324 and z = 1+0j, SciPy 1.16.3 (which treams uses) returns NaN for <code>hankel2</code>. complex-bessel 0.2.0 gives a wrong finite value, about 0.97428+0.06122j instead of the zero-order limit 0.76520-0.08826j. These are defects of the dependencies, not of treams.</td>
-<td><code>test_hankel_subnormal_order_continuous_limit</code> and Hypothesis reflection and derivative checks in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/special/test_special.py">special tests</a>. The native layer maps subnormal orders to their zero-order limit; the reference checks use the same limit only where SciPy fails.</td>
+<td><code>test_hankel_subnormal_order_continuous_limit</code> and Hypothesis reflection and derivative checks in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/special/test_special.py">special tests</a>. The native layer maps subnormal orders to their zero-order limit; the reference checks use the same limit only where SciPy fails.</td>
 </tr>
 <tr>
 <td>Near-axis spherical translation</td>
 <td>Forming the angular coordinate through cos(theta) can round small transverse offsets onto the axis and lose nonzero terms and derivatives. The Cartesian evaluation is checked against a resolved-angle extrapolation down to offsets of 1e-300. The treams <code>special</code> functions also return zero for the dipole A and B coefficients at theta = 1e-10, kr = 1.4+0.2i and phi = 0.4; closed forms give -2.20566e-11+1.53401e-10i and 6.35401e-11+4.87093e-11i.</td>
-<td><code>test_near_axis_translation_against_resolved_angle_limit</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/waves/test_translation.py">translation tests</a>, and <code>test_tiny_angle_translation_against_closed_dipole_form</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/waves/test_translation_coefficients.py">translation-coefficient tests</a>, for singular and regular coefficients down to theta = 1e-100.</td>
+<td><code>test_near_axis_translation_against_resolved_angle_limit</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/waves/test_translation.py">translation tests</a>, and <code>test_tiny_angle_translation_against_closed_dipole_form</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/waves/test_translation_coefficients.py">translation-coefficient tests</a>, for singular and regular coefficients down to theta = 1e-100.</td>
 </tr>
 <tr>
 <td>Wigner 3j symbols in the classically forbidden regions</td>
 <td><code>wigner3j</code> recurs upward in j3 below a switch point that ignores the orders, and downward above it. With extreme orders either forbidden region can reach past the switch, and recurring into it is unstable. Downward into the lower region: (47 60 39; -47 8 39) is exactly 1.33e-11 (Racah formula in rational arithmetic), but treams returns -2.06e-8, and (88 66 56; -10 66 -56) = 5.79e-17 comes back as -2.16e-3. Upward into the upper region: (260 130 190; -260 129 131) = -1.51e-12 comes back as -2.77e-9, and (128 64 95; -128 64 64) = -6.912539e-8 as -6.912476e-8. These symbols weight every spherical translation coefficient. treams-rs continues each recurrence for as long as the symbols grow in its direction. Over sampled extreme-order symbols with j &lt;= 260, its error times sqrt(2 j3 + 1) stays below 5e-13; elsewhere it agrees with the treams recurrence to rounding.</td>
-<td>Exact values in <code>wigner3j_matches_exact_symbols_in_the_forbidden_regions</code> (<code>special/wigner.rs</code>) and in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/special/test_wigner.py">Wigner tests</a>, which also compare random extreme-order symbols with exact Racah values, and the permutation, reflection and orthogonality properties in <code>properties/special.rs</code>, which fail for the treams recurrence.</td>
+<td>Exact values in <code>wigner3j_matches_exact_symbols_in_the_forbidden_regions</code> (<code>special/wigner.rs</code>) and in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/special/test_wigner.py">Wigner tests</a>, which also compare random extreme-order symbols with exact Racah values, and the permutation, reflection and orthogonality properties in <code>properties/special.rs</code>, which fail for the treams recurrence.</td>
 </tr>
 <tr>
 <td>Small-angle spherical rotation</td>
 <td>For degree 1 and theta = 1e-10, treams rounds an off-diagonal coefficient to zero; the angular generator requires theta/sqrt(2) = 7.071e-11.</td>
-<td><code>test_small_angle_generator</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/waves/test_rotation.py">rotation tests</a> checks first-order entries down to theta = 1e-100.</td>
+<td><code>test_small_angle_generator</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/waves/test_rotation.py">rotation tests</a> checks first-order entries down to theta = 1e-100.</td>
 </tr>
 <tr>
 <td>Axial complex-medium illumination</td>
 <td>Rounding of the complex kz/k away from exactly 1 leaks forbidden azimuthal orders into an exactly axial plane wave. For k0 = 1.3, material (2+0.1i, 1.1, 0.02), negative helicity and degree 4, the largest forbidden coefficient is 3.55e-7.</td>
-<td><code>test_plane_to_spherical_reference</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/plane/test_plane.py">plane-wave tests</a> requires these modes to be exactly zero and uses scale-invariant angular coefficients as an independent reference.</td>
+<td><code>test_plane_to_spherical_reference</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/plane/test_plane.py">plane-wave tests</a> requires these modes to be exactly zero and uses scale-invariant angular coefficients as an independent reference.</td>
 </tr>
 <tr>
 <td>Cylindrical Ewald automatic split</td>
 <td>The Ewald split parameter eta divides a lattice sum into a real-space and a reciprocal-space part; the exact sum does not depend on it. At order -6, k = sqrt(1.3² - 0.2²), Bloch k = 0.1, period 7.2 and displacement 0.8, the treams sums at the automatic split and at the converged eta = 0.7 differ by 0.0067592. In the nine-cylinder benchmark this becomes about 8.4e-8 in the final S-matrix. The 16-cylinder coupling matrix with period 12.8 also differs by up to 0.007466 at the automatic split; eta = 0.5, 0.8 and 1.0 agree with treams-rs within about 1.5e-11. Both benchmark implementations use eta = 0.7 and keep the comparison tolerance.</td>
-<td><code>test_large_cylindrical_cell_ewald_split_invariance</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/lattice/test_lattice.py">lattice tests</a> checks the automatic and explicit splits against the converged reference; details in the <a href="../../performance/evidence/#complete-cylindrical-arrays">performance evidence</a>.</td>
+<td><code>test_large_cylindrical_cell_ewald_split_invariance</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/lattice/test_lattice.py">lattice tests</a> checks the automatic and explicit splits against the converged reference; details in the <a href="../../performance/evidence/#complete-cylindrical-arrays">performance evidence</a>.</td>
 </tr>
 <tr>
 <td>Ewald sums shifted slightly off their lattice plane or axis</td>
 <td><code>lsumsw2d_shift</code>, <code>lsumcw1d_shift</code> and <code>lsumsw1d_shift</code> evaluate their reciprocal orders from Kambe integrals at eta = -i / (k s eta) for the distance s from the plane or axis; these cancel as s falls. With k = 2.1, the lattice diag(1.7, 1.8) and the in-plane shift (0.6, 0.2), the degree-4 sum is 4e4 off at s = 1e-12 and not finite from about 1e-50 to 1e-100. Over eight 2D spherical, five 1D cylindrical and three 1D spherical probe configurations of degree up to 12, treams is off by up to 1e117 from s = 1e-100 to 1e-3 and by 4e-8 from 1e-2 to 0.1; it is exact only below about 1e-101. Periodic couplings of particles at almost equal heights inherit the error.</td>
-<td>The native reciprocal parts sum the series in t = (k s eta)^2 of their reduced integrals near the plane or axis (see <a href="../../validation/numerical-limits/#lattice-sums">numerical limits</a>): <code>test_tiny_out_of_plane_shift_is_continuous</code>, <code>test_periodic_coupling_at_almost_equal_heights</code> and <code>test_tiny_normal_shift_pullbacks_are_continuous</code> in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/lattice/test_lattice.py">lattice tests</a>, and <code>sums_tend_to_their_values_on_the_plane_and_axis</code> in <code>properties/lattice/mod.rs</code>.</td>
+<td>The native reciprocal parts sum the series in t = (k s eta)^2 of their reduced integrals near the plane or axis (see <a href="../../validation/numerical-limits/#lattice-sums">numerical limits</a>): <code>test_tiny_out_of_plane_shift_is_continuous</code>, <code>test_periodic_coupling_at_almost_equal_heights</code> and <code>test_tiny_normal_shift_pullbacks_are_continuous</code> in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/lattice/test_lattice.py">lattice tests</a>, and <code>sums_tend_to_their_values_on_the_plane_and_axis</code> in <code>properties/lattice/mod.rs</code>.</td>
 </tr>
 <tr>
 <td>Small explicit Ewald splits</td>
@@ -4124,7 +4124,7 @@ a double.</p>
 <tr>
 <td>Degree-6 EBCM cancellation floor</td>
 <td>On the equatorially symmetric benchmark surface, the m = 0 entries with odd l_out + l_in are exactly zero. An independent 80-digit calculation gives magnitudes below 8e-82; treams leaves up to 6.62e-10 and treams-rs up to 3.94e-10 with 48, 96 and 192 nodes. The absolute integrand reaches a scale where machine epsilon times its integral is 1.62e-10. Tighter SciPy tolerances report rounding without changing the result. Both packages reach this double-precision floor; it is separate from the missing radial area factor.</td>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/scripts/qualify_ebcm_cancellation.py">Reproducer</a>, <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/benchmarks/results/ebcm-l6-cancellation.json">raw results</a> and the <a href="../../performance/evidence/#axisymmetric-ebcm">performance evidence</a>. The comparison tolerance stays strict, and no degree-6 speedup is claimed.</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/scripts/qualify_ebcm_cancellation.py">Reproducer</a>, <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/benchmarks/results/ebcm-l6-cancellation.json">raw results</a> and the <a href="../../performance/evidence/#axisymmetric-ebcm">performance evidence</a>. The comparison tolerance stays strict, and no degree-6 speedup is claimed.</td>
 </tr>
 </tbody>
 </table>
@@ -4199,7 +4199,7 @@ rules in full. Tests:</p>
   <code>small_splits_keep_the_sums_next_to_a_lattice_point_or_fail</code>,
   <code>small_split_jets_keep_the_derivatives_of_vanishing_sums_or_fail</code> and
   <code>turned_small_split_jets_keep_their_derivatives_or_fail</code>.</li>
-<li>Python, in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/tests/lattice/test_lattice.py">lattice tests</a>:
+<li>Python, in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/tests/lattice/test_lattice.py">lattice tests</a>:
   <code>test_small_splits_reach_the_sum</code>,
   <code>test_small_splits_fail_only_where_their_parts_cancel</code> and
   <code>test_sums_that_vanish_by_symmetry_are_exactly_zero</code>.</li>

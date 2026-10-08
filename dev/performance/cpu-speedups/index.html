@@ -3796,8 +3796,8 @@ the four-thread algorithm comparison is
 <strong>12.34× for eight requested illuminations of 512 dipole spheres</strong>, and <strong>11.04×
 for their complete physical gradient</strong>. This is a comparison between treams-rs
 builds, not against Python treams.</p>
-<p>The <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/benchmarks/cpu-speedups-20261004.json">qualification record</a> and
-<a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/benchmarks/results/cpu-speedups-20261004.tar.gz">raw evidence archive</a>
+<p>The <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/benchmarks/cpu-speedups-20261004.json">qualification record</a> and
+<a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/benchmarks/results/cpu-speedups-20261004.tar.gz">raw evidence archive</a>
 retain the measurements, numerical checks, source identities and exceptions.
 These measurements precede the separate work on scheduling small dense products;
 the <a href="#small-product-scheduling">scheduling qualification below</a> measures that
@@ -3957,7 +3957,7 @@ invalidated their memory results, and concurrent idle BLAS pools distorted some
 timings. The final measurements use corrected isolation, actual minimum-duration
 batches and worker-local memory accounting. The archive identifies the rejected
 measurements and retains the diagnostic evidence. Privacy-only distribution
-changes are recorded in <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/benchmarks/privacy-provenance.json">privacy provenance</a>;
+changes are recorded in <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/benchmarks/privacy-provenance.json">privacy provenance</a>;
 numerical values, timing samples and outcomes are unchanged.</p>
 <h2 id="reproduce">Reproduce<a class="headerlink" href="#reproduce" title="Permanent link">&para;</a></h2>
 <p>Extract the archive from the repository root. Reconstruct the measured candidate
@@ -3980,8 +3980,8 @@ superseded measurements. New runs belong under <code>benchmarks/results/local/</
 and vector-product rules. Small products previously requested the entire thread
 budget, so scheduling overhead could dominate at 32 threads. A 64-by-64 product
 now requests four workers even when the application allows 32.</p>
-<p>The <a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/benchmarks/cpu-scheduling-20261004.json">scheduling qualification</a> and
-<a href="https://github.com/yaugenst/treams-rs/blob/206722b27cfa3790ba7bed9c3cbe6914119cefd9/benchmarks/results/cpu-scheduling-20261004.tar.gz">separate raw archive</a>
+<p>The <a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/benchmarks/cpu-scheduling-20261004.json">scheduling qualification</a> and
+<a href="https://github.com/yaugenst/treams-rs/blob/07843dcae969c29433886bade8c5b10b3a14e5de/benchmarks/results/cpu-scheduling-20261004.tar.gz">separate raw archive</a>
 record the selected build against the original 0.1.0 baseline. At 32 threads,
 all 12 cases pass the unchanged timing and numerical gates across seven paired
 rounds, using three samples of at least 80 ms per round:</p>
