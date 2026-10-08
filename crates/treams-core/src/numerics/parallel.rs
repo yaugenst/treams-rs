@@ -17,8 +17,9 @@
 //! [`Parallel`], [`try_map`] and [`try_fill_chunks`] keep every output in index order,
 //! and [`try_fold_ordered`] adds in an order set by the number of items, so the thread
 //! count never changes their results.
-//! The three `try_*` helpers guard serial work just as the owned workers do;
-//! ordered reductions also guard the final combine on the caller.
+//! The three `try_*` helpers guard serial work and parallel callbacks, including
+//! callbacks on foreign or fallback workers. Ordered reductions also guard the
+//! final combine on the caller.
 //!
 //! | Module | Threshold | Value | Runs in parallel |
 //! |---|---|---|---|
@@ -118,7 +119,7 @@ pub(crate) fn try_fill_chunks<T: Send, E: Send>(
         crate::threads::install(|| {
             data.par_chunks_mut(size)
                 .enumerate()
-                .try_for_each(|(i, chunk)| fill(i, chunk))
+                .try_for_each(|(i, chunk)| crate::fpenv::ieee(|| fill(i, chunk)))
         })
     } else {
         crate::fpenv::ieee(|| {
@@ -170,8 +171,12 @@ pub(crate) fn try_fold_ordered<T: Send, A: Send, E: Send>(
         if parallel && chunks.len() > 1 && crate::threads::current_num_threads() > 1 {
             // ponytail: up to 64 partial gradients stay live; combine fixed batches
             // if their memory becomes the limiting cost.
-            let partials: Vec<Result<A, E>> =
-                crate::threads::install(|| chunks.into_par_iter().map(fold_chunk).collect());
+            let partials: Vec<Result<A, E>> = crate::threads::install(|| {
+                chunks
+                    .into_par_iter()
+                    .map(|chunk| crate::fpenv::ieee(|| fold_chunk(chunk)))
+                    .collect()
+            });
             let mut partials = partials.into_iter();
             let first = partials.next().unwrap_or_else(|| Ok(identity()))?;
             partials.try_fold(first, |total, partial| Ok(combine(total, partial?)))
@@ -190,7 +195,12 @@ pub(crate) fn try_map<T: Send, E: Send>(
     map: impl Fn(usize) -> Result<T, E> + Sync + Send,
 ) -> Result<Vec<T>, E> {
     if parallel && crate::threads::current_num_threads() > 1 {
-        crate::threads::install(|| (0..count).into_par_iter().map(map).collect())
+        crate::threads::install(|| {
+            (0..count)
+                .into_par_iter()
+                .map(|i| crate::fpenv::ieee(|| map(i)))
+                .collect()
+        })
     } else {
         crate::fpenv::ieee(|| (0..count).map(map).collect())
     }

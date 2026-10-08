@@ -606,6 +606,7 @@ mod tests {
         for name in [
             "map_keeps_subnormals_when_pool_is_unavailable",
             "fill_keeps_subnormals_when_pool_is_unavailable",
+            "helpers_guard_existing_global_workers_when_pool_is_unavailable",
         ] {
             check_child(name, "4");
         }
@@ -651,6 +652,67 @@ mod tests {
     #[ignore = "run in a fresh process by its parent test"]
     fn fill_keeps_subnormals_when_pool_is_unavailable() -> crate::Result<()> {
         check_unavailable_pool("fill_keeps_subnormals_when_pool_is_unavailable", false)
+    }
+
+    #[test]
+    #[ignore = "run in a fresh process by its parent test"]
+    fn helpers_guard_existing_global_workers_when_pool_is_unavailable() -> crate::Result<()> {
+        if !is_child("helpers_guard_existing_global_workers_when_pool_is_unavailable") {
+            return Ok(());
+        }
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(4)
+            .spawn_handler(|thread| {
+                std::thread::Builder::new().spawn(|| flushing(|| thread.run()))?;
+                Ok(())
+            })
+            .build_global()
+            .unwrap();
+        let modes = || {
+            crate::threads::with_unavailable_pool(|| {
+                crate::threads::install(|| rayon::broadcast(|_| keeps_subnormals()))
+            })
+        };
+        assert!(modes().iter().all(|&kept| !kept));
+        let expected = bits(&reciprocals_on_this_thread()?);
+        crate::threads::with_unavailable_pool(|| {
+            let (mapped, filled, folded, restored) = flushing(|| {
+                let caller = control_bits();
+                let mapped = parallel::try_map(64, true, |i| reciprocal(BAND[i % BAND.len()]));
+                let mut filled = vec![Complex::default(); 64];
+                let fill = parallel::try_fill_chunks(&mut filled, 1, true, |i, chunk| {
+                    chunk[0] = reciprocal(BAND[i % BAND.len()])?;
+                    Ok::<_, Error>(())
+                });
+                let folded = parallel::try_fold_ordered(
+                    (0..64).collect(),
+                    true,
+                    Vec::new,
+                    |mut out, _, i| {
+                        out.push(reciprocal(BAND[i % BAND.len()])?);
+                        Ok::<_, Error>(out)
+                    },
+                    |mut left, right| {
+                        assert!(keeps_subnormals());
+                        left.extend(right);
+                        left
+                    },
+                );
+                (
+                    mapped,
+                    fill.map(|()| filled),
+                    folded,
+                    control_bits() == caller,
+                )
+            });
+            assert!(restored);
+            assert_eq!(bits(&mapped?), expected);
+            assert_eq!(bits(&filled?), expected);
+            assert_eq!(bits(&folded?), expected);
+            Ok::<_, Error>(())
+        })?;
+        assert!(modes().iter().all(|&kept| !kept));
+        Ok(())
     }
 
     /// Exercise maps, chunk fills, ordered combines and nested calls on both
