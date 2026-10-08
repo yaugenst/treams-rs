@@ -591,8 +591,8 @@ impl SvdvalsResidual {
     /// is not smooth there. Both tests use relative tolerance `64 ε`.
     pub fn pullback(&self, cotangent: &[f64]) -> Result<DMatrix<Complex>> {
         if cotangent.len() != self.values.len() || cotangent.iter().any(|x| !x.is_finite()) {
-            return Err(Error::InvalidInput(
-                "invalid singular-value cotangent".into(),
+            return Err(Error::Derivative(
+                crate::DerivativeError::InvalidSingularValueCotangent,
             ));
         }
         let tolerance = 64.0 * f64::EPSILON * self.values[0];
@@ -600,8 +600,8 @@ impl SvdvalsResidual {
             64.0 * f64::EPSILON * cotangent.iter().map(|x| x.abs()).fold(0.0, f64::max);
         for i in 0..cotangent.len() {
             if self.values[i] <= tolerance && cotangent[i].abs() > weight_tolerance {
-                return Err(Error::InvalidInput(
-                    "nonzero singular-value weight at zero or below numerical resolution is not supported".into(),
+                return Err(Error::Derivative(
+                    crate::DerivativeError::UnresolvedSingularValue,
                 ));
             }
             if i > 0
@@ -610,8 +610,8 @@ impl SvdvalsResidual {
                 && (cotangent[i - 1] - cotangent[i]).abs()
                     > 64.0 * f64::EPSILON * cotangent[i - 1].abs().max(cotangent[i].abs())
             {
-                return Err(Error::InvalidInput(
-                    "repeated singular values require equal cotangent weights".into(),
+                return Err(Error::Derivative(
+                    crate::DerivativeError::UnequalSingularValueWeights,
                 ));
             }
         }

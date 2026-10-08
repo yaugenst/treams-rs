@@ -183,3 +183,37 @@ def test_undefined_normalizations_and_chirality_derivative():
     value = tr.TMatrix(matrix, k0=1).changepoltype("parity")
     with pytest.raises(NotImplementedError, match="global helicity"):
         _ = value.chi
+
+
+@pytest.mark.interface
+@pytest.mark.gradients
+@pytest.mark.parametrize(
+    ("matrix", "pol", "tag", "message"),
+    [
+        (np.eye(2) * 0.5, [0, 1], 1, "zero contrast"),
+        (np.diag([0.0, 0.5]), [0, 1], 3, "below numerical resolution"),
+        (np.array([[0.3, 0.0], [0.1, 0.2]]), [0, 1], 3, "below numerical resolution"),
+        (
+            np.diag([1.0, 1.0 + 1e-15, 0.99, 0.99]),
+            [0, 0, 1, 1],
+            4,
+            "repeated singular values",
+        ),
+    ],
+)
+def test_metric_state_preserves_errors_from_real_inputs(matrix, pol, tag, message):
+    value, context = tr.diff.tmatrix_metric(matrix, polarizations=pol, metric="chi")
+    assert np.isfinite(value)
+    state = context._state()
+    assert state.size == 25 + 16 * matrix.size
+    assert state[8] == tag
+    restored = type(context)._from_state(state)
+    np.testing.assert_array_equal(restored._state(), state)
+    for record in (context, restored):
+        with pytest.raises(ValueError, match=message):
+            record.pullback(1.0)
+        with pytest.raises(ValueError, match=message):
+            record.pushforward(matrix, np.zeros(2))
+        assert record.pushforward(np.zeros_like(matrix), np.zeros(2)) == 0
+        for gradient in record.pullback(0.0):
+            np.testing.assert_array_equal(gradient, np.zeros_like(gradient))

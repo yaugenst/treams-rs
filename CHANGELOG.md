@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Preserve deferred chirality derivative errors through native and JAX saved
+  state, using stable error reasons without changing state tags or layout.
+
 - Collapse documentation navigation sections and expose Python and Rust API
   entries near the guides, keeping existing page URLs and versioned links.
 

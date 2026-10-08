@@ -311,8 +311,8 @@ fn chirality(matrix: &DMatrix<Complex>, pol: &[u8]) -> Result<(f64, Result<DMatr
     let value = contrast / matrix.norm_squared().sqrt();
     // The value stays available where the gradient is undefined.
     let gradient = if contrast == 0.0 {
-        Err(Error::InvalidInput(
-            "chirality is not differentiable at zero contrast".into(),
+        Err(Error::Derivative(
+            crate::DerivativeError::ZeroChiralityContrast,
         ))
     } else {
         chirality_gradient(matrix, &indices, spectra, &differences, contrast)
