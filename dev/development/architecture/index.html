@@ -3963,7 +3963,7 @@ complete workflows through the public API.</p>
 <h2 id="rules">Rules<a class="headerlink" href="#rules" title="Permanent link">&para;</a></h2>
 <p>Use these rules for new and changed code. They describe the intended contracts;
 the checks and open gaps below distinguish what is enforced today. The core's
-<a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/crates/treams-core/src/lib.rs">conventions</a> define names, numerical
+<a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/crates/treams-core/src/lib.rs">conventions</a> define names, numerical
 conventions and derivative state in more detail.</p>
 <ul>
 <li><strong>Keep formulas in the core.</strong> Rust owns numerical values, analytic
@@ -4018,7 +4018,7 @@ conventions and derivative state in more detail.</p>
   and record measured reasons for tuning constants. Never loosen a tolerance
   to hide a failure. Measure proposed caches, allocation tradeoffs and numerical
   regrouping before adopting them; preserve archived measurements under the
-  <a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/benchmarks/README.md#privacy-and-provenance">evidence policy</a>.</li>
+  <a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/benchmarks/README.md#privacy-and-provenance">evidence policy</a>.</li>
 </ul>
 <h3 id="one-source-and-its-checks">One source and its checks<a class="headerlink" href="#one-source-and-its-checks" title="Permanent link">&para;</a></h3>
 <p>Each formula, layout, capability and shared limit has one owner. Generate other
@@ -4035,27 +4035,27 @@ the code. Do not add a second hand-maintained registry to make a check pass.</p>
 <tbody>
 <tr>
 <td>Core layers and saved state</td>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/crates/treams-core/src/saved.rs"><code>SavedState</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/crates/treams-core/src/linalg/saved.rs"><code>linalg</code> codecs</a>, <a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/tests/bindings/test_native_contexts.py"><code>test_native_contexts.py</code></a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/crates/treams-core/src/saved.rs"><code>SavedState</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/crates/treams-core/src/linalg/saved.rs"><code>linalg</code> codecs</a>, <a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/tests/bindings/test_native_contexts.py"><code>test_native_contexts.py</code></a></td>
 <td><a href="https://github.com/yaugenst/treams-rs/issues/30">#30</a>: codec composition, fallible writer and Rust-only layer/codec checks; <a href="https://github.com/yaugenst/treams-rs/issues/27">#27</a>: deferred metric errors</td>
 </tr>
 <tr>
 <td>Validated domains and shared label bounds</td>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/crates/treams-core/src/lattice/cell.rs"><code>BlochLattice</code></a> validates construction</td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/crates/treams-core/src/lattice/cell.rs"><code>BlochLattice</code></a> validates construction</td>
 <td><a href="https://github.com/yaugenst/treams-rs/issues/32">#32</a>: basis/residual invariants and Python/Rust bound agreement</td>
 </tr>
 <tr>
 <td>Error identity, finite outputs and allocation</td>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/crates/treams-core/src/lib.rs"><code>Error</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/crates/treams-core/src/numerics/memory.rs"><code>numerics::memory</code></a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/crates/treams-core/src/lib.rs"><code>Error</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/crates/treams-core/src/numerics/memory.rs"><code>numerics::memory</code></a></td>
 <td><a href="https://github.com/yaugenst/treams-rs/issues/33">#33</a>: typed reasons and deterministic errors; <a href="https://github.com/yaugenst/treams-rs/issues/29">#29</a>: output/fallback gaps</td>
 </tr>
 <tr>
 <td>Owned pool, IEEE mode and reduction order</td>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/tests/bindings/test_thread_pool.py"><code>test_thread_pool.py</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/tests/bindings/test_float_environment.py"><code>test_float_environment.py</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/crates/treams-core/src/numerics/parallel.rs"><code>parallel</code></a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/tests/bindings/test_thread_pool.py"><code>test_thread_pool.py</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/tests/bindings/test_float_environment.py"><code>test_float_environment.py</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/crates/treams-core/src/numerics/parallel.rs"><code>parallel</code></a></td>
 <td><a href="https://github.com/yaugenst/treams-rs/issues/11">#11</a>, <a href="https://github.com/yaugenst/treams-rs/issues/35">#35</a>: one-thread, failure, foreign-pool and extraction paths; <a href="https://github.com/yaugenst/treams-rs/issues/34">#34</a>: ufunc ownership and reduction aliasing</td>
 </tr>
 <tr>
 <td>Native names, contexts and ufunc signatures</td>
-<td><code>_native.pyi</code> checked against the module by <a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/tests/bindings/test_native_contexts.py"><code>test_native_contexts.py</code></a> and <a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/tests/bindings/test_ufunc_contract.py"><code>test_ufunc_contract.py</code></a></td>
+<td><code>_native.pyi</code> checked against the module by <a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/tests/bindings/test_native_contexts.py"><code>test_native_contexts.py</code></a> and <a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/tests/bindings/test_ufunc_contract.py"><code>test_ufunc_contract.py</code></a></td>
 <td>Extend these checks with each binding</td>
 </tr>
 <tr>
@@ -4065,7 +4065,7 @@ the code. Do not add a second hand-maintained registry to make a check pass.</p>
 </tr>
 <tr>
 <td>Shared metadata and reference evidence</td>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/scripts/generate_references.py"><code>generate_references.py</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/crates/treams-core/src/test_support.rs"><code>test_support</code></a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/scripts/generate_references.py"><code>generate_references.py</code></a>, <a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/crates/treams-core/src/test_support.rs"><code>test_support</code></a></td>
 <td><a href="https://github.com/yaugenst/treams-rs/issues/40">#40</a>: coverage, determinism/default metadata agreement and fixture provenance enforcement</td>
 </tr>
 </tbody>
@@ -4081,7 +4081,7 @@ that differs from treams also gets an entry in <code>_upstream.py</code>, which 
 <a href="../../coming-from-treams/names/">name map</a> and the treams-name <code>AttributeError</code>.</p>
 <h2 id="adding-a-binding">Adding a binding<a class="headerlink" href="#adding-a-binding" title="Permanent link">&para;</a></h2>
 <p>The crate docs of <code>treams-py</code>, in
-<a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>, hold the
+<a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>, hold the
 checklist under "Adding a binding". Start with the core function and its tests.
 Add the binding, context, <code>pushforward</code> and <code>pullback</code> to the file for that core module.
 Then add the export, stub, Python caller and a <code>CASES</code> entry in
@@ -4123,7 +4123,7 @@ the bindings, Python and treams. The crate docs state the rules for each
 layer: "Names" in the
 <a href="../../rust/treams_core/#names"><code>treams-core</code> docs</a>
 and "Naming rules" in
-<a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>. The rules
+<a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/crates/treams-py/src/lib.rs"><code>crates/treams-py/src/lib.rs</code></a>. The rules
 that cross layers:</p>
 <ul>
 <li><strong>Residuals and contexts.</strong> The Rust function <code>X</code> returns <code>XResidual</code>, and its

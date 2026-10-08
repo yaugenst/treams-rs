@@ -3746,9 +3746,9 @@
 
 <h1 id="benchmarks">Benchmarks<a class="headerlink" href="#benchmarks" title="Permanent link">&para;</a></h1>
 <p>The benchmark scripts compare treams-rs with the installed treams for speed, peak
-memory and agreement. <a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/scripts/README.md"><code>scripts/README.md</code></a> lists every
+memory and agreement. <a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/scripts/README.md"><code>scripts/README.md</code></a> lists every
 script with its purpose and its test, and
-<a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/benchmarks/README.md"><code>benchmarks/README.md</code></a> lists the plans, manifests,
+<a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/benchmarks/README.md"><code>benchmarks/README.md</code></a> lists the plans, manifests,
 summaries and raw results. The <a href="../../performance/">performance</a> pages
 summarize the results.</p>
 <p>The locked development environment uses treams 0.4.7; historical records use
@@ -3759,7 +3759,7 @@ version for each new run rather than relabeling an archived measurement.</p>
 just<span class="w"> </span>bench-performance<span class="w">   </span><span class="c1"># one group: also bench-geometry, bench-lattice, bench-api, bench-power</span>
 </code></pre></div>
 <p><code>just bench</code> builds the release extension, then reruns every case of
-<a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/benchmarks/complete-qualification.json"><code>benchmarks/complete-qualification.json</code></a>
+<a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/benchmarks/complete-qualification.json"><code>benchmarks/complete-qualification.json</code></a>
 with its recorded arguments, thread count and pass criteria. It writes to
 <code>benchmarks/results/local/</code>, which git ignores, continues after a failing case
 and exits with an error if any case failed.</p>
@@ -3783,7 +3783,7 @@ on the same host:</p>
 <li>Do not generalize a crossover measured at one size to every problem size.</li>
 </ul>
 <p><code>just bench-compare [ref]</code> does this for changes to the Python sources:
-<a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/scripts/compare_builds.py"><code>scripts/compare_builds.py</code></a> runs the
+<a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/scripts/compare_builds.py"><code>scripts/compare_builds.py</code></a> runs the
 Python package of <code>ref</code> (default <code>main</code>) and of the working tree on the same
 release extension, alternating the two trees process by process. It first
 requires every call to agree to <code>rtol=1e-12</code>, then fails a call whose median
@@ -3797,7 +3797,7 @@ instead: <code>--baseline &lt;dir&gt;</code> names the directory that holds the 
 <p>Everything under <code>benchmarks/results/</code> is archived evidence. Manifests,
 summaries, documentation and the audit cite these files by path and by SHA-256
 digest. Preserve numerical measurements and cited paths; privacy-only changes
-follow the <a href="https://github.com/yaugenst/treams-rs/blob/03edf3da2839a67d1e9c427c616a96b720b0f224/benchmarks/README.md#privacy-and-provenance">privacy and provenance rules</a>.
+follow the <a href="https://github.com/yaugenst/treams-rs/blob/81b5a3b00be07de1b87db1e0e45ef981068b73bd/benchmarks/README.md#privacy-and-provenance">privacy and provenance rules</a>.
 Write new runs to <code>benchmarks/results/local/</code>.</p>
 <p>The summaries and manifests record where each result came from: the source
 commit, the host, the thread counts, the arguments and the SHA-256 digests of
