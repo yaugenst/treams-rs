@@ -1,4 +1,4 @@
-//! Legendre, Wigner and Bessel identities and their adjoints.
+//! Special-function identities and their adjoints.
 
 use std::f64::consts::PI;
 
@@ -15,12 +15,20 @@ use crate::{
     },
     sw::{self, Mode},
     test_support::{
-        ALGEBRA_CASES, EXPENSIVE_CASES, degree_order, log_polar, log_uniform, prop_assert_close,
+        ALGEBRA_CASES, EXPENSIVE_CASES, degree_order, five_point, log_polar, log_uniform,
+        prop_assert_close,
     },
 };
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(ALGEBRA_CASES))]
+
+    #[test]
+    fn gamma_near_zero_keeps_recurrence_and_derivatives(
+        offset in log_polar(-15.0..-2.0, -PI..PI),
+    ) {
+        check_gamma_near_zero(Complex::new(-1.0, 0.0) + offset)?;
+    }
 
     #[test]
     fn real_degree_legendre_recurrence_and_derivative(
@@ -156,6 +164,39 @@ proptest! {
     ) {
         check_wigner3j_orthogonality(symbol, other)?;
     }
+}
+
+#[test]
+fn gamma_at_zero_keeps_recurrence_and_derivatives() -> Result<(), TestCaseError> {
+    check_gamma_near_zero(Complex::new(-1.0, 0.0))
+}
+
+/// The degree recurrence across Gamma(2, -1) = 0, its differential identity
+/// d Gamma(2,z)/dz = -z exp(-z), and independent finite differences and adjoints.
+fn check_gamma_near_zero(z: Complex) -> Result<(), TestCaseError> {
+    use crate::special::{incgamma, incgamma_array};
+    let (values, residual) = incgamma_array(vec![2.0], vec![z]).unwrap();
+    let endpoint = z * z * (-z).exp();
+    prop_assert_close!(
+        incgamma(3.0, z).unwrap() - 2.0 * values[0],
+        endpoint,
+        1e-13 * endpoint.norm()
+    );
+    let direction = Complex::new(0.3, -0.4);
+    let weight = Complex::new(-0.2, 0.7);
+    let moved = residual.pushforward([&[direction]]).unwrap()[0];
+    let gradient = residual.pullback(&[weight]).unwrap()[0];
+    prop_assert_close!(moved, -z * (-z).exp() * direction, 1e-14 * moved.norm());
+    // The fourth-order difference at h=1e-4 balances O(h^4) truncation with
+    // rounding in z near -1; the analytic directional derivative is O(1).
+    let finite = five_point(1e-4, |h| incgamma(2.0, z + h * direction).unwrap());
+    prop_assert_close!(moved, finite, 1e-10 * moved.norm());
+    prop_assert_close!(
+        (weight.conj() * moved).re,
+        (gradient.conj() * direction).re,
+        1e-14 * (weight * moved).norm()
+    );
+    Ok(())
 }
 
 proptest! {

@@ -115,6 +115,11 @@ pub(crate) fn upper_gamma(n: f64, z: Complex) -> Complex {
     if z.re > 4.0 && modulus > n.abs() + 2.0 {
         return gamma_fraction(n, z).0;
     }
+    if n == 2.0 {
+        // DLMF 8.4.8: factor before multiplying by exp(-z). Adding exp(-z)
+        // and z*exp(-z) instead loses relative accuracy at the zero z = -1.
+        return (1.0 + z) * (-z).exp();
+    }
     let base = if n.fract() == 0.0 { 0.0 } else { 0.5 };
     let series = modulus <= GAMMA_SERIES_RADIUS;
     // A downward step subtracts the leading asymptotic term z^d e^-z, losing a
@@ -362,6 +367,10 @@ impl ScaledGammaLadder {
         } else {
             match (self.pending.pop(), self.upper) {
                 (Some(value), _) => value,
+                // |degree| >= |z| controls propagation, but does not prevent
+                // cancellation at a zero. Restart at the factored degree-two
+                // value instead of subtracting nearly equal degree-three terms.
+                (None, _) if stable && self.degree == 2.0 => self.seed(self.degree),
                 (None, Some(upper)) if stable => {
                     (self.argument * upper - self.exponential) / self.degree
                 }
@@ -565,15 +574,46 @@ mod tests {
         120.0 1.0 15.0: 5.574585761207606e196 -4.1455631801194624e138
         64.5 -20.0 20.0: -2.2838716862512102e100 -6.047806419221159e99";
 
-    /// The ladder matches fresh values on the reflected branch at `n = 1/2`,
-    /// `z = -9.0020 + 7.3709i`.
+    /// Recorded cancellation near Gamma(2, -1) and a reflected half-integer branch.
     #[test]
     fn gamma_ladder_regressions() -> Result<(), TestCaseError> {
+        check_gamma_ladder(3.0, Complex::new(-0.999_044_462_484_192_2, 0.0), false)?;
         check_gamma_ladder(
             0.5,
             Complex::new(-9.001_950_249_594_67, 7.370_858_461_664_222_5),
             true,
         )
+    }
+
+    /// Independent mpmath values, including the exact zero and perturbations
+    /// too small for either recurrence to preserve relative accuracy unaided.
+    #[test]
+    fn gamma_and_ladder_keep_accuracy_near_degree_two_zero() {
+        for (key, expected) in reference(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/references/incgamma_zero.txt"
+        ))) {
+            let (degree, z) = (key[0], Complex::new(key[1], key[2]));
+            let tolerance = 1e-13 * expected.norm() + f64::MIN_POSITIVE;
+            let actual = incgamma(degree, z).unwrap();
+            assert!(
+                (actual - expected).norm() <= tolerance,
+                "Gamma({degree}, {z}) = {actual}, expected {expected}"
+            );
+            for top in [3, 16] {
+                let mut ladder = ScaledGammaLadder::new(f64::from(top), z, false);
+                for n in (1..=top).rev() {
+                    let actual = ladder.next_lower() * half_power(z, f64::from(n));
+                    if f64::from(n) == degree {
+                        assert!(
+                            (actual - expected).norm() <= tolerance,
+                            "ladder({top}, {degree}, {z}) = {actual}, expected {expected}"
+                        );
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     proptest! {

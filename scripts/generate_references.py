@@ -101,6 +101,25 @@ def incgamma(key: Key) -> Values:
         return [complex(value)]
 
 
+def incgamma_zero_rows() -> list[Key]:
+    """Exact binary64 inputs around the zero Gamma(2, -1), including both cut sides."""
+    real = [
+        -1.001,
+        -1.0 - 1e-9,
+        -1.0 - 2**-52,
+        -1.0,
+        -1.0 + 2**-52,
+        -1.0 + 1e-9,
+        -0.9990444624841922,
+    ]
+    return [
+        (n, re, im)
+        for n in (1.0, 2.0, 3.0)
+        for re in real
+        for im in (0.0, -0.0, 1e-9, -1e-9)
+    ]
+
+
 # Kambe integral by quadrature ----------------------------------------------------
 
 KAMBE_ORDERS = [-14, -11, -8, -5, -4, -3, -2, -1, 0, 1, 4, 7]
@@ -801,6 +820,19 @@ TABLES = {
 # re(z) [-60, -36, -20, -9, -3, -0.5, 0, 1, 4, 4.5, 12, 36, 60]; im(z) [0.0, 1e-06, 0.4, 3, 10, 20] and -0.0 for re(z) < 0
 """,
         lambda _: incgamma_rows(),
+        incgamma,
+        (),
+        ROUNDING,
+    ),
+    "incgamma-zero": Table(
+        REFERENCES / "incgamma_zero.txt",
+        """\
+# Upper incomplete gamma near the zero Gamma(2, -1): `n re(z) im(z): re im`.
+# Generated with mpmath 1.3.0 at 40 digits from mp.gammainc at exact binary64
+# inputs, conjugated on the lower side. Degrees 1, 2 and 3 test the ladder and
+# the recurrence on both sides of the zero, with real and complex perturbations.
+""",
+        lambda _: incgamma_zero_rows(),
         incgamma,
         (),
         ROUNDING,

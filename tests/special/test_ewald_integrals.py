@@ -20,7 +20,30 @@ from treams_rs import (
 )
 from treams_rs import advect as ad
 
-from _support import assert_reusable_context
+from _support import ROOT, assert_reusable_context
+
+
+@pytest.mark.reference
+def test_gamma_zero_in_scalar_array_and_record_paths():
+    # Reuse the independent mpmath table checked by the core, including signed
+    # zero imaginary parts and the exact zero. No absolute tolerance hides it.
+    arguments, expected = [], []
+    path = ROOT / "crates/treams-core/references/incgamma_zero.txt"
+    for line in path.read_text().splitlines():
+        if line.startswith("#"):
+            continue
+        key, value = line.split(":")
+        degree, real, imag = map(float, key.split())
+        if degree == 2:
+            arguments.append(complex(real, imag))
+            expected.append(complex(*map(float, value.split())))
+    arguments = np.asarray(arguments)
+    for actual in (
+        special.incgamma(2, arguments),
+        diff.incgamma(2, arguments)[0],
+        [_native.incgamma_scalar(2, z) for z in arguments],
+    ):
+        assert_allclose(actual, expected, rtol=1e-13, atol=0)
 
 
 @pytest.mark.reference
