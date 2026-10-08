@@ -95,9 +95,9 @@ pub fn install<R: Send>(op: impl FnOnce() -> R + Send) -> R {
     }
     match pool() {
         Some(pool) => pool.install(op),
-        // Not even one thread could be spawned; Rayon's global pool then
-        // fails the same way and reports the OS error.
-        None => op(),
+        // No owned worker could be spawned. Guard fallback work on this caller
+        // and any workers Rayon can still start.
+        None => crate::fpenv::ieee(op),
     }
 }
 
@@ -301,6 +301,10 @@ fn slot() -> Option<&'static Slot> {
 }
 
 fn pool() -> Option<Arc<ThreadPool>> {
+    #[cfg(test)]
+    if UNAVAILABLE_POOL.get() {
+        return None;
+    }
     let requested = num_threads();
     let Some(slot) = slot() else {
         // Past GENERATIONS nested forks: a pool for this region only.
@@ -330,6 +334,24 @@ fn pool() -> Option<Arc<ThreadPool>> {
             .unwrap_or_else(PoisonError::into_inner)
             .insert(requested, pool),
     )
+}
+
+#[cfg(test)]
+thread_local! {
+    static UNAVAILABLE_POOL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Exercise the failed-pool fallback without exhausting the host's threads.
+#[cfg(test)]
+pub(crate) fn with_unavailable_pool<T>(work: impl FnOnce() -> T) -> T {
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            UNAVAILABLE_POOL.set(self.0);
+        }
+    }
+    let _restore = Restore(UNAVAILABLE_POOL.replace(true));
+    work()
 }
 
 impl Pools {
