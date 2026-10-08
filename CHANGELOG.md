@@ -11,6 +11,9 @@
 - Document implementation rules for numerical code and bindings, including
   reusable derivative state, saved-state compatibility and tracked contract gaps.
 
+- Cut history command excerpts before incomplete redaction markers, including
+  expanded views of existing archived conversations.
+
 - Keep the history models table readable on phones, with intact model names
   and a labelled, keyboard-scrollable region for its five columns.
 
