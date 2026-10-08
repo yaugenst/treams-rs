@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.2.1 (2026-10-08)
+
+Correct saved derivative error handling and numerical accuracy near zeros and
+the subnormal range. Public APIs and saved-state layouts are unchanged.
+
 - Preserve deferred chirality derivative errors through native and JAX saved
   state, using stable error reasons without changing state tags or layout.
 

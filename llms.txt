@@ -1,6 +1,6 @@
 # treams-rs
 
-> A Rust port of treams for electromagnetic T-matrix scattering, with a Python interface and analytic first-order gradients. Version 0.2.0.
+> A Rust port of treams for electromagnetic T-matrix scattering, with a Python interface and analytic first-order gradients. Version 0.2.1.
 
 The documentation site is https://yaugenst.github.io/treams-rs/.
 The Markdown sources linked below are in this repository, at the same Git revision as this file.
