@@ -4,6 +4,8 @@
 
 - Share the ordered channel pullback traversal between spherical and cylindrical
   waves, preserving their distinct transverse-wavevector derivatives.
+- Return Ewald accuracy-policy results directly and verify cached spherical
+  samples against their lattice points before reuse.
 
 ## 0.2.1 (2026-10-08)
 

@@ -193,12 +193,10 @@ pub(super) fn ewald<const N: usize>(
         },
         index: Cell::new(0),
     };
-    let mut reciprocal_summand =
-        |n: [i64; 3], _: &mut Rounding<N>| reciprocal_summands.at(n, &mut rounding);
     let reciprocal = Shells::sum(
         dim,
         [maximum, reciprocal_floor],
-        &mut reciprocal_summand,
+        &mut |n, _| reciprocal_summands.at(n, &mut rounding),
         false,
         small,
     );
@@ -213,35 +211,41 @@ pub(super) fn ewald<const N: usize>(
     // Below every automatic split both parts continue to `SHELL_TOLERANCE` of the
     // complete sum, which fails where they cancel beyond use (and goes to
     // `prefer_spectral_sw1d` then).
-    let mut complete = |mut real: Option<Shells<N>>, mut reciprocal: Shells<N>| {
-        let scale = Some(total(&real, &reciprocal).norm().max(1.0));
-        let mut tail = 0.0;
-        if !reciprocal.extend(dim, extension, &mut reciprocal_summand, scale)? {
-            tail += reciprocal.tail();
-        }
-        if let Some(real) = &mut real
-            && !real.extend(dim, real_limit, &mut { real_summand }, scale)?
-        {
-            tail += real.tail();
-        }
-        let sum = total(&real, &reciprocal);
-        let parts: Vec<&Shells<N>> = real.iter().chain([&reciprocal]).collect();
-        let rounding = cancellation(&parts, &self_term, tail, &phase, &sum, &checked)?;
-        Ok((sum, rounding, tail))
-    };
-    // The rounding the cancelling parts predict and what their last shells may leave
-    // out, for `prefer_spectral_sw1d`.
-    let (mut predicted, mut truncation) = (Rounding::default(), 0.0);
+    let complete_small_split =
+        |mut real: Option<Shells<N>>, mut reciprocal: Shells<N>, rounding: &mut Rounding<N>| {
+            let scale = Some(total(&real, &reciprocal).norm().max(1.0));
+            let mut tail = 0.0;
+            if !reciprocal.extend(
+                dim,
+                extension,
+                &mut |n, _| reciprocal_summands.at(n, rounding),
+                scale,
+            )? {
+                tail += reciprocal.tail();
+            }
+            if let Some(real) = &mut real
+                && !real.extend(dim, real_limit, &mut { real_summand }, scale)?
+            {
+                tail += real.tail();
+            }
+            let sum = total(&real, &reciprocal);
+            let parts: Vec<&Shells<N>> = real.iter().chain([&reciprocal]).collect();
+            let rounding = cancellation(&parts, &self_term, tail, &phase, &sum, &checked)?;
+            Ok((sum, rounding, tail))
+        };
     let settled = matches!(&real, Ok(Some(real)) if real.settled);
-    let result = match (real, reciprocal) {
+    // Every policy branch returns its sum, predicted cancellation and truncation.
+    // Errors still reach the spectral fallback, with no completed-part bounds.
+    let policy = match (real, reciprocal) {
         (Err(error), _) | (Ok(_), Err(error)) => Err(error),
         (Ok(real), Ok(reciprocal)) if small => {
-            complete(real, reciprocal).map(|(sum, rounding, tail)| {
-                (predicted, truncation) = (rounding, tail);
-                sum
-            })
+            complete_small_split(real, reciprocal, &mut rounding)
         }
-        (Ok(real), Ok(reciprocal)) => Ok(total(&real, &reciprocal)),
+        (Ok(real), Ok(reciprocal)) => Ok((total(&real, &reciprocal), Rounding::default(), 0.0)),
+    };
+    let (result, predicted, truncation) = match policy {
+        Ok((sum, predicted, truncation)) => (Ok(sum), predicted, truncation),
+        Err(error) => (Err(error), Rounding::default(), 0.0),
     };
     let result = if sw1d.is_none() {
         result.map(|sum| symmetry.zeroed(sum))
@@ -261,7 +265,9 @@ pub(super) fn ewald<const N: usize>(
 /// Ewald samples of one spherical degree, shared by its orders. Each order still
 /// follows its own shell convergence test; the shell iterator visits the same prefix
 /// of lattice points, so later orders reuse the samples already visited and append
-/// only the farther points they need. The cache lives for one degree evaluation.
+/// only the farther points they need. Each slot also records its lattice point:
+/// a different visit order evaluates mismatched slots afresh, never reusing another
+/// point's sample. The cache lives for one degree evaluation with fixed inputs.
 #[derive(Default)]
 pub(super) struct SphericalCache<const N: usize> {
     samples: RefCell<Vec<SphericalRealSample<N>>>,
@@ -280,6 +286,58 @@ mod cache_tests {
         Complex,
         lattice::{BlochLattice, Family, SumPart, evaluate_shared, inputs::Evaluation},
     };
+
+    /// Reordering a cached prefix must never substitute another point's geometry
+    /// or integrals, for either forward values or jets in any lattice dimension.
+    #[test]
+    fn spherical_sample_caches_verify_the_visited_lattice_points() {
+        fn check<const N: usize>() {
+            for dim in 1..=3 {
+                let rows: Vec<Vec<f64>> = (0..dim)
+                    .map(|i| (0..dim).map(|j| if i == j { 2.0 } else { 0.2 }).collect())
+                    .collect();
+                let lattice = BlochLattice::new(&rows, &vec![0.13; dim]).unwrap();
+                let cache = SphericalCache::<N>::default();
+                for m in [0, 2, -1, 3, -3] {
+                    let run = |shared| {
+                        let jet = evaluate_shared::<N>(
+                            Family::Spherical { l: 3, m },
+                            Complex::new(1.2, 0.08),
+                            &lattice,
+                            [0.3, -0.2, 0.0],
+                            Complex::new(1.0, 0.0),
+                            Evaluation::Part(SumPart::Full),
+                            shared,
+                        )
+                        .unwrap();
+                        crate::test_support::bits(&[&jet.value, &jet.derivative])
+                    };
+                    let reference = run(None);
+                    assert_eq!(run(Some(&cache)), reference);
+                    let counts = (
+                        cache.samples.borrow().len(),
+                        cache.plane_samples.borrow().len(),
+                    );
+                    assert!(counts.0 > 1);
+                    if dim == 2 {
+                        assert!(counts.1 > 1);
+                    }
+                    cache.samples.borrow_mut().reverse();
+                    cache.plane_samples.borrow_mut().reverse();
+                    assert_eq!(run(Some(&cache)), reference);
+                    assert_eq!(
+                        (
+                            cache.samples.borrow().len(),
+                            cache.plane_samples.borrow().len()
+                        ),
+                        counts,
+                    );
+                }
+            }
+        }
+        check::<0>();
+        check::<16>();
+    }
 
     #[test]
     fn spherical_sample_cache_keeps_only_a_bounded_prefix() {
@@ -311,12 +369,14 @@ mod cache_tests {
 
 #[derive(Clone, Copy)]
 struct SphericalRealSample<const N: usize> {
+    point: [i64; 3],
     shift: [Jet<N>; 3],
     radial: Jet<N>,
     phase: Jet<N>,
 }
 
 struct SphericalReciprocalSample<const N: usize> {
+    point: [i64; 3],
     diffraction: Diffraction<N>,
     phase: Jet<N>,
     integrals: Vec<Option<Complex>>,
@@ -393,7 +453,7 @@ impl<const N: usize> RealSummands<'_, N> {
     fn spherical_at(&self, shared: &SphericalCache<N>, l: i32, m: i32, n: [i64; 3]) -> Jet<N> {
         let index = self.index.replace(self.index.get() + 1);
         let mut samples = shared.samples.borrow_mut();
-        let sample = if let Some(&sample) = samples.get(index) {
+        let sample = if let Some(&sample) = samples.get(index).filter(|sample| sample.point == n) {
             sample
         } else {
             let point = self.inputs.point(self.direct, n);
@@ -404,11 +464,12 @@ impl<const N: usize> RealSummands<'_, N> {
                 spherical_radial(l, self.inputs.k, shift, self.eta)
             };
             let sample = SphericalRealSample {
+                point: n,
                 shift,
                 radial,
                 phase: (Complex::i() * self.inputs.phase(&point)).exp(),
             };
-            if index < SHARED_REAL_POINTS {
+            if index == samples.len() && index < SHARED_REAL_POINTS {
                 samples.push(sample);
             }
             sample
@@ -455,13 +516,14 @@ impl<const N: usize> ReciprocalSummands<'_, N> {
                 if index == samples.len() {
                     samples.push(self.prepare(n)?);
                 }
-                let sample = &mut samples[index];
-                return self.term(
-                    sample.diffraction,
-                    sample.phase,
-                    rounding,
-                    Some(&mut sample.integrals),
-                );
+                if let Some(sample) = samples.get_mut(index).filter(|sample| sample.point == n) {
+                    return self.term(
+                        sample.diffraction,
+                        sample.phase,
+                        rounding,
+                        Some(&mut sample.integrals),
+                    );
+                }
             }
         }
         let sample = self.prepare(n)?;
@@ -486,6 +548,7 @@ impl<const N: usize> ReciprocalSummands<'_, N> {
                 .sum::<Jet<N>>())
         .exp();
         Ok(SphericalReciprocalSample {
+            point: n,
             diffraction: Diffraction::new(
                 q,
                 !self.kpar_reduced && n == [0; 3],
