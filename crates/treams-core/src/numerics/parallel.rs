@@ -17,6 +17,8 @@
 //! [`Parallel`], [`try_map`] and [`try_fill_chunks`] keep every output in index order,
 //! and [`try_fold_ordered`] adds in an order set by the number of items, so the thread
 //! count never changes their results.
+//! The three `try_*` helpers guard serial work just as the owned workers do;
+//! ordered reductions also guard the final combine on the caller.
 //!
 //! | Module | Threshold | Value | Runs in parallel |
 //! |---|---|---|---|
@@ -119,9 +121,11 @@ pub(crate) fn try_fill_chunks<T: Send, E: Send>(
                 .try_for_each(|(i, chunk)| fill(i, chunk))
         })
     } else {
-        data.chunks_mut(size)
-            .enumerate()
-            .try_for_each(|(i, chunk)| fill(i, chunk))
+        crate::fpenv::ieee(|| {
+            data.chunks_mut(size)
+                .enumerate()
+                .try_for_each(|(i, chunk)| fill(i, chunk))
+        })
     }
 }
 
@@ -149,32 +153,34 @@ pub(crate) fn try_fold_ordered<T: Send, A: Send, E: Send>(
     fold: impl Fn(A, usize, T) -> Result<A, E> + Sync + Send,
     combine: impl Fn(A, A) -> A + Sync + Send,
 ) -> Result<A, E> {
-    let chunk = items.len().div_ceil(REDUCTION_CHUNKS).max(1);
-    let mut chunks: Vec<Vec<(usize, T)>> = Vec::with_capacity(items.len().div_ceil(chunk));
-    let mut indexed = items.into_iter().enumerate().peekable();
-    while indexed.peek().is_some() {
-        chunks.push(indexed.by_ref().take(chunk).collect());
-    }
-    let fold_chunk = |chunk: Vec<(usize, T)>| {
-        chunk
-            .into_iter()
-            .try_fold(identity(), |partial, (index, item)| {
-                fold(partial, index, item)
-            })
-    };
-    if parallel && chunks.len() > 1 && crate::threads::current_num_threads() > 1 {
-        // ponytail: up to 64 partial gradients stay live; combine fixed batches
-        // if their memory becomes the limiting cost.
-        let partials: Vec<Result<A, E>> =
-            crate::threads::install(|| chunks.into_par_iter().map(fold_chunk).collect());
-        let mut partials = partials.into_iter();
-        let first = partials.next().unwrap_or_else(|| Ok(identity()))?;
-        partials.try_fold(first, |total, partial| Ok(combine(total, partial?)))
-    } else {
-        let mut chunks = chunks.into_iter();
-        let first = chunks.next().map_or_else(|| Ok(identity()), fold_chunk)?;
-        chunks.try_fold(first, |total, chunk| Ok(combine(total, fold_chunk(chunk)?)))
-    }
+    crate::fpenv::ieee(|| {
+        let chunk = items.len().div_ceil(REDUCTION_CHUNKS).max(1);
+        let mut chunks: Vec<Vec<(usize, T)>> = Vec::with_capacity(items.len().div_ceil(chunk));
+        let mut indexed = items.into_iter().enumerate().peekable();
+        while indexed.peek().is_some() {
+            chunks.push(indexed.by_ref().take(chunk).collect());
+        }
+        let fold_chunk = |chunk: Vec<(usize, T)>| {
+            chunk
+                .into_iter()
+                .try_fold(identity(), |partial, (index, item)| {
+                    fold(partial, index, item)
+                })
+        };
+        if parallel && chunks.len() > 1 && crate::threads::current_num_threads() > 1 {
+            // ponytail: up to 64 partial gradients stay live; combine fixed batches
+            // if their memory becomes the limiting cost.
+            let partials: Vec<Result<A, E>> =
+                crate::threads::install(|| chunks.into_par_iter().map(fold_chunk).collect());
+            let mut partials = partials.into_iter();
+            let first = partials.next().unwrap_or_else(|| Ok(identity()))?;
+            partials.try_fold(first, |total, partial| Ok(combine(total, partial?)))
+        } else {
+            let mut chunks = chunks.into_iter();
+            let first = chunks.next().map_or_else(|| Ok(identity()), fold_chunk)?;
+            chunks.try_fold(first, |total, chunk| Ok(combine(total, fold_chunk(chunk)?)))
+        }
+    })
 }
 
 /// `map` over `0..count`, collected in index order and stopping at the first error.
@@ -186,7 +192,7 @@ pub(crate) fn try_map<T: Send, E: Send>(
     if parallel && crate::threads::current_num_threads() > 1 {
         crate::threads::install(|| (0..count).into_par_iter().map(map).collect())
     } else {
-        (0..count).map(map).collect()
+        crate::fpenv::ieee(|| (0..count).map(map).collect())
     }
 }
 

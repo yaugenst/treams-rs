@@ -578,20 +578,82 @@ mod tests {
 
     #[test]
     fn fresh_pools_keep_subnormals_whatever_their_first_caller() {
-        for name in ["pool_started_under_a_guard", "pool_started_without_a_guard"] {
-            let output = Command::new(std::env::current_exe().unwrap())
-                .args([&format!("fpenv::tests::{name}"), "--exact", "--ignored"])
-                .args(["--test-threads=1"])
-                .env(CHILD, name)
-                .output()
-                .unwrap();
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            assert!(
-                output.status.success() && stdout.contains(" 1 passed"),
-                "{name}\n{stdout}\n{}",
-                String::from_utf8_lossy(&output.stderr),
-            );
+        for threads in ["1", "4"] {
+            for name in [
+                "pool_started_under_a_guard",
+                "pool_started_without_a_guard",
+                "helpers_keep_subnormals_and_restore_the_caller",
+            ] {
+                let output = Command::new(std::env::current_exe().unwrap())
+                    .args([&format!("fpenv::tests::{name}"), "--exact", "--ignored"])
+                    .args(["--test-threads=1"])
+                    .env(CHILD, name)
+                    .env("TREAMS_RS_NUM_THREADS", threads)
+                    .output()
+                    .unwrap();
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                assert!(
+                    output.status.success() && stdout.contains(" 1 passed"),
+                    "{name}, {threads} threads\n{stdout}\n{}",
+                    String::from_utf8_lossy(&output.stderr),
+                );
+            }
         }
+    }
+
+    /// Exercise maps, chunk fills, ordered combines and nested calls on both
+    /// the caller and the pool. Only integer bit comparisons run while flushed.
+    #[test]
+    #[ignore = "run in a fresh process by its parent test"]
+    fn helpers_keep_subnormals_and_restore_the_caller() -> crate::Result<()> {
+        if !is_child("helpers_keep_subnormals_and_restore_the_caller") {
+            return Ok(());
+        }
+        let expected = bits(&reciprocals_on_this_thread()?);
+        for parallel in [false, true] {
+            let (mapped, filled, folded, error, restored) = flushing(|| {
+                let mapped = parallel::try_map(64, parallel, |i| {
+                    let nested = parallel::try_map(1, false, |_| reciprocal(BAND[i % BAND.len()]))?;
+                    Ok::<_, Error>(nested[0])
+                });
+                let mut filled = vec![Complex::default(); 64];
+                let fill = parallel::try_fill_chunks(&mut filled, 1, parallel, |i, chunk| {
+                    chunk[0] = reciprocal(BAND[i % BAND.len()])?;
+                    Ok::<_, Error>(())
+                });
+                let folded = parallel::try_fold_ordered(
+                    (0..64).collect(),
+                    parallel,
+                    Vec::new,
+                    |mut out, _, i| {
+                        out.push(reciprocal(BAND[i % BAND.len()])?);
+                        Ok::<_, Error>(out)
+                    },
+                    |mut left, right| {
+                        assert!(keeps_subnormals(), "combine runs on the guarded caller");
+                        left.extend(right);
+                        left
+                    },
+                );
+                let error = parallel::try_map(1, parallel, |_| {
+                    assert!(keeps_subnormals());
+                    Err::<(), _>("recorded failure")
+                });
+                (
+                    mapped,
+                    fill.map(|()| filled),
+                    folded,
+                    error,
+                    !keeps_subnormals(),
+                )
+            });
+            assert!(restored);
+            assert_eq!(bits(&mapped?), expected);
+            assert_eq!(bits(&filled?), expected);
+            assert_eq!(bits(&folded?), expected);
+            assert_eq!(error, Err("recorded failure"));
+        }
+        Ok(())
     }
 
     /// The first call into Rust that uses Rayon, made inside a JAX callback: the
