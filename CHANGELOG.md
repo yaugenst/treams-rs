@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Share the ordered channel pullback traversal between spherical and cylindrical
+  waves, preserving their distinct transverse-wavevector derivatives.
+
 ## 0.2.1 (2026-10-08)
 
 Correct saved derivative error handling and numerical accuracy near zeros and
