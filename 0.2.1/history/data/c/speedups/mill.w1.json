@@ -1,0 +1,5 @@
+{"lines":[
+[0,"ran","git diff 8bbcb87 -- scripts/compare_builds.py tests/scripts/test_compare_builds.py tests/scripts/te…"],
+[6,"ran","sed -n '1,220p' tests/scripts/test_memory_measurement.py; sed -n '630,1050p' scripts/compare_builds…"],
+[24,"ran","nl -ba scripts/compare_builds.py | sed -n '684,708p'; sed -n '155,235p' tests/scripts/test_compare_…"]
+]}

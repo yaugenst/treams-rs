@@ -1,0 +1,13 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g AGENTS.md -g 'test_iterative.py' -g CONTRIBUTING.md -g 'testing.md' -g 'archit…"],
+[9,"ran","cat AGENTS.md CONTRIBUTING.md docs/development/testing.md docs/development/architecture.md"],
+[9,"ran","sed -n '1,260p' tests/tmatrix/test_iterative.py"],
+[39,"sent","1 message to Boole"],
+[46,"ran","sed -n '1,240p' crates/treams-core/src/cluster/gmres.rs"],
+[46,"ran","sed -n '1,220p' python/treams_rs/iterative.py"],
+[46,"ran","sed -n '1,120p' tests/tmatrix/test_illumination.py && rg -n 'check_pullback|varying' tests/tmatrix/…"],
+[94,"changed","tests/tmatrix/test_iterative.py"],
+[102,"ran","uv run --no-sync ruff check tests/tmatrix/test_iterative.py && uv run --no-sync ruff format --check…"],
+[111,"sent","1 message to Boole"],
+[118,"ran",".venv/bin/ruff check tests/tmatrix/test_iterative.py && .venv/bin/ruff format --check tests/tmatrix…"]
+]}

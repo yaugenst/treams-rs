@@ -1,0 +1,18 @@
+{"lines":[
+[0,"ran","git status --short && git diff --stat 8bbcb87aaeaccd9293fc8c09eecb8727c37c4970 && cat AGENTS.md && …"],
+[7,"left","Left out: 1 command that read the agent's own settings."],
+[11,"ran","git diff 8bbcb87 -- crates/treams-core/src/fields.rs crates/treams-core/src/special/harmonics.rs cr…"],
+[11,"ran","git diff 8bbcb87 -- crates/treams-core/src/linalg/gmres.rs crates/treams-core/src/cluster/iterative…"],
+[11,"ran","cat docs/performance/cpu-speedups.md && cat benchmarks/cpu-speedups-20261004.json && cat tests/scri…"],
+[15,"ran","sed -n '80,410p' crates/treams-core/src/linalg/gmres.rs && git diff 8bbcb87 -- crates/treams-core/s…"],
+[19,"ran","git diff 8bbcb87 -- crates/treams-core/src/smatrix/solve.rs crates/treams-core/src/properties/smatr…"],
+[23,"ran","git diff 8bbcb87 -- Cargo.toml CITATION.cff README.md docs/getting-started/install.md docs/developm…"],
+[33,"ran","sed -n '560,1070p' scripts/compare_builds.py && sed -n '1,200p' docs/design/parallelism.md && git d…"],
+[41,"ran","tar -tzf benchmarks/results/cpu-speedups-20261004.tar.gz && tar -xOf benchmarks/results/cpu-speedup…"],
+[46,"ran","sed -n '90,230p' crates/treams-core/src/fields.rs && sed -n '580,650p' crates/treams-core/src/field…"],
+[51,"ran","sed -n '1,125p' scripts/compare_builds.py && cat scripts/_harness.py && rg -n 'memory|product|bench…"],
+[78,"ran","git diff 8bbcb87 -- tests/tmatrix/test_iterative.py && sed -n '1,230p' crates/treams-core/src/latti…"],
+[0,"ran","git status --short && git log -1 --format='%H %s' && git diff --stat 8bbcb87aaeaccd9293fc8c09eecb87…"],
+[0,"ran","rg --files benchmarks -g '*schedul*' && git diff 8bbcb87aaeaccd9293fc8c09eecb8727c37c4970 aba7b877f…"],
+[5,"ran","cat benchmarks/cpu-scheduling-20261004.json && tar -xOf benchmarks/results/cpu-scheduling-20261004.…"]
+]}

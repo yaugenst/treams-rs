@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["SHARED_REAL_POINTS"],"fn":["ewald","reduce_to_cell","vanishes","verify_settled"],"mod":["probes"],"struct":["AutomaticSplit","CellReduction","RealSummands","ReciprocalSummands","SmallSplitMonitor","SphericalCache","SphericalRealSample","SphericalReciprocalSample","Symmetry"]};

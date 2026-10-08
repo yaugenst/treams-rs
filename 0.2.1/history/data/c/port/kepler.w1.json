@@ -1,0 +1,20 @@
+{"lines":[
+[0,"ran","pwd && sed -n '1,260p' python/treams_rs/_adapters.py && sed -n '1,260p' python/treams_rs/jax.py && …"],
+[6,"ran","cat AGENTS.md; rg -n 'require_dtype|input_array|gradients\\(|execute\\(' python/treams_rs tests/test_…"],
+[11,"ran","sed -n '160,210p' tests/test_jax.py; cat docs/architecture.md; ls -l python/treams_rs/_native*"],
+[54,"changed","python/treams_rs/_adapters.py, tests/test_adapter_diagnostics.py"],
+[59,"ran",".venv/bin/python -m pytest -q tests/test_adapter_diagnostics.py tests/test_jax.py tests/test_torch.…"],
+[61,"sent","1 message to Leibniz"],
+[67,"ran",".venv/bin/ruff check python/treams_rs/_adapters.py tests/test_adapter_diagnostics.py && .venv/bin/r…"],
+[74,"ran",".venv/bin/ruff format tests/test_adapter_diagnostics.py && .venv/bin/ruff check python/treams_rs/_a…"],
+[80,"ran",".venv/bin/pyrefly check --python-interpreter-path .venv/bin/python python/treams_rs/_adapters.py &&…"],
+[87,"sent","1 message to Leibniz"],
+[0,"ran","sed -n '1,280p' python/treams_rs/support.py; cat python/treams_rs/__init__.py; cat python/treams_rs…"],
+[7,"ran","sed -n '260,580p' python/treams_rs/support.py; cat python/AGENTS.md; rg -n '^class |^def |^\\w+ = ' …"],
+[16,"ran","rg -n '^ @.*setter|^ [a-zA-Z].*=' python/treams_rs/_*.py python/treams_rs/iterative.py; sed -n '1,1…"],
+[33,"ran",".venv/bin/python - <<'PY'"],
+[39,"sent","1 message to Leibniz"],
+[73,"ran",".venv/bin/python - <<'PY'"],
+[79,"sent","1 message to Leibniz"],
+[98,"ran","nl -ba python/treams_rs/support.py | sed -n '72,159p'; nl -ba python/treams_rs/__init__.py | sed -n…"]
+]}

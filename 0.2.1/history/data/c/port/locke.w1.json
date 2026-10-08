@@ -1,0 +1,10 @@
+{"lines":[
+[0,"ran","rg -n 'pullback|pub fn|struct' crates/treams-core/src/translation_plan.rs crates/treams-core/src/mi…"],
+[4,"ran","cat crates/treams-core/src/translation_plan.rs"],
+[9,"ran","rg --files crates/treams-core/src"],
+[14,"ran","sed -n '190,305p' crates/treams-core/src/tmatrix.rs"],
+[19,"ran","cat crates/treams-core/src/interaction.rs"],
+[43,"sent","1 message to Ohm"],
+[66,"ran",".venv/bin/python - <<'PY'"],
+[73,"sent","3 messages to Ohm"]
+]}

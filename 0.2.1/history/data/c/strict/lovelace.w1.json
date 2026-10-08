@@ -1,0 +1,23 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g 'AGENTS.md' -g 'REVIEW.md' -g 'pyproject.toml' -g 'Cargo.toml' -g 'justfile' […"],
+[22,"ran","git diff 0e7a74b67b872f0ad3de0d47bb8822542dac9ab3 e3f7f03 -- && cat AGENTS.md packages/advect-nativ…"],
+[22,"left","Left out: 1 command that read the agent's own notes."],
+[22,"ran","git diff c4d9613f910bb25ca1e38302eb67763154424acc da35ce0 -- && cat AGENTS.md crates/AGENTS.md pyth…"],
+[38,"ran","git show da35ce0:pyproject.toml && git show da35ce0:Cargo.toml && git show da35ce0:crates/treams-py…"],
+[38,"ran","git show e3f7f03:pyproject.toml && git show e3f7f03:Cargo.toml && git show e3f7f03:packages/advect-…"],
+[47,"opened","https://www.maturin.rs/changelog.html"],
+[69,"ran","git grep -n -E 'extension-module|all-features|sdist-wheel|\\[features\\]|PYO3_BUILD' e3f7f03 -- ':!uv…"],
+[69,"ran","git show da35ce0:.github/workflows/native-wheels.yml | nl -ba | sed -n '250,350p'; git show da35ce0…"],
+[71,"opened","https://docs.astral.sh/uv/reference/cli/#uv-build"],
+[107,"ran","git grep -n -E '\\[features\\]|cfg\\(feature|cfg_attr\\(feature|maturin|cargo build|pyodide build' da35…"],
+[107,"ran","git grep -n -E 'maturin|cargo build|pyodide build|sdist' e3f7f03 -- .github scripts docs/developmen…"],
+[109,"opened","https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.settings.register_profile"],
+[118,"opened","https://hypothesis.readthedocs.io/en/latest/_modules/hypothesis/_settings.html"],
+[134,"ran","git show da35ce0:scripts/_support/release_artifacts.py | nl -ba | sed -n '1,115p;315,440p'; git sho…"],
+[136,"opened","https://raw.githubusercontent.com/astral-sh/uv/0.12.3/crates/uv/src/commands/build_backend.rs"],
+[0,"ran","git diff 3ce4d0b389a578ce9d4716480628c50829ec8c72 a3355b4 -- pyproject.toml uv.lock; git status --s…"],
+[2,"opened","https://github.com/pypa/virtualenv/security/advisories/GHSA-p58f-9548-mpm2"],
+[19,"left","Left out: 1 command about other projects."],
+[20,"opened","https://raw.githubusercontent.com/pypa/virtualenv/21.7.13/pyproject.toml"],
+[34,"ran","git show a3355b4:uv.lock | sed -n '/name = \"distlib\"/,+4p; /name = \"filelock\"/,+4p; /name = \"platfo…"]
+]}

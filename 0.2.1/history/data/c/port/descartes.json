@@ -1,0 +1,5 @@
+{"id":"port/descartes","helpers":[],"groups":[],"items":[
+{"t":"note","at":137466,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":137473,"to":137673,"commands":12,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,11]]},
+{"t":"relay","at":137690,"how":"report","from":null,"html":"<p>Only <code>main</code> remains, at <code>7421ca9</code> <span class=\"note\">(now <a href=\"https://github.com/yaugenst/treams-rs/commit/5d7e06f7e71a6059c0c783f3cd6368f1b3da0403\">5d7e06f</a>)</span>, on GitHub and both Mac/Linux checkouts.</p>\n<p>Removed merged <code>browser/light-lab</code> and <code>gpu/plane-field-throughput</code>; no unique work lost. All ignored build, reference and qualification artifacts retained.</p>\n<p>Verified clean checkouts, matching commits and <i class=\"r\">private</i> repository. Branch deletion pushed; no code changes, test reruns, PR or comment changes.</p>"}
+]}

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["QUIET_SHELL","REAL_ULPS","SERIES_DECAY","SERIES_SHELLS","SPECTRAL_FIRST_W","SPECTRAL_SWITCH_LOSS"],"fn":["prefer_spectral_sw1d","spectral_sw1d"]};

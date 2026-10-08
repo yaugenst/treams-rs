@@ -1,0 +1,8 @@
+{"id":"port/mcclintock","helpers":[],"groups":[],"items":[
+{"t":"note","at":125937,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":125942,"to":126238,"commands":9,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,11]]},
+{"t":"relay","at":126259,"how":"report","from":null,"html":"<p>Implemented the two public helpers in <code>python/treams_rs/testing.py</code>, with documentation and 27 passing tests.</p>\n<p>They support real/complex parameters, tuple outputs, one-shot native contexts, reproducible directional probes, and actionable contract/error diagnostics. Ruff, strict Pyrefly, and all three documentation examples pass.</p>\n<p>Only the three assigned files changed; no core numerical changes, Git operations, or remote synchronization.</p>"},
+{"t":"note","at":126512,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":126518,"to":126532,"commands":2,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,11,14]]},
+{"t":"relay","at":126535,"how":"report","from":null,"html":"<p>Fixed the NumPy dtype inference in <code>testing.py</code> without suppression. Full-project Pyrefly reports zero errors; Ruff and all 27 helper tests pass.</p>"}
+]}

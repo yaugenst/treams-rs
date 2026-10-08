@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["count_real_term","early_failure_enabled","spectral_series_enabled"]};

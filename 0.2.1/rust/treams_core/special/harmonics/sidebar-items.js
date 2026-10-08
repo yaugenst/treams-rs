@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["direction","harmonic_normalization","on_sphere","solid","table_index","tangent"],"struct":["Solid","SolidTable"]};

@@ -1,0 +1,5 @@
+{"id":"release/harvey","helpers":[],"groups":[],"items":[
+{"t":"note","at":1956867,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1956874,"to":1956943,"commands":4,"files":3,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,6]]},
+{"t":"relay","at":1956948,"how":"report","from":null,"html":"<p>Created concise READMEs in <code>crates/treams-core/src/{sw,cw,pw}/README.md</code> covering responsibilities, file maps, dataflow, and wave conventions.</p>\n<p>Verified descriptions against source and all relative links. Whitespace check passed. No runtime changes or commits.</p>"}
+]}

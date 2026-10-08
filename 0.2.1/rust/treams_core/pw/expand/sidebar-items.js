@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["cylindrical_angular","cylindrical_coefficient","cylindrical_mode_matches","expansion","spherical_coefficient","spherical_prefactor","to_cw","to_sw"],"struct":["AngularLabels","ExpansionGradient","ExpansionResidual"]};

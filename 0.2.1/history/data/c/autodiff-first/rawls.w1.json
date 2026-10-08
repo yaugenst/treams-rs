@@ -1,0 +1,20 @@
+{"lines":[
+[0,"ran","git rev-parse HEAD && git status --short && git show fcf62400700e326ffcc61ec50025cb25ea43ea6d:pytho…"],
+[12,"ran","git show fcf62400700e326ffcc61ec50025cb25ea43ea6d:python/treams_rs/torch.py | nl -ba | sed -n '1,30…"],
+[12,"ran","git show fcf62400700e326ffcc61ec50025cb25ea43ea6d:python/treams_rs/_records.py | nl -ba | sed -n '1…"],
+[12,"ran","git ls-tree -r --name-only fcf62400700e326ffcc61ec50025cb25ea43ea6d python tests docs | rg 'jax|tor…"],
+[23,"ran","git show fcf62400700e326ffcc61ec50025cb25ea43ea6d:python/treams_rs/_framework_backend.py | nl -ba |…"],
+[23,"ran","git show fcf62400700e326ffcc61ec50025cb25ea43ea6d:tests/autodiff/test_jax.py | nl -ba | sed -n '1,3…"],
+[23,"ran","git show fcf62400700e326ffcc61ec50025cb25ea43ea6d:tests/autodiff/test_torch.py | nl -ba | sed -n '1…"],
+[34,"ran","git show fcf62400700e326ffcc61ec50025cb25ea43ea6d:docs/differentiation/frameworks.md | nl -ba | sed…"],
+[34,"ran","git show fcf62400700e326ffcc61ec50025cb25ea43ea6d:python/treams_rs/_framework.py | nl -ba | sed -n …"],
+[34,"ran","git show fcf62400700e326ffcc61ec50025cb25ea43ea6d:tests/autodiff/test_framework_physics.py | nl -ba…"],
+[47,"ran","git show fcf62400700e326ffcc61ec50025cb25ea43ea6d:python/treams_rs/_framework_waves.py | nl -ba | s…"],
+[47,"ran","git show fcf62400700e326ffcc61ec50025cb25ea43ea6d:python/treams_rs/_framework_tmatrix.py | nl -ba |…"],
+[47,"ran","git show fcf62400700e326ffcc61ec50025cb25ea43ea6d:python/treams_rs/_framework_backend.py | nl -ba |…"],
+[47,"ran","git show fcf62400700e326ffcc61ec50025cb25ea43ea6d:docs/differentiation/frameworks.md | nl -ba | sed…"],
+[66,"ran","rg --files -g 'pyvenv.cfg' -g 'python' -g '*.so' -g '*.pth' -g 'sitecustomize.py' .venv python 2>/d…"],
+[75,"ran","pwd; ls -d .venv* advect: .venv* 2>/dev/null; command -v python python3; git show fcf62400700e326ff…"],
+[87,"ran","env PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 RAYON_NUM_…"],
+[114,"ran","git show fcf62400700e326ffcc61ec50025cb25ea43ea6d:tests/autodiff/test_framework_physics.py | nl -ba…"]
+]}

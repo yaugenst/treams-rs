@@ -1,0 +1,8 @@
+{"lines":[
+[0,"ran","cat AGENTS.md python/AGENTS.md; rg --files tests -g '*README*' -g AGENTS.md; sed -n '1,280p' tests/…"],
+[7,"ran","cat docs/development/testing.md; sed -n '1,200p' tests/autodiff/test_transparent_api.py; rg -n 'che…"],
+[14,"ran","sed -n '190,285p' python/treams_rs/testing.py; sed -n '60,140p' tests/autodiff/test_lattice_dispatc…"],
+[29,"ran","sed -n '227,305p' python/treams_rs/_lattice.py; sed -n '330,485p' python/treams_rs/_lattice.py; sed…"],
+[111,"changed","tests/autodiff/test_periodic_dispatch_methods.py"],
+[119,"ran","git diff --check -- tests/autodiff/test_periodic_dispatch_methods.py; git diff -- tests/autodiff/te…"]
+]}

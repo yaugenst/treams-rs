@@ -1,0 +1,19 @@
+{"lines":[
+[0,"note","<p>I’ll update the three release metadata files to describe the planned 0.1.0 release without implying it has shipped, keeping the changelog focused on the final public API.</p>"],
+[3,"ran","pwd && rg --files -g 'AGENTS.md' -g 'CHANGELOG.md' -g 'CITATION.cff' -g 'SECURITY.md'"],
+[13,"ran","cat AGENTS.md && cat CITATION.cff && cat SECURITY.md"],
+[13,"ran","cat CHANGELOG.md"],
+[13,"ran","git status --short && rg --files docs/coming-from-treams && sed -n '1,180p' README.md"],
+[29,"ran","sed -n '230,470p' CHANGELOG.md"],
+[29,"ran","cat docs/coming-from-treams/names.md && sed -n '1,210p' docs/validation/capabilities.md && sed -n '…"],
+[29,"ran","git branch -a && rg -n '0\\.1|first.order|higher.order|float32|complex64|jit|vmap|CPU' docs/differen…"],
+[36,"ran","sed -n '350,565p' CHANGELOG.md"],
+[59,"sent","1 message to Hume"],
+[74,"ran","sed -n '1,170p' docs/coming-from-treams/names.md && sed -n '1,190p' python/treams_rs/__init__.py &&…"],
+[176,"ran","cat > CHANGELOG.md <<'EOF'"],
+[176,"changed","CITATION.cff, SECURITY.md"],
+[190,"note","<p>The changelog is now a single unreleased 0.1.0 entry with capabilities, support limits and a migration table. I’m checking the final diff for stale names and publication claims; no release date or publishing status has been invented.</p>"],
+[201,"ran","git diff --check -- CHANGELOG.md CITATION.cff SECURITY.md && git diff --stat -- CHANGELOG.md CITATI…"],
+[201,"ran","rg -n 'def (bessel|angular|vector_wave|coordinates|vector_coordinates|tmatrix_metric|ebcm_qmat)|fun…"],
+[210,"ran","wc -l CHANGELOG.md CITATION.cff SECURITY.md && git status --short -- CHANGELOG.md CITATION.cff SECU…"]
+]}

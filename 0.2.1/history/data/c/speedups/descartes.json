@@ -1,0 +1,5 @@
+{"id":"speedups/descartes","helpers":[],"groups":[],"items":[
+{"t":"note","at":2001550,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":2001555,"to":2001590,"commands":3,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,4]]},
+{"t":"relay","at":2001595,"how":"report","from":null,"html":"<p>No consequential defects found. Contraction certification, operator/adjoint ordering, saved-reflection lifetimes, and dense fallbacks are coherent. Tests cover the relevant mathematical and singular-system paths.</p>\n<p>Read-only review only; no builds or tests run.</p>"}
+]}

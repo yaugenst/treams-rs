@@ -1,0 +1,20 @@
+{"lines":[
+[0,"ran","pwd && git status --short && sed -n '1,260p' python/treams_rs/jax.py"],
+[4,"left","Left out: 1 command that read the agent's own settings."],
+[8,"ran","sed -n '1,300p' tests/autodiff/test_jax.py; sed -n '1,300p' tests/autodiff/test_torch.py; sed -n '1…"],
+[13,"ran","sed -n '40,170p' python/treams_rs/advect.py; sed -n '1,110p' python/treams_rs/autograd.py; rg 'comp…"],
+[36,"sent","1 message to Hooke"],
+[91,"changed","python/treams_rs/jax.py, python/treams_rs/torch.py, python/treams_rs/_records.py"],
+[99,"ran","env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 TREAMS_RS_NUM_THREADS=1 XLA_FLAGS='-…"],
+[111,"ran","env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 TREAMS_RS_NUM_THREADS=1 XLA_FLAGS='-…"],
+[167,"changed","tests/autodiff/test_adapter_diagnostics.py, tests/autodiff/test_torch.py, tests/autodiff/test_jax.py"],
+[177,"ran","env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 TREAMS_RS_NUM_THREADS=1 XLA_FLAGS='-…"],
+[177,"ran",".venv/bin/ruff format python/treams_rs/jax.py python/treams_rs/torch.py python/treams_rs/_records.p…"],
+[197,"changed","tests/autodiff/test_jax.py"],
+[202,"ran","env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 TREAMS_RS_NUM_THREADS=1 XLA_FLAGS='-…"],
+[214,"ran","env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 TREAMS_RS_NUM_THREADS=1 XLA_FLAGS='-…"],
+[223,"ran","git diff --stat -- python/treams_rs/jax.py python/treams_rs/torch.py python/treams_rs/_records.py t…"],
+[232,"sent","1 message to Hooke"],
+[237,"ran","rg -n 'jax_enable_x64|float64 or complex128|float32|complex64' tests/autodiff tests/api/test_docs.p…"],
+[242,"sent","1 message to Heisenberg"]
+]}

@@ -1,0 +1,5 @@
+{"id":"port/curie","helpers":[],"groups":[],"items":[
+{"t":"note","at":134220,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":134229,"to":134940,"commands":24,"files":1,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,40]]},
+{"t":"relay","at":134949,"how":"report","from":null,"html":"<p>Implemented advanced-ui-check.mjs. Real Chrome checks pass for WASM results, immediate updates, rapid changes, touch/keyboard, Bloch toggle, reduced motion, and all three viewport sizes.</p>\n<p>Screenshots inspected; mobile overflow, clipped legend, and faint short-screen crystal trace were fixed and covered. No browser errors. Prettier passes. Native iOS Safari unverified; no commits or pushes.</p>"}
+]}

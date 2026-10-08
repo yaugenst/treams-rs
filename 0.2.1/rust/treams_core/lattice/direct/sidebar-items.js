@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["direct_shell","direct_term"]};

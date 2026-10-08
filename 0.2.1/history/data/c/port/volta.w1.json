@@ -1,0 +1,13 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g AGENTS.md -g '*demo*' -g package.json -g '*zip*' -g 'index.html' -g 'advanced.…"],
+[8,"ran","cat AGENTS.md"],
+[8,"ran","cat web/package.json && cat web/navigation.js"],
+[8,"ran","git status --short --branch && git rev-parse HEAD && git branch --all && ls -l dist/demo.zip && unz…"],
+[17,"ran","cat web/build.mjs && cat web/navigation.ts && rg -n 'id:|title:|slug:|Array|Crystal|01|02|03|04|05|…"],
+[17,"ran","find dist web -maxdepth 3 -type d"],
+[32,"ran","python3 - <<'PY'"],
+[0,"ran","python3 - <<'PY'"],
+[15,"ran","python3 - <<'PY'"],
+[0,"ran","python3 - <<'PY'"],
+[8,"ran","python3 - <<'PY'"]
+]}

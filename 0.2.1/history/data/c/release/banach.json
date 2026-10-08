@@ -1,0 +1,5 @@
+{"id":"release/banach","helpers":[],"groups":[],"items":[
+{"t":"note","at":1965627,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1965633,"to":1965799,"commands":10,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,11]]},
+{"t":"relay","at":1965824,"how":"report","from":null,"html":"<p>Autograd 1.8.0 passed <strong>246 tests</strong>, with <strong>0 skips</strong> and 728 other-framework cases deselected.</p>\n<p>Validated automatic dispatch, material gradients, constant promotion, array and wave functions, lattice sums, interactions, and periodic/T-matrix methods using Python 3.13.1, NumPy 2.5.3, and the canonical native library.</p>\n<p>Evidence: verification.json. No source, Git, or GitHub changes. This qualifies the minimum-version source path; it does not substitute for final wheel validation. The isolated <code>.venv</code> can be removed during cleanup.</p>"}
+]}

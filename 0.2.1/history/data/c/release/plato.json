@@ -1,0 +1,8 @@
+{"id":"release/plato","helpers":[],"groups":[],"items":[
+{"t":"note","at":1987406,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1987418,"to":1987796,"commands":12,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,13]]},
+{"t":"relay","at":1987819,"how":"report","from":null,"html":"<p>All 11 README documentation links now work.</p>\n<p>Verified <code>/latest/</code>, <code>/0.1.0/</code>, both Rust API roots, 74 additional navigation targets, and 6 assets. No broken links or checked anchors found. The site root redirects to <code>latest</code>, which points to <code>0.1.0</code>.</p>\n<p>Audit evidence</p>\n<p>No source, Git, or settings changes made.</p>"},
+{"t":"note","at":1987891,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1987897,"to":1988194,"commands":16,"files":0,"notes":0,"helpers":0,"groups":0,"searches":2,"helper_ids":[],"group_ix":[],"lines":[[1,13,38]]},
+{"t":"relay","at":1988213,"how":"report","from":null,"html":"<p>Badges checked:</p>\n<ul>\n<li>CI: passing.</li>\n<li>Codecov: 94%.</li>\n<li>Fresh PyPI badges: <code>v0.1.0</code>, Python <code>3.12–3.15</code>.</li>\n<li>Original URLs still show cached prepublication errors. Cache expiry: October 4 at <strong><i class=\"r\">[…]</i></strong> and <strong><i class=\"r\">[…]</i></strong>, respectively.</li>\n</ul>\n<p>Both scoped GitHub Camo purges succeeded but retained the upstream errors. Shields provides no public cache-purge mechanism. <a href=\"https://github.com/badges/shields/issues/11877\">Official maintainer response</a>.</p>\n<p>Recorded evidence. Release artifacts and source remain unchanged.</p>"}
+]}

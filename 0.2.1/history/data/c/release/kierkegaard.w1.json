@@ -1,0 +1,12 @@
+{"lines":[
+[0,"ran","pwd && git -C reference/treams rev-parse --show-toplevel && git -C reference/treams status --short …"],
+[11,"ran","git status --short --ignored --untracked-files=all"],
+[11,"ran","find formal/.lake/packages -name .git -prune -print"],
+[11,"ran","du -sh formal/.lake/packages/* reference/treams; git ls-files formal/lake-manifest.json formal/lean…"],
+[21,"ran","for package in formal/.lake/packages/*; do printf '%s\\n' \"$package\"; git -C \"$package\" rev-parse HE…"],
+[41,"ran","for package in reference/treams formal/.lake/packages/*; do printf '%s\\n' \"$package\"; git -C \"$pack…"],
+[41,"ran","git -C reference/treams ls-files; git ls-files reference/treams; git ls-files reference; git -C ref…"],
+[41,"ran","find formal/.lake/packages -type d -path '*/.lake/*' -maxdepth 6 -print; find formal/.lake/packages…"],
+[56,"ran","for package in formal/.lake/packages/*; do printf '%s\\n' \"$package\"; if test -d \"$package/.lake\"; t…"],
+[66,"sent","1 message to Avicenna"]
+]}

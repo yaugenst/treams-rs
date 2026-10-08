@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Metric"],"fn":["cylinder","metric","sphere"],"mod":["cylinder","metric","sphere"],"struct":["CylinderGradient","CylinderResidual","MetricGradient","MetricResidual","SphereGradient","SphereResidual"]};

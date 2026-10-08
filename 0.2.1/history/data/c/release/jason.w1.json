@@ -1,0 +1,18 @@
+{"lines":[
+[0,"ran","rg --files -g 'AGENTS.md' -g 'repo-settings-parity*' -g 'actions-settings-backup.json' -g 'selected…"],
+[10,"ran","cat release workspace: evidence/repo-settings-parity.md release workspace: evidence/repo-settings-p…"],
+[34,"ran","rg --files release workspace | rg '(parity|settings|cutover).*(py|json)$'"],
+[34,"ran","gh api repos/yaugenst/treams-rs/actions/permissions"],
+[34,"ran","gh api repos/yaugenst/treams-rs --jq '{id,full_name,private,fork,archived,default_branch,visibility…"],
+[40,"ran","cat release workspace: hosted-backup/cutover/restore_controls.py release workspace: hosted-backup/c…"],
+[75,"left","Left out: 2 commands that named private computers or addresses."],
+[75,"ran","gh api 'repos/yaugenst/treams-rs/environments/release'"],
+[75,"ran","gh api 'repos/yaugenst/treams-rs/rulesets?per_page=100'"],
+[75,"ran","gh api 'repos/yaugenst/treams-rs/actions/permissions/workflow'"],
+[75,"ran","gh api 'repos/yaugenst/treams-rs/actions/permissions/artifact-and-log-retention'"],
+[260,"ran","mkdir -p release workspace: evidence/public-activation && chmod 700 release workspace: evidence/pub…"],
+[260,"changed","release workspace: evidence/public-activation/activate.py"],
+[283,"ran","chmod 600 release workspace: evidence/public-activation/activate.py"],
+[330,"changed","release workspace: evidence/public-activation/README.md"],
+[330,"ran","chmod 600 release workspace: evidence/public-activation/README.md"]
+]}

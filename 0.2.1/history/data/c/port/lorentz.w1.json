@@ -1,0 +1,20 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g AGENTS.md -g 'DEV*' -g '*development*' -g '*contribut*' ."],
+[15,"ran","cat AGENTS.md python/AGENTS.md docs/development.md"],
+[31,"left","Left out: 1 command that named private computers or addresses."],
+[31,"ran","rg --files python/treams_rs tests | sort && git status --short"],
+[38,"ran","cat python/treams_rs/_adapters.py python/treams_rs/testing.py python/treams_rs/iterative.py"],
+[47,"ran","cat python/treams_rs/config.py python/treams_rs/advect.py python/treams_rs/jax.py python/treams_rs/…"],
+[59,"ran","sed -n '1,250p' python/treams_rs/_smatrix.py"],
+[59,"ran","cat python/treams_rs/_source.py python/treams_rs/misc.py python/treams_rs/ebcm.py"],
+[59,"ran","sed -n '1,240p' python/treams_rs/_array.py"],
+[70,"ran","rg -n 'poltype not in|poltype in|_resolve_poltype' python/treams_rs"],
+[94,"ran","sed -n '1,180p' python/treams_rs/_operators.py && sed -n '245,340p' python/treams_rs/_operators.py …"],
+[94,"ran","sed -n '470,690p' python/treams_rs/diff.py && sed -n '760,1035p' python/treams_rs/diff.py && sed -n…"],
+[111,"ran","sed -n '1035,1075p' python/treams_rs/diff.py && sed -n '1110,1180p' python/treams_rs/diff.py && sed…"],
+[129,"ran",".venv/bin/python - <<'PY'"],
+[148,"ran","git diff -- python/treams_rs && rg -n 'py-types|py-lint|py-format' justfile && cat pyproject.toml |…"],
+[150,"ran",".venv/bin/ruff format python/treams_rs/_operators.py && .venv/bin/pytest -q tests/test_config.py te…"],
+[156,"ran",".venv/bin/ruff check python/treams_rs && .venv/bin/ruff format --check python/treams_rs && .venv/bi…"],
+[170,"ran","git diff --numstat -- python && git diff -- python | rg -c '^-.*poltype not in'"]
+]}

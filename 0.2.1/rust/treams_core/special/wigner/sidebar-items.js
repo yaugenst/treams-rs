@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["PARALLEL"],"fn":["c","d","decay_start","growth_end","highest","index","initial_j","initial_m","ladder","lowest","turn","visit","wigner3j","wigner_d","wigner_d_array","wigner_d_jet","wigner_small_d","wigner_small_d_jet","wigner_small_d_matrix"],"struct":["Wigner3jRow","WignerDResidual"]};

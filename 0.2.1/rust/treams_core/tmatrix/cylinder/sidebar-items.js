@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["cylinder"],"mod":["saved"],"struct":["Block","CylinderGradient","CylinderResidual"]};

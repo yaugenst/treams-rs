@@ -1,0 +1,5 @@
+{"id":"release/kierkegaard","helpers":[],"groups":[],"items":[
+{"t":"note","at":1956529,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1956537,"to":1956603,"commands":9,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,10]]},
+{"t":"relay","at":1956615,"how":"report","from":null,"html":"<p>Safe cleanup candidates:</p>\n<ul>\n<li><code>formal/.lake/packages/</code>: all nine checkouts match their pinned manifest revisions, with no tracked changes, untracked source, local branches, stashes, or additional worktrees. Ignored files are generated <code>.lake/build</code> outputs and one ProofWidgets lockfile hash.</li>\n<li><code>reference/treams/</code>: clean shallow upstream clone, including ignored files. <code>main</code> and <code>origin/main</code> both point to <code>1f5d0d6ebb007288f28bc9e16f6d266e8b55dc39</code>.</li>\n</ul>\n<p>No user modifications requiring preservation were found. Remote retrievability was not checked. Nothing was changed or removed.</p>"}
+]}

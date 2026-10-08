@@ -1,0 +1,18 @@
+{"lines":[
+[0,"note","<p>I’ll check the README badge URLs and the live PyPI metadata to see where the failure is.</p>"],
+[6,"left","Left out: 1 command that read the agent's own notes."],
+[6,"ran","pwd && git status --short && rg -n 'shields|pypi|badge|requires-python|^name|^version' README* pypr…"],
+[27,"ran","git remote -v && sed -n '1,65p' pyproject.toml && sed -n '1,35p' README.md && rg --files -g AGENTS.…"],
+[27,"ran","curl -fsS -D treams-pypi-headers 'https://pypi.org/pypi/treams-rs/json' | jq '{name: .info.name, ve…"],
+[27,"ran","curl -sS -D - 'https://img.shields.io/pypi/v/treams-rs.svg' && curl -sS -D - 'https://img.shields.i…"],
+[30,"opened","https://pypi.org/project/treams-rs/"],
+[58,"ran","for badge in v pyversions; do curl -fsS -D treams-badge-${badge}-headers \"https://img.shields.io/py…"],
+[58,"ran","curl -fsSL 'https://github.com/yaugenst/treams-rs' -o treams-github-readme.html && uv run --no-proj…"],
+[60,"opened","https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-anonymized-urls"],
+[0,"ran","uv run --no-project --no-config python - <<'PY'"],
+[18,"ran","curl -fsS 'https://img.shields.io/pypi/v/treams-rs.svg?v=1' | rg -o '<title>[^<]+'"],
+[18,"ran","curl -fsS 'https://img.shields.io/pypi/pyversions/treams-rs.svg?v=1' | rg -o '<title>[^<]+'"],
+[0,"ran","for badge in v pyversions; do curl -fsS -D treams-expiry-${badge}-headers \"https://img.shields.io/p…"],
+[0,"ran","uv run --no-project --no-config python - <<'PY'"],
+[20,"opened","https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.1"]
+]}

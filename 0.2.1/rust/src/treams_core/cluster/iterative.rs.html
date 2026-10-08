@@ -1,0 +1,1022 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/treams-core/src/cluster/iterative.rs`."><title>iterative.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="treams_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">treams_core/cluster/</div>iterative.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Matrix-free sphere clusters: GMRES solves for requested incident fields that never
+<a href=#2 id=2 data-nosnippet>2</a>//! form the coupling matrix. treams-rs extension.
+<a href=#3 id=3 data-nosnippet>3</a></span><span class="attr">#![allow(clippy::indexing_slicing)] </span><span class="comment">// Mode, particle and Krylov indices built and checked here.
+<a href=#4 id=4 data-nosnippet>4</a>
+<a href=#5 id=5 data-nosnippet>5</a></span><span class="kw">mod </span>saved;
+<a href=#6 id=6 data-nosnippet>6</a>
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>std::sync::Arc;
+<a href=#8 id=8 data-nosnippet>8</a>
+<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>faer::{Accum, MatMut, MatRef, Par, linalg::matmul::matmul};
+<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>nalgebra::DMatrix;
+<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>rayon::prelude::<span class="kw-2">*</span>;
+<a href=#12 id=12 data-nosnippet>12</a>
+<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>crate::{
+<a href=#14 id=14 data-nosnippet>14</a>    Complex, Error, <span class="prelude-ty">Result</span>,
+<a href=#15 id=15 data-nosnippet>15</a>    cluster::SphereClusterGradient,
+<a href=#16 id=16 data-nosnippet>16</a>    coeffs::{Material, Matrix2, MieResidual, mie, to_mode_order},
+<a href=#17 id=17 data-nosnippet>17</a>    linalg::{Convergence, GmresOptions, gmres_batch, view},
+<a href=#18 id=18 data-nosnippet>18</a>    numerics::{finite, parallel::try_fold_ordered},
+<a href=#19 id=19 data-nosnippet>19</a>    special::Radial,
+<a href=#20 id=20 data-nosnippet>20</a>    sw::{<span class="self">self</span>, TranslationPlan},
+<a href=#21 id=21 data-nosnippet>21</a>};
+<a href=#22 id=22 data-nosnippet>22</a>
+<a href=#23 id=23 data-nosnippet>23</a><span class="doccomment">/// Scattered local multipoles for only the requested incident columns.
+<a href=#24 id=24 data-nosnippet>24</a></span><span class="attr">#[derive(Debug)]
+<a href=#25 id=25 data-nosnippet>25</a></span><span class="kw">pub struct </span>IterativeSolution {
+<a href=#26 id=26 data-nosnippet>26</a>    <span class="doccomment">/// Column-major matrix with one scattered-multipole column per illumination.
+<a href=#27 id=27 data-nosnippet>27</a>    </span><span class="kw">pub </span>value: DMatrix&lt;Complex&gt;,
+<a href=#28 id=28 data-nosnippet>28</a>    <span class="doccomment">/// Convergence certificate for each column.
+<a href=#29 id=29 data-nosnippet>29</a>    </span><span class="kw">pub </span>convergence: Vec&lt;Convergence&gt;,
+<a href=#30 id=30 data-nosnippet>30</a>}
+<a href=#31 id=31 data-nosnippet>31</a>
+<a href=#32 id=32 data-nosnippet>32</a><span class="doccomment">/// The matrix-free counterpart of [`sphere_cluster`](super::sphere_cluster): the same
+<a href=#33 id=33 data-nosnippet>33</a>/// spheres, solved with GMRES for the requested incident columns only.
+<a href=#34 id=34 data-nosnippet>34</a>///
+<a href=#35 id=35 data-nosnippet>35</a>/// It keeps the geometry and the local Mie coefficients, never a particle-pair matrix.
+<a href=#36 id=36 data-nosnippet>36</a>///
+<a href=#37 id=37 data-nosnippet>37</a>/// treams-rs extension; treams has no matrix-free cluster solver.
+<a href=#38 id=38 data-nosnippet>38</a></span><span class="attr">#[derive(Debug)]
+<a href=#39 id=39 data-nosnippet>39</a></span><span class="kw">pub struct </span>IterativeSphereCluster {
+<a href=#40 id=40 data-nosnippet>40</a>    k0: f64,
+<a href=#41 id=41 data-nosnippet>41</a>    radii: Vec&lt;f64&gt;,
+<a href=#42 id=42 data-nosnippet>42</a>    positions: Vec&lt;[f64; <span class="number">3</span>]&gt;,
+<a href=#43 id=43 data-nosnippet>43</a>    degrees: Vec&lt;Vec&lt;MieResidual&gt;&gt;,
+<a href=#44 id=44 data-nosnippet>44</a>    mode_degrees: Vec&lt;usize&gt;,
+<a href=#45 id=45 data-nosnippet>45</a>    plan: TranslationPlan,
+<a href=#46 id=46 data-nosnippet>46</a>    dimension: usize,
+<a href=#47 id=47 data-nosnippet>47</a>}
+<a href=#48 id=48 data-nosnippet>48</a>
+<a href=#49 id=49 data-nosnippet>49</a><span class="kw">impl </span>IterativeSphereCluster {
+<a href=#50 id=50 data-nosnippet>50</a>    <span class="doccomment">/// Homogeneous nonmagnetic spheres in vacuum, with the arguments of
+<a href=#51 id=51 data-nosnippet>51</a>    /// [`sphere_cluster`](super::sphere_cluster). Each particle's modes follow
+<a href=#52 id=52 data-nosnippet>52</a>    /// [`sw::modes`] in helicity convention.
+<a href=#53 id=53 data-nosnippet>53</a>    </span><span class="kw">pub fn </span>new(
+<a href=#54 id=54 data-nosnippet>54</a>        lmax: u32,
+<a href=#55 id=55 data-nosnippet>55</a>        k0: f64,
+<a href=#56 id=56 data-nosnippet>56</a>        radii: <span class="kw-2">&amp;</span>[f64],
+<a href=#57 id=57 data-nosnippet>57</a>        epsilon: <span class="kw-2">&amp;</span>[Complex],
+<a href=#58 id=58 data-nosnippet>58</a>        positions: <span class="kw-2">&amp;</span>[[f64; <span class="number">3</span>]],
+<a href=#59 id=59 data-nosnippet>59</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
+<a href=#60 id=60 data-nosnippet>60</a>        <span class="kw">crate</span>::cluster::validate_spheres(k0, radii, epsilon, positions)<span class="question-mark">?</span>;
+<a href=#61 id=61 data-nosnippet>61</a>        <span class="kw">let </span>modes = sw::modes(lmax)<span class="question-mark">?</span>;
+<a href=#62 id=62 data-nosnippet>62</a>        <span class="kw">let </span>dimension = modes
+<a href=#63 id=63 data-nosnippet>63</a>            .len()
+<a href=#64 id=64 data-nosnippet>64</a>            .checked_mul(radii.len())
+<a href=#65 id=65 data-nosnippet>65</a>            .ok_or_else(|| Error::InvalidInput(<span class="string">"cluster is too large"</span>.into()))<span class="question-mark">?</span>;
+<a href=#66 id=66 data-nosnippet>66</a>        <span class="kw">let </span>degrees = radii
+<a href=#67 id=67 data-nosnippet>67</a>            .iter()
+<a href=#68 id=68 data-nosnippet>68</a>            .zip(epsilon)
+<a href=#69 id=69 data-nosnippet>69</a>            .map(|(<span class="kw-2">&amp;</span>radius, <span class="kw-2">&amp;</span>epsilon)| {
+<a href=#70 id=70 data-nosnippet>70</a>                <span class="kw">let </span>materials = <span class="kw">crate</span>::cluster::vacuum_sphere(epsilon);
+<a href=#71 id=71 data-nosnippet>71</a>                (<span class="number">1</span>..=lmax)
+<a href=#72 id=72 data-nosnippet>72</a>                    .map(|l| mie(l, <span class="kw-2">&amp;</span>[k0 * radius], <span class="kw-2">&amp;</span>materials))
+<a href=#73 id=73 data-nosnippet>73</a>                    .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;&gt;()
+<a href=#74 id=74 data-nosnippet>74</a>            })
+<a href=#75 id=75 data-nosnippet>75</a>            .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;&gt;()<span class="question-mark">?</span>;
+<a href=#76 id=76 data-nosnippet>76</a>        <span class="kw">let </span>count = degrees.first().map_or(<span class="number">0</span>, Vec::len);
+<a href=#77 id=77 data-nosnippet>77</a>        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+<a href=#78 id=78 data-nosnippet>78</a>            k0,
+<a href=#79 id=79 data-nosnippet>79</a>            radii: radii.to_vec(),
+<a href=#80 id=80 data-nosnippet>80</a>            positions: positions.to_vec(),
+<a href=#81 id=81 data-nosnippet>81</a>            degrees,
+<a href=#82 id=82 data-nosnippet>82</a>            mode_degrees: <span class="kw">crate</span>::tmatrix::block_degrees(count).collect(),
+<a href=#83 id=83 data-nosnippet>83</a>            plan: TranslationPlan::between(<span class="kw-2">&amp;</span>modes, <span class="kw-2">&amp;</span>modes, <span class="bool-val">true</span>)<span class="question-mark">?</span>,
+<a href=#84 id=84 data-nosnippet>84</a>            dimension,
+<a href=#85 id=85 data-nosnippet>85</a>        })
+<a href=#86 id=86 data-nosnippet>86</a>    }
+<a href=#87 id=87 data-nosnippet>87</a>
+<a href=#88 id=88 data-nosnippet>88</a>    <span class="doccomment">/// Number of local multipoles across all particles.
+<a href=#89 id=89 data-nosnippet>89</a>    </span><span class="attr">#[must_use]
+<a href=#90 id=90 data-nosnippet>90</a>    </span><span class="kw">pub const fn </span>dimension(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+<a href=#91 id=91 data-nosnippet>91</a>        <span class="self">self</span>.dimension
+<a href=#92 id=92 data-nosnippet>92</a>    }
+<a href=#93 id=93 data-nosnippet>93</a>
+<a href=#94 id=94 data-nosnippet>94</a>    <span class="doccomment">/// `T input`, or `Tᴴ input` if `adjoint`, from the 2 x 2 Mie block of each degree
+<a href=#95 id=95 data-nosnippet>95</a>    /// and order, for one or more column-major vectors.
+<a href=#96 id=96 data-nosnippet>96</a>    ///
+<a href=#97 id=97 data-nosnippet>97</a>    /// [`sphere`](crate::tmatrix::sphere) places the same blocks in a dense T-matrix
+<a href=#98 id=98 data-nosnippet>98</a>    /// for [`sphere_cluster`](super::sphere_cluster); this applies them in place.
+<a href=#99 id=99 data-nosnippet>99</a>    </span><span class="kw">fn </span>local(<span class="kw-2">&amp;</span><span class="self">self</span>, input: <span class="kw-2">&amp;</span>[Complex], adjoint: bool) -&gt; Vec&lt;Complex&gt; {
+<a href=#100 id=100 data-nosnippet>100</a>        <span class="self">self</span>.apply_local(input, adjoint, |particle, degree| {
+<a href=#101 id=101 data-nosnippet>101</a>            to_mode_order(<span class="self">self</span>.degrees[particle][degree].value())
+<a href=#102 id=102 data-nosnippet>102</a>        })
+<a href=#103 id=103 data-nosnippet>103</a>    }
+<a href=#104 id=104 data-nosnippet>104</a>
+<a href=#105 id=105 data-nosnippet>105</a>    <span class="doccomment">/// Apply value or tangent Mie blocks without forming a local T-matrix.
+<a href=#106 id=106 data-nosnippet>106</a>    </span><span class="kw">fn </span>apply_local(
+<a href=#107 id=107 data-nosnippet>107</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#108 id=108 data-nosnippet>108</a>        input: <span class="kw-2">&amp;</span>[Complex],
+<a href=#109 id=109 data-nosnippet>109</a>        adjoint: bool,
+<a href=#110 id=110 data-nosnippet>110</a>        matrix_at: <span class="kw">impl </span>Fn(usize, usize) -&gt; Matrix2,
+<a href=#111 id=111 data-nosnippet>111</a>    ) -&gt; Vec&lt;Complex&gt; {
+<a href=#112 id=112 data-nosnippet>112</a>        <span class="kw">let </span><span class="kw-2">mut </span>output = <span class="macro">vec!</span>[Complex::default(); input.len()];
+<a href=#113 id=113 data-nosnippet>113</a>        <span class="kw">let </span>modes = <span class="self">self</span>.modes_per_particle();
+<a href=#114 id=114 data-nosnippet>114</a>        <span class="kw">for </span>(output, input) <span class="kw">in </span>output
+<a href=#115 id=115 data-nosnippet>115</a>            .chunks_exact_mut(<span class="self">self</span>.dimension)
+<a href=#116 id=116 data-nosnippet>116</a>            .zip(input.chunks_exact(<span class="self">self</span>.dimension))
+<a href=#117 id=117 data-nosnippet>117</a>        {
+<a href=#118 id=118 data-nosnippet>118</a>            <span class="kw">for </span>particle <span class="kw">in </span><span class="number">0</span>..<span class="self">self</span>.degrees.len() {
+<a href=#119 id=119 data-nosnippet>119</a>                <span class="kw">for </span>(block, <span class="kw-2">&amp;</span>degree) <span class="kw">in </span><span class="self">self</span>.mode_degrees.iter().enumerate() {
+<a href=#120 id=120 data-nosnippet>120</a>                    <span class="kw">let </span>matrix = matrix_at(particle, degree);
+<a href=#121 id=121 data-nosnippet>121</a>                    <span class="kw">let </span>offset = particle * modes + block * <span class="number">2</span>;
+<a href=#122 id=122 data-nosnippet>122</a>                    <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">2 </span>{
+<a href=#123 id=123 data-nosnippet>123</a>                        <span class="kw">for </span>j <span class="kw">in </span><span class="number">0</span>..<span class="number">2 </span>{
+<a href=#124 id=124 data-nosnippet>124</a>                            <span class="kw">let </span>t = <span class="kw">if </span>adjoint {
+<a href=#125 id=125 data-nosnippet>125</a>                                matrix[(j, i)].conj()
+<a href=#126 id=126 data-nosnippet>126</a>                            } <span class="kw">else </span>{
+<a href=#127 id=127 data-nosnippet>127</a>                                matrix[(i, j)]
+<a href=#128 id=128 data-nosnippet>128</a>                            };
+<a href=#129 id=129 data-nosnippet>129</a>                            output[offset + i] += t * input[offset + j];
+<a href=#130 id=130 data-nosnippet>130</a>                        }
+<a href=#131 id=131 data-nosnippet>131</a>                    }
+<a href=#132 id=132 data-nosnippet>132</a>                }
+<a href=#133 id=133 data-nosnippet>133</a>            }
+<a href=#134 id=134 data-nosnippet>134</a>        }
+<a href=#135 id=135 data-nosnippet>135</a>        output
+<a href=#136 id=136 data-nosnippet>136</a>    }
+<a href=#137 id=137 data-nosnippet>137</a>
+<a href=#138 id=138 data-nosnippet>138</a>    <span class="doccomment">/// Multipoles per particle.
+<a href=#139 id=139 data-nosnippet>139</a>    </span><span class="kw">const fn </span>modes_per_particle(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+<a href=#140 id=140 data-nosnippet>140</a>        <span class="self">self</span>.mode_degrees.len() * <span class="number">2
+<a href=#141 id=141 data-nosnippet>141</a>    </span>}
+<a href=#142 id=142 data-nosnippet>142</a>
+<a href=#143 id=143 data-nosnippet>143</a>    <span class="doccomment">/// The particle-pair coupling `C`, or `Cᴴ`, applied to `columns` column-major
+<a href=#144 id=144 data-nosnippet>144</a>    /// vectors. Each translation block is evaluated once for all columns.
+<a href=#145 id=145 data-nosnippet>145</a>    </span><span class="kw">fn </span>coupling(<span class="kw-2">&amp;</span><span class="self">self</span>, input: <span class="kw-2">&amp;</span>[Complex], columns: usize, adjoint: bool) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Complex&gt;&gt; {
+<a href=#146 id=146 data-nosnippet>146</a>        <span class="self">self</span>.coupling_action(input, columns, |i, j, source, destination| {
+<a href=#147 id=147 data-nosnippet>147</a>            <span class="kw">let </span>(to, from) = <span class="kw">if </span>adjoint { (j, i) } <span class="kw">else </span>{ (i, j) };
+<a href=#148 id=148 data-nosnippet>148</a>            <span class="kw">let </span>displacement =
+<a href=#149 id=149 data-nosnippet>149</a>                std::array::from_fn(|axis| <span class="self">self</span>.positions[to][axis] - <span class="self">self</span>.positions[from][axis]);
+<a href=#150 id=150 data-nosnippet>150</a>            <span class="self">self</span>.plan.apply(
+<a href=#151 id=151 data-nosnippet>151</a>                Complex::new(<span class="self">self</span>.k0, <span class="number">0.0</span>),
+<a href=#152 id=152 data-nosnippet>152</a>                displacement,
+<a href=#153 id=153 data-nosnippet>153</a>                Radial::Singular,
+<a href=#154 id=154 data-nosnippet>154</a>                source,
+<a href=#155 id=155 data-nosnippet>155</a>                destination,
+<a href=#156 id=156 data-nosnippet>156</a>                adjoint,
+<a href=#157 id=157 data-nosnippet>157</a>            )
+<a href=#158 id=158 data-nosnippet>158</a>        })
+<a href=#159 id=159 data-nosnippet>159</a>    }
+<a href=#160 id=160 data-nosnippet>160</a>
+<a href=#161 id=161 data-nosnippet>161</a>    <span class="doccomment">/// Directional coupling action, with the same streaming storage as `C` itself.
+<a href=#162 id=162 data-nosnippet>162</a>    </span><span class="kw">fn </span>coupling_tangent(
+<a href=#163 id=163 data-nosnippet>163</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#164 id=164 data-nosnippet>164</a>        input: <span class="kw-2">&amp;</span>[Complex],
+<a href=#165 id=165 data-nosnippet>165</a>        columns: usize,
+<a href=#166 id=166 data-nosnippet>166</a>        k0: f64,
+<a href=#167 id=167 data-nosnippet>167</a>        positions: <span class="kw-2">&amp;</span>[[f64; <span class="number">3</span>]],
+<a href=#168 id=168 data-nosnippet>168</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Complex&gt;&gt; {
+<a href=#169 id=169 data-nosnippet>169</a>        <span class="self">self</span>.coupling_action(input, columns, |i, j, source, destination| {
+<a href=#170 id=170 data-nosnippet>170</a>            <span class="kw">let </span>displacement =
+<a href=#171 id=171 data-nosnippet>171</a>                std::array::from_fn(|axis| <span class="self">self</span>.positions[i][axis] - <span class="self">self</span>.positions[j][axis]);
+<a href=#172 id=172 data-nosnippet>172</a>            <span class="kw">let </span>tangent = std::array::from_fn(|axis| positions[i][axis] - positions[j][axis]);
+<a href=#173 id=173 data-nosnippet>173</a>            <span class="self">self</span>.plan.apply_pushforward(
+<a href=#174 id=174 data-nosnippet>174</a>                Complex::new(<span class="self">self</span>.k0, <span class="number">0.0</span>),
+<a href=#175 id=175 data-nosnippet>175</a>                displacement,
+<a href=#176 id=176 data-nosnippet>176</a>                Radial::Singular,
+<a href=#177 id=177 data-nosnippet>177</a>                tangent,
+<a href=#178 id=178 data-nosnippet>178</a>                Complex::new(k0, <span class="number">0.0</span>),
+<a href=#179 id=179 data-nosnippet>179</a>                source,
+<a href=#180 id=180 data-nosnippet>180</a>                destination,
+<a href=#181 id=181 data-nosnippet>181</a>            )
+<a href=#182 id=182 data-nosnippet>182</a>        })
+<a href=#183 id=183 data-nosnippet>183</a>    }
+<a href=#184 id=184 data-nosnippet>184</a>
+<a href=#185 id=185 data-nosnippet>185</a>    <span class="doccomment">/// Apply either the coupling or its parameter tangent, sharing each pair's
+<a href=#186 id=186 data-nosnippet>186</a>    /// harmonic table across the incident columns without a dense pair block.
+<a href=#187 id=187 data-nosnippet>187</a>    </span><span class="kw">fn </span>coupling_action(
+<a href=#188 id=188 data-nosnippet>188</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#189 id=189 data-nosnippet>189</a>        input: <span class="kw-2">&amp;</span>[Complex],
+<a href=#190 id=190 data-nosnippet>190</a>        columns: usize,
+<a href=#191 id=191 data-nosnippet>191</a>        apply: <span class="kw">impl </span>Fn(usize, usize, MatRef&lt;<span class="lifetime">'_</span>, Complex&gt;, MatMut&lt;<span class="lifetime">'_</span>, Complex&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; + Sync,
+<a href=#192 id=192 data-nosnippet>192</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Complex&gt;&gt; {
+<a href=#193 id=193 data-nosnippet>193</a>        <span class="kw">let </span>modes = <span class="self">self</span>.modes_per_particle();
+<a href=#194 id=194 data-nosnippet>194</a>        <span class="kw">let </span>particles = <span class="self">self</span>.positions.len();
+<a href=#195 id=195 data-nosnippet>195</a>        <span class="kw">let </span>input = MatRef::from_column_major_slice(input, <span class="self">self</span>.dimension, columns);
+<a href=#196 id=196 data-nosnippet>196</a>        <span class="kw">let </span>rows: Vec&lt;Vec&lt;Complex&gt;&gt; = <span class="kw">crate</span>::threads::install(|| {
+<a href=#197 id=197 data-nosnippet>197</a>            (<span class="number">0</span>..particles)
+<a href=#198 id=198 data-nosnippet>198</a>                .into_par_iter()
+<a href=#199 id=199 data-nosnippet>199</a>                .map(|i| -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Complex&gt;&gt; {
+<a href=#200 id=200 data-nosnippet>200</a>                    <span class="comment">// Rows of particle `i`, column-major over the input columns.
+<a href=#201 id=201 data-nosnippet>201</a>                    </span><span class="kw">let </span><span class="kw-2">mut </span>output = <span class="macro">vec!</span>[Complex::default(); modes * columns];
+<a href=#202 id=202 data-nosnippet>202</a>                    <span class="kw">for </span>j <span class="kw">in </span>(<span class="number">0</span>..particles).filter(|<span class="kw-2">&amp;</span>j| <span class="macro">j !</span>= i) {
+<a href=#203 id=203 data-nosnippet>203</a>                        apply(
+<a href=#204 id=204 data-nosnippet>204</a>                            i,
+<a href=#205 id=205 data-nosnippet>205</a>                            j,
+<a href=#206 id=206 data-nosnippet>206</a>                            input.subrows(j * modes, modes),
+<a href=#207 id=207 data-nosnippet>207</a>                            MatMut::from_column_major_slice_mut(<span class="kw-2">&amp;mut </span>output, modes, columns),
+<a href=#208 id=208 data-nosnippet>208</a>                        )<span class="question-mark">?</span>;
+<a href=#209 id=209 data-nosnippet>209</a>                    }
+<a href=#210 id=210 data-nosnippet>210</a>                    <span class="prelude-val">Ok</span>(output)
+<a href=#211 id=211 data-nosnippet>211</a>                })
+<a href=#212 id=212 data-nosnippet>212</a>                .collect::&lt;<span class="prelude-ty">Result</span>&lt;<span class="kw">_</span>&gt;&gt;()
+<a href=#213 id=213 data-nosnippet>213</a>        })<span class="question-mark">?</span>;
+<a href=#214 id=214 data-nosnippet>214</a>        <span class="kw">let </span><span class="kw-2">mut </span>output = <span class="macro">vec!</span>[Complex::default(); <span class="self">self</span>.dimension * columns];
+<a href=#215 id=215 data-nosnippet>215</a>        <span class="kw">for </span>(i, rows) <span class="kw">in </span>rows.iter().enumerate() {
+<a href=#216 id=216 data-nosnippet>216</a>            <span class="kw">for </span>(column, values) <span class="kw">in </span>rows.chunks_exact(modes).enumerate() {
+<a href=#217 id=217 data-nosnippet>217</a>                output[column * <span class="self">self</span>.dimension + i * modes..][..modes].copy_from_slice(values);
+<a href=#218 id=218 data-nosnippet>218</a>            }
+<a href=#219 id=219 data-nosnippet>219</a>        }
+<a href=#220 id=220 data-nosnippet>220</a>        <span class="prelude-val">Ok</span>(output)
+<a href=#221 id=221 data-nosnippet>221</a>    }
+<a href=#222 id=222 data-nosnippet>222</a>
+<a href=#223 id=223 data-nosnippet>223</a>    <span class="doccomment">/// `(I - T C) input`, or `(I - T C)ᴴ input = (I - Cᴴ Tᴴ) input` if `adjoint`: the
+<a href=#224 id=224 data-nosnippet>224</a>    /// operator that GMRES inverts.
+<a href=#225 id=225 data-nosnippet>225</a>    </span><span class="kw">fn </span>apply(<span class="kw-2">&amp;</span><span class="self">self</span>, input: <span class="kw-2">&amp;</span>[Complex], columns: usize, adjoint: bool) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Complex&gt;&gt; {
+<a href=#226 id=226 data-nosnippet>226</a>        <span class="kw">let </span>product = <span class="kw">if </span>adjoint {
+<a href=#227 id=227 data-nosnippet>227</a>            <span class="self">self</span>.coupling(<span class="kw-2">&amp;</span><span class="self">self</span>.local(input, <span class="bool-val">true</span>), columns, <span class="bool-val">true</span>)<span class="question-mark">?
+<a href=#228 id=228 data-nosnippet>228</a>        </span>} <span class="kw">else </span>{
+<a href=#229 id=229 data-nosnippet>229</a>            <span class="self">self</span>.local(<span class="kw-2">&amp;</span><span class="self">self</span>.coupling(input, columns, <span class="bool-val">false</span>)<span class="question-mark">?</span>, <span class="bool-val">false</span>)
+<a href=#230 id=230 data-nosnippet>230</a>        };
+<a href=#231 id=231 data-nosnippet>231</a>        <span class="prelude-val">Ok</span>(input.iter().zip(product).map(|(x, y)| x - y).collect())
+<a href=#232 id=232 data-nosnippet>232</a>    }
+<a href=#233 id=233 data-nosnippet>233</a>
+<a href=#234 id=234 data-nosnippet>234</a>    <span class="doccomment">/// Solve `(I - T C) X = rhs`, or `(I - T C)ᴴ X = rhs` if `adjoint`, one column of
+<a href=#235 id=235 data-nosnippet>235</a>    /// `rhs` independently, sharing pair translations across bounded column batches.
+<a href=#236 id=236 data-nosnippet>236</a>    </span><span class="kw">fn </span>solve_rhs(
+<a href=#237 id=237 data-nosnippet>237</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#238 id=238 data-nosnippet>238</a>        rhs: <span class="kw-2">&amp;</span>DMatrix&lt;Complex&gt;,
+<a href=#239 id=239 data-nosnippet>239</a>        options: GmresOptions,
+<a href=#240 id=240 data-nosnippet>240</a>        adjoint: bool,
+<a href=#241 id=241 data-nosnippet>241</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;IterativeSolution&gt; {
+<a href=#242 id=242 data-nosnippet>242</a>        <span class="kw">let </span><span class="kw-2">mut </span>value = DMatrix::zeros(<span class="self">self</span>.dimension, rhs.ncols());
+<a href=#243 id=243 data-nosnippet>243</a>        <span class="kw">let </span><span class="kw-2">mut </span>convergence = Vec::with_capacity(rhs.ncols());
+<a href=#244 id=244 data-nosnippet>244</a>        <span class="comment">// Retain at most eight independent Krylov bases regardless of the number of
+<a href=#245 id=245 data-nosnippet>245</a>        // illuminations. Each costly pair translation serves all active columns.
+<a href=#246 id=246 data-nosnippet>246</a>        </span><span class="kw">const </span>BATCH_COLUMNS: usize = <span class="number">8</span>;
+<a href=#247 id=247 data-nosnippet>247</a>        <span class="kw">for </span>(input, output) <span class="kw">in </span>rhs.as_slice().chunks(<span class="self">self</span>.dimension * BATCH_COLUMNS).zip(
+<a href=#248 id=248 data-nosnippet>248</a>            value
+<a href=#249 id=249 data-nosnippet>249</a>                .as_mut_slice()
+<a href=#250 id=250 data-nosnippet>250</a>                .chunks_mut(<span class="self">self</span>.dimension * BATCH_COLUMNS),
+<a href=#251 id=251 data-nosnippet>251</a>        ) {
+<a href=#252 id=252 data-nosnippet>252</a>            <span class="kw">let </span>columns = input.len() / <span class="self">self</span>.dimension;
+<a href=#253 id=253 data-nosnippet>253</a>            <span class="kw">let </span>(answer, reports) = gmres_batch(input, columns, options, |x, columns| {
+<a href=#254 id=254 data-nosnippet>254</a>                <span class="self">self</span>.apply(x, columns, adjoint)
+<a href=#255 id=255 data-nosnippet>255</a>            })<span class="question-mark">?</span>;
+<a href=#256 id=256 data-nosnippet>256</a>            output.copy_from_slice(<span class="kw-2">&amp;</span>answer);
+<a href=#257 id=257 data-nosnippet>257</a>            convergence.extend(reports);
+<a href=#258 id=258 data-nosnippet>258</a>        }
+<a href=#259 id=259 data-nosnippet>259</a>        <span class="prelude-val">Ok</span>(IterativeSolution { value, convergence })
+<a href=#260 id=260 data-nosnippet>260</a>    }
+<a href=#261 id=261 data-nosnippet>261</a>
+<a href=#262 id=262 data-nosnippet>262</a>    <span class="doccomment">/// Solve `(I - T C) X = T B` for only the columns `B` supplied in `incident`.
+<a href=#263 id=263 data-nosnippet>263</a>    /// An unconverged solve returns an error containing the measured residual.
+<a href=#264 id=264 data-nosnippet>264</a>    </span><span class="kw">pub fn </span>solve(
+<a href=#265 id=265 data-nosnippet>265</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#266 id=266 data-nosnippet>266</a>        incident: <span class="kw-2">&amp;</span>DMatrix&lt;Complex&gt;,
+<a href=#267 id=267 data-nosnippet>267</a>        options: GmresOptions,
+<a href=#268 id=268 data-nosnippet>268</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;IterativeSolution&gt; {
+<a href=#269 id=269 data-nosnippet>269</a>        options.validate()<span class="question-mark">?</span>;
+<a href=#270 id=270 data-nosnippet>270</a>        <span class="kw">if </span>incident.nrows() != <span class="self">self</span>.dimension
+<a href=#271 id=271 data-nosnippet>271</a>            || incident.ncols() == <span class="number">0
+<a href=#272 id=272 data-nosnippet>272</a>            </span>|| incident.iter().any(|<span class="kw-2">&amp;</span>z| !finite(z))
+<a href=#273 id=273 data-nosnippet>273</a>        {
+<a href=#274 id=274 data-nosnippet>274</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidInput(
+<a href=#275 id=275 data-nosnippet>275</a>                <span class="string">"incident coefficients must be finite, with one row per local multipole and at least one column"</span>.into(),
+<a href=#276 id=276 data-nosnippet>276</a>            ));
+<a href=#277 id=277 data-nosnippet>277</a>        }
+<a href=#278 id=278 data-nosnippet>278</a>        <span class="kw">let </span>rhs = DMatrix::from_vec(
+<a href=#279 id=279 data-nosnippet>279</a>            <span class="self">self</span>.dimension,
+<a href=#280 id=280 data-nosnippet>280</a>            incident.ncols(),
+<a href=#281 id=281 data-nosnippet>281</a>            <span class="self">self</span>.local(incident.as_slice(), <span class="bool-val">false</span>),
+<a href=#282 id=282 data-nosnippet>282</a>        );
+<a href=#283 id=283 data-nosnippet>283</a>        <span class="self">self</span>.solve_rhs(<span class="kw-2">&amp;</span>rhs, options, <span class="bool-val">false</span>)
+<a href=#284 id=284 data-nosnippet>284</a>    }
+<a href=#285 id=285 data-nosnippet>285</a>
+<a href=#286 id=286 data-nosnippet>286</a>    <span class="doccomment">/// Solve like [`solve`](Self::solve) and keep what the pullback needs. The
+<a href=#287 id=287 data-nosnippet>287</a>    /// residual shares this cluster through the [`Arc`]; the Krylov vectors are dropped.
+<a href=#288 id=288 data-nosnippet>288</a>    </span><span class="kw">pub fn </span>record(
+<a href=#289 id=289 data-nosnippet>289</a>        <span class="self">self</span>: <span class="kw-2">&amp;</span>Arc&lt;<span class="self">Self</span>&gt;,
+<a href=#290 id=290 data-nosnippet>290</a>        incident: DMatrix&lt;Complex&gt;,
+<a href=#291 id=291 data-nosnippet>291</a>        options: GmresOptions,
+<a href=#292 id=292 data-nosnippet>292</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;IterativeResidual&gt; {
+<a href=#293 id=293 data-nosnippet>293</a>        <span class="kw">let </span>solution = <span class="self">self</span>.solve(<span class="kw-2">&amp;</span>incident, options)<span class="question-mark">?</span>;
+<a href=#294 id=294 data-nosnippet>294</a>        <span class="prelude-val">Ok</span>(IterativeResidual {
+<a href=#295 id=295 data-nosnippet>295</a>            operator: Arc::clone(<span class="self">self</span>),
+<a href=#296 id=296 data-nosnippet>296</a>            incident,
+<a href=#297 id=297 data-nosnippet>297</a>            options,
+<a href=#298 id=298 data-nosnippet>298</a>            solution,
+<a href=#299 id=299 data-nosnippet>299</a>        })
+<a href=#300 id=300 data-nosnippet>300</a>    }
+<a href=#301 id=301 data-nosnippet>301</a>}
+<a href=#302 id=302 data-nosnippet>302</a>
+<a href=#303 id=303 data-nosnippet>303</a><span class="doccomment">/// What [`IterativeSphereCluster::record`] saves for its pullback: the shared
+<a href=#304 id=304 data-nosnippet>304</a>/// cluster, the incident fields, the GMRES options and the solution.
+<a href=#305 id=305 data-nosnippet>305</a></span><span class="attr">#[derive(Debug)]
+<a href=#306 id=306 data-nosnippet>306</a></span><span class="kw">pub struct </span>IterativeResidual {
+<a href=#307 id=307 data-nosnippet>307</a>    operator: Arc&lt;IterativeSphereCluster&gt;,
+<a href=#308 id=308 data-nosnippet>308</a>    incident: DMatrix&lt;Complex&gt;,
+<a href=#309 id=309 data-nosnippet>309</a>    options: GmresOptions,
+<a href=#310 id=310 data-nosnippet>310</a>    solution: IterativeSolution,
+<a href=#311 id=311 data-nosnippet>311</a>}
+<a href=#312 id=312 data-nosnippet>312</a>
+<a href=#313 id=313 data-nosnippet>313</a><span class="doccomment">/// Gradients of an [`IterativeResidual`], without a dense coupling matrix or its
+<a href=#314 id=314 data-nosnippet>314</a>/// gradient.
+<a href=#315 id=315 data-nosnippet>315</a>///
+<a href=#316 id=316 data-nosnippet>316</a>/// The fields follow the inputs: `cluster` holds the gradients of the arguments of
+<a href=#317 id=317 data-nosnippet>317</a>/// [`IterativeSphereCluster::new`] in their order (`k0`, `radii`, `epsilon`,
+<a href=#318 id=318 data-nosnippet>318</a>/// `positions`), then come those of the incident fields of
+<a href=#319 id=319 data-nosnippet>319</a>/// [`record`](IterativeSphereCluster::record) and the convergence of the adjoint
+<a href=#320 id=320 data-nosnippet>320</a>/// solves.
+<a href=#321 id=321 data-nosnippet>321</a></span><span class="attr">#[derive(Debug)]
+<a href=#322 id=322 data-nosnippet>322</a></span><span class="kw">pub struct </span>IterativeGradient {
+<a href=#323 id=323 data-nosnippet>323</a>    <span class="doccomment">/// Gradients of the vacuum wavenumber, radii, permittivities and positions.
+<a href=#324 id=324 data-nosnippet>324</a>    </span><span class="kw">pub </span>cluster: SphereClusterGradient,
+<a href=#325 id=325 data-nosnippet>325</a>    <span class="doccomment">/// Gradient of the incident fields.
+<a href=#326 id=326 data-nosnippet>326</a>    </span><span class="kw">pub </span>incident: DMatrix&lt;Complex&gt;,
+<a href=#327 id=327 data-nosnippet>327</a>    <span class="doccomment">/// Independent convergence certificates of the adjoint solves.
+<a href=#328 id=328 data-nosnippet>328</a>    </span><span class="kw">pub </span>convergence: Vec&lt;Convergence&gt;,
+<a href=#329 id=329 data-nosnippet>329</a>}
+<a href=#330 id=330 data-nosnippet>330</a>
+<a href=#331 id=331 data-nosnippet>331</a><span class="kw">impl </span>IterativeResidual {
+<a href=#332 id=332 data-nosnippet>332</a>    <span class="doccomment">/// The forward solution and its convergence certificates; the pullback reads the
+<a href=#333 id=333 data-nosnippet>333</a>    /// solution.
+<a href=#334 id=334 data-nosnippet>334</a>    </span><span class="attr">#[must_use]
+<a href=#335 id=335 data-nosnippet>335</a>    </span><span class="kw">pub const fn </span>solution(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>IterativeSolution {
+<a href=#336 id=336 data-nosnippet>336</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.solution
+<a href=#337 id=337 data-nosnippet>337</a>    }
+<a href=#338 id=338 data-nosnippet>338</a>
+<a href=#339 id=339 data-nosnippet>339</a>    <span class="doccomment">/// The shape of the solution: local multipoles and incident columns.
+<a href=#340 id=340 data-nosnippet>340</a>    </span><span class="attr">#[must_use]
+<a href=#341 id=341 data-nosnippet>341</a>    </span><span class="kw">pub fn </span>shape(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (usize, usize) {
+<a href=#342 id=342 data-nosnippet>342</a>        <span class="self">self</span>.solution.value.shape()
+<a href=#343 id=343 data-nosnippet>343</a>    }
+<a href=#344 id=344 data-nosnippet>344</a>
+<a href=#345 id=345 data-nosnippet>345</a>    <span class="doccomment">/// Number of particles, for binding-level tangent validation.
+<a href=#346 id=346 data-nosnippet>346</a>    </span><span class="attr">#[must_use]
+<a href=#347 id=347 data-nosnippet>347</a>    </span><span class="kw">pub fn </span>particles(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+<a href=#348 id=348 data-nosnippet>348</a>        <span class="self">self</span>.operator.radii.len()
+<a href=#349 id=349 data-nosnippet>349</a>    }
+<a href=#350 id=350 data-nosnippet>350</a>
+<a href=#351 id=351 data-nosnippet>351</a>    <span class="doccomment">/// The exciting field `B + C X`, shared by both derivative directions. Reuse
+<a href=#352 id=352 data-nosnippet>352</a>    /// the coupling action's output allocation without copying saved incident data.
+<a href=#353 id=353 data-nosnippet>353</a>    </span><span class="kw">fn </span>response(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;DMatrix&lt;Complex&gt;&gt; {
+<a href=#354 id=354 data-nosnippet>354</a>        <span class="kw">let </span>columns = <span class="self">self</span>.incident.ncols();
+<a href=#355 id=355 data-nosnippet>355</a>        <span class="kw">let </span><span class="kw-2">mut </span>response =
+<a href=#356 id=356 data-nosnippet>356</a>            <span class="self">self</span>.operator
+<a href=#357 id=357 data-nosnippet>357</a>                .coupling(<span class="self">self</span>.solution.value.as_slice(), columns, <span class="bool-val">false</span>)<span class="question-mark">?</span>;
+<a href=#358 id=358 data-nosnippet>358</a>        <span class="kw">for </span>(entry, incident) <span class="kw">in </span>response.iter_mut().zip(<span class="self">self</span>.incident.iter()) {
+<a href=#359 id=359 data-nosnippet>359</a>            <span class="kw-2">*</span>entry += incident;
+<a href=#360 id=360 data-nosnippet>360</a>        }
+<a href=#361 id=361 data-nosnippet>361</a>        <span class="prelude-val">Ok</span>(DMatrix::from_vec(
+<a href=#362 id=362 data-nosnippet>362</a>            <span class="self">self</span>.operator.dimension,
+<a href=#363 id=363 data-nosnippet>363</a>            columns,
+<a href=#364 id=364 data-nosnippet>364</a>            response,
+<a href=#365 id=365 data-nosnippet>365</a>        ))
+<a href=#366 id=366 data-nosnippet>366</a>    }
+<a href=#367 id=367 data-nosnippet>367</a>
+<a href=#368 id=368 data-nosnippet>368</a>    <span class="doccomment">/// Differentiate the converged equation, retaining the matrix-free operator:
+<a href=#369 id=369 data-nosnippet>369</a>    /// `(I - T C) dX = dT (B + C X) + T (dB + dC X)`.
+<a href=#370 id=370 data-nosnippet>370</a>    ///
+<a href=#371 id=371 data-nosnippet>371</a>    /// Tangent and adjoint solves use relative-only convergence: the primal `rtol`,
+<a href=#372 id=372 data-nosnippet>372</a>    /// or the default `1e-10` if it was zero. The primal `atol` applies only to the
+<a href=#373 id=373 data-nosnippet>373</a>    /// primal solve, so small directions retain their relative accuracy. Restart
+<a href=#374 id=374 data-nosnippet>374</a>    /// and iteration limits are unchanged, and each solve returns an independent
+<a href=#375 id=375 data-nosnippet>375</a>    /// residual certificate. No Krylov history is retained or differentiated.
+<a href=#376 id=376 data-nosnippet>376</a>    </span><span class="kw">pub fn </span>pushforward(
+<a href=#377 id=377 data-nosnippet>377</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#378 id=378 data-nosnippet>378</a>        k0: f64,
+<a href=#379 id=379 data-nosnippet>379</a>        radii: <span class="kw-2">&amp;</span>[f64],
+<a href=#380 id=380 data-nosnippet>380</a>        epsilon: <span class="kw-2">&amp;</span>[Complex],
+<a href=#381 id=381 data-nosnippet>381</a>        positions: <span class="kw-2">&amp;</span>[[f64; <span class="number">3</span>]],
+<a href=#382 id=382 data-nosnippet>382</a>        incident: <span class="kw-2">&amp;</span>DMatrix&lt;Complex&gt;,
+<a href=#383 id=383 data-nosnippet>383</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;IterativeSolution&gt; {
+<a href=#384 id=384 data-nosnippet>384</a>        <span class="kw">if </span>!k0.is_finite()
+<a href=#385 id=385 data-nosnippet>385</a>            || radii.len() != <span class="self">self</span>.particles()
+<a href=#386 id=386 data-nosnippet>386</a>            || epsilon.len() != <span class="self">self</span>.particles()
+<a href=#387 id=387 data-nosnippet>387</a>            || positions.len() != <span class="self">self</span>.particles()
+<a href=#388 id=388 data-nosnippet>388</a>            || radii
+<a href=#389 id=389 data-nosnippet>389</a>                .iter()
+<a href=#390 id=390 data-nosnippet>390</a>                .chain(positions.iter().flatten())
+<a href=#391 id=391 data-nosnippet>391</a>                .any(|x| !x.is_finite())
+<a href=#392 id=392 data-nosnippet>392</a>            || epsilon.iter().any(|<span class="kw-2">&amp;</span>z| !finite(z))
+<a href=#393 id=393 data-nosnippet>393</a>            || incident.shape() != <span class="self">self</span>.shape()
+<a href=#394 id=394 data-nosnippet>394</a>            || incident.iter().any(|<span class="kw-2">&amp;</span>z| !finite(z))
+<a href=#395 id=395 data-nosnippet>395</a>        {
+<a href=#396 id=396 data-nosnippet>396</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidInput(<span class="string">"invalid illumination tangents"</span>.into()));
+<a href=#397 id=397 data-nosnippet>397</a>        }
+<a href=#398 id=398 data-nosnippet>398</a>        <span class="kw">let </span>operator = <span class="kw-2">&amp;</span><span class="self">self</span>.operator;
+<a href=#399 id=399 data-nosnippet>399</a>        <span class="kw">let </span>columns = incident.ncols();
+<a href=#400 id=400 data-nosnippet>400</a>        <span class="kw">let </span>value = <span class="kw-2">&amp;</span><span class="self">self</span>.solution.value;
+<a href=#401 id=401 data-nosnippet>401</a>        <span class="kw">let </span>response = <span class="self">self</span>.response()<span class="question-mark">?</span>;
+<a href=#402 id=402 data-nosnippet>402</a>        <span class="comment">// Evaluate each directional Mie block once, then reuse it over all orders
+<a href=#403 id=403 data-nosnippet>403</a>        // and incident columns, just as the operator reuses the value blocks.
+<a href=#404 id=404 data-nosnippet>404</a>        </span><span class="kw">let </span>zero = Material {
+<a href=#405 id=405 data-nosnippet>405</a>            epsilon: Complex::default(),
+<a href=#406 id=406 data-nosnippet>406</a>            mu: Complex::default(),
+<a href=#407 id=407 data-nosnippet>407</a>            kappa: Complex::default(),
+<a href=#408 id=408 data-nosnippet>408</a>        };
+<a href=#409 id=409 data-nosnippet>409</a>        <span class="kw">let </span>blocks = operator
+<a href=#410 id=410 data-nosnippet>410</a>            .degrees
+<a href=#411 id=411 data-nosnippet>411</a>            .iter()
+<a href=#412 id=412 data-nosnippet>412</a>            .enumerate()
+<a href=#413 id=413 data-nosnippet>413</a>            .map(|(particle, degrees)| {
+<a href=#414 id=414 data-nosnippet>414</a>                <span class="kw">let </span>size = k0 * operator.radii[particle] + operator.k0 * radii[particle];
+<a href=#415 id=415 data-nosnippet>415</a>                <span class="kw">let </span>materials = [
+<a href=#416 id=416 data-nosnippet>416</a>                    Material {
+<a href=#417 id=417 data-nosnippet>417</a>                        epsilon: epsilon[particle],
+<a href=#418 id=418 data-nosnippet>418</a>                        ..zero
+<a href=#419 id=419 data-nosnippet>419</a>                    },
+<a href=#420 id=420 data-nosnippet>420</a>                    zero,
+<a href=#421 id=421 data-nosnippet>421</a>                ];
+<a href=#422 id=422 data-nosnippet>422</a>                degrees
+<a href=#423 id=423 data-nosnippet>423</a>                    .iter()
+<a href=#424 id=424 data-nosnippet>424</a>                    .map(|residual| {
+<a href=#425 id=425 data-nosnippet>425</a>                        residual
+<a href=#426 id=426 data-nosnippet>426</a>                            .pushforward(<span class="kw-2">&amp;</span>[size], <span class="kw-2">&amp;</span>materials)
+<a href=#427 id=427 data-nosnippet>427</a>                            .map(|matrix| to_mode_order(<span class="kw-2">&amp;</span>matrix))
+<a href=#428 id=428 data-nosnippet>428</a>                    })
+<a href=#429 id=429 data-nosnippet>429</a>                    .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;&gt;()
+<a href=#430 id=430 data-nosnippet>430</a>            })
+<a href=#431 id=431 data-nosnippet>431</a>            .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;&gt;()<span class="question-mark">?</span>;
+<a href=#432 id=432 data-nosnippet>432</a>        <span class="kw">let </span>local_tangent = operator.apply_local(response.as_slice(), <span class="bool-val">false</span>, |particle, degree| {
+<a href=#433 id=433 data-nosnippet>433</a>            blocks[particle][degree]
+<a href=#434 id=434 data-nosnippet>434</a>        });
+<a href=#435 id=435 data-nosnippet>435</a>        <span class="kw">let </span><span class="kw-2">mut </span>response_tangent =
+<a href=#436 id=436 data-nosnippet>436</a>            operator.coupling_tangent(value.as_slice(), columns, k0, positions)<span class="question-mark">?</span>;
+<a href=#437 id=437 data-nosnippet>437</a>        <span class="kw">for </span>(entry, tangent) <span class="kw">in </span>response_tangent.iter_mut().zip(incident.iter()) {
+<a href=#438 id=438 data-nosnippet>438</a>            <span class="kw-2">*</span>entry += tangent;
+<a href=#439 id=439 data-nosnippet>439</a>        }
+<a href=#440 id=440 data-nosnippet>440</a>        <span class="kw">let </span><span class="kw-2">mut </span>rhs = DMatrix::from_vec(
+<a href=#441 id=441 data-nosnippet>441</a>            operator.dimension,
+<a href=#442 id=442 data-nosnippet>442</a>            columns,
+<a href=#443 id=443 data-nosnippet>443</a>            operator.local(<span class="kw-2">&amp;</span>response_tangent, <span class="bool-val">false</span>),
+<a href=#444 id=444 data-nosnippet>444</a>        );
+<a href=#445 id=445 data-nosnippet>445</a>        <span class="kw">for </span>(entry, tangent) <span class="kw">in </span>rhs.iter_mut().zip(local_tangent) {
+<a href=#446 id=446 data-nosnippet>446</a>            <span class="kw-2">*</span>entry += tangent;
+<a href=#447 id=447 data-nosnippet>447</a>        }
+<a href=#448 id=448 data-nosnippet>448</a>        operator.solve_rhs(<span class="kw-2">&amp;</span>rhs, <span class="self">self</span>.options.for_derivative(), <span class="bool-val">false</span>)
+<a href=#449 id=449 data-nosnippet>449</a>    }
+<a href=#450 id=450 data-nosnippet>450</a>
+<a href=#451 id=451 data-nosnippet>451</a>    <span class="doccomment">/// Gradients of the cluster and the incident fields from `cotangent`, the gradient
+<a href=#452 id=452 data-nosnippet>452</a>    /// of a real loss with respect to the solution.
+<a href=#453 id=453 data-nosnippet>453</a>    ///
+<a href=#454 id=454 data-nosnippet>454</a>    /// One adjoint GMRES solve per column gives `Y = (I - T C)⁻ᴴ G`; each particle pair
+<a href=#455 id=455 data-nosnippet>455</a>    /// then contributes to the position and `k0` gradients. Those contributions add in
+<a href=#456 id=456 data-nosnippet>456</a>    /// chunks of particles fixed by the particle count, and the chunk sums in chunk
+<a href=#457 id=457 data-nosnippet>457</a>    /// order; the radius and permittivity gradients add in particle order. The thread
+<a href=#458 id=458 data-nosnippet>458</a>    /// count changes none of the gradients.
+<a href=#459 id=459 data-nosnippet>459</a>    /// Convergence follows the same relative-only policy as [`Self::pushforward`].
+<a href=#460 id=460 data-nosnippet>460</a>    </span><span class="kw">pub fn </span>pullback(<span class="kw-2">&amp;</span><span class="self">self</span>, cotangent: <span class="kw-2">&amp;</span>DMatrix&lt;Complex&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;IterativeGradient&gt; {
+<a href=#461 id=461 data-nosnippet>461</a>        <span class="kw">if </span>cotangent.shape() != <span class="self">self</span>.shape() || cotangent.iter().any(|<span class="kw-2">&amp;</span>z| !finite(z)) {
+<a href=#462 id=462 data-nosnippet>462</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::InvalidInput(<span class="string">"invalid illumination cotangent"</span>.into()));
+<a href=#463 id=463 data-nosnippet>463</a>        }
+<a href=#464 id=464 data-nosnippet>464</a>        <span class="kw">let </span>operator = <span class="kw-2">&amp;</span><span class="self">self</span>.operator;
+<a href=#465 id=465 data-nosnippet>465</a>        <span class="kw">let </span>adjoint = operator.solve_rhs(cotangent, <span class="self">self</span>.options.for_derivative(), <span class="bool-val">true</span>)<span class="question-mark">?</span>;
+<a href=#466 id=466 data-nosnippet>466</a>        <span class="kw">let </span>columns = <span class="self">self</span>.incident.ncols();
+<a href=#467 id=467 data-nosnippet>467</a>        <span class="kw">let </span>value = <span class="kw-2">&amp;</span><span class="self">self</span>.solution.value;
+<a href=#468 id=468 data-nosnippet>468</a>        <span class="comment">// The local matrices multiply the response B + C X; the coupling sees T^H Y.
+<a href=#469 id=469 data-nosnippet>469</a>        </span><span class="kw">let </span>response = <span class="self">self</span>.response()<span class="question-mark">?</span>;
+<a href=#470 id=470 data-nosnippet>470</a>        <span class="kw">let </span>incident = DMatrix::from_vec(
+<a href=#471 id=471 data-nosnippet>471</a>            operator.dimension,
+<a href=#472 id=472 data-nosnippet>472</a>            columns,
+<a href=#473 id=473 data-nosnippet>473</a>            operator.local(adjoint.value.as_slice(), <span class="bool-val">true</span>),
+<a href=#474 id=474 data-nosnippet>474</a>        );
+<a href=#475 id=475 data-nosnippet>475</a>        <span class="kw">let </span>(positions, k0) = operator.pair_gradients(<span class="kw-2">&amp;</span>incident, value)<span class="question-mark">?</span>;
+<a href=#476 id=476 data-nosnippet>476</a>        <span class="kw">let </span><span class="kw-2">mut </span>cluster = SphereClusterGradient {
+<a href=#477 id=477 data-nosnippet>477</a>            k0,
+<a href=#478 id=478 data-nosnippet>478</a>            radii: <span class="macro">vec!</span>[<span class="number">0.0</span>; operator.positions.len()],
+<a href=#479 id=479 data-nosnippet>479</a>            epsilon: <span class="macro">vec!</span>[Complex::default(); operator.positions.len()],
+<a href=#480 id=480 data-nosnippet>480</a>            positions,
+<a href=#481 id=481 data-nosnippet>481</a>        };
+<a href=#482 id=482 data-nosnippet>482</a>        operator.local_gradients(<span class="kw-2">&amp;</span>adjoint.value, <span class="kw-2">&amp;</span>response, <span class="kw-2">&amp;mut </span>cluster)<span class="question-mark">?</span>;
+<a href=#483 id=483 data-nosnippet>483</a>        <span class="prelude-val">Ok</span>(IterativeGradient {
+<a href=#484 id=484 data-nosnippet>484</a>            cluster,
+<a href=#485 id=485 data-nosnippet>485</a>            incident,
+<a href=#486 id=486 data-nosnippet>486</a>            convergence: adjoint.convergence,
+<a href=#487 id=487 data-nosnippet>487</a>        })
+<a href=#488 id=488 data-nosnippet>488</a>    }
+<a href=#489 id=489 data-nosnippet>489</a>}
+<a href=#490 id=490 data-nosnippet>490</a>
+<a href=#491 id=491 data-nosnippet>491</a><span class="kw">impl </span>IterativeSphereCluster {
+<a href=#492 id=492 data-nosnippet>492</a>    <span class="doccomment">/// Position and wavenumber gradients through the coupling `C`, whose cotangent is
+<a href=#493 id=493 data-nosnippet>493</a>    /// `(Tᴴ Y) Xᴴ` for `local_adjoint = Tᴴ Y` and the solution `value = X`, summed one
+<a href=#494 id=494 data-nosnippet>494</a>    /// particle-pair block at a time.
+<a href=#495 id=495 data-nosnippet>495</a>    ///
+<a href=#496 id=496 data-nosnippet>496</a>    /// Chunks of consecutive particles `i`, fixed by the particle count, add their
+<a href=#497 id=497 data-nosnippet>497</a>    /// pairs `(i, j)` in order into one partial sum each, and the partial sums add in
+<a href=#498 id=498 data-nosnippet>498</a>    /// chunk order (`numerics::parallel::try_fold_ordered`), so the thread count does
+<a href=#499 id=499 data-nosnippet>499</a>    /// not change the result.
+<a href=#500 id=500 data-nosnippet>500</a>    </span><span class="kw">fn </span>pair_gradients(
+<a href=#501 id=501 data-nosnippet>501</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#502 id=502 data-nosnippet>502</a>        local_adjoint: <span class="kw-2">&amp;</span>DMatrix&lt;Complex&gt;,
+<a href=#503 id=503 data-nosnippet>503</a>        value: <span class="kw-2">&amp;</span>DMatrix&lt;Complex&gt;,
+<a href=#504 id=504 data-nosnippet>504</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;[f64; <span class="number">3</span>]&gt;, f64)&gt; {
+<a href=#505 id=505 data-nosnippet>505</a>        <span class="kw">let </span>modes = <span class="self">self</span>.modes_per_particle();
+<a href=#506 id=506 data-nosnippet>506</a>        <span class="kw">let </span>particles = <span class="self">self</span>.positions.len();
+<a href=#507 id=507 data-nosnippet>507</a>        try_fold_ordered(
+<a href=#508 id=508 data-nosnippet>508</a>            (<span class="number">0</span>..particles).collect(),
+<a href=#509 id=509 data-nosnippet>509</a>            <span class="bool-val">true</span>,
+<a href=#510 id=510 data-nosnippet>510</a>            || (<span class="macro">vec!</span>[[<span class="number">0.0</span>; <span class="number">3</span>]; particles], <span class="number">0.0</span>),
+<a href=#511 id=511 data-nosnippet>511</a>            |(<span class="kw-2">mut </span>positions, <span class="kw-2">mut </span>k0): (Vec&lt;[f64; <span class="number">3</span>]&gt;, f64), <span class="kw">_</span>, i: usize| -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">_</span>&gt; {
+<a href=#512 id=512 data-nosnippet>512</a>                <span class="kw">let </span><span class="kw-2">mut </span>cotangent = <span class="macro">vec!</span>[Complex::default(); modes * modes];
+<a href=#513 id=513 data-nosnippet>513</a>                <span class="kw">for </span>j <span class="kw">in </span>(<span class="number">0</span>..particles).filter(|<span class="kw-2">&amp;</span>j| <span class="macro">j !</span>= i) {
+<a href=#514 id=514 data-nosnippet>514</a>                    <span class="comment">// The rows of particle i against the columns of particle j,
+<a href=#515 id=515 data-nosnippet>515</a>                    // sequentially: the particles already run in parallel.
+<a href=#516 id=516 data-nosnippet>516</a>                    </span>matmul(
+<a href=#517 id=517 data-nosnippet>517</a>                        MatMut::from_column_major_slice_mut(<span class="kw-2">&amp;mut </span>cotangent, modes, modes),
+<a href=#518 id=518 data-nosnippet>518</a>                        Accum::Replace,
+<a href=#519 id=519 data-nosnippet>519</a>                        view(local_adjoint).subrows(i * modes, modes),
+<a href=#520 id=520 data-nosnippet>520</a>                        view(value).subrows(j * modes, modes).adjoint(),
+<a href=#521 id=521 data-nosnippet>521</a>                        Complex::new(<span class="number">1.0</span>, <span class="number">0.0</span>),
+<a href=#522 id=522 data-nosnippet>522</a>                        Par::Seq,
+<a href=#523 id=523 data-nosnippet>523</a>                    );
+<a href=#524 id=524 data-nosnippet>524</a>                    <span class="kw">let </span>displacement = std::array::from_fn(|axis| {
+<a href=#525 id=525 data-nosnippet>525</a>                        <span class="self">self</span>.positions[i][axis] - <span class="self">self</span>.positions[j][axis]
+<a href=#526 id=526 data-nosnippet>526</a>                    });
+<a href=#527 id=527 data-nosnippet>527</a>                    <span class="kw">let </span>(position, frequency) = <span class="self">self
+<a href=#528 id=528 data-nosnippet>528</a>                        </span>.plan
+<a href=#529 id=529 data-nosnippet>529</a>                        .pullback(
+<a href=#530 id=530 data-nosnippet>530</a>                            Complex::new(<span class="self">self</span>.k0, <span class="number">0.0</span>),
+<a href=#531 id=531 data-nosnippet>531</a>                            displacement,
+<a href=#532 id=532 data-nosnippet>532</a>                            Radial::Singular,
+<a href=#533 id=533 data-nosnippet>533</a>                            <span class="kw-2">&amp;</span>cotangent,
+<a href=#534 id=534 data-nosnippet>534</a>                        )
+<a href=#535 id=535 data-nosnippet>535</a>                        .map(|(position, k)| (position, k.re))<span class="question-mark">?</span>;
+<a href=#536 id=536 data-nosnippet>536</a>                    k0 += frequency;
+<a href=#537 id=537 data-nosnippet>537</a>                    <span class="kw">for </span>(axis, derivative) <span class="kw">in </span>position.into_iter().enumerate() {
+<a href=#538 id=538 data-nosnippet>538</a>                        positions[i][axis] += derivative;
+<a href=#539 id=539 data-nosnippet>539</a>                        positions[j][axis] -= derivative;
+<a href=#540 id=540 data-nosnippet>540</a>                    }
+<a href=#541 id=541 data-nosnippet>541</a>                }
+<a href=#542 id=542 data-nosnippet>542</a>                <span class="prelude-val">Ok</span>((positions, k0))
+<a href=#543 id=543 data-nosnippet>543</a>            },
+<a href=#544 id=544 data-nosnippet>544</a>            |(<span class="kw-2">mut </span>positions, k0), (partial, partial_k0)| {
+<a href=#545 id=545 data-nosnippet>545</a>                <span class="kw">for </span>(a, b) <span class="kw">in </span>positions.iter_mut().flatten().zip(partial.iter().flatten()) {
+<a href=#546 id=546 data-nosnippet>546</a>                    <span class="kw-2">*</span>a += b;
+<a href=#547 id=547 data-nosnippet>547</a>                }
+<a href=#548 id=548 data-nosnippet>548</a>                (positions, k0 + partial_k0)
+<a href=#549 id=549 data-nosnippet>549</a>            },
+<a href=#550 id=550 data-nosnippet>550</a>        )
+<a href=#551 id=551 data-nosnippet>551</a>    }
+<a href=#552 id=552 data-nosnippet>552</a>
+<a href=#553 id=553 data-nosnippet>553</a>    <span class="doccomment">/// Radius, permittivity and wavenumber gradients through the Mie coefficients,
+<a href=#554 id=554 data-nosnippet>554</a>    /// whose local cotangent is `Y (B + C X)ᴴ` restricted to each 2 x 2 block.
+<a href=#555 id=555 data-nosnippet>555</a>    ///
+<a href=#556 id=556 data-nosnippet>556</a>    /// [`SphereResidual::pullback`](crate::tmatrix::SphereResidual::pullback) does the
+<a href=#557 id=557 data-nosnippet>557</a>    /// same for the dense path of [`sphere_cluster`](super::sphere_cluster), with two
+<a href=#558 id=558 data-nosnippet>558</a>    /// differences in order. It sums the Mie gradients of all degrees and then applies
+<a href=#559 id=559 data-nosnippet>559</a>    /// the chain rule of the size parameter `k0 r` once; here each degree adds its own
+<a href=#560 id=560 data-nosnippet>560</a>    /// `k0 g` and `r g`. It also swaps each 2 x 2 block to helicity order before
+<a href=#561 id=561 data-nosnippet>561</a>    /// summing, where this sums in mode order and swaps once, which gives the same
+<a href=#562 id=562 data-nosnippet>562</a>    /// values. The first difference changes the last bits, so the two paths agree to
+<a href=#563 id=563 data-nosnippet>563</a>    /// rounding, and each keeps its order so that its results stay reproducible.
+<a href=#564 id=564 data-nosnippet>564</a>    </span><span class="kw">fn </span>local_gradients(
+<a href=#565 id=565 data-nosnippet>565</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#566 id=566 data-nosnippet>566</a>        adjoint: <span class="kw-2">&amp;</span>DMatrix&lt;Complex&gt;,
+<a href=#567 id=567 data-nosnippet>567</a>        response: <span class="kw-2">&amp;</span>DMatrix&lt;Complex&gt;,
+<a href=#568 id=568 data-nosnippet>568</a>        cluster: <span class="kw-2">&amp;mut </span>SphereClusterGradient,
+<a href=#569 id=569 data-nosnippet>569</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#570 id=570 data-nosnippet>570</a>        <span class="kw">let </span>modes = <span class="self">self</span>.modes_per_particle();
+<a href=#571 id=571 data-nosnippet>571</a>        <span class="kw">for </span>(particle, degrees) <span class="kw">in </span><span class="self">self</span>.degrees.iter().enumerate() {
+<a href=#572 id=572 data-nosnippet>572</a>            <span class="kw">let </span><span class="kw-2">mut </span>degree_cotangents = <span class="macro">vec!</span>[Matrix2::zeros(); degrees.len()];
+<a href=#573 id=573 data-nosnippet>573</a>            <span class="kw">for </span>(block, <span class="kw-2">&amp;</span>degree) <span class="kw">in </span><span class="self">self</span>.mode_degrees.iter().enumerate() {
+<a href=#574 id=574 data-nosnippet>574</a>                <span class="kw">let </span>offset = particle * modes + block * <span class="number">2</span>;
+<a href=#575 id=575 data-nosnippet>575</a>                <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">2 </span>{
+<a href=#576 id=576 data-nosnippet>576</a>                    <span class="kw">for </span>j <span class="kw">in </span><span class="number">0</span>..<span class="number">2 </span>{
+<a href=#577 id=577 data-nosnippet>577</a>                        <span class="kw">for </span>p <span class="kw">in </span><span class="number">0</span>..adjoint.ncols() {
+<a href=#578 id=578 data-nosnippet>578</a>                            degree_cotangents[degree][(i, j)] +=
+<a href=#579 id=579 data-nosnippet>579</a>                                adjoint[(offset + i, p)] * response[(offset + j, p)].conj();
+<a href=#580 id=580 data-nosnippet>580</a>                        }
+<a href=#581 id=581 data-nosnippet>581</a>                    }
+<a href=#582 id=582 data-nosnippet>582</a>                }
+<a href=#583 id=583 data-nosnippet>583</a>            }
+<a href=#584 id=584 data-nosnippet>584</a>            <span class="kw">for </span>(residual, cotangent) <span class="kw">in </span>degrees.iter().zip(degree_cotangents) {
+<a href=#585 id=585 data-nosnippet>585</a>                <span class="kw">let </span>gradient = residual.pullback(<span class="kw-2">&amp;</span>to_mode_order(<span class="kw-2">&amp;</span>cotangent))<span class="question-mark">?</span>;
+<a href=#586 id=586 data-nosnippet>586</a>                cluster.radii[particle] += <span class="self">self</span>.k0 * gradient.sizes[<span class="number">0</span>];
+<a href=#587 id=587 data-nosnippet>587</a>                cluster.k0 += <span class="self">self</span>.radii[particle] * gradient.sizes[<span class="number">0</span>];
+<a href=#588 id=588 data-nosnippet>588</a>                cluster.epsilon[particle] += gradient.epsilon[<span class="number">0</span>];
+<a href=#589 id=589 data-nosnippet>589</a>            }
+<a href=#590 id=590 data-nosnippet>590</a>        }
+<a href=#591 id=591 data-nosnippet>591</a>        <span class="prelude-val">Ok</span>(())
+<a href=#592 id=592 data-nosnippet>592</a>    }
+<a href=#593 id=593 data-nosnippet>593</a>}
+<a href=#594 id=594 data-nosnippet>594</a>
+<a href=#595 id=595 data-nosnippet>595</a><span class="attr">#[cfg(test)]
+<a href=#596 id=596 data-nosnippet>596</a></span><span class="kw">mod </span>tests {
+<a href=#597 id=597 data-nosnippet>597</a>    <span class="kw">use </span>std::{f64::consts::PI, sync::Arc};
+<a href=#598 id=598 data-nosnippet>598</a>
+<a href=#599 id=599 data-nosnippet>599</a>    <span class="kw">use </span>nalgebra::DMatrix;
+<a href=#600 id=600 data-nosnippet>600</a>    <span class="kw">use </span>proptest::{prelude::<span class="kw-2">*</span>, test_runner::TestCaseError};
+<a href=#601 id=601 data-nosnippet>601</a>
+<a href=#602 id=602 data-nosnippet>602</a>    <span class="kw">use </span><span class="kw">super</span>::IterativeSphereCluster;
+<a href=#603 id=603 data-nosnippet>603</a>    <span class="kw">use </span>crate::{
+<a href=#604 id=604 data-nosnippet>604</a>        Complex,
+<a href=#605 id=605 data-nosnippet>605</a>        coeffs::Material,
+<a href=#606 id=606 data-nosnippet>606</a>        linalg::GmresOptions,
+<a href=#607 id=607 data-nosnippet>607</a>        sw,
+<a href=#608 id=608 data-nosnippet>608</a>        test_support::{
+<a href=#609 id=609 data-nosnippet>609</a>            EXPENSIVE_CASES, assert_same_bits_on_pools, bits, dot, patterned, prop_assert_close,
+<a href=#610 id=610 data-nosnippet>610</a>            re_dot,
+<a href=#611 id=611 data-nosnippet>611</a>        },
+<a href=#612 id=612 data-nosnippet>612</a>    };
+<a href=#613 id=613 data-nosnippet>613</a>
+<a href=#614 id=614 data-nosnippet>614</a>    <span class="kw">fn </span>options() -&gt; GmresOptions {
+<a href=#615 id=615 data-nosnippet>615</a>        GmresOptions {
+<a href=#616 id=616 data-nosnippet>616</a>            rtol: <span class="number">2e-12</span>,
+<a href=#617 id=617 data-nosnippet>617</a>            restart: <span class="number">8</span>,
+<a href=#618 id=618 data-nosnippet>618</a>            max_iterations: <span class="number">100</span>,
+<a href=#619 id=619 data-nosnippet>619</a>            ..GmresOptions::default()
+<a href=#620 id=620 data-nosnippet>620</a>        }
+<a href=#621 id=621 data-nosnippet>621</a>    }
+<a href=#622 id=622 data-nosnippet>622</a>
+<a href=#623 id=623 data-nosnippet>623</a>    <span class="doccomment">/// Sphere clusters in vacuum.
+<a href=#624 id=624 data-nosnippet>624</a>    </span><span class="attr">#[derive(Clone, Debug)]
+<a href=#625 id=625 data-nosnippet>625</a>    </span><span class="kw">struct </span>Cluster {
+<a href=#626 id=626 data-nosnippet>626</a>        lmax: u32,
+<a href=#627 id=627 data-nosnippet>627</a>        radii: Vec&lt;f64&gt;,
+<a href=#628 id=628 data-nosnippet>628</a>        epsilon: Vec&lt;Complex&gt;,
+<a href=#629 id=629 data-nosnippet>629</a>        positions: Vec&lt;[f64; <span class="number">3</span>]&gt;,
+<a href=#630 id=630 data-nosnippet>630</a>    }
+<a href=#631 id=631 data-nosnippet>631</a>
+<a href=#632 id=632 data-nosnippet>632</a>    <span class="doccomment">/// One to three lossy or lossless spheres, each placed a random gap beyond touching
+<a href=#633 id=633 data-nosnippet>633</a>    /// its predecessor, along the polar axis or in a random direction.
+<a href=#634 id=634 data-nosnippet>634</a>    </span><span class="kw">fn </span>cluster() -&gt; <span class="kw">impl </span>Strategy&lt;Value = Cluster&gt; {
+<a href=#635 id=635 data-nosnippet>635</a>        <span class="kw">let </span>direction = <span class="macro">prop_oneof!</span>[
+<a href=#636 id=636 data-nosnippet>636</a>            Just([<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">1.0</span>]),
+<a href=#637 id=637 data-nosnippet>637</a>            Just([<span class="number">0.0</span>, <span class="number">0.0</span>, -<span class="number">1.0</span>]),
+<a href=#638 id=638 data-nosnippet>638</a>            (<span class="number">0.0</span>..PI, -PI..PI).prop_map(|(theta, phi): (f64, f64)| {
+<a href=#639 id=639 data-nosnippet>639</a>                [
+<a href=#640 id=640 data-nosnippet>640</a>                    theta.sin() * phi.cos(),
+<a href=#641 id=641 data-nosnippet>641</a>                    theta.sin() * phi.sin(),
+<a href=#642 id=642 data-nosnippet>642</a>                    theta.cos(),
+<a href=#643 id=643 data-nosnippet>643</a>                ]
+<a href=#644 id=644 data-nosnippet>644</a>            }),
+<a href=#645 id=645 data-nosnippet>645</a>        ];
+<a href=#646 id=646 data-nosnippet>646</a>        (<span class="number">1_usize</span>..=<span class="number">3</span>, <span class="number">1_u32</span>..=<span class="number">2</span>)
+<a href=#647 id=647 data-nosnippet>647</a>            .prop_flat_map(<span class="kw">move </span>|(count, lmax)| {
+<a href=#648 id=648 data-nosnippet>648</a>                (
+<a href=#649 id=649 data-nosnippet>649</a>                    Just(lmax),
+<a href=#650 id=650 data-nosnippet>650</a>                    prop::collection::vec(<span class="number">0.1_f64</span>..<span class="number">0.35</span>, count),
+<a href=#651 id=651 data-nosnippet>651</a>                    prop::collection::vec(
+<a href=#652 id=652 data-nosnippet>652</a>                        (<span class="number">1.2_f64</span>..<span class="number">4.0</span>, <span class="macro">prop_oneof!</span>[Just(<span class="number">0.0</span>), <span class="number">0.0_f64</span>..<span class="number">0.05</span>]),
+<a href=#653 id=653 data-nosnippet>653</a>                        count,
+<a href=#654 id=654 data-nosnippet>654</a>                    ),
+<a href=#655 id=655 data-nosnippet>655</a>                    prop::array::uniform3(-<span class="number">1.0_f64</span>..<span class="number">1.0</span>),
+<a href=#656 id=656 data-nosnippet>656</a>                    prop::collection::vec((<span class="number">0.05_f64</span>..<span class="number">1.0</span>, direction.clone()), count - <span class="number">1</span>),
+<a href=#657 id=657 data-nosnippet>657</a>                )
+<a href=#658 id=658 data-nosnippet>658</a>            })
+<a href=#659 id=659 data-nosnippet>659</a>            .prop_map(|(lmax, radii, epsilon, origin, steps)| {
+<a href=#660 id=660 data-nosnippet>660</a>                <span class="kw">let </span><span class="kw-2">mut </span>positions = <span class="macro">vec!</span>[origin];
+<a href=#661 id=661 data-nosnippet>661</a>                <span class="kw">for </span>(i, (gap, direction)) <span class="kw">in </span>steps.into_iter().enumerate() {
+<a href=#662 id=662 data-nosnippet>662</a>                    <span class="kw">let </span>distance = radii[i] + radii[i + <span class="number">1</span>] + gap;
+<a href=#663 id=663 data-nosnippet>663</a>                    <span class="kw">let </span>previous = positions[i];
+<a href=#664 id=664 data-nosnippet>664</a>                    positions.push(std::array::from_fn(|a| {
+<a href=#665 id=665 data-nosnippet>665</a>                        previous[a] + distance * direction[a]
+<a href=#666 id=666 data-nosnippet>666</a>                    }));
+<a href=#667 id=667 data-nosnippet>667</a>                }
+<a href=#668 id=668 data-nosnippet>668</a>                Cluster {
+<a href=#669 id=669 data-nosnippet>669</a>                    lmax,
+<a href=#670 id=670 data-nosnippet>670</a>                    radii,
+<a href=#671 id=671 data-nosnippet>671</a>                    epsilon: epsilon
+<a href=#672 id=672 data-nosnippet>672</a>                        .into_iter()
+<a href=#673 id=673 data-nosnippet>673</a>                        .map(|(re, im)| Complex::new(re, im))
+<a href=#674 id=674 data-nosnippet>674</a>                        .collect(),
+<a href=#675 id=675 data-nosnippet>675</a>                    positions,
+<a href=#676 id=676 data-nosnippet>676</a>                }
+<a href=#677 id=677 data-nosnippet>677</a>            })
+<a href=#678 id=678 data-nosnippet>678</a>    }
+<a href=#679 id=679 data-nosnippet>679</a>
+<a href=#680 id=680 data-nosnippet>680</a>    <span class="kw">impl </span>Cluster {
+<a href=#681 id=681 data-nosnippet>681</a>        <span class="kw">fn </span>operator(<span class="kw-2">&amp;</span><span class="self">self</span>, k0: f64) -&gt; IterativeSphereCluster {
+<a href=#682 id=682 data-nosnippet>682</a>            IterativeSphereCluster::new(<span class="self">self</span>.lmax, k0, <span class="kw-2">&amp;</span><span class="self">self</span>.radii, <span class="kw-2">&amp;</span><span class="self">self</span>.epsilon, <span class="kw-2">&amp;</span><span class="self">self</span>.positions)
+<a href=#683 id=683 data-nosnippet>683</a>                .unwrap()
+<a href=#684 id=684 data-nosnippet>684</a>        }
+<a href=#685 id=685 data-nosnippet>685</a>
+<a href=#686 id=686 data-nosnippet>686</a>        <span class="doccomment">/// The signed permutation `S` mapping `(particle, l, m, pol)` to
+<a href=#687 id=687 data-nosnippet>687</a>        /// `(particle, l, -m, pol)` with sign `(-1)^m`.
+<a href=#688 id=688 data-nosnippet>688</a>        </span><span class="kw">fn </span>reciprocity(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DMatrix&lt;Complex&gt; {
+<a href=#689 id=689 data-nosnippet>689</a>            <span class="kw">let </span>modes = sw::modes(<span class="self">self</span>.lmax).unwrap();
+<a href=#690 id=690 data-nosnippet>690</a>            <span class="kw">let </span>modes_per_particle = modes.len();
+<a href=#691 id=691 data-nosnippet>691</a>            <span class="kw">let </span>dimension = modes_per_particle * <span class="self">self</span>.radii.len();
+<a href=#692 id=692 data-nosnippet>692</a>            <span class="kw">let </span><span class="kw-2">mut </span>s = DMatrix::zeros(dimension, dimension);
+<a href=#693 id=693 data-nosnippet>693</a>            <span class="kw">for </span>particle <span class="kw">in </span><span class="number">0</span>..<span class="self">self</span>.radii.len() {
+<a href=#694 id=694 data-nosnippet>694</a>                <span class="kw">let </span>offset = particle * modes_per_particle;
+<a href=#695 id=695 data-nosnippet>695</a>                <span class="kw">for </span>(from, mode) <span class="kw">in </span>modes.iter().enumerate() {
+<a href=#696 id=696 data-nosnippet>696</a>                    <span class="kw">let </span>to = modes
+<a href=#697 id=697 data-nosnippet>697</a>                        .iter()
+<a href=#698 id=698 data-nosnippet>698</a>                        .position(|other| {
+<a href=#699 id=699 data-nosnippet>699</a>                            other.l == mode.l &amp;&amp; other.m == -mode.m &amp;&amp; other.pol == mode.pol
+<a href=#700 id=700 data-nosnippet>700</a>                        })
+<a href=#701 id=701 data-nosnippet>701</a>                        .unwrap();
+<a href=#702 id=702 data-nosnippet>702</a>                    <span class="kw">let </span>sign = <span class="kw">if </span>mode.m % <span class="number">2 </span>== <span class="number">0 </span>{ <span class="number">1.0 </span>} <span class="kw">else </span>{ -<span class="number">1.0 </span>};
+<a href=#703 id=703 data-nosnippet>703</a>                    s[(offset + to, offset + from)] = Complex::from(sign);
+<a href=#704 id=704 data-nosnippet>704</a>                }
+<a href=#705 id=705 data-nosnippet>705</a>            }
+<a href=#706 id=706 data-nosnippet>706</a>            s
+<a href=#707 id=707 data-nosnippet>707</a>        }
+<a href=#708 id=708 data-nosnippet>708</a>    }
+<a href=#709 id=709 data-nosnippet>709</a>
+<a href=#710 id=710 data-nosnippet>710</a>    <span class="macro">proptest!</span> {
+<a href=#711 id=711 data-nosnippet>711</a>        <span class="comment">// Five GMRES cluster solves, an adjoint solve and a dense cluster solve per case.
+<a href=#712 id=712 data-nosnippet>712</a>        </span><span class="attr">#![proptest_config(ProptestConfig::with_cases(EXPENSIVE_CASES))]
+<a href=#713 id=713 data-nosnippet>713</a>
+<a href=#714 id=714 data-nosnippet>714</a>        #[test]
+<a href=#715 id=715 data-nosnippet>715</a>        </span><span class="kw">fn </span>requested_columns_match_dense_and_obey_symmetries(
+<a href=#716 id=716 data-nosnippet>716</a>            cluster <span class="kw">in </span>cluster(),
+<a href=#717 id=717 data-nosnippet>717</a>            seed <span class="kw">in </span>-<span class="number">2.0_f64</span>..<span class="number">2.0</span>,
+<a href=#718 id=718 data-nosnippet>718</a>            scale <span class="kw">in </span><span class="number">0.7_f64</span>..<span class="number">1.4</span>,
+<a href=#719 id=719 data-nosnippet>719</a>            offset <span class="kw">in </span>prop::array::uniform3(-<span class="number">1.0_f64</span>..<span class="number">1.0</span>),
+<a href=#720 id=720 data-nosnippet>720</a>        ) {
+<a href=#721 id=721 data-nosnippet>721</a>            check_requested_columns(<span class="kw-2">&amp;</span>cluster, seed, scale, offset)<span class="question-mark">?</span>;
+<a href=#722 id=722 data-nosnippet>722</a>        }
+<a href=#723 id=723 data-nosnippet>723</a>    }
+<a href=#724 id=724 data-nosnippet>724</a>
+<a href=#725 id=725 data-nosnippet>725</a>    <span class="doccomment">/// Matrix-free GMRES solves equal the dense cluster T-matrix applied to the
+<a href=#726 id=726 data-nosnippet>726</a>    /// requested columns and certify their residuals; for a single sphere both equal
+<a href=#727 id=727 data-nosnippet>727</a>    /// its Mie T-matrix and its product with the columns. The dense T-matrix obeys
+<a href=#728 id=728 data-nosnippet>728</a>    /// Lorentz reciprocity `T = S Tᵀ S`, and so do the requested columns:
+<a href=#729 id=729 data-nosnippet>729</a>    /// `uᵀ S X_v = vᵀ S X_u`. Solves are invariant under translation, joint scaling
+<a href=#730 id=730 data-nosnippet>730</a>    /// and relabelling of the particles, and the pullback equals the dense one, with
+<a href=#731 id=731 data-nosnippet>731</a>    /// the incident cotangent `Tᴴ G`, the loss pairing, zero total translation
+<a href=#732 id=732 data-nosnippet>732</a>    /// gradient and the Euler identity of joint length and wavenumber scaling.
+<a href=#733 id=733 data-nosnippet>733</a>    </span><span class="kw">fn </span>check_requested_columns(
+<a href=#734 id=734 data-nosnippet>734</a>        cluster: <span class="kw-2">&amp;</span>Cluster,
+<a href=#735 id=735 data-nosnippet>735</a>        seed: f64,
+<a href=#736 id=736 data-nosnippet>736</a>        scale: f64,
+<a href=#737 id=737 data-nosnippet>737</a>        offset: [f64; <span class="number">3</span>],
+<a href=#738 id=738 data-nosnippet>738</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), TestCaseError&gt; {
+<a href=#739 id=739 data-nosnippet>739</a>        <span class="kw">let </span>Cluster {
+<a href=#740 id=740 data-nosnippet>740</a>            lmax,
+<a href=#741 id=741 data-nosnippet>741</a>            radii,
+<a href=#742 id=742 data-nosnippet>742</a>            epsilon,
+<a href=#743 id=743 data-nosnippet>743</a>            positions,
+<a href=#744 id=744 data-nosnippet>744</a>        } = cluster;
+<a href=#745 id=745 data-nosnippet>745</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..positions.len() {
+<a href=#746 id=746 data-nosnippet>746</a>            <span class="kw">for </span>j <span class="kw">in </span><span class="number">0</span>..i {
+<a href=#747 id=747 data-nosnippet>747</a>                <span class="kw">let </span>d = (<span class="number">0</span>..<span class="number">3</span>).fold(<span class="number">0.0_f64</span>, |d, a| d.hypot(positions[i][a] - positions[j][a]));
+<a href=#748 id=748 data-nosnippet>748</a>                <span class="macro">prop_assume!</span>(d &gt; radii[i] + radii[j] + <span class="number">0.01</span>);
+<a href=#749 id=749 data-nosnippet>749</a>            }
+<a href=#750 id=750 data-nosnippet>750</a>        }
+<a href=#751 id=751 data-nosnippet>751</a>        <span class="kw">let </span>k0 = <span class="number">1.2</span>;
+<a href=#752 id=752 data-nosnippet>752</a>        <span class="kw">let </span>operator = cluster.operator(k0);
+<a href=#753 id=753 data-nosnippet>753</a>        <span class="kw">let </span>incident = patterned(operator.dimension(), <span class="number">2</span>, seed);
+<a href=#754 id=754 data-nosnippet>754</a>        <span class="kw">let </span>result = operator.solve(<span class="kw-2">&amp;</span>incident, options()).unwrap();
+<a href=#755 id=755 data-nosnippet>755</a>        <span class="kw">let </span>dense = <span class="kw">crate</span>::cluster::sphere_cluster(<span class="kw-2">*</span>lmax, k0, radii, epsilon, positions).unwrap();
+<a href=#756 id=756 data-nosnippet>756</a>        <span class="kw">let </span>t = dense.value().clone();
+<a href=#757 id=757 data-nosnippet>757</a>        <span class="kw">let </span>expected = <span class="kw-2">&amp;</span>t * <span class="kw-2">&amp;</span>incident;
+<a href=#758 id=758 data-nosnippet>758</a>        <span class="macro">prop_assert_close!</span>(<span class="kw-2">&amp;</span>result.value, <span class="kw-2">&amp;</span>expected, <span class="number">2e-10 </span>* expected.norm());
+<a href=#759 id=759 data-nosnippet>759</a>        <span class="kw">for </span>report <span class="kw">in </span><span class="kw-2">&amp;</span>result.convergence {
+<a href=#760 id=760 data-nosnippet>760</a>            <span class="macro">prop_assert!</span>(report.residual_norm &lt;= options().rtol * report.rhs_norm);
+<a href=#761 id=761 data-nosnippet>761</a>        }
+<a href=#762 id=762 data-nosnippet>762</a>        <span class="kw">if let </span>[radius] = radii.as_slice() {
+<a href=#763 id=763 data-nosnippet>763</a>            <span class="kw">let </span>material = Material {
+<a href=#764 id=764 data-nosnippet>764</a>                epsilon: epsilon[<span class="number">0</span>],
+<a href=#765 id=765 data-nosnippet>765</a>                ..Material::default()
+<a href=#766 id=766 data-nosnippet>766</a>            };
+<a href=#767 id=767 data-nosnippet>767</a>            <span class="kw">let </span>(sphere, <span class="kw">_</span>) =
+<a href=#768 id=768 data-nosnippet>768</a>                <span class="kw">crate</span>::tmatrix::sphere(<span class="kw-2">*</span>lmax, k0, <span class="kw-2">&amp;</span>[<span class="kw-2">*</span>radius], <span class="kw-2">&amp;</span>[material, Material::default()])
+<a href=#769 id=769 data-nosnippet>769</a>                    .unwrap();
+<a href=#770 id=770 data-nosnippet>770</a>            <span class="macro">prop_assert_close!</span>(<span class="kw-2">&amp;</span>sphere, <span class="kw-2">&amp;</span>t, <span class="number">1e-13</span>);
+<a href=#771 id=771 data-nosnippet>771</a>            <span class="macro">prop_assert_close!</span>(<span class="kw-2">&amp;</span>result.value, <span class="kw-2">&amp;</span>(<span class="kw-2">&amp;</span>sphere * <span class="kw-2">&amp;</span>incident), <span class="number">1e-13</span>);
+<a href=#772 id=772 data-nosnippet>772</a>        }
+<a href=#773 id=773 data-nosnippet>773</a>
+<a href=#774 id=774 data-nosnippet>774</a>        <span class="kw">let </span>s = cluster.reciprocity();
+<a href=#775 id=775 data-nosnippet>775</a>        <span class="macro">prop_assert_close!</span>(<span class="kw-2">&amp;</span>(<span class="kw-2">&amp;</span>s * t.transpose() * <span class="kw-2">&amp;</span>s), <span class="kw-2">&amp;</span>t, <span class="number">1e-12 </span>* t.norm());
+<a href=#776 id=776 data-nosnippet>776</a>        <span class="kw">let </span>(u, v) = (incident.column(<span class="number">0</span>), incident.column(<span class="number">1</span>));
+<a href=#777 id=777 data-nosnippet>777</a>        <span class="kw">let </span>forward = (u.transpose() * <span class="kw-2">&amp;</span>s * result.value.column(<span class="number">1</span>))[<span class="number">0</span>];
+<a href=#778 id=778 data-nosnippet>778</a>        <span class="kw">let </span>backward = (v.transpose() * <span class="kw-2">&amp;</span>s * result.value.column(<span class="number">0</span>))[<span class="number">0</span>];
+<a href=#779 id=779 data-nosnippet>779</a>        <span class="macro">prop_assert_close!</span>(forward, backward, <span class="number">1e-10 </span>* u.norm() * v.norm() * t.norm());
+<a href=#780 id=780 data-nosnippet>780</a>
+<a href=#781 id=781 data-nosnippet>781</a>        <span class="kw">let </span>translated = Cluster {
+<a href=#782 id=782 data-nosnippet>782</a>            positions: positions
+<a href=#783 id=783 data-nosnippet>783</a>                .iter()
+<a href=#784 id=784 data-nosnippet>784</a>                .map(|p| std::array::from_fn(|a| p[a] + offset[a]))
+<a href=#785 id=785 data-nosnippet>785</a>                .collect(),
+<a href=#786 id=786 data-nosnippet>786</a>            ..cluster.clone()
+<a href=#787 id=787 data-nosnippet>787</a>        };
+<a href=#788 id=788 data-nosnippet>788</a>        <span class="kw">let </span>other = translated.operator(k0).solve(<span class="kw-2">&amp;</span>incident, options()).unwrap();
+<a href=#789 id=789 data-nosnippet>789</a>        <span class="macro">prop_assert_close!</span>(<span class="kw-2">&amp;</span>other.value, <span class="kw-2">&amp;</span>result.value, <span class="number">2e-12</span>);
+<a href=#790 id=790 data-nosnippet>790</a>        <span class="kw">let </span>scaled = Cluster {
+<a href=#791 id=791 data-nosnippet>791</a>            radii: radii.iter().map(|r| r * scale).collect(),
+<a href=#792 id=792 data-nosnippet>792</a>            positions: positions.iter().map(|p| p.map(|x| x * scale)).collect(),
+<a href=#793 id=793 data-nosnippet>793</a>            ..cluster.clone()
+<a href=#794 id=794 data-nosnippet>794</a>        };
+<a href=#795 id=795 data-nosnippet>795</a>        <span class="kw">let </span>other = scaled
+<a href=#796 id=796 data-nosnippet>796</a>            .operator(k0 / scale)
+<a href=#797 id=797 data-nosnippet>797</a>            .solve(<span class="kw-2">&amp;</span>incident, options())
+<a href=#798 id=798 data-nosnippet>798</a>            .unwrap();
+<a href=#799 id=799 data-nosnippet>799</a>        <span class="macro">prop_assert_close!</span>(<span class="kw-2">&amp;</span>other.value, <span class="kw-2">&amp;</span>result.value, <span class="number">2e-11</span>);
+<a href=#800 id=800 data-nosnippet>800</a>        <span class="kw">let </span>reversed = Cluster {
+<a href=#801 id=801 data-nosnippet>801</a>            radii: radii.iter().rev().copied().collect(),
+<a href=#802 id=802 data-nosnippet>802</a>            epsilon: epsilon.iter().rev().copied().collect(),
+<a href=#803 id=803 data-nosnippet>803</a>            positions: positions.iter().rev().copied().collect(),
+<a href=#804 id=804 data-nosnippet>804</a>            ..cluster.clone()
+<a href=#805 id=805 data-nosnippet>805</a>        };
+<a href=#806 id=806 data-nosnippet>806</a>        <span class="kw">let </span>modes = operator.modes_per_particle();
+<a href=#807 id=807 data-nosnippet>807</a>        <span class="kw">let </span>count = radii.len();
+<a href=#808 id=808 data-nosnippet>808</a>        <span class="kw">let </span>reverse = |x: <span class="kw-2">&amp;</span>DMatrix&lt;Complex&gt;| {
+<a href=#809 id=809 data-nosnippet>809</a>            DMatrix::from_fn(x.nrows(), x.ncols(), |i, j| {
+<a href=#810 id=810 data-nosnippet>810</a>                x[((count - <span class="number">1 </span>- i / modes) * modes + i % modes, j)]
+<a href=#811 id=811 data-nosnippet>811</a>            })
+<a href=#812 id=812 data-nosnippet>812</a>        };
+<a href=#813 id=813 data-nosnippet>813</a>        <span class="kw">let </span>other = reversed
+<a href=#814 id=814 data-nosnippet>814</a>            .operator(k0)
+<a href=#815 id=815 data-nosnippet>815</a>            .solve(<span class="kw-2">&amp;</span>reverse(<span class="kw-2">&amp;</span>incident), options())
+<a href=#816 id=816 data-nosnippet>816</a>            .unwrap();
+<a href=#817 id=817 data-nosnippet>817</a>        <span class="macro">prop_assert_close!</span>(<span class="kw-2">&amp;</span>other.value, <span class="kw-2">&amp;</span>reverse(<span class="kw-2">&amp;</span>result.value), <span class="number">1e-12</span>);
+<a href=#818 id=818 data-nosnippet>818</a>
+<a href=#819 id=819 data-nosnippet>819</a>        <span class="kw">let </span>g = patterned(operator.dimension(), <span class="number">2</span>, seed + <span class="number">0.3</span>);
+<a href=#820 id=820 data-nosnippet>820</a>        <span class="kw">let </span>grad = Arc::new(operator)
+<a href=#821 id=821 data-nosnippet>821</a>            .record(incident.clone(), options())
+<a href=#822 id=822 data-nosnippet>822</a>            .unwrap()
+<a href=#823 id=823 data-nosnippet>823</a>            .pullback(<span class="kw-2">&amp;</span>g)
+<a href=#824 id=824 data-nosnippet>824</a>            .unwrap();
+<a href=#825 id=825 data-nosnippet>825</a>        <span class="macro">prop_assert_close!</span>(<span class="kw-2">&amp;</span>grad.incident, <span class="kw-2">&amp;</span>(t.adjoint() * <span class="kw-2">&amp;</span>g), <span class="number">3e-10 </span>* g.norm());
+<a href=#826 id=826 data-nosnippet>826</a>        <span class="kw">let </span>dense_grad = dense.pullback(<span class="kw-2">&amp;</span>(<span class="kw-2">&amp;</span>g * incident.adjoint())).unwrap();
+<a href=#827 id=827 data-nosnippet>827</a>        <span class="kw">let </span>cluster_grad = <span class="kw-2">&amp;</span>grad.cluster;
+<a href=#828 id=828 data-nosnippet>828</a>        <span class="macro">prop_assert_close!</span>(<span class="kw-2">&amp;</span>cluster_grad.radii, <span class="kw-2">&amp;</span>dense_grad.radii, <span class="number">3e-10</span>);
+<a href=#829 id=829 data-nosnippet>829</a>        <span class="macro">prop_assert_close!</span>(<span class="kw-2">&amp;</span>cluster_grad.epsilon, <span class="kw-2">&amp;</span>dense_grad.epsilon, <span class="number">3e-10</span>);
+<a href=#830 id=830 data-nosnippet>830</a>        <span class="macro">prop_assert_close!</span>(<span class="kw-2">&amp;</span>cluster_grad.positions, <span class="kw-2">&amp;</span>dense_grad.positions, <span class="number">3e-10</span>);
+<a href=#831 id=831 data-nosnippet>831</a>        <span class="macro">prop_assert_close!</span>(cluster_grad.k0, dense_grad.k0, <span class="number">3e-10</span>);
+<a href=#832 id=832 data-nosnippet>832</a>        <span class="kw">for </span>axis <span class="kw">in </span><span class="number">0</span>..<span class="number">3 </span>{
+<a href=#833 id=833 data-nosnippet>833</a>            <span class="kw">let </span>total: f64 = cluster_grad.positions.iter().map(|p| p[axis]).sum();
+<a href=#834 id=834 data-nosnippet>834</a>            <span class="macro">prop_assert_close!</span>(total, <span class="number">0.0</span>, <span class="number">1e-12</span>, <span class="string">"axis {}"</span>, axis);
+<a href=#835 id=835 data-nosnippet>835</a>        }
+<a href=#836 id=836 data-nosnippet>836</a>        <span class="kw">let </span>loss = re_dot(<span class="kw-2">&amp;</span>g, <span class="kw-2">&amp;</span>result.value);
+<a href=#837 id=837 data-nosnippet>837</a>        <span class="macro">prop_assert_close!</span>(loss, re_dot(<span class="kw-2">&amp;</span>grad.incident, <span class="kw-2">&amp;</span>incident), <span class="number">3e-10</span>);
+<a href=#838 id=838 data-nosnippet>838</a>        <span class="kw">let </span>scale_gradient = dot(radii, <span class="kw-2">&amp;</span>cluster_grad.radii)
+<a href=#839 id=839 data-nosnippet>839</a>            + dot(
+<a href=#840 id=840 data-nosnippet>840</a>                positions.iter().flatten(),
+<a href=#841 id=841 data-nosnippet>841</a>                cluster_grad.positions.iter().flatten(),
+<a href=#842 id=842 data-nosnippet>842</a>            )
+<a href=#843 id=843 data-nosnippet>843</a>            - k0 * cluster_grad.k0;
+<a href=#844 id=844 data-nosnippet>844</a>        <span class="macro">prop_assert_close!</span>(scale_gradient, <span class="number">0.0</span>, <span class="number">3e-10</span>);
+<a href=#845 id=845 data-nosnippet>845</a>        <span class="prelude-val">Ok</span>(())
+<a href=#846 id=846 data-nosnippet>846</a>    }
+<a href=#847 id=847 data-nosnippet>847</a>
+<a href=#848 id=848 data-nosnippet>848</a>    <span class="doccomment">/// Near-touching dielectric spheres require several restart cycles. Eleven
+<a href=#849 id=849 data-nosnippet>849</a>    /// columns exercise a full batch and its tail, with zero and widely differing
+<a href=#850 id=850 data-nosnippet>850</a>    /// amplitudes in both the forward and adjoint systems.
+<a href=#851 id=851 data-nosnippet>851</a>    </span><span class="attr">#[test]
+<a href=#852 id=852 data-nosnippet>852</a>    </span><span class="kw">fn </span>restarted_batches_match_dense_for_strongly_coupled_spheres() -&gt; <span class="prelude-ty">Result</span>&lt;(), TestCaseError&gt; {
+<a href=#853 id=853 data-nosnippet>853</a>        <span class="kw">let </span>cluster = Cluster {
+<a href=#854 id=854 data-nosnippet>854</a>            lmax: <span class="number">3</span>,
+<a href=#855 id=855 data-nosnippet>855</a>            radii: <span class="macro">vec!</span>[<span class="number">0.63</span>, <span class="number">0.60</span>, <span class="number">0.59</span>],
+<a href=#856 id=856 data-nosnippet>856</a>            epsilon: <span class="macro">vec!</span>[
+<a href=#857 id=857 data-nosnippet>857</a>                Complex::new(<span class="number">5.0</span>, <span class="number">0.0</span>),
+<a href=#858 id=858 data-nosnippet>858</a>                Complex::new(<span class="number">6.0</span>, <span class="number">0.05</span>),
+<a href=#859 id=859 data-nosnippet>859</a>                Complex::new(<span class="number">4.0</span>, <span class="number">0.02</span>),
+<a href=#860 id=860 data-nosnippet>860</a>            ],
+<a href=#861 id=861 data-nosnippet>861</a>            positions: <span class="macro">vec!</span>[[<span class="number">0.0</span>; <span class="number">3</span>], [<span class="number">1.3</span>, <span class="number">0.0</span>, <span class="number">0.0</span>], [<span class="number">0.65</span>, <span class="number">1.15</span>, <span class="number">0.1</span>]],
+<a href=#862 id=862 data-nosnippet>862</a>        };
+<a href=#863 id=863 data-nosnippet>863</a>        <span class="kw">let </span>k0 = <span class="number">1.4</span>;
+<a href=#864 id=864 data-nosnippet>864</a>        <span class="kw">let </span>options = GmresOptions {
+<a href=#865 id=865 data-nosnippet>865</a>            restart: <span class="number">3</span>,
+<a href=#866 id=866 data-nosnippet>866</a>            max_iterations: <span class="number">300</span>,
+<a href=#867 id=867 data-nosnippet>867</a>            ..options()
+<a href=#868 id=868 data-nosnippet>868</a>        };
+<a href=#869 id=869 data-nosnippet>869</a>        <span class="kw">let </span>operator = Arc::new(cluster.operator(k0));
+<a href=#870 id=870 data-nosnippet>870</a>        <span class="kw">let </span>scales = [<span class="number">1e-8</span>, <span class="number">0.0</span>, <span class="number">1.0</span>, <span class="number">1e8</span>, <span class="number">0.1</span>, <span class="number">7.0</span>, <span class="number">0.0</span>, <span class="number">1e-4</span>, <span class="number">1e4</span>, <span class="number">0.0</span>, <span class="number">2.0</span>];
+<a href=#871 id=871 data-nosnippet>871</a>        <span class="kw">let </span><span class="kw-2">mut </span>incident = patterned(operator.dimension(), scales.len(), <span class="number">0.4</span>);
+<a href=#872 id=872 data-nosnippet>872</a>        <span class="kw">let </span><span class="kw-2">mut </span>g = patterned(operator.dimension(), scales.len(), <span class="number">1.1</span>);
+<a href=#873 id=873 data-nosnippet>873</a>        <span class="kw">for </span>(column, scale) <span class="kw">in </span>scales.into_iter().enumerate() {
+<a href=#874 id=874 data-nosnippet>874</a>            incident.column_mut(column).scale_mut(scale);
+<a href=#875 id=875 data-nosnippet>875</a>            <span class="comment">// Reciprocal amplitudes keep each nonzero loss contribution comparable.
+<a href=#876 id=876 data-nosnippet>876</a>            </span><span class="kw">let </span>cotangent_scale = <span class="kw">if </span>[<span class="number">4</span>, <span class="number">9</span>].contains(<span class="kw-2">&amp;</span>column) {
+<a href=#877 id=877 data-nosnippet>877</a>                <span class="number">0.0
+<a href=#878 id=878 data-nosnippet>878</a>            </span>} <span class="kw">else if </span>scale == <span class="number">0.0 </span>{
+<a href=#879 id=879 data-nosnippet>879</a>                <span class="number">0.01
+<a href=#880 id=880 data-nosnippet>880</a>            </span>} <span class="kw">else </span>{
+<a href=#881 id=881 data-nosnippet>881</a>                <span class="number">0.01 </span>/ scale
+<a href=#882 id=882 data-nosnippet>882</a>            };
+<a href=#883 id=883 data-nosnippet>883</a>            g.column_mut(column).scale_mut(cotangent_scale);
+<a href=#884 id=884 data-nosnippet>884</a>        }
+<a href=#885 id=885 data-nosnippet>885</a>        <span class="kw">let </span>record = operator.record(incident.clone(), options).unwrap();
+<a href=#886 id=886 data-nosnippet>886</a>        <span class="kw">let </span>result = record.solution();
+<a href=#887 id=887 data-nosnippet>887</a>        <span class="kw">let </span>dense = <span class="kw">crate</span>::cluster::sphere_cluster(
+<a href=#888 id=888 data-nosnippet>888</a>            cluster.lmax,
+<a href=#889 id=889 data-nosnippet>889</a>            k0,
+<a href=#890 id=890 data-nosnippet>890</a>            <span class="kw-2">&amp;</span>cluster.radii,
+<a href=#891 id=891 data-nosnippet>891</a>            <span class="kw-2">&amp;</span>cluster.epsilon,
+<a href=#892 id=892 data-nosnippet>892</a>            <span class="kw-2">&amp;</span>cluster.positions,
+<a href=#893 id=893 data-nosnippet>893</a>        )
+<a href=#894 id=894 data-nosnippet>894</a>        .unwrap();
+<a href=#895 id=895 data-nosnippet>895</a>        <span class="kw">let </span>expected = dense.value() * <span class="kw-2">&amp;</span>incident;
+<a href=#896 id=896 data-nosnippet>896</a>        <span class="kw">for </span>(column, report) <span class="kw">in </span>result.convergence.iter().enumerate() {
+<a href=#897 id=897 data-nosnippet>897</a>            <span class="kw">let </span>actual = result.value.column(column);
+<a href=#898 id=898 data-nosnippet>898</a>            <span class="kw">let </span>expected = expected.column(column);
+<a href=#899 id=899 data-nosnippet>899</a>            <span class="macro">prop_assert_close!</span>(
+<a href=#900 id=900 data-nosnippet>900</a>                actual.as_slice(),
+<a href=#901 id=901 data-nosnippet>901</a>                expected.as_slice(),
+<a href=#902 id=902 data-nosnippet>902</a>                <span class="number">2e-10 </span>* expected.norm() + f64::MIN_POSITIVE,
+<a href=#903 id=903 data-nosnippet>903</a>                <span class="string">"forward column {}"</span>,
+<a href=#904 id=904 data-nosnippet>904</a>                column
+<a href=#905 id=905 data-nosnippet>905</a>            );
+<a href=#906 id=906 data-nosnippet>906</a>            <span class="macro">prop_assert!</span>(report.residual_norm &lt;= options.rtol * report.rhs_norm);
+<a href=#907 id=907 data-nosnippet>907</a>            <span class="kw">if </span>scales[column] == <span class="number">0.0 </span>{
+<a href=#908 id=908 data-nosnippet>908</a>                <span class="macro">prop_assert_eq!</span>(report.iterations, <span class="number">0</span>);
+<a href=#909 id=909 data-nosnippet>909</a>                <span class="macro">prop_assert!</span>(actual.iter().all(|<span class="kw-2">&amp;</span>z| z == Complex::default()));
+<a href=#910 id=910 data-nosnippet>910</a>            } <span class="kw">else </span>{
+<a href=#911 id=911 data-nosnippet>911</a>                <span class="macro">prop_assert!</span>(report.iterations &gt; options.restart);
+<a href=#912 id=912 data-nosnippet>912</a>            }
+<a href=#913 id=913 data-nosnippet>913</a>        }
+<a href=#914 id=914 data-nosnippet>914</a>        <span class="kw">let </span>loss = re_dot(<span class="kw-2">&amp;</span>g, <span class="kw-2">&amp;</span>result.value);
+<a href=#915 id=915 data-nosnippet>915</a>        <span class="kw">let </span>grad = record.pullback(<span class="kw-2">&amp;</span>g).unwrap();
+<a href=#916 id=916 data-nosnippet>916</a>        <span class="kw">let </span>expected_incident = dense.value().adjoint() * <span class="kw-2">&amp;</span>g;
+<a href=#917 id=917 data-nosnippet>917</a>        <span class="kw">for </span>(column, report) <span class="kw">in </span>grad.convergence.iter().enumerate() {
+<a href=#918 id=918 data-nosnippet>918</a>            <span class="kw">let </span>actual = grad.incident.column(column);
+<a href=#919 id=919 data-nosnippet>919</a>            <span class="kw">let </span>expected = expected_incident.column(column);
+<a href=#920 id=920 data-nosnippet>920</a>            <span class="macro">prop_assert_close!</span>(
+<a href=#921 id=921 data-nosnippet>921</a>                actual.as_slice(),
+<a href=#922 id=922 data-nosnippet>922</a>                expected.as_slice(),
+<a href=#923 id=923 data-nosnippet>923</a>                <span class="number">3e-10 </span>* g.column(column).norm() + f64::MIN_POSITIVE,
+<a href=#924 id=924 data-nosnippet>924</a>                <span class="string">"adjoint column {}"</span>,
+<a href=#925 id=925 data-nosnippet>925</a>                column
+<a href=#926 id=926 data-nosnippet>926</a>            );
+<a href=#927 id=927 data-nosnippet>927</a>            <span class="macro">prop_assert!</span>(report.residual_norm &lt;= options.rtol * report.rhs_norm);
+<a href=#928 id=928 data-nosnippet>928</a>            <span class="kw">if </span>[<span class="number">4</span>, <span class="number">9</span>].contains(<span class="kw-2">&amp;</span>column) {
+<a href=#929 id=929 data-nosnippet>929</a>                <span class="macro">prop_assert_eq!</span>(report.iterations, <span class="number">0</span>);
+<a href=#930 id=930 data-nosnippet>930</a>                <span class="macro">prop_assert!</span>(actual.iter().all(|<span class="kw-2">&amp;</span>z| z == Complex::default()));
+<a href=#931 id=931 data-nosnippet>931</a>            } <span class="kw">else </span>{
+<a href=#932 id=932 data-nosnippet>932</a>                <span class="macro">prop_assert!</span>(report.iterations &gt; options.restart);
+<a href=#933 id=933 data-nosnippet>933</a>            }
+<a href=#934 id=934 data-nosnippet>934</a>        }
+<a href=#935 id=935 data-nosnippet>935</a>        <span class="kw">let </span>dense_grad = dense.pullback(<span class="kw-2">&amp;</span>(<span class="kw-2">&amp;</span>g * incident.adjoint())).unwrap();
+<a href=#936 id=936 data-nosnippet>936</a>        <span class="kw">let </span>cluster_grad = <span class="kw-2">&amp;</span>grad.cluster;
+<a href=#937 id=937 data-nosnippet>937</a>        <span class="macro">prop_assert_close!</span>(<span class="kw-2">&amp;</span>cluster_grad.radii, <span class="kw-2">&amp;</span>dense_grad.radii, <span class="number">3e-10</span>);
+<a href=#938 id=938 data-nosnippet>938</a>        <span class="macro">prop_assert_close!</span>(<span class="kw-2">&amp;</span>cluster_grad.epsilon, <span class="kw-2">&amp;</span>dense_grad.epsilon, <span class="number">3e-10</span>);
+<a href=#939 id=939 data-nosnippet>939</a>        <span class="macro">prop_assert_close!</span>(<span class="kw-2">&amp;</span>cluster_grad.positions, <span class="kw-2">&amp;</span>dense_grad.positions, <span class="number">3e-10</span>);
+<a href=#940 id=940 data-nosnippet>940</a>        <span class="macro">prop_assert_close!</span>(cluster_grad.k0, dense_grad.k0, <span class="number">3e-10</span>);
+<a href=#941 id=941 data-nosnippet>941</a>        <span class="macro">prop_assert_close!</span>(loss, re_dot(<span class="kw-2">&amp;</span>grad.incident, <span class="kw-2">&amp;</span>incident), <span class="number">3e-10</span>);
+<a href=#942 id=942 data-nosnippet>942</a>        <span class="kw">for </span>axis <span class="kw">in </span><span class="number">0</span>..<span class="number">3 </span>{
+<a href=#943 id=943 data-nosnippet>943</a>            <span class="kw">let </span>total: f64 = cluster_grad.positions.iter().map(|p| p[axis]).sum();
+<a href=#944 id=944 data-nosnippet>944</a>            <span class="macro">prop_assert_close!</span>(total, <span class="number">0.0</span>, <span class="number">1e-12</span>, <span class="string">"axis {}"</span>, axis);
+<a href=#945 id=945 data-nosnippet>945</a>        }
+<a href=#946 id=946 data-nosnippet>946</a>        <span class="kw">let </span>scale_gradient = dot(<span class="kw-2">&amp;</span>cluster.radii, <span class="kw-2">&amp;</span>cluster_grad.radii)
+<a href=#947 id=947 data-nosnippet>947</a>            + dot(
+<a href=#948 id=948 data-nosnippet>948</a>                cluster.positions.iter().flatten(),
+<a href=#949 id=949 data-nosnippet>949</a>                cluster_grad.positions.iter().flatten(),
+<a href=#950 id=950 data-nosnippet>950</a>            )
+<a href=#951 id=951 data-nosnippet>951</a>            - k0 * cluster_grad.k0;
+<a href=#952 id=952 data-nosnippet>952</a>        <span class="macro">prop_assert_close!</span>(scale_gradient, <span class="number">0.0</span>, <span class="number">3e-10</span>);
+<a href=#953 id=953 data-nosnippet>953</a>        <span class="prelude-val">Ok</span>(())
+<a href=#954 id=954 data-nosnippet>954</a>    }
+<a href=#955 id=955 data-nosnippet>955</a>
+<a href=#956 id=956 data-nosnippet>956</a>    <span class="attr">#[test]
+<a href=#957 id=957 data-nosnippet>957</a>    </span><span class="kw">fn </span>domain_errors_are_explicit() {
+<a href=#958 id=958 data-nosnippet>958</a>        <span class="kw">let </span>eps = [Complex::new(<span class="number">2.0</span>, <span class="number">0.0</span>)];
+<a href=#959 id=959 data-nosnippet>959</a>        <span class="macro">assert!</span>(IterativeSphereCluster::new(<span class="number">1</span>, <span class="number">0.0</span>, <span class="kw-2">&amp;</span>[<span class="number">0.2</span>], <span class="kw-2">&amp;</span>eps, <span class="kw-2">&amp;</span>[[<span class="number">0.0</span>; <span class="number">3</span>]]).is_err());
+<a href=#960 id=960 data-nosnippet>960</a>        <span class="macro">assert!</span>(IterativeSphereCluster::new(<span class="number">1</span>, <span class="number">1.0</span>, <span class="kw-2">&amp;</span>[<span class="number">0.2</span>], <span class="kw-2">&amp;</span>eps, <span class="kw-2">&amp;</span>[]).is_err());
+<a href=#961 id=961 data-nosnippet>961</a>        <span class="macro">assert!</span>(
+<a href=#962 id=962 data-nosnippet>962</a>            IterativeSphereCluster::new(
+<a href=#963 id=963 data-nosnippet>963</a>                <span class="number">1</span>,
+<a href=#964 id=964 data-nosnippet>964</a>                <span class="number">1.0</span>,
+<a href=#965 id=965 data-nosnippet>965</a>                <span class="kw-2">&amp;</span>[<span class="number">0.2</span>, <span class="number">0.3</span>],
+<a href=#966 id=966 data-nosnippet>966</a>                <span class="kw-2">&amp;</span>[eps[<span class="number">0</span>]; <span class="number">2</span>],
+<a href=#967 id=967 data-nosnippet>967</a>                <span class="kw-2">&amp;</span>[[<span class="number">0.0</span>; <span class="number">3</span>], [<span class="number">0.4</span>, <span class="number">0.0</span>, <span class="number">0.0</span>]]
+<a href=#968 id=968 data-nosnippet>968</a>            )
+<a href=#969 id=969 data-nosnippet>969</a>            .is_err()
+<a href=#970 id=970 data-nosnippet>970</a>        );
+<a href=#971 id=971 data-nosnippet>971</a>        <span class="kw">let </span>op = IterativeSphereCluster::new(<span class="number">1</span>, <span class="number">1.0</span>, <span class="kw-2">&amp;</span>[<span class="number">0.2</span>], <span class="kw-2">&amp;</span>eps, <span class="kw-2">&amp;</span>[[<span class="number">0.0</span>; <span class="number">3</span>]]).unwrap();
+<a href=#972 id=972 data-nosnippet>972</a>        <span class="kw">let </span>input = DMatrix::zeros(<span class="number">6</span>, <span class="number">1</span>);
+<a href=#973 id=973 data-nosnippet>973</a>        <span class="macro">assert!</span>(
+<a href=#974 id=974 data-nosnippet>974</a>            op.solve(
+<a href=#975 id=975 data-nosnippet>975</a>                <span class="kw-2">&amp;</span>input,
+<a href=#976 id=976 data-nosnippet>976</a>                GmresOptions {
+<a href=#977 id=977 data-nosnippet>977</a>                    rtol: -<span class="number">1.0</span>,
+<a href=#978 id=978 data-nosnippet>978</a>                    ..options()
+<a href=#979 id=979 data-nosnippet>979</a>                }
+<a href=#980 id=980 data-nosnippet>980</a>            )
+<a href=#981 id=981 data-nosnippet>981</a>            .is_err()
+<a href=#982 id=982 data-nosnippet>982</a>        );
+<a href=#983 id=983 data-nosnippet>983</a>        <span class="macro">assert!</span>(op.solve(<span class="kw-2">&amp;</span>DMatrix::zeros(<span class="number">5</span>, <span class="number">1</span>), options()).is_err());
+<a href=#984 id=984 data-nosnippet>984</a>        <span class="macro">assert!</span>(op.solve(<span class="kw-2">&amp;</span>DMatrix::zeros(<span class="number">6</span>, <span class="number">0</span>), options()).is_err());
+<a href=#985 id=985 data-nosnippet>985</a>    }
+<a href=#986 id=986 data-nosnippet>986</a>
+<a href=#987 id=987 data-nosnippet>987</a>    <span class="doccomment">/// The pair gradients add in chunks fixed by the particle count: with more
+<a href=#988 id=988 data-nosnippet>988</a>    /// particles than chunks, the solve and every gradient repeat bit for bit on every
+<a href=#989 id=989 data-nosnippet>989</a>    /// pool size.
+<a href=#990 id=990 data-nosnippet>990</a>    </span><span class="attr">#[test]
+<a href=#991 id=991 data-nosnippet>991</a>    </span><span class="kw">fn </span>pullback_does_not_depend_on_the_thread_count() {
+<a href=#992 id=992 data-nosnippet>992</a>        <span class="comment">// A 6 x 4 x 3 grid of weakly scattering spheres of slightly different radii.
+<a href=#993 id=993 data-nosnippet>993</a>        </span><span class="kw">let </span>positions: Vec&lt;[f64; <span class="number">3</span>]&gt; = (<span class="number">0</span>..<span class="number">72_u32</span>)
+<a href=#994 id=994 data-nosnippet>994</a>            .map(|i| [i % <span class="number">6</span>, i / <span class="number">6 </span>% <span class="number">4</span>, i / <span class="number">24</span>].map(|n| <span class="number">1.1 </span>* f64::from(n)))
+<a href=#995 id=995 data-nosnippet>995</a>            .collect();
+<a href=#996 id=996 data-nosnippet>996</a>        <span class="kw">let </span>radii: Vec&lt;f64&gt; = (<span class="number">0</span>..<span class="number">72_u32</span>)
+<a href=#997 id=997 data-nosnippet>997</a>            .map(|i| <span class="number">0.2 </span>+ <span class="number">0.05 </span>* f64::from(i).sin())
+<a href=#998 id=998 data-nosnippet>998</a>            .collect();
+<a href=#999 id=999 data-nosnippet>999</a>        <span class="kw">let </span>epsilon = <span class="macro">vec!</span>[Complex::new(<span class="number">2.25</span>, <span class="number">0.01</span>); positions.len()];
+<a href=#1000 id=1000 data-nosnippet>1000</a>        <span class="kw">let </span>cluster =
+<a href=#1001 id=1001 data-nosnippet>1001</a>            Arc::new(IterativeSphereCluster::new(<span class="number">1</span>, <span class="number">1.0</span>, <span class="kw-2">&amp;</span>radii, <span class="kw-2">&amp;</span>epsilon, <span class="kw-2">&amp;</span>positions).unwrap());
+<a href=#1002 id=1002 data-nosnippet>1002</a>        <span class="kw">for </span>columns <span class="kw">in </span>[<span class="number">1</span>, <span class="number">9</span>] {
+<a href=#1003 id=1003 data-nosnippet>1003</a>            <span class="kw">let </span>incident = patterned(cluster.dimension(), columns, <span class="number">0.4</span>);
+<a href=#1004 id=1004 data-nosnippet>1004</a>            <span class="kw">let </span>g = patterned(cluster.dimension(), columns, <span class="number">1.1</span>);
+<a href=#1005 id=1005 data-nosnippet>1005</a>            assert_same_bits_on_pools(|| {
+<a href=#1006 id=1006 data-nosnippet>1006</a>                <span class="kw">let </span>residual = cluster.record(incident.clone(), options()).unwrap();
+<a href=#1007 id=1007 data-nosnippet>1007</a>                <span class="kw">let </span>solution = residual.solution().value.clone();
+<a href=#1008 id=1008 data-nosnippet>1008</a>                <span class="kw">let </span>gradient = residual.pullback(<span class="kw-2">&amp;</span>g).unwrap();
+<a href=#1009 id=1009 data-nosnippet>1009</a>                <span class="kw">let </span>cluster = <span class="kw-2">&amp;</span>gradient.cluster;
+<a href=#1010 id=1010 data-nosnippet>1010</a>                bits(<span class="kw-2">&amp;</span>[
+<a href=#1011 id=1011 data-nosnippet>1011</a>                    <span class="kw-2">&amp;</span>solution,
+<a href=#1012 id=1012 data-nosnippet>1012</a>                    <span class="kw-2">&amp;</span>cluster.k0,
+<a href=#1013 id=1013 data-nosnippet>1013</a>                    <span class="kw-2">&amp;</span>cluster.radii,
+<a href=#1014 id=1014 data-nosnippet>1014</a>                    <span class="kw-2">&amp;</span>cluster.epsilon,
+<a href=#1015 id=1015 data-nosnippet>1015</a>                    <span class="kw-2">&amp;</span>cluster.positions,
+<a href=#1016 id=1016 data-nosnippet>1016</a>                    <span class="kw-2">&amp;</span>gradient.incident,
+<a href=#1017 id=1017 data-nosnippet>1017</a>                ])
+<a href=#1018 id=1018 data-nosnippet>1018</a>            });
+<a href=#1019 id=1019 data-nosnippet>1019</a>        }
+<a href=#1020 id=1020 data-nosnippet>1020</a>    }
+<a href=#1021 id=1021 data-nosnippet>1021</a>}
+</code></pre></div></section></main></body></html>
