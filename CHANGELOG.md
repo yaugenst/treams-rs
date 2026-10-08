@@ -23,6 +23,9 @@
 - Load the history stylesheet and interactive script only on pages that use
   them, including visits through instant navigation.
 
+- Bound cylindrical expansion pullback comparisons by the accumulated derivative
+  terms, preserving the nearly coaxial singular-pair regression.
+
 - Shorten the issue and pull request templates. Bug and numerical reports
   require a reproducer that fails on a stated version or commit, and accept shell
   commands as well as Python.
