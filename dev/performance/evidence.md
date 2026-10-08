@@ -5,7 +5,7 @@
 Each row is one set of measurements. Dates, commits, hosts and case counts come
 from the linked summary files; "not recorded" means the value is missing.
 Commits are the revisions of the original runs;
-[`history-provenance.json`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/history-provenance.json) maps them
+[`history-provenance.json`](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/history-provenance.json) maps them
 to this repository's history. The linked files identify each build with SHA-256
 hashes of the native library, Python sources and benchmark scripts. Files under
 `benchmarks/results/` keep
@@ -14,23 +14,23 @@ their recorded measurements; identifying data and archive metadata were redacted
 
 | Measurement set | Date | Source commit | Host | Cases | Outcome | Summary / manifest |
 | --- | --- | --- | --- | ---: | --- | --- |
-| CPU improvements after 0.1.0 | 2026-10-04 | `8bbcb87` plus archived candidate patch | AMD Ryzen 9 9950X, Linux, Python 3.13.1 | 36 targeted and 92 broad four-thread comparisons, plus thread and memory screens | Target timings pass; original broad outliers, rechecks and four periodic memory failures retained; predates dense-product scheduling change | [`cpu-speedups-20261004.json`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/cpu-speedups-20261004.json), [CPU report](cpu-speedups.md) |
-| Dense-product scheduling and final CPU controls | 2026-10-04 | `8bbcb87` plus archived reconstructed candidate | AMD Ryzen 9 9950X, Linux, Python 3.13.1 | 12 paired 32-thread cases, four-thread controls and six bitwise workflow checks | Final comparisons with 0.1.0 pass; intermediate regressions and discarded policies retained | [`cpu-scheduling-20261004.json`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/cpu-scheduling-20261004.json), [scheduling report](cpu-speedups.md#small-product-scheduling) |
-| Linux core correctness | 2026-09-19 | `2843a70` | AMD Ryzen 9 9950X, Linux, Python 3.13.1 | 615 | All pass | [`linux-core-qualification.json`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/linux-core-qualification.json), [summary](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/linux-core-qualification.md) |
-| Linux core performance | 2026-09-19 to 2026-09-20 | `2470fbe` | AMD Ryzen 9 9950X, Linux, Python 3.13.1 | 1,300 planned, 769 timed | All measured; broad-grid median 5.12×; 4 slower cases (2 recorded internal illuminations at a solver switch point, 1 scalar recorded `tl_vcw_r` call, 1 matrix-free illumination case at 32 columns) | [`linux-core-performance.json`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/linux-core-performance.json), [summary](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/linux-core-qualification.md) |
-| Reference replay grid | 2026-09-12 | not recorded | AMD Ryzen 9 9950X, Linux, Python 3.13.1, CPUs 8–11 | 527 | 527 runtime and 525 RSS checks pass; minimum 1.02× | [`complete-qualification.json`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/complete-qualification.json) |
-| macOS dispatch grid | 2026-09-12 | not recorded | Apple M3, macOS 26.6.2, Python 3.13.12 | 30 | All pass; minimum 1.30×, largest RSS ratio 0.695 | [`mac-qualification.json`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/mac-qualification.json) |
-| Mac and Linux comparison | not recorded (by 2026-09-12) | `7421ca9` (Linux) | Apple M3 and AMD Ryzen 9 9950X | 736 per platform | Every outcome kept; median 5.17× (M3) and 5.04× (Ryzen); 11 slower Mac cases | [`comparison-plan.json`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/comparison-plan.json), [platform comparison](platform-comparison.md) |
-| Requested illumination | 2026-09-12 | not recorded | AMD Ryzen 9 9950X (CPUs 8–11) and Apple M3 | 9 | All complete; matrix-free gradient memory 30× below the full T-matrix at 512 spheres | [`illumination-linux-n512-l1-p1.json`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/results/illumination-linux-n512-l1-p1.json) and the other `illumination-*.json`, [large problems](large-problems.md) |
-| Published applications | sources retrieved 2026-09-12 | not recorded | macOS 26.6.2 arm64, Python 3.13.12 | 5 spectra, 300 thermal frequencies | Within the stated tolerances; thermal absorption within 0.577% of the author data | [`papers/qualification.json`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/papers/qualification.json), [`papers/thermal-result.json`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/papers/thermal-result.json), [published applications](../validation/published-applications.md) |
-| Public cluster recheck (macOS) | not recorded | `43bb7fe` | macOS 26.6.2 arm64, Python 3.13.12 | 2 | Both pass; spherical cluster 7.20×, cylindrical cluster 1.56×, lower peak memory (RSS ratios 0.729 and 0.701) | [`agent-usability/qualification.json`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/agent-usability/qualification.json) |
-| Fractional Legendre check | not recorded | not recorded | not recorded | 532 | 530 finite cases within 2.17e-13 relative of 70-digit values; 2 expected overflows | [`fractional-legendre-physical.json`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/results/fractional-legendre-physical.json) |
-| LU scheduling probe | not recorded | not recorded | AMD Ryzen 9950X, 16 Rayon workers on CPUs 0–15 | 35 configurations | Bounded worker counts 1.99× to 83.9× faster per stage than the full pool, in 7 selected sizes | [`cpu-parallelism.json`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/results/cpu-parallelism.json), [numerics](../design/numerics.md) |
-| Pre-release speed comparison (not a validation run) | 2026-09-26 to 2026-09-30 | baseline `5dadf1d` | shared 4-CPU cloud VM, one thread | 556 cases of 203 workloads | Geometric-mean time ratio against `5dadf1d`: 0.77 forward and 0.68 reverse without lattice sums, 0.48 and 0.35 for lattice sums; `recsumcw1d` about 4% slower | not archived; workloads in [`benchmark_cluster.py`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/scripts/benchmark_cluster.py) |
+| CPU improvements after 0.1.0 | 2026-10-04 | `8bbcb87` plus archived candidate patch | AMD Ryzen 9 9950X, Linux, Python 3.13.1 | 36 targeted and 92 broad four-thread comparisons, plus thread and memory screens | Target timings pass; original broad outliers, rechecks and four periodic memory failures retained; predates dense-product scheduling change | [`cpu-speedups-20261004.json`](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/cpu-speedups-20261004.json), [CPU report](cpu-speedups.md) |
+| Dense-product scheduling and final CPU controls | 2026-10-04 | `8bbcb87` plus archived reconstructed candidate | AMD Ryzen 9 9950X, Linux, Python 3.13.1 | 12 paired 32-thread cases, four-thread controls and six bitwise workflow checks | Final comparisons with 0.1.0 pass; intermediate regressions and discarded policies retained | [`cpu-scheduling-20261004.json`](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/cpu-scheduling-20261004.json), [scheduling report](cpu-speedups.md#small-product-scheduling) |
+| Linux core correctness | 2026-09-19 | `2843a70` | AMD Ryzen 9 9950X, Linux, Python 3.13.1 | 615 | All pass | [`linux-core-qualification.json`](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/linux-core-qualification.json), [summary](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/linux-core-qualification.md) |
+| Linux core performance | 2026-09-19 to 2026-09-20 | `2470fbe` | AMD Ryzen 9 9950X, Linux, Python 3.13.1 | 1,300 planned, 769 timed | All measured; broad-grid median 5.12×; 4 slower cases (2 recorded internal illuminations at a solver switch point, 1 scalar recorded `tl_vcw_r` call, 1 matrix-free illumination case at 32 columns) | [`linux-core-performance.json`](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/linux-core-performance.json), [summary](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/linux-core-qualification.md) |
+| Reference replay grid | 2026-09-12 | not recorded | AMD Ryzen 9 9950X, Linux, Python 3.13.1, CPUs 8–11 | 527 | 527 runtime and 525 RSS checks pass; minimum 1.02× | [`complete-qualification.json`](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/complete-qualification.json) |
+| macOS dispatch grid | 2026-09-12 | not recorded | Apple M3, macOS 26.6.2, Python 3.13.12 | 30 | All pass; minimum 1.30×, largest RSS ratio 0.695 | [`mac-qualification.json`](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/mac-qualification.json) |
+| Mac and Linux comparison | not recorded (by 2026-09-12) | `7421ca9` (Linux) | Apple M3 and AMD Ryzen 9 9950X | 736 per platform | Every outcome kept; median 5.17× (M3) and 5.04× (Ryzen); 11 slower Mac cases | [`comparison-plan.json`](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/comparison-plan.json), [platform comparison](platform-comparison.md) |
+| Requested illumination | 2026-09-12 | not recorded | AMD Ryzen 9 9950X (CPUs 8–11) and Apple M3 | 9 | All complete; matrix-free gradient memory 30× below the full T-matrix at 512 spheres | [`illumination-linux-n512-l1-p1.json`](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/results/illumination-linux-n512-l1-p1.json) and the other `illumination-*.json`, [large problems](large-problems.md) |
+| Published applications | sources retrieved 2026-09-12 | not recorded | macOS 26.6.2 arm64, Python 3.13.12 | 5 spectra, 300 thermal frequencies | Within the stated tolerances; thermal absorption within 0.577% of the author data | [`papers/qualification.json`](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/papers/qualification.json), [`papers/thermal-result.json`](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/papers/thermal-result.json), [published applications](../validation/published-applications.md) |
+| Public cluster recheck (macOS) | not recorded | `43bb7fe` | macOS 26.6.2 arm64, Python 3.13.12 | 2 | Both pass; spherical cluster 7.20×, cylindrical cluster 1.56×, lower peak memory (RSS ratios 0.729 and 0.701) | [`agent-usability/qualification.json`](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/agent-usability/qualification.json) |
+| Fractional Legendre check | not recorded | not recorded | not recorded | 532 | 530 finite cases within 2.17e-13 relative of 70-digit values; 2 expected overflows | [`fractional-legendre-physical.json`](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/results/fractional-legendre-physical.json) |
+| LU scheduling probe | not recorded | not recorded | AMD Ryzen 9950X, 16 Rayon workers on CPUs 0–15 | 35 configurations | Bounded worker counts 1.99× to 83.9× faster per stage than the full pool, in 7 selected sizes | [`cpu-parallelism.json`](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/results/cpu-parallelism.json), [numerics](../design/numerics.md) |
+| Pre-release speed comparison (not a validation run) | 2026-09-26 to 2026-09-30 | baseline `5dadf1d` | shared 4-CPU cloud VM, one thread | 556 cases of 203 workloads | Geometric-mean time ratio against `5dadf1d`: 0.77 forward and 0.68 reverse without lattice sums, 0.48 and 0.35 for lattice sums; `recsumcw1d` about 4% slower | not archived; workloads in [`benchmark_cluster.py`](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/scripts/benchmark_cluster.py) |
 
 The retained report does not record run dates for both platforms in the Mac and
 Linux comparison.
-[`correction-plan.json`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/correction-plan.json), created on
+[`correction-plan.json`](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/correction-plan.json), created on
 2026-09-12, uses it as its baseline, so the comparison ran on or before that day.
 
 The pre-release comparison alternated optimized builds of a later revision and
@@ -62,7 +62,7 @@ stayed within the timing limit in both conditions. All recorded values agreed
 exactly. These timings cover small forward calls, not gradient computation or
 large workloads; memory was not measured.
 
-The check used [`compare_builds.py`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/scripts/compare_builds.py) on Linux,
+The check used [`compare_builds.py`](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/scripts/compare_builds.py) on Linux,
 an AMD Ryzen 9 9950X and Python 3.13.1: five paired rounds, three samples of at
 least 20 ms per call, alternating measurement order, one native/BLAS thread
 and CPU affinity 4–5. Imports and input setup were outside the timed calls.
@@ -87,7 +87,7 @@ Shared native: 9e8a39cb2fc8459b5069a65ffc349c9eee71024ced6464524e55f52f9b8ed3c5
 ## Redacted paths
 
 The distributed evidence has privacy-only redactions documented in
-[`benchmarks/privacy-provenance.json`](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/privacy-provenance.json).
+[`benchmarks/privacy-provenance.json`](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/privacy-provenance.json).
 Numerical values, timings, outcomes and numerical array bytes are unchanged;
 archive owner metadata is normalized and distributed-file checksums are updated.
 Original commit identifiers and measured source/library fingerprints describe
@@ -103,7 +103,7 @@ with Linux x86-64, Python 3.13.1, treams 0.4.5 and an optimized treams-rs
 build with faer and Rayon. Both packages get the same thread budget, each runs
 in its own process, and the result is compared with treams before timing at
 `rtol=2e-9, atol=1e-12`. Result file names refer to
-[`benchmarks/results/`](https://github.com/yaugenst/treams-rs/tree/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/results). Sections without a result
+[`benchmarks/results/`](https://github.com/yaugenst/treams-rs/tree/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/results). Sections without a result
 file summarize timings that were not archived.
 
 Reproduce a workload with
@@ -140,7 +140,7 @@ absolute integrand is about 7.31e5, and double-precision epsilon times it is
 floor in both packages, so the tolerance stays and no degree-6 speedup is
 claimed. Reproduce it with
 `uv run --no-sync --with mpmath python scripts/qualify_ebcm_cancellation.py`;
-[the cancellation diagnostic](https://github.com/yaugenst/treams-rs/blob/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/results/ebcm-l6-cancellation.json)
+[the cancellation diagnostic](https://github.com/yaugenst/treams-rs/blob/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/results/ebcm-l6-cancellation.json)
 holds all eight m=0 entries, their high-precision values, quadrature samples
 and condition estimates. Workload: `--workload ebcm --particles 1 --lmax 4
 --samples 96 --threads 4`.
@@ -538,7 +538,7 @@ each reverse pass uses a fresh record. All 50 runtime checks of this
 `just bench-performance` run pass, and the ordinary forward and recorded
 special-function and particle paths pass their peak-RSS checks. treams-rs peaks
 at 40.3–41.7 MiB against 64.1–65.2 MiB. The 18 `angular-*.json` files in
-[raw results](https://github.com/yaugenst/treams-rs/tree/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/results) record every sample, native-extension
+[raw results](https://github.com/yaugenst/treams-rs/tree/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/results) record every sample, native-extension
 hash, Python and NumPy version, thread setting and reverse peak RSS. Units are
 microseconds.
 
@@ -577,7 +577,7 @@ of this run pass (50 angular and baseline workloads and 18 Wigner and Ewald
 cases). The angular table above records the run of commit `4f41708`; this
 68-case run refreshed the raw JSON files. treams-rs peaks at 39.9–41.5 MiB
 against 64.2–65.8 MiB. Native hashes, samples and reverse measurements are in
-the [raw results](https://github.com/yaugenst/treams-rs/tree/e3b6fb9c16a4e91aa6f6ca993bb552d0618e6b0a/benchmarks/results). Units are microseconds.
+the [raw results](https://github.com/yaugenst/treams-rs/tree/6f2575b8ec754049754cb06f592fa3044c287dd9/benchmarks/results). Units are microseconds.
 
 | Operation | Count | Upstream forward | Rust forward | Speedup | Rust reverse |
 | --- | ---: | ---: | ---: | ---: | ---: |
