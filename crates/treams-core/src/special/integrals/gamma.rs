@@ -402,7 +402,11 @@ impl ScaledGammaLadder {
         if self.reflected {
             value -= 2.0 * libm::tgamma(degree);
         }
-        let representable = normal(value) && normal(power);
+        // The factored Gamma(2, -1) zero is exact, not an underflowed seed.
+        // Keep it out of the continued fraction's tiny-denominator clamps.
+        let representable = (normal(value)
+            || (degree == 2.0 && self.argument == Complex::new(-1.0, 0.0)))
+            && normal(power);
         if !(self.reflected || representable)
             && let (fraction, true) = continued_fraction(degree, self.argument)
         {
@@ -612,6 +616,21 @@ mod tests {
                         break;
                     }
                 }
+            }
+        }
+    }
+
+    /// Gamma(2, -1) / (-1)^2 is exactly zero, on either signed-zero side.
+    #[test]
+    fn scaled_gamma_ladder_preserves_exact_degree_two_zero() {
+        for imaginary in [0.0, -0.0] {
+            let z = Complex::new(-1.0, imaginary);
+            for top in [2, 3, 16] {
+                let mut ladder = ScaledGammaLadder::new(f64::from(top), z, false);
+                for _ in 2..top {
+                    ladder.next_lower();
+                }
+                assert_eq!(ladder.next_lower(), Complex::default(), "top={top}, z={z}");
             }
         }
     }
