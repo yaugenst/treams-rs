@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.2.2 (2026-10-09)
+
+Improve equilibrated solve accuracy and report overflowing outputs and refused
+allocations as errors. Public APIs and saved-state layouts are unchanged.
+
 - Share the ordered channel pullback traversal between spherical and cylindrical
   waves, preserving their distinct transverse-wavevector derivatives.
 - Return Ewald accuracy-policy results directly and verify cached spherical

@@ -1338,7 +1338,7 @@ dependencies = [
 
 [[package]]
 name = "treams-core"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "complex-bessel",
  "errorfunctions",
@@ -1353,7 +1353,7 @@ dependencies = [
 
 [[package]]
 name = "treams-py"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "faer",
  "nalgebra",
