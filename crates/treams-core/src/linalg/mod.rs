@@ -309,10 +309,19 @@ fn balance(operator: &mut DMatrix<Complex>, row: &mut [f64], column: &mut [f64])
     Ok(())
 }
 
-fn scale_rows(mut matrix: MatMut<'_, Complex>, scales: &[f64]) {
-    for j in 0..matrix.ncols() {
+/// `matrix[(i, j)] scales[i] 2^shifts[j]`, rounded once unless subnormal. A shifted
+/// column splits each scale into a mantissa below one and a power of two, so no
+/// intermediate product overflows.
+fn scale_rows(mut matrix: MatMut<'_, Complex>, scales: &[f64], shifts: &[i32]) {
+    for (j, &shift) in shifts.iter().enumerate() {
         for (value, &scale) in matrix.as_mut().col_mut(j).iter_mut().zip(scales) {
-            *value *= scale;
+            if shift == 0 {
+                *value *= scale;
+            } else {
+                let (mantissa, exponent) = libm::frexp(scale);
+                let part = |x: f64| libm::scalbn(x * mantissa, exponent + shift);
+                *value = Complex::new(part(value.re), part(value.im));
+            }
         }
     }
 }
@@ -431,8 +440,32 @@ impl Lu {
                 (&scales.row, &scales.column)
             }
         });
+        // Shift a right-hand side down by a power of two when its scaled entries could
+        // exceed 2^960, which leaves 2^64 for growth in the triangular solves: scales
+        // above one then do not overflow a system whose solution is near the largest
+        // float. Others keep their bits.
+        let mut shifts = Vec::new();
         if let Some((before, _)) = scales {
-            scale_rows(rhs.as_mut(), before);
+            shifts = numerics::filled(columns, 0_i32)?;
+            for (j, shift) in shifts.iter_mut().enumerate() {
+                let entries = || {
+                    (rhs.as_ref().col(j).iter().zip(before))
+                        .map(|(z, &scale)| (z.re.abs().max(z.im.abs()), scale))
+                };
+                // The largest scaled entry, infinite where it overflows.
+                if entries()
+                    .map(|(magnitude, scale)| magnitude * scale)
+                    .fold(0.0, f64::max)
+                    > 2.0_f64.powi(960)
+                {
+                    *shift = entries()
+                        .filter(|&(magnitude, _)| magnitude > 0.0)
+                        .map(|(magnitude, scale)| libm::frexp(magnitude).1 + libm::frexp(scale).1)
+                        .max()
+                        .map_or(0, |largest| 960 - largest);
+                }
+            }
+            scale_rows(rhs.as_mut(), before, &shifts);
         }
         let (factors, permutation) = (view(&self.factors), self.permutation.as_ref());
         crate::threads::dense(lu_workers(n, columns), |par| -> Result<()> {
@@ -465,7 +498,10 @@ impl Lu {
             Ok(())
         })?;
         if let Some((_, after)) = scales {
-            scale_rows(rhs, after);
+            for shift in &mut shifts {
+                *shift = -*shift;
+            }
+            scale_rows(rhs, after, &shifts);
         }
         Ok(())
     }
@@ -1307,6 +1343,27 @@ mod tests {
         prop_assert_eq!(&scales.row, &swapped.column);
         prop_assert_eq!(&scales.column, &swapped.row);
         Ok(())
+    }
+
+    #[test]
+    fn scales_above_one_keep_solutions_near_the_largest_float_finite() {
+        // Balancing doubles row 1 of the first operator, the max scales row 0 of the
+        // second. The third right-hand side spans 2^2000 until the row scales apply.
+        let p = |e: i32| Complex::from(2.0_f64.powi(e));
+        let zero = Complex::default();
+        let large = p(1023) * 1.5;
+        for (a, x) in [
+            ([p(0), p(0), zero, p(-100)], [zero, p(1023)]),
+            ([p(-1), p(-1), zero, p(-100)], [large, large]),
+            ([p(0), zero, zero, p(-1000)], [p(1000), p(0)]),
+        ] {
+            let a = DMatrix::from_row_slice(2, 2, &a);
+            let x = DMatrix::from_column_slice(2, 1, &x);
+            let b = &a * &x;
+            assert_eq!(solve_owned(a.clone(), b.clone()).unwrap().value, x);
+            let transposed = solve_owned(a.adjoint(), DMatrix::zeros(2, 1)).unwrap();
+            assert_eq!(transposed.adjoint_rhs(b).unwrap(), x);
+        }
     }
 
     #[test]

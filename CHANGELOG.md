@@ -8,6 +8,8 @@
   samples against their lattice points before reuse.
 - Balance equilibrated dense solves toward unit row and column sums, so their
   accuracy no longer depends on the equation and unknown units.
+- Keep equilibrated dense solves finite when their solution lies near the largest
+  float, instead of reporting a singular operator.
 - Raise `ValueError` for plane-wave fields, plane-wave expansions and their
   pushforwards that overflow, instead of returning NaN or infinite entries.
 - Raise `MemoryError` instead of aborting when the system refuses the output of
