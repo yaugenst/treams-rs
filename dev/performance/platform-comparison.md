@@ -3,13 +3,13 @@
 This comparison measured treams 0.4.5 and treams-rs on an Apple M3 and an AMD
 Ryzen 9 9950X. The Linux results belong to the treams-rs build at
 source commit `7421ca9`, the revision of the original run
-([`history-provenance.json`](https://github.com/yaugenst/treams-rs/blob/4c6e4bc5fff6bf8aaabdbebe9ea4490cd74d75d0/benchmarks/history-provenance.json) maps it
+([`history-provenance.json`](https://github.com/yaugenst/treams-rs/blob/e464d5fea94749223e22fe80c2ba5a53b7426950/benchmarks/history-provenance.json) maps it
 to this repository's history). The median speedups over the 527-case reference
 grid are 5.17× on the M3 and 5.04× on the Ryzen. The
 Linux-only measurements of 2026-09-19 and 2026-09-20 are summarized in
-[Linux core validation](https://github.com/yaugenst/treams-rs/blob/4c6e4bc5fff6bf8aaabdbebe9ea4490cd74d75d0/benchmarks/linux-core-qualification.md); macOS
+[Linux core validation](https://github.com/yaugenst/treams-rs/blob/e464d5fea94749223e22fe80c2ba5a53b7426950/benchmarks/linux-core-qualification.md); macOS
 results come only from this comparison and the
-[macOS dispatch grid](https://github.com/yaugenst/treams-rs/blob/4c6e4bc5fff6bf8aaabdbebe9ea4490cd74d75d0/benchmarks/mac-qualification.json).
+[macOS dispatch grid](https://github.com/yaugenst/treams-rs/blob/e464d5fea94749223e22fe80c2ba5a53b7426950/benchmarks/mac-qualification.json).
 
 The full report (figures, a combined PDF, a searchable case table,
 measurement files and source records) is stored outside the
@@ -21,8 +21,8 @@ The repository keeps the per-case results of the Linux reference grid under
 ## Experimental scope
 
 The comparison reruns every case of the
-[527-case reference grid](https://github.com/yaugenst/treams-rs/blob/4c6e4bc5fff6bf8aaabdbebe9ea4490cd74d75d0/benchmarks/complete-qualification.json), then the
-209 cases of the [scaling and gradient plan](https://github.com/yaugenst/treams-rs/blob/4c6e4bc5fff6bf8aaabdbebe9ea4490cd74d75d0/benchmarks/comparison-plan.json).
+[527-case reference grid](https://github.com/yaugenst/treams-rs/blob/e464d5fea94749223e22fe80c2ba5a53b7426950/benchmarks/complete-qualification.json), then the
+209 cases of the [scaling and gradient plan](https://github.com/yaugenst/treams-rs/blob/e464d5fea94749223e22fe80c2ba5a53b7426950/benchmarks/comparison-plan.json).
 The numerical code is the same for every case. Hashes of the native library,
 Python sources, numerical sources and benchmark scripts identify each result;
 every number comes from a fresh measurement, not from the earlier reference
@@ -47,7 +47,7 @@ available memory, swap, and load observations accompany the raw evidence.
 
 ## Accuracy evidence
 
-The [accuracy plan](https://github.com/yaugenst/treams-rs/blob/4c6e4bc5fff6bf8aaabdbebe9ea4490cd74d75d0/benchmarks/accuracy-plan.json) adds fresh accuracy
+The [accuracy plan](https://github.com/yaugenst/treams-rs/blob/e464d5fea94749223e22fe80c2ba5a53b7426950/benchmarks/accuracy-plan.json) adds fresh accuracy
 checks on both platforms. Its figures separate three questions: whether
 the implementations agree, whether independently known mathematical or physical
 relations hold, and whether the selected discretization has converged.
@@ -116,7 +116,7 @@ references are nonzero and stable. treams passes those four checks. The error
 lies in treams-rs, not in the comparison; conservation identities alone can
 miss an incorrect zero-scattering solution. The Linux core correctness run at
 `2843a70` passes these four inputs ([validation](../validation/index.md),
-[`linux-core-qualification.json`](https://github.com/yaugenst/treams-rs/blob/4c6e4bc5fff6bf8aaabdbebe9ea4490cd74d75d0/benchmarks/linux-core-qualification.json)).
+[`linux-core-qualification.json`](https://github.com/yaugenst/treams-rs/blob/e464d5fea94749223e22fe80c2ba5a53b7426950/benchmarks/linux-core-qualification.json)).
 
 All 120 rotation diagnostics pass for treams-rs. At the affected order-24
 rotation entries, treams-rs has absolute errors of about 1.4e-15 to 2.6e-15
@@ -128,7 +128,7 @@ correct.
 
 In three Linux boolean mode-selection cases, the residual collector raises a
 TypeError before the numerical assertion runs; those errors stay archived. The
-[three-case collector correction](https://github.com/yaugenst/treams-rs/blob/4c6e4bc5fff6bf8aaabdbebe9ea4490cd74d75d0/benchmarks/accuracy-boolean-correction-plan.json)
+[three-case collector correction](https://github.com/yaugenst/treams-rs/blob/e464d5fea94749223e22fe80c2ba5a53b7426950/benchmarks/accuracy-boolean-correction-plan.json)
 uses exact 0/1 arithmetic for boolean residuals and keeps the assertion as it
 is. Its results stay separate from the main suite. macOS uses the corrected
 collector throughout, and the solver and timing code are the same in both.
