@@ -443,7 +443,9 @@ impl Lu {
         // Shift a right-hand side down by a power of two when its scaled entries could
         // exceed 2^960, which leaves 2^64 for growth in the triangular solves: scales
         // above one then do not overflow a system whose solution is near the largest
-        // float. Others keep their bits.
+        // float. It stops early rather than make the smallest entry subnormal, unless the
+        // entries span too wide a range for that; then it stops once they lie below
+        // 2^1020, which rounds the smallest. Others keep their bits.
         let mut shifts = Vec::new();
         if let Some((before, _)) = scales {
             shifts = numerics::filled(columns, 0_i32)?;
@@ -458,11 +460,14 @@ impl Lu {
                     .fold(0.0, f64::max)
                     > 2.0_f64.powi(960)
                 {
-                    *shift = entries()
+                    // Scaled entries lie in [2^(e - 2), 2^e) for the exponent sums e.
+                    let (low, high) = entries()
                         .filter(|&(magnitude, _)| magnitude > 0.0)
                         .map(|(magnitude, scale)| libm::frexp(magnitude).1 + libm::frexp(scale).1)
-                        .max()
-                        .map_or(0, |largest| 960 - largest);
+                        .fold((i32::MAX, i32::MIN), |(low, high), e| {
+                            (low.min(e), high.max(e))
+                        });
+                    *shift = (960 - high).max((1020 - high).min(-1020 - low)).min(0);
                 }
             }
             scale_rows(rhs.as_mut(), before, &shifts);
@@ -1347,21 +1352,28 @@ mod tests {
 
     #[test]
     fn scales_above_one_keep_solutions_near_the_largest_float_finite() {
-        // Balancing doubles row 1 of the first operator, the max scales row 0 of the
-        // second. The third right-hand side spans 2^2000 until the row scales apply.
-        let p = |e: i32| Complex::from(2.0_f64.powi(e));
-        let zero = Complex::default();
-        let large = p(1023) * 1.5;
-        for (a, x) in [
-            ([p(0), p(0), zero, p(-100)], [zero, p(1023)]),
-            ([p(-1), p(-1), zero, p(-100)], [large, large]),
-            ([p(0), zero, zero, p(-1000)], [p(1000), p(0)]),
-        ] {
-            let a = DMatrix::from_row_slice(2, 2, &a);
-            let x = DMatrix::from_column_slice(2, 1, &x);
+        let p = |e: i32| 2.0_f64.powi(e);
+        let (h, t, u) = (p(1023), p(-100), p(-1022));
+        let systems = [
+            // Balancing doubles row 1; the second block needs its small equations.
+            (
+                4,
+                vec![
+                    1.0, 1.0, 0.0, 0.0, 0.0, t, 0.0, 0.0, 0.0, 0.0, 1.0, u, 0.0, 0.0, 1.0, -u,
+                ],
+                vec![0.0, h, 0.0, 1.0],
+            ),
+            // The max scales double row 0.
+            (2, vec![0.5, 0.5, 0.0, t], vec![1.5 * h, 1.5 * h]),
+            // The right-hand side spans 2^2000 until the row scales apply.
+            (2, vec![1.0, 0.0, 0.0, p(-1000)], vec![p(1000), 1.0]),
+        ];
+        for (n, a, x) in systems {
+            let a = DMatrix::from_row_slice(n, n, &a).map(Complex::from);
+            let x = DMatrix::from_vec(n, 1, x).map(Complex::from);
             let b = &a * &x;
             assert_eq!(solve_owned(a.clone(), b.clone()).unwrap().value, x);
-            let transposed = solve_owned(a.adjoint(), DMatrix::zeros(2, 1)).unwrap();
+            let transposed = solve_owned(a.adjoint(), DMatrix::zeros(n, 1)).unwrap();
             assert_eq!(transposed.adjoint_rhs(b).unwrap(), x);
         }
     }
