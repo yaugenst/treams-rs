@@ -47,7 +47,7 @@ fn harmonics(lmax: i32) -> impl Iterator<Item = (i32, i32)> {
 }
 
 /// One term of a block entry: `weight` times the harmonic table entry at `index`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 struct Term {
     /// Table index `p * p + p + m` of the harmonic.
     index: usize,
@@ -74,20 +74,20 @@ impl TranslationPlan {
         }
         let lmax = destination.iter().map(|m| m.l).max().unwrap_or(0)
             + source.iter().map(|m| m.l).max().unwrap_or(0);
-        // An entry has a term per admitted degree, so the terms outgrow the block:
-        // reserve them from the selection rules before evaluating any coupling.
-        let bound = source
-            .iter()
-            .flat_map(|&from| {
-                destination
-                    .iter()
-                    .map(move |&to| term_bound(to, from, helicity))
-            })
-            .sum();
-        let mut terms = Vec::new();
-        numerics::reserve(&mut terms, bound)?;
+        // An entry has a term per admitted degree, so the terms outgrow the block. Give
+        // each entry a slot per degree, reserving every large array before evaluating
+        // any coupling, and close the slots of zero-weight terms at the end.
+        let width = destination.len();
         let mut starts = Vec::new();
-        numerics::reserve(&mut starts, destination.len() * source.len() + 1)?;
+        numerics::reserve(&mut starts, width * source.len() + 1)?;
+        starts.push(0);
+        for &from in source {
+            for &to in destination {
+                starts.push(starts[starts.len() - 1] + term_bound(to, from, helicity));
+            }
+        }
+        let mut terms = numerics::filled(starts[starts.len() - 1], Term::default())?;
+        let mut counts = numerics::filled(width * source.len(), 0_usize)?;
         // Couplings depend on degrees and orders only, and the `(l, lambda, 0, 0)` 3j rows
         // on degrees only: evaluate each once and share them across polarizations.
         let (sources, destinations) = (degree_orders(source), degree_orders(destination));
@@ -108,33 +108,59 @@ impl TranslationPlan {
                 .map(|(l, lambda)| ((l, lambda), Wigner3jRow::new(l, lambda, 0, 0)))
                 .collect()
         });
-        let couplings: Vec<Vec<_>> = crate::threads::install(|| {
-            sources
-                .par_iter()
-                .map(|&(l, m)| {
-                    destinations
+        // Group the slots of the source modes by degree and order: each worker then
+        // evaluates one row of couplings at a time instead of the whole table.
+        let mut rows: Vec<Vec<_>> = sources.iter().map(|_| Vec::new()).collect();
+        let mut slots = terms.as_mut_slice();
+        for ((i, &from), counts) in source
+            .iter()
+            .enumerate()
+            .zip(counts.chunks_mut(width.max(1)))
+        {
+            let bounds = &starts[i * width..=(i + 1) * width];
+            let (row, rest) = std::mem::take(&mut slots).split_at_mut(bounds[width] - bounds[0]);
+            slots = rest;
+            rows[source_index[&(from.l, from.m)]].push((from, bounds, row, counts));
+        }
+        crate::threads::install(|| {
+            rows.into_par_iter()
+                .zip(&sources)
+                .try_for_each(|(rows, &(l, m))| {
+                    let couplings: Vec<_> = destinations
                         .iter()
                         .map(|&(lambda, mu)| {
                             Coupling::new((l, m), (lambda, mu), &zeros[&(l, lambda)], Kinds::BOTH)
                         })
-                        .collect()
+                        .collect();
+                    for (from, bounds, mut row, counts) in rows {
+                        for ((to, range), count) in
+                            destination.iter().zip(bounds.windows(2)).zip(counts)
+                        {
+                            let (entry, rest) =
+                                std::mem::take(&mut row).split_at_mut(range[1] - range[0]);
+                            row = rest;
+                            let coupling = &couplings[destination_index[&(to.l, to.m)]];
+                            for (p, weight) in coupling.terms(to.pol, from.pol, helicity) {
+                                let index =
+                                    usize::try_from(p * p + p + from.m - to.m).map_err(|_| {
+                                        Error::InvalidInput("invalid harmonic index".into())
+                                    })?;
+                                entry[*count] = Term { index, weight };
+                                *count += 1;
+                            }
+                        }
+                    }
+                    Ok(())
                 })
-                .collect()
-        });
-        starts.push(0);
-        for &from in source {
-            let couplings = &couplings[source_index[&(from.l, from.m)]];
-            for &to in destination {
-                for (p, weight) in
-                    couplings[destination_index[&(to.l, to.m)]].terms(to.pol, from.pol, helicity)
-                {
-                    let index = usize::try_from(p * p + p + from.m - to.m)
-                        .map_err(|_| Error::InvalidInput("invalid harmonic index".into()))?;
-                    terms.push(Term { index, weight });
-                }
-                starts.push(terms.len());
-            }
+        })?;
+        let mut end = 0;
+        for (e, &count) in counts.iter().enumerate() {
+            terms.copy_within(starts[e]..starts[e] + count, end);
+            starts[e] = end;
+            end += count;
         }
+        starts[counts.len()] = end;
+        terms.truncate(end);
         Ok(Self {
             terms,
             starts,
