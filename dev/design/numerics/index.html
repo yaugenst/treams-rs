@@ -3871,7 +3871,16 @@ of the largest entry, and some row or column maximum is too; LAPACK uses the sam
 ratio of 0.1. Other matrices stay untouched. It scales the axis
 with the larger spread first, so that normalizing large rows cannot underflow a
 small column.</p>
+<p>Unit row and column maxima do not fix the scales: in <code>A = D_r H D_c</code> the largest
+entry of a row depends on <code>D_c</code>, so an off-diagonal entry of a well-conditioned <code>H</code>
+can end up as large as its diagonal, and partial pivoting may choose it. <code>balance</code>
+therefore moves the scales by powers of two toward unit row and column sums, which
+do not depend on the units (Sinkhorn and Knopp), and stops after a sweep that moves
+no scale by more than a factor of two: at most three sweeps for dense operators.</p>
 <p>The forward solve and the adjoint solve use the same scales, in reverse order.
+A right-hand side whose scaled entries could exceed <code>2^960</code> or fall below
+<code>2^-1020</code> is first shifted by a power of two, so that the scales neither overflow
+a system whose solution is near the largest float nor flush its small entries.
 The scales change the coordinates of the solve, not its solution, so the pullback
 differentiates the original system. The Lean model in
 <a href="../formal-proofs/">formal proofs</a> proves that both scaled solves are exact for any
@@ -3892,7 +3901,7 @@ change the last bits of the solution. Below 64 rows with at most 64 right-hand
 sides, where faer takes no parallel branch, the call stays on the calling
 thread. The worker count changes the scheduling only, not the factorization or
 the pullback, so LU results are the same at every budget.</p>
-<p>The <a href="https://github.com/yaugenst/treams-rs/blob/168d000702447797e459c0ef5fece2e4df9fabe6/benchmarks/results/cpu-parallelism.json">scheduling probe</a> measured
+<p>The <a href="https://github.com/yaugenst/treams-rs/blob/4c6e4bc5fff6bf8aaabdbebe9ea4490cd74d75d0/benchmarks/results/cpu-parallelism.json">scheduling probe</a> measured
 these medians on a Ryzen 9950X with one 16-worker pool pinned to physical cores
 0-15:</p>
 <table>

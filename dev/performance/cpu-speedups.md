@@ -8,8 +8,8 @@ the four-thread algorithm comparison is
 for their complete physical gradient**. This is a comparison between treams-rs
 builds, not against Python treams.
 
-The [qualification record](https://github.com/yaugenst/treams-rs/blob/168d000702447797e459c0ef5fece2e4df9fabe6/benchmarks/cpu-speedups-20261004.json) and
-[raw evidence archive](https://github.com/yaugenst/treams-rs/blob/168d000702447797e459c0ef5fece2e4df9fabe6/benchmarks/results/cpu-speedups-20261004.tar.gz)
+The [qualification record](https://github.com/yaugenst/treams-rs/blob/4c6e4bc5fff6bf8aaabdbebe9ea4490cd74d75d0/benchmarks/cpu-speedups-20261004.json) and
+[raw evidence archive](https://github.com/yaugenst/treams-rs/blob/4c6e4bc5fff6bf8aaabdbebe9ea4490cd74d75d0/benchmarks/results/cpu-speedups-20261004.tar.gz)
 retain the measurements, numerical checks, source identities and exceptions.
 These measurements precede the separate work on scheduling small dense products;
 the [scheduling qualification below](#small-product-scheduling) measures that
@@ -115,7 +115,7 @@ invalidated their memory results, and concurrent idle BLAS pools distorted some
 timings. The final measurements use corrected isolation, actual minimum-duration
 batches and worker-local memory accounting. The archive identifies the rejected
 measurements and retains the diagnostic evidence. Privacy-only distribution
-changes are recorded in [privacy provenance](https://github.com/yaugenst/treams-rs/blob/168d000702447797e459c0ef5fece2e4df9fabe6/benchmarks/privacy-provenance.json);
+changes are recorded in [privacy provenance](https://github.com/yaugenst/treams-rs/blob/4c6e4bc5fff6bf8aaabdbebe9ea4490cd74d75d0/benchmarks/privacy-provenance.json);
 numerical values, timing samples and outcomes are unchanged.
 
 ## Reproduce
@@ -146,8 +146,8 @@ and vector-product rules. Small products previously requested the entire thread
 budget, so scheduling overhead could dominate at 32 threads. A 64-by-64 product
 now requests four workers even when the application allows 32.
 
-The [scheduling qualification](https://github.com/yaugenst/treams-rs/blob/168d000702447797e459c0ef5fece2e4df9fabe6/benchmarks/cpu-scheduling-20261004.json) and
-[separate raw archive](https://github.com/yaugenst/treams-rs/blob/168d000702447797e459c0ef5fece2e4df9fabe6/benchmarks/results/cpu-scheduling-20261004.tar.gz)
+The [scheduling qualification](https://github.com/yaugenst/treams-rs/blob/4c6e4bc5fff6bf8aaabdbebe9ea4490cd74d75d0/benchmarks/cpu-scheduling-20261004.json) and
+[separate raw archive](https://github.com/yaugenst/treams-rs/blob/4c6e4bc5fff6bf8aaabdbebe9ea4490cd74d75d0/benchmarks/results/cpu-scheduling-20261004.tar.gz)
 record the selected build against the original 0.1.0 baseline. At 32 threads,
 all 12 cases pass the unchanged timing and numerical gates across seven paired
 rounds, using three samples of at least 80 ms per round:

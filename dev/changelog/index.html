@@ -3853,6 +3853,11 @@
   waves, preserving their distinct transverse-wavevector derivatives.</li>
 <li>Return Ewald accuracy-policy results directly and verify cached spherical
   samples against their lattice points before reuse.</li>
+<li>Balance equilibrated dense solves toward unit row and column sums, so their
+  accuracy no longer depends on the equation and unknown units.</li>
+<li>Keep equilibrated dense solves exact when their solution lies near the largest
+  float or their right-hand side holds subnormal entries, instead of reporting a
+  singular operator or flushing those entries to zero.</li>
 <li>Raise <code>ValueError</code> for plane-wave fields, plane-wave expansions and their
   pushforwards that overflow, instead of returning NaN or infinite entries.</li>
 <li>Raise <code>MemoryError</code> instead of aborting when the system refuses the output of

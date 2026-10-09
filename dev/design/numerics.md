@@ -20,7 +20,17 @@ ratio of 0.1. Other matrices stay untouched. It scales the axis
 with the larger spread first, so that normalizing large rows cannot underflow a
 small column.
 
+Unit row and column maxima do not fix the scales: in `A = D_r H D_c` the largest
+entry of a row depends on `D_c`, so an off-diagonal entry of a well-conditioned `H`
+can end up as large as its diagonal, and partial pivoting may choose it. `balance`
+therefore moves the scales by powers of two toward unit row and column sums, which
+do not depend on the units (Sinkhorn and Knopp), and stops after a sweep that moves
+no scale by more than a factor of two: at most three sweeps for dense operators.
+
 The forward solve and the adjoint solve use the same scales, in reverse order.
+A right-hand side whose scaled entries could exceed `2^960` or fall below
+`2^-1020` is first shifted by a power of two, so that the scales neither overflow
+a system whose solution is near the largest float nor flush its small entries.
 The scales change the coordinates of the solve, not its solution, so the pullback
 differentiates the original system. The Lean model in
 [formal proofs](formal-proofs.md) proves that both scaled solves are exact for any
@@ -47,7 +57,7 @@ sides, where faer takes no parallel branch, the call stays on the calling
 thread. The worker count changes the scheduling only, not the factorization or
 the pullback, so LU results are the same at every budget.
 
-The [scheduling probe](https://github.com/yaugenst/treams-rs/blob/168d000702447797e459c0ef5fece2e4df9fabe6/benchmarks/results/cpu-parallelism.json) measured
+The [scheduling probe](https://github.com/yaugenst/treams-rs/blob/4c6e4bc5fff6bf8aaabdbebe9ea4490cd74d75d0/benchmarks/results/cpu-parallelism.json) measured
 these medians on a Ryzen 9950X with one 16-worker pool pinned to physical cores
 0-15:
 

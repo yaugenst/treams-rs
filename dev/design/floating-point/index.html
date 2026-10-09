@@ -3854,15 +3854,15 @@ mode:</p>
 <td>Fails at opt-level 1 when either pointer operand is removed</td>
 </tr>
 <tr>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/168d000702447797e459c0ef5fece2e4df9fabe6/tests/bindings/test_float_environment.py"><code>test_float_environment.py</code></a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/4c6e4bc5fff6bf8aaabdbebe9ea4490cd74d75d0/tests/bindings/test_float_environment.py"><code>test_float_environment.py</code></a></td>
 <td>Every binding body is one guard call; the first native call on a flushing thread keeps subnormals; forked children keep a working pool</td>
 </tr>
 <tr>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/168d000702447797e459c0ef5fece2e4df9fabe6/scripts/float_environment.py"><code>float_environment.py</code></a>, run by the test above and by <code>just check-wheel</code></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/4c6e4bc5fff6bf8aaabdbebe9ea4490cd74d75d0/scripts/float_environment.py"><code>float_environment.py</code></a>, run by the test above and by <code>just check-wheel</code></td>
 <td>Every scalar binding, every ufunc loop, records with their pullbacks, solves and a slab give the same bits on a flushing thread as on an IEEE thread</td>
 </tr>
 <tr>
-<td><code>test_callbacks_keep_subnormals_and_restore_the_xla_mode</code> in <a href="https://github.com/yaugenst/treams-rs/blob/168d000702447797e459c0ef5fece2e4df9fabe6/tests/autodiff/test_jax.py"><code>test_jax.py</code></a></td>
+<td><code>test_callbacks_keep_subnormals_and_restore_the_xla_mode</code> in <a href="https://github.com/yaugenst/treams-rs/blob/4c6e4bc5fff6bf8aaabdbebe9ea4490cd74d75d0/tests/autodiff/test_jax.py"><code>test_jax.py</code></a></td>
 <td>Native calls inside JAX callbacks keep subnormals and leave XLA's mode as they found it</td>
 </tr>
 </tbody>
