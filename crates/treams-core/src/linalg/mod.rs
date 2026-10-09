@@ -132,7 +132,8 @@ pub(crate) struct Equilibration {
 /// when the equivalent equilibrated system is well conditioned. The scan that
 /// rejects non-finite entries also measures the spread of entry sizes. An operator
 /// whose nonzero entries, or whose diagonal entries, all lie within a factor of 10 of
-/// the largest entry stays unchanged.
+/// the largest entry stays unchanged; others get unit row and column maxima, as in
+/// LAPACK xGEEQU, then [`balance`] evens out their sums.
 pub(crate) fn equilibrate(operator: &mut DMatrix<Complex>) -> Result<Option<Equilibration>> {
     let n = operator.nrows();
     if n == 0 || !operator.is_square() {
@@ -222,7 +223,90 @@ pub(crate) fn equilibrate(operator: &mut DMatrix<Complex>) -> Result<Option<Equi
             *value *= scale;
         }
     }
+    balance(operator, &mut row, &mut column)?;
     Ok(Some(Equilibration { row, column }))
+}
+
+/// The most sweeps of [`balance`]; dense operators take at most three.
+const BALANCE_SWEEPS: usize = 64;
+
+/// Even out the row and column sums of a max-equilibrated operator in place with
+/// power-of-two factors, folded into `row` and `column`.
+///
+/// Row and column maxima do not determine the scales: in `A = D_r H D_c` the largest
+/// entry of a row depends on `D_c`, so an off-diagonal entry of `H` can end up as
+/// large as its diagonal, partial pivoting may choose it, and a change of units costs
+/// digits. Unit magnitude sums determine the scaled operator whenever it has total
+/// support (Sinkhorn and Knopp), whatever the units.
+///
+/// Each sweep moves every column factor, then every row factor, to a power of two that
+/// minimizes the convex potential `Σ |a_ij| x_i y_j − Σ ln x_i − Σ ln y_j` along it. The
+/// sweeps stop after one that moves no factor by more than two, or after
+/// [`BALANCE_SWEEPS`]. A sum that is not normal, or factors beyond `2^±256`, keep the
+/// max scales.
+fn balance(operator: &mut DMatrix<Complex>, row: &mut [f64], column: &mut [f64]) -> Result<()> {
+    let n = operator.nrows();
+    let magnitude = |z: &Complex| z.re.abs().max(z.im.abs());
+    // Scale `factor` by the power of two that puts its `sum` in `[ln 2, 2 ln 2)`, which
+    // minimizes `sum 2^τ − τ ln 2`; `Some(true)` reports a step beyond a factor of two.
+    let advance = |factor: &mut f64, sum: f64| {
+        let ratio = sum / std::f64::consts::LN_2;
+        // The exponent bits alone: the largest power of two at most `ratio`.
+        let step = f64::from_bits(ratio.to_bits() & 0x7ff0_0000_0000_0000).recip();
+        *factor *= step;
+        ratio.is_normal().then_some(!(0.5..=2.0).contains(&step))
+    };
+    let mut left = numerics::filled(n, 1.0_f64)?;
+    let mut right = numerics::filled(n, 1.0_f64)?;
+    // Row sums without their left factor.
+    let mut partial = numerics::filled(n, 0.0_f64)?;
+    for _ in 0..BALANCE_SWEEPS {
+        let mut coarse = false;
+        partial.fill(0.0);
+        for (values, factor) in operator.as_slice().chunks_exact(n).zip(&mut right) {
+            let sum: f64 = values
+                .iter()
+                .zip(&left)
+                .map(|(z, &x)| x * magnitude(z))
+                .sum();
+            let Some(large) = advance(factor, sum * *factor) else {
+                return Ok(());
+            };
+            coarse |= large;
+            for (total, z) in partial.iter_mut().zip(values) {
+                *total += magnitude(z) * *factor;
+            }
+        }
+        for (factor, &total) in left.iter_mut().zip(&partial) {
+            let Some(large) = advance(factor, total * *factor) else {
+                return Ok(());
+            };
+            coarse |= large;
+        }
+        if !coarse {
+            break;
+        }
+    }
+    let bound = 2.0_f64.powi(256);
+    let fits = |scales: &[f64], factors: &[f64]| {
+        scales.iter().zip(factors).all(|(&scale, &factor)| {
+            (bound.recip()..=bound).contains(&factor) && (scale * factor).is_normal()
+        })
+    };
+    if fits(row, &left) && fits(column, &right) {
+        for (values, &y) in operator.as_mut_slice().chunks_exact_mut(n).zip(&right) {
+            // Both factors lie within 2^±256, so their product scales exactly.
+            for (value, &x) in values.iter_mut().zip(&left) {
+                *value *= x * y;
+            }
+        }
+        for (scales, factors) in [(row, &left), (column, &right)] {
+            for (scale, &factor) in scales.iter_mut().zip(factors) {
+                *scale *= factor;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn scale_rows(mut matrix: MatMut<'_, Complex>, scales: &[f64]) {
@@ -1042,6 +1126,8 @@ mod tests {
         Rows(Vec<i32>),
         /// Independent column exponents.
         Columns(Vec<i32>),
+        /// Independent row and column exponents.
+        Both(Vec<i32>, Vec<i32>),
         /// Rows alternating `2^∓e` and columns `2^±e/2`, or with the two spreads
         /// exchanged, which makes the columns the more disparate axis.
         Alternating { exponent: i32, transposed: bool },
@@ -1055,6 +1141,10 @@ mod tests {
             match self {
                 Self::Rows(e) => (e.iter().map(|&e| power(e)).collect(), unit),
                 Self::Columns(e) => (unit, e.iter().map(|&e| power(e)).collect()),
+                Self::Both(r, c) => (
+                    r.iter().map(|&e| power(e)).collect(),
+                    c.iter().map(|&e| power(e)).collect(),
+                ),
                 &Self::Alternating {
                     exponent,
                     transposed,
@@ -1084,6 +1174,7 @@ mod tests {
                 prop_oneof![
                     exponents().prop_map(Units::Rows),
                     exponents().prop_map(Units::Columns),
+                    (exponents(), exponents()).prop_map(|(r, c)| Units::Both(r, c)),
                     (0_i32..=400, any::<bool>()).prop_map(|(exponent, transposed)| {
                         Units::Alternating {
                             exponent,
@@ -1112,6 +1203,26 @@ mod tests {
         ) {
             check_units(&h, &units, &y)?;
         }
+    }
+
+    /// Alternating units put the row maxima of `2^20 I` plus entries of order one off
+    /// its diagonal. With unit maxima alone, pivoting chose them and the solve kept only
+    /// ten digits.
+    #[test]
+    fn units_keep_the_pivots_of_a_dominant_diagonal() -> Result<(), TestCaseError> {
+        let t = |k: usize| f64::from(u32::try_from(k).unwrap());
+        let h = DMatrix::from_fn(6, 6, |i, j| {
+            Complex::new(0.5 - 0.125 * t(i), 0.25 + 0.125 * t(j))
+        }) + DMatrix::identity(6, 6) * Complex::from(2.0_f64.powi(20));
+        let y = DMatrix::from_fn(6, 1, |i, _| Complex::new(1.0, t(i)));
+        for transposed in [false, true] {
+            let units = Units::Alternating {
+                exponent: 64,
+                transposed,
+            };
+            check_units(&h, &units, &y)?;
+        }
+        Ok(())
     }
 
     /// For `A = d_r H d_c` with a well-conditioned `H`, the solve of `A X = d_r H Y`

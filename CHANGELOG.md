@@ -6,6 +6,8 @@
   waves, preserving their distinct transverse-wavevector derivatives.
 - Return Ewald accuracy-policy results directly and verify cached spherical
   samples against their lattice points before reuse.
+- Balance equilibrated dense solves toward unit row and column sums, so their
+  accuracy no longer depends on the equation and unknown units.
 - Raise `ValueError` for plane-wave fields, plane-wave expansions and their
   pushforwards that overflow, instead of returning NaN or infinite entries.
 - Raise `MemoryError` instead of aborting when the system refuses the output of
