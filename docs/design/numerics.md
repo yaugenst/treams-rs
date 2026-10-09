@@ -24,6 +24,13 @@ ratio of 0.1. Other matrices stay untouched. It scales the axis
 with the larger spread first, so that normalizing large rows cannot underflow a
 small column.
 
+Unit row and column maxima do not fix the scales: in `A = D_r H D_c` the largest
+entry of a row depends on `D_c`, so an off-diagonal entry of a well-conditioned `H`
+can end up as large as its diagonal, and partial pivoting may choose it. `balance`
+therefore moves the scales by powers of two toward unit row and column sums, which
+do not depend on the units (Sinkhorn and Knopp), and stops after a sweep that moves
+no scale by more than a factor of two: at most three sweeps for dense operators.
+
 The forward solve and the adjoint solve use the same scales, in reverse order.
 The scales change the coordinates of the solve, not its solution, so the pullback
 differentiates the original system. The Lean model in
