@@ -1,0 +1,7 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g 'AGENTS.md' -g 'web/{model,physics,app,check}.ts' -g 'web/check.mjs' -g 'web/R…"],
+[5,"ran","cat AGENTS.md web/README.md web/package.json && rg -n 'order|resonance|spectrum|tanh|scale|log|fiel…"],
+[13,"ran","cat docs/development.md && sed -n '1,330p' web/physics.ts && sed -n '1,130p' web/model.ts && sed -n…"],
+[40,"ran","node --input-type=module <<'NODE'"],
+[79,"ran","rg -n 'metric-detail|@media|resonance' web/styles.css && node --input-type=module <<'NODE'"]
+]}

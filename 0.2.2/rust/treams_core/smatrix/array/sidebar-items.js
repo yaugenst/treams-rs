@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["from_array"],"mod":["saved"],"struct":["FromArrayGradient","FromArrayResidual"],"type":["Channels"]};

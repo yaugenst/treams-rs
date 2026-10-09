@@ -1,0 +1,11 @@
+{"id":"release/meitner","helpers":[],"groups":[],"items":[
+{"t":"note","at":1964703,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1964708,"to":1965031,"commands":9,"files":9,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,16]]},
+{"t":"relay","at":1965050,"how":"report","from":null,"html":"<p>Reconciled nine documentation files for automatic adapter selection, four optional frameworks, new physics methods and factor behavior. Added the Python architecture diagram and consolidated the 0.1.0 changelog.</p>\n<p><code>git diff --check</code> passes. Diagram rendering is delegated; runtime tests and generated references remain with root. No commits, pushes or Actions runs.</p>"},
+{"t":"note","at":1965145,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1965155,"to":1965155,"commands":1,"files":1,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,16,18]]},
+{"t":"relay","at":1965158,"how":"report","from":null,"html":"<p>Autograd’s docstring example now uses <code>import treams_rs as tr</code>. Only that line changed; diff check passes. Documentation is frozen again.</p>"},
+{"t":"note","at":1965555,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1965566,"to":1965629,"commands":3,"files":1,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,18,22]]},
+{"t":"relay","at":1965647,"how":"report","from":null,"html":"<p>Updated and froze the framework guide’s Limits subsection. It now distinguishes unsupported autodiff paths from physical points without derivatives and links supported alternatives.</p>\n<p>Verified against implementation; diff check passes. No tests or generated-doc updates performed.</p>"}
+]}

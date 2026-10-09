@@ -1,0 +1,5 @@
+{"id":"release/wegener","helpers":[],"groups":[],"items":[
+{"t":"note","at":1964413,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1964421,"to":1964455,"commands":4,"files":1,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,6]]},
+{"t":"relay","at":1964460,"how":"report","from":null,"html":"<p>Added one concise Mermaid diagram to formal/README.md, showing how Lean models produce reference outputs consumed by Rust comparison tests.</p>\n<p>Verified against <code>Golden.lean</code> and all three Rust consumers; <code>git diff --check</code> passed. Rendering remains with root. No commits or pushes.</p>"}
+]}

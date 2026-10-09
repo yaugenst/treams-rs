@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["CLOSED_ULPS","SERIES_PEAK_LIMIT","SERIES_ULPS"],"fn":["base_pair","even_pair","even_scale","even_terms","even_values","kambe","kambe_argument","kambe_below_base","kambe_downward","kambe_series","kambe_series_with","kambe_upward","kambe_with_bound","more_accurate","series_terms"],"struct":["EvenKambe","SmallSplitKambe"]};

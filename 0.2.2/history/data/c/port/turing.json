@@ -1,0 +1,8 @@
+{"id":"port/turing","helpers":[],"groups":[],"items":[
+{"t":"note","at":128145,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":128150,"to":128472,"commands":22,"files":1,"notes":4,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,33]]},
+{"t":"relay","at":128476,"how":"report","from":null,"html":"<p>Ready: benchmark_sampling.rs is frozen with prepared fused CPU timing, strongest-baseline speedups, and setup amortization.</p>\n<p>Formatting, strict Clippy, and the CPU oracle test pass. GPU timings remain unmeasured; no other files, remote state, or Git state changed.</p>"},
+{"t":"note","at":128790,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":128794,"to":128994,"commands":11,"files":1,"notes":2,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,33,49]]},
+{"t":"relay","at":128998,"how":"report","from":null,"html":"<p>Frozen: benchmark_sampling.rs now measures <code>Fᴴg</code>, both CPU layouts, separate GPU transfers, and logical buffer bytes.</p>\n<p>Formatting, strict Clippy, and CPU oracle/pairing tests pass. Hardware timings remain pending; no other files or Git state changed.</p>"}
+]}

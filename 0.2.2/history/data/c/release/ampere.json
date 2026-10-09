@@ -1,0 +1,5 @@
+{"id":"release/ampere","helpers":[],"groups":[],"items":[
+{"t":"note","at":1949120,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1949133,"to":1949343,"commands":13,"files":2,"notes":2,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,17]]},
+{"t":"relay","at":1949357,"how":"report","from":null,"html":"<p>Updated only the assigned files:</p>\n<ul>\n<li><code>CHANGELOG.md</code>: 741 → 106 lines; unreleased 0.1.0 capabilities, CPython 3.12–3.15/CPU/first-order scope, migration table and <code>/latest/</code> documentation links.</li>\n<li><code>CITATION.cff</code>: version <code>0.1.0</code>, <code>/latest/</code> URL; <i class=\"r\">[name]</i> and upstream attribution preserved, no invented release date.</li>\n<li><code>SECURITY.md</code>: 0.1-series fixes on <code>main</code>; private GitHub reporting retained.</li>\n</ul>\n<p>Source-checked migration names; <code>git diff --check</code> passed. No tests, builds, rendering, commits, pushes or external changes. Hosted support remains subject to integration verification; no Ferrers completion claim added.</p>"}
+]}

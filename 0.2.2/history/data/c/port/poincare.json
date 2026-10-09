@@ -1,0 +1,5 @@
+{"id":"port/poincare","helpers":[],"groups":[],"items":[
+{"t":"note","at":133678,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":133686,"to":134374,"commands":22,"files":2,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,32]]},
+{"t":"relay","at":134396,"how":"report","from":null,"html":"<p>Implemented metasurface WASM export with complete propagating diffraction orders and requested-illumination solves.</p>\n<ul>\n<li>Rust tests and Clippy passed.</li>\n<li>Actual WASM: 558 reference cases passed; maximum error <strong>5.71e−14</strong>, energy imbalance <strong>3.33e−14</strong>.</li>\n<li>Narrowed browser radius to ≤0.23; sampled ℓ4-versus-ℓ6 difference ≤<strong>0.32 percentage points</strong>. Exact grazing thresholds remain explicitly unsupported.</li>\n</ul>\n<p>Files: <code>metasurface.rs</code>, <code>metasurface-verify.mjs</code>, <code>metasurface-convergence.json</code>. No commits or pushes.</p>"}
+]}

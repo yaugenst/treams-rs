@@ -1,0 +1,5 @@
+{"id":"release/ramanujan","helpers":[],"groups":[],"items":[
+{"t":"note","at":1949091,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1949097,"to":1950489,"commands":47,"files":5,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,53]]},
+{"t":"relay","at":1950505,"how":"report","from":null,"html":"<p>Committed <code>1bf3748b</code>; integrated as <code>9751fc31</code> <span class=\"note\">(condensed into <a href=\"https://github.com/yaugenst/treams-rs/commit/b860fbdeb2bb6682f1bd445347e6384bffbd5ce2\">b860fbd</a>)</span>. Ferrers worktree removed.</p>\n<ul>\n<li>Clean-room source equivalence verified; 131,171-input strict accuracy/error harness passed.</li>\n<li>Rust: 222 passed, 2 ignored. Integrated Python: 338 passed.</li>\n<li>Public API qualification: 530 finite cases plus 2 expected overflows passed; maximum relative error <code>1.64e-13</code>.</li>\n<li>Clippy, formatting and Ruff passed. Full pyrefly and performance gates remain outside this validation.</li>\n</ul>\n<p>Evidence: validation-summary.json. No pushes or PR changes.</p>"}
+]}

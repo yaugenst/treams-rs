@@ -1,0 +1,19 @@
+{"id":"release/hubble","helpers":[],"groups":[],"items":[
+{"t":"note","at":1962804,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1962812,"to":1964265,"commands":13,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,21]]},
+{"t":"relay","at":1964561,"how":"report","from":null,"html":"<p>Updated only these private files:</p>\n<ul>\n<li><code>STATE.md</code></li>\n<li><code>evidence/reconciliation-report.md</code></li>\n<li><code>cleanup/README.md</code></li>\n</ul>\n<p>They now consistently record e3e759f1, 89 integration commits, preserved experiments/autodiff worktree, artifact provenance, completed privacy checks and cleanup. Historical measurements retain their original identities.</p>\n<p>All qualification passes except Codecov’s “Repository not found” error; the required CI gate remains failed. Owner resync and an exact-head rerun remain pending.</p>\n<p>No source, Git, PR, settings or evidence manifests changed. Available for the final CI/artifact update.</p>"},
+{"t":"note","at":1964678,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1964684,"to":1964836,"commands":3,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,21,26]]},
+{"t":"relay","at":1964852,"how":"report","from":null,"html":"<p>Updated <code>STATE.md</code> with the new integration scope, optional Autograd, preserved source bundle, private Actions hold, and authorized public-then-CI sequence.</p>\n<p>Previous e3e759f1 evidence remains historical. The autodiff worktree now awaits verified integration and subsequent removal. No source, Git or remote changes.</p>"},
+{"t":"note","at":1965953,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1965972,"to":1966246,"commands":10,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,26,40]]},
+{"t":"relay","at":1966262,"how":"report","from":null,"html":"<p>Updated <code>STATE.md</code> and the reconciliation report for local, unpushed baa6b705.</p>\n<p>Recorded passing tests/docs/diagrams, optional Autograd, measured dispatch overhead, repaired-but-unverified Codecov access, and pending packaging/privacy proof. Private Actions remain explicitly disabled; no readiness or public/push claim was added.</p>\n<p>Only private prose changed.</p>"},
+{"t":"note","at":1966315,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1966327,"to":1966658,"commands":6,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,40,50]]},
+{"t":"note","at":1966713,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1966808,"to":1966898,"commands":1,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,50,53]]},
+{"t":"relay","at":1967115,"how":"report","from":null,"html":"<p>Updated <code>STATE.md</code> and the report to pushed f9b43088 and its running CI/Formal checks.</p>\n<p>Recorded public activation, 93 integration commits, expected prerelease badge states, and the explicit instruction not to merge or publish. Final badge artifacts, visual QA, additive proof and hosted results remain pending. Historical evidence is unchanged.</p>"},
+{"t":"note","at":1968147,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1968162,"to":1968573,"commands":8,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,53,65]]},
+{"t":"note","at":1968574,"text":"The agent was stopped."}
+]}

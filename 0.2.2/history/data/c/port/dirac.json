@@ -1,0 +1,5 @@
+{"id":"port/dirac","helpers":[],"groups":[],"items":[
+{"t":"note","at":136269,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":136275,"to":136345,"commands":6,"files":0,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,6]]},
+{"t":"relay","at":136402,"how":"report","from":null,"html":"<p>Reproduced without Safari: at390×844, resonance buttons end at858.98px while <code>.lab</code> clips at844px. Controls extend24px beyond the viewport; their scroll range is only4px, so scrolling cannot recover them.</p>\n<p>Cause: fixed viewport height plus <code>overflow:hidden</code>, hardcoded stage-height reservation, and controls’156px minimum. Safe-area padding is also absent from active mobile content. Fix CSS sizing/scroll containment first; there is no evidence that <code>visualViewport</code> JavaScript is needed.</p>\n<p>Tests miss this because they check sliders and document overflow, omitting action buttons. Add a bounds/clipping check for the bottom action row after fonts load, including reduced viewport heights. No files changed.</p>"}
+]}

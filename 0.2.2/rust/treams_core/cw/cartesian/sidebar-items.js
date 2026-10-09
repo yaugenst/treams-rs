@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["cartesian_translation","regular_harmonic"],"struct":["CartesianTranslation"]};

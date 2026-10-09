@@ -1,0 +1,15 @@
+{"lines":[
+[0,"left","Left out: 1 command that read the agent's own settings."],
+[7,"ran","cat AGENTS.md python/AGENTS.md docs/development.md"],
+[7,"ran","git diff --stat 2843a70c8dae1a204d31eb672441900d30d160bb 357153477cabe98cae9382b1441663dd5eab9814"],
+[13,"ran","cat python/treams_rs/_physics.py"],
+[13,"ran","sed -n '1,500p' python/treams_rs/_framework.py"],
+[20,"ran","sed -n '500,1020p' python/treams_rs/_framework.py"],
+[20,"ran","sed -n '1020,1570p' python/treams_rs/_framework.py"],
+[28,"ran","rg -n '^def |^class |Backend\\(|_physics|_framework|\\.kz\\b|validate=' python/treams_rs/{jax,torch,ad…"],
+[28,"ran","cat python/treams_rs/__init__.py python/treams_rs/operators.py; sed -n '1,200p' python/treams_rs/__…"],
+[39,"ran","sed -n '210,530p' python/treams_rs/jax.py; sed -n '1,240p' scripts/agent_eval/run.py; sed -n '1,130…"],
+[39,"ran","rg -n '\\.kz|kz=' tests/test_framework_physics.py docs/api-autodiff-map.md docs/adapters.md; sed -n …"],
+[47,"ran","rg -n 'framework|_module|__module__|alias|imports|ImportFrom|stack' python/treams_rs/support.py; se…"],
+[60,"ran","sed -n '330,375p' python/treams_rs/support.py; rg -n 'invoke|\\.call\\(' python/treams_rs/_framework.…"]
+]}

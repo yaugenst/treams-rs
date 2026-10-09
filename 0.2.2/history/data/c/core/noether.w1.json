@@ -1,0 +1,12 @@
+{"lines":[
+[0,"left","Left out: 2 commands that read the agent's own settings."],
+[0,"ran","cat AGENTS.md; cat docs/development.md"],
+[6,"ran","git diff --stat 2843a70c8dae1a204d31eb672441900d30d160bb 357153477cabe98cae9382b1441663dd5eab9814; …"],
+[13,"ran","cat benchmarks/agent-api/README.md; cat benchmarks/agent-api/protocol.json; cat benchmarks/agent-ap…"],
+[13,"ran","cat scripts/agent_eval/run.py; cat scripts/agent_eval/runner.py; cat scripts/agent_eval/claude_runn…"],
+[17,"ran","cat scripts/agent_eval/grade.py; cat scripts/agent_eval/summarize.py; cat scripts/agent_eval/cases.…"],
+[23,"ran","cat scripts/agent_eval/preflight.py; cat scripts/agent_eval/install.py; cat scripts/agent_eval/chec…"],
+[46,"ran","python - <<'PY'"],
+[70,"ran","python - <<'PY'"],
+[0,"ran","git diff -- scripts/agent_eval/grade.py scripts/agent_eval/check_grader.py"]
+]}

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_DEGREE"],"enum":["DerivativeError","Error"],"mod":["basis","channels","cluster","coeffs","cw","ebcm","fields","fpenv","lattice","linalg","numerics","pw","rotation","saved","smatrix","special","sw","threads","tmatrix","vectorwaves"],"type":["Complex","Result"]};

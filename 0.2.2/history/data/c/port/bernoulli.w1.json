@@ -1,0 +1,10 @@
+{"lines":[
+[0,"ran","pwd && rg --files -g AGENTS.md -g 'advanced*' -g 'styles.css' -g 'package.json' -g '*ui-check*'"],
+[7,"ran","cat AGENTS.md && cat web/advanced.css && cat web/advanced.html"],
+[13,"ran","cat web/advanced.ts && cat web/advanced-ui-check.mjs && cat docs/development.md"],
+[34,"ran","sed -n '315,655p' web/advanced.ts && cat web/package.json"],
+[129,"changed","web/advanced.html, web/advanced.ts, web/advanced.css"],
+[145,"ran","npx prettier --write advanced.ts advanced.css advanced.html && npm run check"],
+[175,"ran","git diff --stat -- web/advanced.ts web/advanced.css web/advanced.html && git diff --check && rg -n …"],
+[181,"ran","ls -l web/output/advanced-array-390.png web/output/advanced-crystal-390.png web/output/advanced-arr…"]
+]}

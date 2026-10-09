@@ -1,0 +1,47 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/treams-core/src/pw/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="treams_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.0 (4a4ef493e 2026-03-02)" data-channel="1.94.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">treams_core/pw/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-2"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Plane waves: polarization vectors, fields, translation phases, cyclic permutations of
+<a href=#2 id=2 data-nosnippet>2</a>//! the Cartesian axes, and the expansion of plane waves in regular spherical and
+<a href=#3 id=3 data-nosnippet>3</a>//! cylindrical waves.
+<a href=#4 id=4 data-nosnippet>4</a>//!
+<a href=#5 id=5 data-nosnippet>5</a>//! Upstream: `treams.pw`, `treams.misc.wave_vec_z`, and `treams.special.vpw_M`, `vpw_N`
+<a href=#6 id=6 data-nosnippet>6</a>//! and `vpw_A`.
+<a href=#7 id=7 data-nosnippet>7</a>//!
+<a href=#8 id=8 data-nosnippet>8</a>//! | File | Contents | Upstream |
+<a href=#9 id=9 data-nosnippet>9</a>//! |---|---|---|
+<a href=#10 id=10 data-nosnippet>10</a>//! | `polarization.rs` | [`polarization()`], [`field_value`] and [`wave_vector_z`]; the private `Direction` jets of a wavevector | `special.vpw_*`, `misc.wave_vec_z` |
+<a href=#11 id=11 data-nosnippet>11</a>//! | `field.rs` | [`translate`], [`phases`] and [`field()`] | `pw.translate`, `special.vpw_*` |
+<a href=#12 id=12 data-nosnippet>12</a>//! | `permute.rs` | [`permute_xyz`] and [`permutation`] | `pw.permute_xyz` |
+<a href=#13 id=13 data-nosnippet>13</a>//! | `expand.rs` | [`to_sw`], [`to_cw`] and [`expansion`] | `pw.to_sw`, `pw.to_cw`, the `Expand` operator from a plane-wave basis |
+<a href=#14 id=14 data-nosnippet>14</a>//! | `saved.rs` | Fixed numerical layouts for derivative state | treams-rs extension |
+<a href=#15 id=15 data-nosnippet>15</a>//!
+<a href=#16 id=16 data-nosnippet>16</a>//! Conventions:
+<a href=#17 id=17 data-nosnippet>17</a>//!
+<a href=#18 id=18 data-nosnippet>18</a>//! - A plane wave is `p exp(i k·r)` with a complex wavevector `k = (kx, ky, kz)`, which
+<a href=#19 id=19 data-nosnippet>19</a>//!   may be evanescent. Its wavenumber is the algebraic norm `sqrt(kx^2 + ky^2 + kz^2)`,
+<a href=#20 id=20 data-nosnippet>20</a>//!   not the Hermitian length.
+<a href=#21 id=21 data-nosnippet>21</a>//! - `pol` is the polarization index, 0 or 1: with `helicity` true, 1 is positive and 0
+<a href=#22 id=22 data-nosnippet>22</a>//!   negative helicity; with `helicity` false, 1 is the N and 0 the M polarization, as
+<a href=#23 id=23 data-nosnippet>23</a>//!   for [`crate::sw`].
+<a href=#24 id=24 data-nosnippet>24</a>//! - Gradients with respect to a complex wavevector use the pairing
+<a href=#25 id=25 data-nosnippet>25</a>//!   `dL = Re Σ conj(g)·dk`, so a real input takes the real part of its gradient.
+<a href=#26 id=26 data-nosnippet>26</a>//!
+<a href=#27 id=27 data-nosnippet>27</a>//! The physical and adjoint identities of plane waves are tested in
+<a href=#28 id=28 data-nosnippet>28</a>//! `properties/plane.rs`, which compares the expansions with the single-wave references
+<a href=#29 id=29 data-nosnippet>29</a>//! of `expand.rs`.
+<a href=#30 id=30 data-nosnippet>30</a>
+<a href=#31 id=31 data-nosnippet>31</a></span><span class="kw">mod </span>expand;
+<a href=#32 id=32 data-nosnippet>32</a><span class="kw">mod </span>field;
+<a href=#33 id=33 data-nosnippet>33</a><span class="kw">mod </span>permute;
+<a href=#34 id=34 data-nosnippet>34</a><span class="kw">mod </span>polarization;
+<a href=#35 id=35 data-nosnippet>35</a><span class="kw">mod </span>saved;
+<a href=#36 id=36 data-nosnippet>36</a>
+<a href=#37 id=37 data-nosnippet>37</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>expand::cylindrical_mode_matches;
+<a href=#38 id=38 data-nosnippet>38</a><span class="kw">pub use </span>expand::{ExpansionGradient, ExpansionResidual, expansion, to_cw, to_sw};
+<a href=#39 id=39 data-nosnippet>39</a><span class="attr">#[cfg(test)]
+<a href=#40 id=40 data-nosnippet>40</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>expand::{reference_cylindrical_expansion, reference_spherical_expansion};
+<a href=#41 id=41 data-nosnippet>41</a><span class="kw">pub use </span>field::{
+<a href=#42 id=42 data-nosnippet>42</a>    FieldGradient, FieldResidual, PhasesGradient, PhasesResidual, field, phases, translate,
+<a href=#43 id=43 data-nosnippet>43</a>};
+<a href=#44 id=44 data-nosnippet>44</a><span class="kw">pub use </span>permute::{PermutationResidual, permutation, permute_xyz};
+<a href=#45 id=45 data-nosnippet>45</a><span class="kw">pub use </span>polarization::{field_value, polarization, wave_vector_z};
+<a href=#46 id=46 data-nosnippet>46</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>polarization::{polarization_from_inputs, polarization_jet};
+</code></pre></div></section></main></body></html>

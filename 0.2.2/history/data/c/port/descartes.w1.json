@@ -1,0 +1,13 @@
+{"lines":[
+[0,"ran","pwd && cat AGENTS.md && git status --short --branch && git worktree list --porcelain && git branch …"],
+[6,"left","Left out: 2 commands that read the agent's own settings."],
+[31,"ran","python3 - <<'PY'"],
+[61,"ran","python3 - <<'PY'"],
+[89,"ran","on [computer name]: git branch -avv"],
+[104,"ran","on [computer name]: python3 - <<'PY'"],
+[124,"ran","on [computer name]: python3 - <<'PY'"],
+[137,"ran","python3 - <<'PY'"],
+[150,"ran","on [computer name]: python3 - <<'PY'"],
+[174,"ran","on [computer name]: test -z \"$(git status --porcelain)\""],
+[200,"ran","python3 - <<'PY'"]
+]}

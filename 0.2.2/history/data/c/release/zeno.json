@@ -1,0 +1,5 @@
+{"id":"release/zeno","helpers":[],"groups":[],"items":[
+{"t":"note","at":1956837,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1956844,"to":1957087,"commands":14,"files":3,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,17]]},
+{"t":"relay","at":1957100,"how":"report","from":null,"html":"<p>Committed <code>3f912148</code> <span class=\"note\">(condensed into <a href=\"https://github.com/yaugenst/treams-rs/commit/a6b4f17546ef6ce99a4a8cacf969810e01d6ee2d\">a6b4f17</a>)</span>: three concise READMEs covering Python, bindings and NumPy ufunc architecture.</p>\n<p>File hygiene and repository link checks passed. No runtime edits, builds or remote changes. Remaining wording suggestions sent to the clarity agent.</p>"}
+]}

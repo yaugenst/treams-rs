@@ -1,0 +1,5 @@
+{"id":"autodiff/hooke","helpers":[],"groups":[],"items":[
+{"t":"note","at":1961492,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1961498,"to":1962410,"commands":27,"files":27,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,38]]},
+{"t":"relay","at":1962426,"how":"report","from":null,"html":"<p>Updated source documentation, examples, API catalog, Autograd documentation tests, CI dependency matrices and isolated wheel smoke profiles.</p>\n<p>Verified:</p>\n<ul>\n<li>162 documentation/catalog/gallery tests passed; one periodic <code>orders=</code> NumPy-path failure sent to <code>physics_entrypoints</code>.</li>\n<li>62 release-artifact tests passed.</li>\n<li>Autograd smoke checks passed for sphere radius/permittivity and complex Bessel gradients.</li>\n<li>Ruff, Markdown/YAML lint, targeted Pyrefly and whitespace checks passed.</li>\n</ul>\n<p>Generated documentation and full clean-wheel validation remain for root integration. No commits, pushes or release-agent contact.</p>"}
+]}

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["fresnel","fresnel_values","interface","interface_blocks","interface_boundary","interface_matrix","normal_component","port_boundary","propagation"],"mod":["saved"],"struct":["FresnelGradient","FresnelResidual","InterfaceGradient","InterfaceResidual","PropagationGradient","PropagationResidual"],"type":["BoundaryJets","InterfaceMatrix"]};

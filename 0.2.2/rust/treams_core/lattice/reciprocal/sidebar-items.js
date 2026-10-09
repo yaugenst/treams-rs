@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["NEAR_THRESHOLD","THRESHOLD_DISTANCE"],"fn":["axial_cylindrical_reciprocal","compensated_threshold_distance","exponential_kernel","half_integer_orders","polynomial_cw1d","polynomial_sw1d","polynomial_sw2d","reciprocal_term","self_term"],"struct":["Compensated","Diffraction"]};

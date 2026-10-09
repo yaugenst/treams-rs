@@ -1,0 +1,10 @@
+{"lines":[
+[0,"ran","cat benchmarks/results/local/cpu-speedups-20261004/stage6-fields.patch"],
+[7,"ran","sed -n '1,240p' crates/treams-core/src/fields.rs; sed -n '360,720p' crates/treams-core/src/fields.r…"],
+[20,"ran","sed -n '60,160p' crates/treams-core/src/special/bessel.rs; sed -n '440,565p' crates/treams-core/src…"],
+[20,"ran","rg -n \"fn validate|MAX.*(ORDER|DEGREE)|l >|l <\" crates/treams-core/src/sw/modes.rs crates/treams-co…"],
+[40,"ran","rg -n \"field_evaluation_contract|fn check_field|mode.*permut|sparse|near.*zero\" crates/treams-core/…"],
+[45,"ran","rg -n \"field_evaluation_contract|field.*permutation\" crates/treams-core/src; rg --files crates/trea…"],
+[53,"ran","sed -n '110,215p' crates/treams-core/src/properties/waves.rs; rg -n \"fn field_contract|fn check_fie…"],
+[58,"ran","sed -n '1000,1130p' crates/treams-core/src/properties/waves.rs; sed -n '1128,1275p' crates/treams-c…"]
+]}

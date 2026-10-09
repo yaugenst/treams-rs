@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["PARALLEL"],"fn":["axial_groups","expansion","for_each_coupled","lattice_expansion"],"mod":["lattice_state"],"struct":["CouplingKey","Couplings","ExpansionResidual","LatticeExpansionResidual"]};

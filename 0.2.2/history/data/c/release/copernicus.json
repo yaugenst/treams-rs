@@ -1,0 +1,5 @@
+{"id":"release/copernicus","helpers":[],"groups":[],"items":[
+{"t":"note","at":1964414,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":1964419,"to":1964481,"commands":6,"files":3,"notes":0,"helpers":0,"groups":0,"searches":0,"helper_ids":[],"group_ix":[],"lines":[[1,0,9]]},
+{"t":"relay","at":1964486,"how":"report","from":null,"html":"<p>Added Mermaid diagrams to:</p>\n<ul>\n<li><code>cluster/README.md</code>: dense and iterative solver paths.</li>\n<li><code>smatrix/README.md</code>: shared S-matrix blocks and their consumers.</li>\n<li><code>tmatrix/README.md</code>: helicity ordering and downstream uses.</li>\n</ul>\n<p>Verified against implementations; <code>git diff --check</code> passes. Left <code>coeffs/README.md</code> unchanged because its short linear explanation needs no diagram. Render validation remains with the parent agent. No commits, pushes, builds or Actions.</p>"}
+]}

@@ -1,0 +1,5 @@
+{"id":"port/boole","helpers":[{"id":"port/curie","nick":"Curie","task":"advanced ui validation","parent":"port/boole","depth":2,"model":"gpt-6-astra","effort":"ultra","from":134220,"minutes":12}],"groups":[],"items":[
+{"t":"note","at":133721,"text":"Task from the agent that started it: stored encrypted."},
+{"t":"work","from":133727,"to":134988,"commands":28,"files":0,"notes":0,"helpers":1,"groups":0,"searches":0,"helper_ids":["port/curie"],"group_ix":[],"lines":[[1,0,44]]},
+{"t":"relay","at":135002,"how":"report","from":null,"html":"<p>Implemented both advanced showcases and their real WASM checks. Final Chrome UI tests pass at 390×844, 320×568, and 1440×1000; screenshots inspected. Files frozen.</p>\n<p>Log: <code>treams-advanced-ui-final.log</code>. Native iOS Safari remains unverified. No commits or pushes.</p>"}
+]}

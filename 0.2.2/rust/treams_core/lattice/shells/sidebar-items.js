@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["NOT_CONVERGED","SHELL_TOLERANCE","TERM_DECAY"],"fn":["add_exactly","add_jet_exactly","is_shell_limit","largest_index","largest_modulus","norm","not_converged","peak_shells","real_shells","reciprocal_shells","shells","shells_within"],"struct":["Shells"]};
