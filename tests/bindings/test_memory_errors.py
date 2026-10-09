@@ -21,8 +21,25 @@ pytestmark = pytest.mark.interface
 #: Additional address space after imports; also bounds incrementally grown outputs.
 HEADROOM = 64 << 20
 
-#: Calls whose dense output exceeds the memory allowance, by native function.
+#: Calls whose dense output or workspace exceeds the allowance, by native function.
 REQUESTS = {
+    # 100000 points and 2000 plane waves: a 9.6 GB complex field operator.
+    "plane_field": """
+        vectors = np.tile([0.0, 0.0, 1.0], (2000, 1))
+        diff.plane_field(None, np.zeros((100_000, 3)), vectors, [0] * 2000)
+    """,
+    # The 19200 modes of lmax 30 at 10 positions from 42000 cylindrical modes: a
+    # 12.9 GB expansion matrix.
+    "cw_to_sw": """
+        spheres = tr.SphericalBasis.default(30, 10)
+        cylinders = tr.CylindricalBasis.default(np.linspace(-0.5, 0.5, 1000), 10)
+        diff.expansion(spheres, cylinders, [1.0, 1.0])
+    """,
+    # The matrix-free cluster stores no dense matrix, but the translation plan of
+    # lmax 30 couples its 1920 modes through 46 million terms: 1.1 GB.
+    "iterative_sphere_cluster": """
+        tr.iterative.SphereCluster(30, 1.0, [1.0], [2.0], [[0.0, 0.0, 0.0]])
+    """,
     # 200 spheres at lmax 10 have 48000 modes: a 37 GB complex coupling matrix.
     "sphere_cluster": """
         grid = np.stack(np.meshgrid(*3 * [np.arange(6.0)], indexing="ij"), axis=-1)

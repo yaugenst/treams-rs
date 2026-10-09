@@ -12,12 +12,12 @@ use faer::{MatMut, MatRef};
 use super::{
     CartesianTranslation, Mode,
     cartesian::{combine, harmonic},
-    coupling::{Coupling, Kinds},
+    coupling::{Coupling, Kinds, term_bound},
 };
 use crate::{
     Complex, Error, Result,
     basis::ModeLabel,
-    numerics::{finite, parallel::try_fold_ordered},
+    numerics::{self, finite, parallel::try_fold_ordered},
     special::{
         Radial, RadialJet, SolidTable, Wigner3jRow, direction, spherical_hankels, spherical_radial,
         spherical_radial_sequence, tangent,
@@ -74,6 +74,20 @@ impl TranslationPlan {
         }
         let lmax = destination.iter().map(|m| m.l).max().unwrap_or(0)
             + source.iter().map(|m| m.l).max().unwrap_or(0);
+        // An entry has a term per admitted degree, so the terms outgrow the block:
+        // reserve them from the selection rules before evaluating any coupling.
+        let bound = source
+            .iter()
+            .flat_map(|&from| {
+                destination
+                    .iter()
+                    .map(move |&to| term_bound(to, from, helicity))
+            })
+            .sum();
+        let mut terms = Vec::new();
+        numerics::reserve(&mut terms, bound)?;
+        let mut starts = Vec::new();
+        numerics::reserve(&mut starts, destination.len() * source.len() + 1)?;
         // Couplings depend on degrees and orders only, and the `(l, lambda, 0, 0)` 3j rows
         // on degrees only: evaluate each once and share them across polarizations.
         let (sources, destinations) = (degree_orders(source), degree_orders(destination));
@@ -107,8 +121,6 @@ impl TranslationPlan {
                 })
                 .collect()
         });
-        let mut terms = Vec::new();
-        let mut starts = Vec::with_capacity(destination.len() * source.len() + 1);
         starts.push(0);
         for &from in source {
             let couplings = &couplings[source_index[&(from.l, from.m)]];

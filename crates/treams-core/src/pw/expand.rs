@@ -11,7 +11,7 @@ use crate::{
     Complex, Error, Result,
     basis::{ModeLabel, MultipoleBasis},
     numerics::{
-        Jet, finite,
+        self, Jet, finite,
         parallel::{try_fill_chunks, try_fold_ordered},
     },
     special::{check_pol, polarized_angular},
@@ -325,7 +325,7 @@ pub fn expansion(
         ));
     }
     let labels = AngularLabels::of(&basis);
-    let mut value = DMatrix::zeros(basis.len(), vectors.len());
+    let mut value = numerics::zeros(basis.len(), vectors.len())?;
     try_fill_chunks(
         value.as_mut_slice(),
         basis.len(),
@@ -345,6 +345,9 @@ pub fn expansion(
             Ok(())
         },
     )?;
+    if value.iter().any(|&v| !finite(v)) {
+        return Err(Error::NonFinite("plane expansion overflow".into()));
+    }
     Ok((
         value,
         ExpansionResidual {
@@ -395,7 +398,7 @@ impl ExpansionResidual {
         } else {
             2
         };
-        let mut tangent = DMatrix::zeros(self.basis.len(), self.vectors.len());
+        let mut tangent = numerics::zeros(self.basis.len(), self.vectors.len())?;
         try_fill_chunks(
             tangent.as_mut_slice(),
             self.basis.len(),
@@ -424,6 +427,9 @@ impl ExpansionResidual {
                 Ok(())
             },
         )?;
+        if tangent.iter().any(|&v| !finite(v)) {
+            return Err(Error::NonFinite("plane expansion tangent overflow".into()));
+        }
         Ok(tangent)
     }
 
@@ -581,9 +587,21 @@ impl ExpansionResidual {
 mod tests {
     use super::expansion;
     use crate::{
-        Complex, sw,
-        test_support::{assert_same_bits_on_pools, bits, patterned},
+        Complex, Error, sw,
+        test_support::{assert_same_bits_on_pools, bits, patterned, spherical_basis},
     };
+
+    /// The overflowing wave of the plane-field tests, expanded about the same points.
+    #[test]
+    fn overflowing_plane_expansions_report_nonfinite() {
+        let k = vec![[0.6.into(), 0.0.into(), Complex::new(0.8, 2.0)]];
+        let basis = |z| spherical_basis(1, [0.0, 0.0, z]);
+        let at = |z| expansion(basis(z), k.clone(), vec![0], true, false);
+        assert!(matches!(at(-400.0), Err(Error::NonFinite(_))));
+        let (_, residual) = at(-350.0).unwrap();
+        let tangent = residual.pushforward(&[[0.0, 0.0, 1e10]], &[[0.0.into(); 3]]);
+        assert!(matches!(tangent, Err(Error::NonFinite(_))));
+    }
 
     /// The position gradients add in chunks fixed by the plane-mode count: with more
     /// plane modes than chunks, every gradient repeats bit for bit on every pool size.
