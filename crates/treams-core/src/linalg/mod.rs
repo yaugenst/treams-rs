@@ -310,8 +310,9 @@ fn balance(operator: &mut DMatrix<Complex>, row: &mut [f64], column: &mut [f64])
 }
 
 /// `matrix[(i, j)] scales[i] 2^shifts[j]`, rounded once unless subnormal. A shifted
-/// column splits each scale into a mantissa below one and a power of two, so no
-/// intermediate product overflows.
+/// column splits each scale into a mantissa and a power of two, and applies the power
+/// first when it scales up, so no intermediate product overflows or flushes a
+/// subnormal entry.
 fn scale_rows(mut matrix: MatMut<'_, Complex>, scales: &[f64], shifts: &[i32]) {
     for (j, &shift) in shifts.iter().enumerate() {
         for (value, &scale) in matrix.as_mut().col_mut(j).iter_mut().zip(scales) {
@@ -319,7 +320,14 @@ fn scale_rows(mut matrix: MatMut<'_, Complex>, scales: &[f64], shifts: &[i32]) {
                 *value *= scale;
             } else {
                 let (mantissa, exponent) = libm::frexp(scale);
-                let part = |x: f64| libm::scalbn(x * mantissa, exponent + shift);
+                let power = exponent + shift;
+                let part = |x: f64| {
+                    if power > 0 {
+                        libm::scalbn(x, power - 1) * (2.0 * mantissa)
+                    } else {
+                        libm::scalbn(x * mantissa, power)
+                    }
+                };
                 *value = Complex::new(part(value.re), part(value.im));
             }
         }
@@ -440,12 +448,12 @@ impl Lu {
                 (&scales.row, &scales.column)
             }
         });
-        // Shift a right-hand side down by a power of two when its scaled entries could
-        // exceed 2^960, which leaves 2^64 for growth in the triangular solves: scales
-        // above one then do not overflow a system whose solution is near the largest
-        // float. It stops early rather than make the smallest entry subnormal, unless the
-        // entries span too wide a range for that; then it stops once they lie below
-        // 2^1020, which rounds the smallest. Others keep their bits.
+        // Shift a right-hand side by a power of two when a scaled entry could exceed 2^960,
+        // which leaves 2^64 for growth in the triangular solves, or fall below 2^-1020: the
+        // scales then neither overflow a system whose solution is near the largest float
+        // nor flush its small entries. The shift nearest zero keeps the entries normal and
+        // below 2^960; for too wide a range, nonzero and finite; failing that, there is
+        // none. Others keep their bits.
         let mut shifts = Vec::new();
         if let Some((before, _)) = scales {
             shifts = numerics::filled(columns, 0_i32)?;
@@ -453,21 +461,30 @@ impl Lu {
                 let entries = || {
                     (rhs.as_ref().col(j).iter().zip(before))
                         .map(|(z, &scale)| (z.re.abs().max(z.im.abs()), scale))
+                        .filter(|&(magnitude, _)| magnitude > 0.0)
                 };
-                // The largest scaled entry, infinite where it overflows.
-                if entries()
+                // The extreme scaled entries, zero or infinite where they leave the range.
+                let (smallest, largest) = entries()
                     .map(|(magnitude, scale)| magnitude * scale)
-                    .fold(0.0, f64::max)
-                    > 2.0_f64.powi(960)
-                {
+                    .fold((f64::INFINITY, 0.0_f64), |(low, high), x| {
+                        (low.min(x), high.max(x))
+                    });
+                if largest > 2.0_f64.powi(960) || smallest < 2.0_f64.powi(-1020) {
                     // Scaled entries lie in [2^(e - 2), 2^e) for the exponent sums e.
                     let (low, high) = entries()
-                        .filter(|&(magnitude, _)| magnitude > 0.0)
                         .map(|(magnitude, scale)| libm::frexp(magnitude).1 + libm::frexp(scale).1)
                         .fold((i32::MAX, i32::MIN), |(low, high), e| {
                             (low.min(e), high.max(e))
                         });
-                    *shift = (960 - high).max((1020 - high).min(-1020 - low)).min(0);
+                    let (floor, ceiling) = (-1020 - low, 960 - high);
+                    let (lowest, highest) = (-1072 - low, 1023 - high);
+                    *shift = if floor <= ceiling {
+                        0.clamp(floor, ceiling)
+                    } else if lowest <= highest {
+                        0.clamp(lowest, highest)
+                    } else {
+                        0
+                    };
                 }
             }
             scale_rows(rhs.as_mut(), before, &shifts);
@@ -1351,7 +1368,7 @@ mod tests {
     }
 
     #[test]
-    fn scales_above_one_keep_solutions_near_the_largest_float_finite() {
+    fn scaled_solves_keep_solutions_near_the_float_limits() {
         let p = |e: i32| 2.0_f64.powi(e);
         let (h, t, u) = (p(1023), p(-100), p(-1022));
         let systems = [
@@ -1367,6 +1384,8 @@ mod tests {
             (2, vec![0.5, 0.5, 0.0, t], vec![1.5 * h, 1.5 * h]),
             // The right-hand side spans 2^2000 until the row scales apply.
             (2, vec![1.0, 0.0, 0.0, p(-1000)], vec![p(1000), 1.0]),
+            // A subnormal right-hand side entry whose row scale makes it normal.
+            (2, vec![t, 0.0, 0.0, 1.0], vec![p(-974), h]),
         ];
         for (n, a, x) in systems {
             let a = DMatrix::from_row_slice(n, n, &a).map(Complex::from);

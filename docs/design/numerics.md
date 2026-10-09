@@ -32,9 +32,9 @@ do not depend on the units (Sinkhorn and Knopp), and stops after a sweep that mo
 no scale by more than a factor of two: at most three sweeps for dense operators.
 
 The forward solve and the adjoint solve use the same scales, in reverse order.
-A right-hand side whose scaled entries could exceed `2^960` is first shifted down
-by a power of two, so that scales above one do not overflow a system whose
-solution is near the largest float.
+A right-hand side whose scaled entries could exceed `2^960` or fall below
+`2^-1020` is first shifted by a power of two, so that the scales neither overflow
+a system whose solution is near the largest float nor flush its small entries.
 The scales change the coordinates of the solve, not its solution, so the pullback
 differentiates the original system. The Lean model in
 [formal proofs](formal-proofs.md) proves that both scaled solves are exact for any
