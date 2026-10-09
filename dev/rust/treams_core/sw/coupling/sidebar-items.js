@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["degrees","terms","tl_vsw_term"],"struct":["Coupling","Kinds"]};
+window.SIDEBAR_ITEMS = {"fn":["degrees","term_bound","terms","tl_vsw_term"],"struct":["Coupling","Kinds"]};

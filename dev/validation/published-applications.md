@@ -6,7 +6,7 @@ complement tests of individual numerical functions; agreement alone does not pro
 accuracy. Every comparison names its source, sampling grid, truncation order and tolerance.
 Runtimes in these results are diagnostics, not controlled benchmarks.
 
-![Electron-beam spectra and periodic-array transmission, with author data and treams comparisons](https://github.com/yaugenst/treams-rs/raw/79a92e31fc29542ef0de77664ae887ff4eff14e4/benchmarks/papers/qualification.png)
+![Electron-beam spectra and periodic-array transmission, with author data and treams comparisons](https://github.com/yaugenst/treams-rs/raw/168d000702447797e459c0ef5fece2e4df9fabe6/benchmarks/papers/qualification.png)
 
 Lines use the full original notebook grids; circles show the separately sampled
 author reference tables. Narrow cylinder resonances explain the visual difference
@@ -41,7 +41,7 @@ electron-source basis. Its own regression test includes that conversion. The
 check applies that one-line repair explicitly; the unmodified notebook differs by
 as much as 50% in EELS. The unmodified sphere notebook and repaired cylinder
 notebook match treams-rs within `8e-17` absolute. Both original and repaired results
-are preserved in [ebeam-notebook-execution.json](https://github.com/yaugenst/treams-rs/blob/79a92e31fc29542ef0de77664ae887ff4eff14e4/benchmarks/papers/ebeam-notebook-execution.json).
+are preserved in [ebeam-notebook-execution.json](https://github.com/yaugenst/treams-rs/blob/168d000702447797e459c0ef5fece2e4df9fabe6/benchmarks/papers/ebeam-notebook-execution.json).
 The plotted cylinder curve uses the **corrected notebook calculation**.
 
 The independent stored-data tolerance is `atol=1e-8, rtol=0`, matching the precision
@@ -127,11 +127,11 @@ author table gives `1.7464535052e-4 µm²`. This disagreement remains in the res
 The original angular filenames use another figure numbering; the source-data
 file records their mapping, units and the notebook's file-saving convention.
 
-Results: [thermal-result.json](https://github.com/yaugenst/treams-rs/blob/79a92e31fc29542ef0de77664ae887ff4eff14e4/benchmarks/papers/thermal-result.json),
-[source data and hashes](https://github.com/yaugenst/treams-rs/blob/79a92e31fc29542ef0de77664ae887ff4eff14e4/benchmarks/papers/thermal-source.json),
-[treams comparison](https://github.com/yaugenst/treams-rs/blob/79a92e31fc29542ef0de77664ae887ff4eff14e4/benchmarks/papers/thermal-upstream-comparison.json).
+Results: [thermal-result.json](https://github.com/yaugenst/treams-rs/blob/168d000702447797e459c0ef5fece2e4df9fabe6/benchmarks/papers/thermal-result.json),
+[source data and hashes](https://github.com/yaugenst/treams-rs/blob/168d000702447797e459c0ef5fece2e4df9fabe6/benchmarks/papers/thermal-source.json),
+[treams comparison](https://github.com/yaugenst/treams-rs/blob/168d000702447797e459c0ef5fece2e4df9fabe6/benchmarks/papers/thermal-upstream-comparison.json).
 
-![Thermal absorption and directional emission compared with the author's numeric figure data](https://github.com/yaugenst/treams-rs/raw/79a92e31fc29542ef0de77664ae887ff4eff14e4/benchmarks/papers/thermal-qualification.png)
+![Thermal absorption and directional emission compared with the author's numeric figure data](https://github.com/yaugenst/treams-rs/raw/168d000702447797e459c0ef5fece2e4df9fabe6/benchmarks/papers/thermal-qualification.png)
 
 ```sh
 uv run --no-sync python scripts/papers_thermal.py --samples 300 --convergence \
@@ -160,11 +160,11 @@ uv run --no-sync --with matplotlib python scripts/qualify_papers.py --plot \
 The script checks full spectra, physical inequalities and
 source-data tolerances, and writes its result to the given `--output` file; with
 `--plot` it also writes PNG and SVG figures next to it. The committed result is
-[qualification.json](https://github.com/yaugenst/treams-rs/blob/79a92e31fc29542ef0de77664ae887ff4eff14e4/benchmarks/papers/qualification.json).
+[qualification.json](https://github.com/yaugenst/treams-rs/blob/168d000702447797e459c0ef5fece2e4df9fabe6/benchmarks/papers/qualification.json).
 The JSON includes all grids and values, package versions, and the installed native
 binary and script SHA-256 hashes. Source URLs and hashes are in
-[source-provenance.json](https://github.com/yaugenst/treams-rs/blob/79a92e31fc29542ef0de77664ae887ff4eff14e4/benchmarks/papers/source-provenance.json).
-The compact [author reference tables](https://github.com/yaugenst/treams-rs/blob/79a92e31fc29542ef0de77664ae887ff4eff14e4/benchmarks/papers/ebeam-author-reference.json)
+[source-provenance.json](https://github.com/yaugenst/treams-rs/blob/168d000702447797e459c0ef5fece2e4df9fabe6/benchmarks/papers/source-provenance.json).
+The compact [author reference tables](https://github.com/yaugenst/treams-rs/blob/168d000702447797e459c0ef5fece2e4df9fabe6/benchmarks/papers/ebeam-author-reference.json)
 are exercised by ordinary tests, so the reference checks do not require network
 access. The quick tests in `tests/scripts/test_paper_qualification.py` include
 resonance samples, two original thermal absorption samples and a Hypothesis test

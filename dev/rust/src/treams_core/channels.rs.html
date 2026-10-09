@@ -63,7 +63,7 @@
 <a href=#63 id=63 data-nosnippet>63</a>    planes: usize,
 <a href=#64 id=64 data-nosnippet>64</a>    entries: <span class="kw">impl </span>Fn(usize, usize) -&gt; <span class="prelude-ty">Result</span>&lt;I&gt; + Sync,
 <a href=#65 id=65 data-nosnippet>65</a>) -&gt; <span class="prelude-ty">Result</span>&lt;DMatrix&lt;Complex&gt;&gt; {
-<a href=#66 id=66 data-nosnippet>66</a>    <span class="kw">let </span><span class="kw-2">mut </span>value = DMatrix::zeros(<span class="number">4 </span>* multipoles, planes);
+<a href=#66 id=66 data-nosnippet>66</a>    <span class="kw">let </span><span class="kw-2">mut </span>value = <span class="kw">crate</span>::numerics::zeros(<span class="number">4 </span>* multipoles, planes)<span class="question-mark">?</span>;
 <a href=#67 id=67 data-nosnippet>67</a>    <span class="kw">crate</span>::threads::install(|| {
 <a href=#68 id=68 data-nosnippet>68</a>        value
 <a href=#69 id=69 data-nosnippet>69</a>            .as_mut_slice()

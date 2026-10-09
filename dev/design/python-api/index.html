@@ -3929,7 +3929,7 @@ framework arrays and its mutation rules; see <a href="../adapters/">framework ad
 </ul>
 <h2 id="numpy-ufuncs">NumPy ufuncs<a class="headerlink" href="#numpy-ufuncs" title="Permanent link">&para;</a></h2>
 <p>Every native ufunc follows one rule set, checked by
-<a href="https://github.com/yaugenst/treams-rs/blob/79a92e31fc29542ef0de77664ae887ff4eff14e4/tests/bindings/test_ufunc_contract.py"><code>test_ufunc_contract.py</code></a>: a
+<a href="https://github.com/yaugenst/treams-rs/blob/168d000702447797e459c0ef5fece2e4df9fabe6/tests/bindings/test_ufunc_contract.py"><code>test_ufunc_contract.py</code></a>: a
 vectorized call equals the per-element calls bit for bit. Results do not depend on
 the memory layout of the operands (broadcast, reversed, strided, unaligned or
 Fortran-ordered), on masked or aliased outputs, on the number of threads, or on
