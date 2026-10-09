@@ -458,19 +458,20 @@ impl Lu {
         if let Some((before, _)) = scales {
             shifts = numerics::filled(columns, 0_i32)?;
             for (j, shift) in shifts.iter_mut().enumerate() {
+                // Real and imaginary parts count apart: a large one must not hide a small one.
                 let entries = || {
                     (rhs.as_ref().col(j).iter().zip(before))
-                        .map(|(z, &scale)| (z.re.abs().max(z.im.abs()), scale))
+                        .flat_map(|(z, &scale)| [(z.re.abs(), scale), (z.im.abs(), scale)])
                         .filter(|&(magnitude, _)| magnitude > 0.0)
                 };
-                // The extreme scaled entries, zero or infinite where they leave the range.
+                // The extreme scaled parts, zero or infinite where they leave the range.
                 let (smallest, largest) = entries()
                     .map(|(magnitude, scale)| magnitude * scale)
                     .fold((f64::INFINITY, 0.0_f64), |(low, high), x| {
                         (low.min(x), high.max(x))
                     });
                 if largest > 2.0_f64.powi(960) || smallest < 2.0_f64.powi(-1020) {
-                    // Scaled entries lie in [2^(e - 2), 2^e) for the exponent sums e.
+                    // Scaled parts lie in [2^(e - 2), 2^e) for the exponent sums e.
                     let (low, high) = entries()
                         .map(|(magnitude, scale)| libm::frexp(magnitude).1 + libm::frexp(scale).1)
                         .fold((i32::MAX, i32::MIN), |(low, high), e| {
@@ -1387,14 +1388,22 @@ mod tests {
             // A subnormal right-hand side entry whose row scale makes it normal.
             (2, vec![t, 0.0, 0.0, 1.0], vec![p(-974), h]),
         ];
-        for (n, a, x) in systems {
-            let a = DMatrix::from_row_slice(n, n, &a).map(Complex::from);
-            let x = DMatrix::from_vec(n, 1, x).map(Complex::from);
+        let check = |a: DMatrix<Complex>, x: DMatrix<Complex>| {
             let b = &a * &x;
             assert_eq!(solve_owned(a.clone(), b.clone()).unwrap().value, x);
-            let transposed = solve_owned(a.adjoint(), DMatrix::zeros(n, 1)).unwrap();
+            let transposed = solve_owned(a.adjoint(), DMatrix::zeros(x.nrows(), 1)).unwrap();
             assert_eq!(transposed.adjoint_rhs(b).unwrap(), x);
+        };
+        for (n, a, x) in systems {
+            let a = DMatrix::from_row_slice(n, n, &a).map(Complex::from);
+            check(a, DMatrix::from_vec(n, 1, x).map(Complex::from));
         }
+        // A tiny imaginary part beside a large real one.
+        let a = DMatrix::from_row_slice(2, 2, &[1.0, u, 1.0, -u]).map(Complex::from);
+        check(
+            a,
+            DMatrix::from_vec(2, 1, vec![Complex::from(h), Complex::i()]),
+        );
     }
 
     #[test]
