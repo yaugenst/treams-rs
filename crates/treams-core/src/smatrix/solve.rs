@@ -134,11 +134,12 @@ fn reflection_action(
     result
 }
 
-/// The unrestarted Krylov solve of the operator, or of its adjoint, for a thin batch.
+/// The unrestarted Krylov solve of the operator, or of its adjoint, for a thin batch, or
+/// `None` when it fails numerically and the caller should factor the operator instead.
 fn internal_iteration(
     rhs: &DMatrix<Complex>,
     apply: impl Fn(MatRef<'_, Complex>) -> DMatrix<Complex>,
-) -> Result<DMatrix<Complex>> {
+) -> Result<Option<DMatrix<Complex>>> {
     // One Krylov iteration applies the operator to the entire thin batch.
     // Its total residual is bounded by the smallest nonzero column's tolerance,
     // which also certifies every individual illumination at 8 epsilon.
@@ -148,10 +149,10 @@ fn internal_iteration(
         .filter(|&v| v > 0.0)
         .fold(f64::INFINITY, f64::min);
     if rhs.iter().all(|&z| z == Complex::default()) {
-        return Ok(DMatrix::zeros(rhs.nrows(), rhs.ncols()));
+        return Ok(Some(DMatrix::zeros(rhs.nrows(), rhs.ncols())));
     }
     if !minimum.is_finite() {
-        return Err(Error::Singular);
+        return Ok(None);
     }
     let options = GmresOptions {
         rtol: 0.0,
@@ -159,12 +160,16 @@ fn internal_iteration(
         restart: KRYLOV_STEPS,
         max_iterations: KRYLOV_STEPS,
     };
-    let (answer, _) = gmres(rhs.as_slice(), options, |x| {
+    match gmres(rhs.as_slice(), options, |x| {
         let x_view = MatRef::from_column_major_slice(x, rhs.nrows(), rhs.ncols());
         let result = apply(x_view);
         Ok(Vec::from(result.data))
-    })?;
-    Ok(DMatrix::from_vec(rhs.nrows(), rhs.ncols(), answer))
+    }) {
+        Ok((answer, _)) => Ok(Some(DMatrix::from_vec(rhs.nrows(), rhs.ncols(), answer))),
+        // Memory and input errors propagate instead of reaching a larger dense allocation.
+        Err(error) if error.is_numerical() => Ok(None),
+        Err(error) => Err(error),
+    }
 }
 
 /// Rows from which a certified contraction tries the bounded Krylov solve before
@@ -213,8 +218,8 @@ impl InternalSolve {
         let thin = rhs.nrows() >= min_rows && rhs.ncols() <= ITERATIVE_MAX_COLUMNS;
         let factored = thin && reflections_contract(lower, upper);
         if factored
-            && let Ok(value) =
-                internal_iteration(&rhs, |x| reflection_action(lower, upper, x, false))
+            && let Some(value) =
+                internal_iteration(&rhs, |x| reflection_action(lower, upper, x, false))?
         {
             return Ok(Self {
                 value,
@@ -225,7 +230,7 @@ impl InternalSolve {
         if thin
             && !factored
             && is_contraction(&operator)
-            && let Ok(value) = internal_iteration(&rhs, |x| product_views(view(&operator), x))
+            && let Some(value) = internal_iteration(&rhs, |x| product_views(view(&operator), x))?
         {
             return Ok(Self {
                 value,
@@ -285,8 +290,8 @@ impl InternalSolve {
         let lu = match &self.factor {
             InternalFactor::Lu(lu) => lu,
             InternalFactor::Reflections => {
-                if let Ok(value) =
-                    internal_iteration(&rhs, |x| reflection_action(lower, upper, x, adjoint))
+                if let Some(value) =
+                    internal_iteration(&rhs, |x| reflection_action(lower, upper, x, adjoint))?
                 {
                     return Ok(value);
                 }
@@ -294,14 +299,14 @@ impl InternalSolve {
                 &fallback
             }
             InternalFactor::Krylov(operator) => {
-                if let Ok(value) = internal_iteration(&rhs, |x| {
+                if let Some(value) = internal_iteration(&rhs, |x| {
                     let operator = view(operator);
                     if adjoint {
                         product_views(operator.adjoint(), x)
                     } else {
                         product_views(operator, x)
                     }
-                }) {
+                })? {
                     return Ok(value);
                 }
                 fallback = Lu::new(operator.clone())?;
@@ -362,16 +367,19 @@ mod tests {
         let value = internal_iteration(&rhs, |x| product_views(view(&operator), x)).unwrap();
         let adjoint =
             internal_iteration(&g, |x| product_views(view(&operator).adjoint(), x)).unwrap();
+        let (value, adjoint) = (value.unwrap(), adjoint.unwrap());
         prop_assert_close!(&value, dense.value(), 2e-14 * dense.value().norm());
         let dense_adjoint = dense.adjoint_rhs(g.clone()).unwrap();
         prop_assert_close!(&adjoint, &dense_adjoint, 2e-14 * g.norm());
         let factored = internal_iteration(&rhs, |x| {
             reflection_action(view(&lower), view(&upper), x, false)
         })
+        .unwrap()
         .unwrap();
         let factored_adjoint = internal_iteration(&g, |x| {
             reflection_action(view(&lower), view(&upper), x, true)
         })
+        .unwrap()
         .unwrap();
         prop_assert_close!(&factored, &value, 2e-14 * value.norm());
         prop_assert_close!(&factored_adjoint, &adjoint, 2e-14 * g.norm());

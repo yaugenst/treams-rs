@@ -9,7 +9,7 @@ use super::polarization::{polarization, polarization_jet};
 use crate::{
     Complex, Error, Result,
     numerics::{
-        Jet, finite,
+        self, Jet, finite,
         parallel::{PARALLEL_ENTRIES, try_fill_chunks, try_fold_ordered, try_map},
     },
 };
@@ -289,14 +289,14 @@ pub fn field(
         .zip(&polarizations)
         .map(|(&k, &p)| polarization(k, p, helicity))
         .collect::<Result<_>>()?;
-    let mut value = DMatrix::zeros(
+    let mut value = numerics::zeros(
         3 * points.len(),
         if coefficients.is_some() {
             1
         } else {
             vectors.len()
         },
-    );
+    )?;
     let parallel = points.len() * vectors.len() >= PARALLEL_ENTRIES;
     if let Some(c) = &coefficients {
         try_fill_chunks(value.as_mut_slice(), 3, parallel, |p, out| -> Result<()> {
@@ -324,6 +324,9 @@ pub fn field(
                 Ok(())
             },
         )?;
+    }
+    if value.iter().any(|&v| !finite(v)) {
+        return Err(Error::NonFinite("plane field overflow".into()));
     }
     Ok((
         value,
@@ -387,7 +390,7 @@ impl FieldResidual {
     ) -> Result<DMatrix<Complex>> {
         self.validate_tangents(coefficients, points, vectors)?;
         let (rows, columns) = self.shape();
-        let mut tangent = DMatrix::zeros(rows, columns);
+        let mut tangent = numerics::zeros(rows, columns)?;
         if self.points.is_empty() {
             return Ok(tangent);
         }
@@ -445,6 +448,9 @@ impl FieldResidual {
                     Ok(())
                 },
             )?;
+        }
+        if tangent.iter().any(|&v| !finite(v)) {
+            return Err(Error::NonFinite("plane field tangent overflow".into()));
         }
         Ok(tangent)
     }
@@ -668,10 +674,23 @@ impl ModeSums {
 mod tests {
     use super::{field, phases};
     use crate::{
-        Complex,
+        Complex, Error,
         numerics::parallel::PARALLEL_ENTRIES,
         test_support::{assert_same_bits_on_pools, bits, patterned},
     };
+
+    /// A wave decaying along +z overflows 400 units below the origin, where its phase
+    /// is `exp(800)`. 350 units below, the phase is finite, but a large sample-point
+    /// tangent overflows the pushforward.
+    #[test]
+    fn overflowing_plane_fields_report_nonfinite() {
+        let k = vec![[0.6.into(), 0.0.into(), Complex::new(0.8, 2.0)]];
+        let at = |z| field(k.clone(), vec![0], vec![[0.0, 0.0, z]], None, true, false);
+        assert!(matches!(at(-400.0), Err(Error::NonFinite(_))));
+        let (_, residual) = at(-350.0).unwrap();
+        let tangent = residual.pushforward(&[], &[[0.0, 0.0, 1e10]], &[[0.0.into(); 3]]);
+        assert!(matches!(tangent, Err(Error::NonFinite(_))));
+    }
 
     #[test]
     fn phase_directions_and_gradients_share_one_residual() {

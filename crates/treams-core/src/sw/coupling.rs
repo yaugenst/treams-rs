@@ -149,13 +149,22 @@ pub(crate) fn degrees(
     lambda: i32,
     mu: i32,
     cross: bool,
-) -> impl Iterator<Item = i32> {
+) -> impl ExactSizeIterator<Item = i32> {
     let start = l + lambda - i32::from(cross);
     let end = (lambda - l)
         .abs()
         .saturating_add(i32::from(cross))
         .max((m - mu).abs());
-    (end..=start).rev().step_by(2)
+    // `(end..=start).rev().step_by(2)`, whose length is known.
+    (0..(start - end + 2).max(0) / 2).map(move |k| start - 2 * k)
+}
+
+/// The most [`terms`] from `from` to `to`: one per admitted degree of each selected
+/// kind. Terms of zero weight are left out, so there can be fewer.
+pub(crate) fn term_bound(to: Mode, from: Mode, helicity: bool) -> usize {
+    let Kinds { same, cross } = Kinds::of(to.pol, from.pol, helicity);
+    let count = |kind| degrees(from.l, from.m, to.l, to.m, kind).len();
+    usize::from(same) * count(false) + usize::from(cross) * count(true)
 }
 
 /// Terms `(p, m - mu, weight)` of the translation from source `(l, m)` to destination
@@ -177,7 +186,7 @@ mod tests {
     //! The degree selection rules of the coupling terms against the Lean model.
     //! Identities of the translations themselves are in `properties/waves.rs`.
 
-    use super::{Complex, Mode, Wigner3jRow, degrees, terms, tl_vsw_term};
+    use super::{Complex, Mode, Wigner3jRow, degrees, term_bound, terms, tl_vsw_term};
     use crate::test_support::table;
 
     /// The cases of `formal/Golden.lean`'s `degrees`, in its order: `[l, m, lambda, mu, cross]`.
@@ -246,7 +255,9 @@ mod tests {
                     pol: to_pol,
                 };
                 let admitted = |p, cross| degrees(l, m, lambda, mu, cross).any(|q| q == p);
-                for (p, order, _) in terms(to, from, helicity) {
+                let terms = terms(to, from, helicity);
+                assert!(terms.len() <= term_bound(to, from, helicity));
+                for (p, order, _) in terms {
                     let case = format!("{from:?} -> {to:?}, helicity {helicity}: {p} {order}");
                     assert_eq!(order, m - mu, "{case}");
                     let expected = if helicity {

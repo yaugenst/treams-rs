@@ -6,6 +6,12 @@
   waves, preserving their distinct transverse-wavevector derivatives.
 - Return Ewald accuracy-policy results directly and verify cached spherical
   samples against their lattice points before reuse.
+- Raise `ValueError` for plane-wave fields, plane-wave expansions and their
+  pushforwards that overflow, instead of returning NaN or infinite entries.
+- Raise `MemoryError` instead of aborting when the system refuses the output of
+  a plane-wave field or expansion, a cylindrical-to-spherical or
+  periodic-to-cylindrical expansion, a periodic channel matrix, or the terms of
+  a sphere cluster's translation plan.
 
 ## 0.2.1 (2026-10-08)
 

@@ -165,6 +165,8 @@ The forward operator applies translations directly to these columns, without
 storing dense pair blocks; the physical pullback still uses a temporary
 `M × M` pair cotangent per active worker. The angular translation plan is
 computed once per `lmax` and shared by every pair, so it does not grow with N.
+Its terms grow as `M² lmax` instead, about 1.1 GB at `lmax = 30`, and raise
+`MemoryError` when refused.
 
 The solver recomputes the pair translations in every iteration and keeps no
 Krylov vectors for the adjoint solve. It trades time for memory: a reused dense

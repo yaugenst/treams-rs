@@ -63,7 +63,7 @@ fn channel_matrix<I: Iterator<Item = [Complex; 2]>>(
     planes: usize,
     entries: impl Fn(usize, usize) -> Result<I> + Sync,
 ) -> Result<DMatrix<Complex>> {
-    let mut value = DMatrix::zeros(4 * multipoles, planes);
+    let mut value = crate::numerics::zeros(4 * multipoles, planes)?;
     crate::threads::install(|| {
         value
             .as_mut_slice()

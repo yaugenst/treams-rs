@@ -172,7 +172,7 @@ pub fn to_sw_matrix(
     destination.validate()?;
     source.validate()?;
     validate_wavenumbers(ks, helicity, false)?;
-    let mut value = DMatrix::zeros(destination.modes.len(), source.modes.len());
+    let mut value = crate::numerics::zeros(destination.modes.len(), source.modes.len())?;
     crate::threads::install(|| {
         value
             .as_mut_slice()
