@@ -24,12 +24,12 @@ For 512 weakly scattering spheres, `lmax=1`, one illumination and 3,072 channels
 
 | Host | Method | Fresh solve (s) | Reuse (ms) | Physical pullback (s) | Forward peak RSS (MiB) | Adjoint peak RSS (MiB) |
 |---|---|---:|---:|---:|---:|---:|
-| [Linux](https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/benchmarks/results/illumination-linux-n512-l1-p1.json) | Full T | 0.940 | 2.684 | 1.885 | 640.4 | 1367.7 |
-| [Linux](https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/benchmarks/results/illumination-linux-n512-l1-p1.json) | Selected LU | 0.381 | 4.317 | 0.764 | 351.6 | 861.6 |
-| [Linux](https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/benchmarks/results/illumination-linux-n512-l1-p1.json) | Matrix-free | 0.544 | 541.090 | 0.711 | 44.9 | 45.6 |
-| [Mac](https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/benchmarks/results/illumination-mac-n512-l1-p1.json) | Full T | 2.902 | 2.495 | 6.342 | 690.7 | 1461.0 |
-| [Mac](https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/benchmarks/results/illumination-mac-n512-l1-p1.json) | Selected LU | 0.959 | 6.571 | 0.741 | 367.1 | 919.5 |
-| [Mac](https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/benchmarks/results/illumination-mac-n512-l1-p1.json) | Matrix-free | 0.794 | 854.252 | 1.070 | 41.0 | 42.1 |
+| [Linux](https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/benchmarks/results/illumination-linux-n512-l1-p1.json) | Full T | 0.940 | 2.684 | 1.885 | 640.4 | 1367.7 |
+| [Linux](https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/benchmarks/results/illumination-linux-n512-l1-p1.json) | Selected LU | 0.381 | 4.317 | 0.764 | 351.6 | 861.6 |
+| [Linux](https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/benchmarks/results/illumination-linux-n512-l1-p1.json) | Matrix-free | 0.544 | 541.090 | 0.711 | 44.9 | 45.6 |
+| [Mac](https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/benchmarks/results/illumination-mac-n512-l1-p1.json) | Full T | 2.902 | 2.495 | 6.342 | 690.7 | 1461.0 |
+| [Mac](https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/benchmarks/results/illumination-mac-n512-l1-p1.json) | Selected LU | 0.959 | 6.571 | 0.741 | 367.1 | 919.5 |
+| [Mac](https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/benchmarks/results/illumination-mac-n512-l1-p1.json) | Matrix-free | 0.794 | 854.252 | 1.070 | 41.0 | 42.1 |
 
 On Linux, the selected LU solve is **2.47×** faster than the full T-matrix for
 a fresh solve. The matrix-free physical pullback, the reverse pass that gives
@@ -43,8 +43,8 @@ in six iterations:
 
 | Host | Fresh solve (s) | Physical pullback (s) | Adjoint peak RSS (MiB) | Radius-direction derivative relative error |
 |---|---:|---:|---:|---:|
-| [Linux](https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/benchmarks/results/illumination-linux-n1024-l1-p1.json) | 2.192 | 2.826 | 47.9 | 2.19e-08 |
-| [Mac](https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/benchmarks/results/illumination-mac-n1024-l1-p1.json) | 3.377 | 4.411 | 44.9 | 2.19e-08 |
+| [Linux](https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/benchmarks/results/illumination-linux-n1024-l1-p1.json) | 2.192 | 2.826 | 47.9 | 2.19e-08 |
+| [Mac](https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/benchmarks/results/illumination-mac-n1024-l1-p1.json) | 3.377 | 4.411 | 44.9 | 2.19e-08 |
 
 Dimension 6,144 exceeds the dense limit of 3,072, so this case has no dense
 reference and no same-size dense speedup. True residuals, physical gradient
@@ -59,13 +59,13 @@ Choose the method by memory budget, number of illuminations and convergence.
 The rest of the grid, including the slower matrix-free cases:
 
 - 128 spheres, dipole order, one weak-scattering illumination:
-  [Linux](https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/benchmarks/results/illumination-linux-n128-l1-p1.json),
-  [Mac](https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/benchmarks/results/illumination-mac-n128-l1-p1.json).
+  [Linux](https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/benchmarks/results/illumination-linux-n128-l1-p1.json),
+  [Mac](https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/benchmarks/results/illumination-mac-n128-l1-p1.json).
 - 128 spheres, dipole order, four moderate-scattering illuminations:
-  [Linux](https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/benchmarks/results/illumination-linux-n128-l1-p4-moderate.json),
-  [Mac](https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/benchmarks/results/illumination-mac-n128-l1-p4-moderate.json).
+  [Linux](https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/benchmarks/results/illumination-linux-n128-l1-p4-moderate.json),
+  [Mac](https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/benchmarks/results/illumination-mac-n128-l1-p4-moderate.json).
 - 64 spheres, `lmax=2`, two moderate-scattering illuminations:
-  [Mac](https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/benchmarks/results/illumination-mac-n64-l2-p2-moderate.json).
+  [Mac](https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/benchmarks/results/illumination-mac-n64-l2-p2-moderate.json).
 
 Across the cases with a reference, physical gradients of the different
 treams-rs methods differ by at most `6.58e-11` relative, and outputs differ from

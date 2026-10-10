@@ -3712,7 +3712,7 @@
 <h2 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h2>
 <p>You need CPython 3.12–3.15, <a href="https://docs.astral.sh/uv/">uv</a> 0.12.18 or later
 in the 0.12 series, <a href="https://just.systems/">just</a> and Rust 1.94.0, pinned in
-<a href="https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/rust-toolchain.toml"><code>rust-toolchain.toml</code></a>. Use Python 3.12 or 3.13
+<a href="https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/rust-toolchain.toml"><code>rust-toolchain.toml</code></a>. Use Python 3.12 or 3.13
 for the complete reference suite. From the repository root:</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>sync<span class="w"> </span>--locked<span class="w"> </span>--no-install-project<span class="w"> </span>--group<span class="w"> </span>dev<span class="w"> </span>--extra<span class="w"> </span>jax<span class="w"> </span>--extra<span class="w"> </span>autograd
 just<span class="w"> </span>build-ext
@@ -3746,7 +3746,7 @@ and appear in the test summary; independent tests still run. On 3.12 and
 3.13, a missing treams installation is an error.</p>
 <h2 id="repository-hooks">Repository hooks<a class="headerlink" href="#repository-hooks" title="Permanent link">&para;</a></h2>
 <p><code>uv run --no-sync pre-commit install</code> installs both the <code>pre-commit</code> and
-<code>commit-msg</code> hooks from <a href="https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/.pre-commit-config.yaml"><code>.pre-commit-config.yaml</code></a>.
+<code>commit-msg</code> hooks from <a href="https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/.pre-commit-config.yaml"><code>.pre-commit-config.yaml</code></a>.
 Git worktrees share these hooks. Their first run downloads the hook tools.</p>
 <table>
 <thead>
@@ -3762,7 +3762,7 @@ Git worktrees share these hooks. Their first run downloads the hook tools.</p>
 </tr>
 <tr>
 <td><code>markdownlint-cli2</code></td>
-<td>Markdown formatting with <a href="https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/.markdownlint-cli2.yaml"><code>.markdownlint-cli2.yaml</code></a>; needs Node 22 or newer, which pre-commit downloads if Node is absent</td>
+<td>Markdown formatting with <a href="https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/.markdownlint-cli2.yaml"><code>.markdownlint-cli2.yaml</code></a>; needs Node 22 or newer, which pre-commit downloads if Node is absent</td>
 </tr>
 <tr>
 <td><code>taplo-format</code></td>
@@ -3770,7 +3770,7 @@ Git worktrees share these hooks. Their first run downloads the hook tools.</p>
 </tr>
 <tr>
 <td><code>typos</code></td>
-<td>Spelling, with exceptions in <a href="https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/_typos.toml"><code>_typos.toml</code></a></td>
+<td>Spelling, with exceptions in <a href="https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/_typos.toml"><code>_typos.toml</code></a></td>
 </tr>
 <tr>
 <td><code>commitizen</code></td>
@@ -3787,7 +3787,7 @@ Git worktrees share these hooks. Their first run downloads the hook tools.</p>
 whole repository. Commitizen checks messages; it does not manage versions.
 <code>Cargo.toml</code> sets the package version (<a href="releasing/">releasing</a>). Fix
 generated documentation in its source or in
-<a href="https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/scripts/generate_docs.py"><code>scripts/generate_docs.py</code></a>, then run
+<a href="https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/scripts/generate_docs.py"><code>scripts/generate_docs.py</code></a>, then run
 <code>just docs</code>.</p>
 <h2 id="checks">Checks<a class="headerlink" href="#checks" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>just<span class="w"> </span>ci
@@ -3824,7 +3824,7 @@ used by hosted CI. Use <code>HYPOTHESIS_PROFILE=ci</code> for 100 examples per p
 rustfmt, Clippy, Ruff, Pyrefly and <code>just docs-check</code>. <code>just check-static</code> runs
 all of them except <code>just docs-check</code>, which needs a built extension. Use
 <code>just check</code> while you work and <code>just ci</code> before you open a pull request. The
-<a href="https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/justfile"><code>justfile</code></a> holds the exact commands.</p>
+<a href="https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/justfile"><code>justfile</code></a> holds the exact commands.</p>
 <h2 id="workflows">Workflows<a class="headerlink" href="#workflows" title="Permanent link">&para;</a></h2>
 <p>These are the configured checks; a release needs successful runs for its
 exact source revision, as described in <a href="releasing/">releasing</a>.</p>
@@ -3838,32 +3838,32 @@ exact source revision, as described in <a href="releasing/">releasing</a>.</p>
 </thead>
 <tbody>
 <tr>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/.github/workflows/ci.yml">CI</a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/.github/workflows/ci.yml">CI</a></td>
 <td>pull requests and pushes to <code>main</code></td>
 <td>Python 3.12–3.15, supported dependency bounds, Rust checks, coverage, repository checks, the host release wheel, native wheels, documentation and a history secret scan</td>
 </tr>
 <tr>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/.github/workflows/native-wheels.yml">Native Wheels</a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/.github/workflows/native-wheels.yml">Native Wheels</a></td>
 <td>called by CI and Release Candidate, or by hand</td>
 <td>All <a href="../getting-started/install/#install-from-pypi">supported wheels</a>, installed-wheel checks and a source-distribution rebuild</td>
 </tr>
 <tr>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/.github/workflows/docs.yml">Docs</a></td>
-<td>called by CI, publication and manual <a href="https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/.github/workflows/deploy-docs.yml">Deploy docs</a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/.github/workflows/docs.yml">Docs</a></td>
+<td>called by CI, publication and manual <a href="https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/.github/workflows/deploy-docs.yml">Deploy docs</a></td>
 <td>Strict Material site build and rustdoc; mike maintains <code>dev</code>, released versions and the <code>latest</code> alias, then the complete site is deployed through a GitHub Pages artifact</td>
 </tr>
 <tr>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/.github/workflows/release-candidate.yml">Release Candidate</a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/.github/workflows/release-candidate.yml">Release Candidate</a></td>
 <td>called by Publish Release</td>
 <td>Verify the source revision and build distribution files that cannot change during publication</td>
 </tr>
 <tr>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/.github/workflows/publish-release.yml">Publish Release</a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/.github/workflows/publish-release.yml">Publish Release</a></td>
 <td>repository dispatch with event type <code>release</code></td>
 <td>Build and test the candidate, try it on TestPyPI (advisory), wait for the operator's tag and approval, then publish to PyPI and deploy release documentation</td>
 </tr>
 <tr>
-<td><a href="https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/.github/workflows/formal.yml">Formal</a></td>
+<td><a href="https://github.com/yaugenst/treams-rs/blob/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/.github/workflows/formal.yml">Formal</a></td>
 <td>pull requests and pushes that change <code>formal/</code>, a Rust file with a Lean model, the <code>justfile</code> or the workflow</td>
 <td><code>just formal</code></td>
 </tr>
@@ -3919,7 +3919,7 @@ changing one of those Rust functions, update its Lean definition and run
 <code>just formal</code>. It needs <a href="https://github.com/leanprover/elan">elan</a> and runs
 in its own workflow, not in <code>just ci</code>. <code>cargo test</code> compares <code>cube</code>, <code>degrees</code>
 and <code>harmonics</code> with the Lean output in
-<a href="https://github.com/yaugenst/treams-rs/tree/52a211c3b309cdcdb236c8791e84f114039251b2/formal/golden"><code>formal/golden/</code></a>.</p>
+<a href="https://github.com/yaugenst/treams-rs/tree/3a54b233f9f9c4d32b3e96d7578a7730507be3b2/formal/golden"><code>formal/golden/</code></a>.</p>
 
 
 
