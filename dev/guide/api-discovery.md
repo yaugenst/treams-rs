@@ -59,7 +59,7 @@ for name, text in rules.items():
 
 ## llms.txt
 
-[`llms.txt`](https://github.com/yaugenst/treams-rs/blob/e464d5fea94749223e22fe80c2ba5a53b7426950/llms.txt) at the repository root lists every documentation
+[`llms.txt`](https://github.com/yaugenst/treams-rs/blob/52a211c3b309cdcdb236c8791e84f114039251b2/llms.txt) at the repository root lists every documentation
 page with a one-line summary, in the order of the site navigation. It is for
 programs and language models that read the documentation as Markdown.
 

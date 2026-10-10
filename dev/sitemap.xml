@@ -2,378 +2,378 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/changelog/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/coming-from-treams/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/coming-from-treams/conventions/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/coming-from-treams/differences/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/coming-from-treams/names/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/design/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/design/adapters/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/design/floating-point/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/design/formal-proofs/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/design/numerics/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/design/parallelism/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/design/pullbacks/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/design/python-api/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/development/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/development/architecture/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/development/benchmarks/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/development/documentation/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/development/releasing/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/development/testing/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/differentiation/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/differentiation/choosing-a-mode/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/differentiation/custom-records/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/differentiation/frameworks/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/differentiation/gradient-checks/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/array_spheres/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/array_transmission_gradient/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/band_structure/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/chain/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/cluster/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/crystal/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/cylinder/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/cylindrical_array/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/cylindrical_chain/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/cylindrical_cluster/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/cylindrical_crystal/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/forward_field_sensitivity/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/grating/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/grid/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/reverse_cluster_gradient/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/slab/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/sphere/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/examples/sphere_radius_optimization/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/getting-started/install/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/getting-started/quickstart/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/guide/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/guide/api-discovery/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/guide/clusters/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/guide/io/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/guide/large-clusters/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/guide/numerical-namespaces/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/guide/particles-and-waves/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/guide/periodic/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/guide/planar/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/guide/threads/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/history/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/history/about/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/history/conversations/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/history/messages/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/performance/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/performance/cpu-speedups/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/performance/evidence/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/performance/large-problems/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/performance/platform-comparison/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/glossary/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/rust/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/advect/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/autograd/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/coeffs/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/cw/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/diff/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/ebcm/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/io/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/iterative/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/jax/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/lattice/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/misc/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/native-types/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/operators/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/parallel/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/pw/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/special/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/sw/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/testing/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/torch/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/reference/python/treams_rs/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/rust/static.files/SourceSerif4-LICENSE-a2cfd9d5/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/validation/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/validation/capabilities/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/validation/numerical-limits/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
     <url>
          <loc>https://yaugenst.github.io/treams-rs/dev/validation/published-applications/</loc>
-         <lastmod>2026-10-09</lastmod>
+         <lastmod>2026-10-10</lastmod>
     </url>
 </urlset>
