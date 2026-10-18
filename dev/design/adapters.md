@@ -153,7 +153,7 @@ callback and perform the solve and pullback together in one callback. Asking for
 the value too, or using a squared-output loss, keeps two callbacks in both
 versions; the current bridge then performs one native solve instead of two.
 These callback counts explain the tradeoff, not a universal timing prediction.
-The [final regression measurements](https://github.com/yaugenst/treams-rs/blob/9ba399450320f50dc9648db64d7e453794b6fc64/benchmarks/forward-autodiff-final-20261005.json)
+The [final regression measurements](https://github.com/yaugenst/treams-rs/blob/5d664f96f4609e043983d80a07f3682a24601d2d/benchmarks/forward-autodiff-final-20261005.json)
 retain the small-operation slowdowns alongside the complete physics workflows.
 
 Reusable contexts also keep their recorded matrices intact. Pullbacks allocate
