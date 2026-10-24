@@ -52,7 +52,7 @@ jobs:
         # A hung upload would otherwise be cancelled at the job timeout, which
         # continue-on-error does not cover; a step timeout counts as a failure.
         timeout-minutes: 15
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1
         with:
           packages-dir: dist
           repository-url: https://test.pypi.org/legacy/
@@ -67,7 +67,7 @@ jobs:
           persist-credentials: false
           ref: ${{ needs.candidate.outputs.source_revision }}
 
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
         with:
           enable-cache: false
           version-file: pyproject.toml
@@ -223,7 +223,7 @@ jobs:
           path: dist
 
       - name: Publish distributions with trusted publishing
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1
         with:
           packages-dir: dist
 
@@ -237,7 +237,7 @@ jobs:
           persist-credentials: false
           ref: ${{ needs.candidate.outputs.source_revision }}
 
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
         with:
           enable-cache: false
           version-file: pyproject.toml
