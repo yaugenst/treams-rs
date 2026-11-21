@@ -152,9 +152,9 @@ dependencies = [
 
 [[package]]
 name = "complex-bessel"
-version = "0.3.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ec6688beb0cb7bbc135ffc88b928e96c546ee757e6fc31e06dfb6f32de17fea"
+checksum = "2e9e8ac97245e639d595c6124d1b26d9fb43cd2f551f959f3b6b0960848b8b4e"
 dependencies = [
  "num-complex",
  "num-traits",
