@@ -48,7 +48,7 @@ jobs:
         with:
           toolchain: 1.94.0
 
-      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           enable-cache: true
           version-file: pyproject.toml
@@ -113,7 +113,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           version-file: pyproject.toml
 
@@ -212,7 +212,7 @@ jobs:
           toolchain: 1.94.0
           components: clippy, rustfmt
 
-      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           enable-cache: true
           version-file: pyproject.toml
@@ -261,7 +261,7 @@ jobs:
         with:
           toolchain: 1.94.0
 
-      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           enable-cache: true
           version-file: pyproject.toml
@@ -297,7 +297,7 @@ jobs:
         with:
           toolchain: 1.94.0
 
-      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           enable-cache: true
           version-file: pyproject.toml
@@ -395,7 +395,7 @@ jobs:
         with:
           toolchain: 1.94.0
 
-      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           enable-cache: true
           version-file: pyproject.toml
@@ -513,7 +513,7 @@ jobs:
         run: cargo doc --locked --workspace --no-deps
 
       # The bundle includes the pinned toolchain's standard-library notices.
-      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         if: matrix.rust-version == '1.94.0'
         with:
           version-file: pyproject.toml
@@ -526,7 +526,7 @@ jobs:
 
       - name: Check dependency policy
         if: matrix.rust-version == 'stable'
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        uses: EmbarkStudios/cargo-deny-action@70f81531115945ba6eb6b941ec9d39d063438eb9 # v2.1.2
         with:
           command: check
           command-arguments: -W unmaintained
